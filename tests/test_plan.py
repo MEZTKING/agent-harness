@@ -263,3 +263,17 @@ def test_commands_through_the_hub(tmp_path):
     assert orch.project.meta()["status"] == "done"
     assert any("The run ended as: done" in r["body"] for r in hub.inbox("me", unread_only=True))
     assert process(orch.cfg, hub, log=lambda s: None) == 0  # each command runs once
+
+
+def test_revisions_carry_answers_by_wording_not_id():
+    old = plandoc.doc_from_submission(DOC, "g", 0)
+    old["ideas"][0]["state"] = "accepted"
+    old["decisions"][0]["chosen"] = "b"
+    old["questions"][0]["answer"] = "Crumbs & Co"
+    sub = json.loads(json.dumps(DOC))
+    sub["ideas"] = [{"id": "I1", "text": "a loyalty card"}]  # same id, different idea
+    sub["decisions"][0]["options"] = [{"id": "x", "label": "Watercolour"}, {"id": "y", "label": "Pixel art"}]
+    new = plandoc.carry_over(plandoc.doc_from_submission(sub, "g", 0), old)
+    assert new["ideas"][0]["state"] == "open"
+    assert new["decisions"][0]["chosen"] == "x"  # the owner's Watercolour, under its new id
+    assert new["questions"][0]["answer"] == "Crumbs & Co"

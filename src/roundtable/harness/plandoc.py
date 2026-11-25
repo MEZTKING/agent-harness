@@ -74,19 +74,31 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
 
 
 def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
-    """Keep the owner's choices, answers, own don'ts and idea decisions across a revision."""
-    chosen = {d["id"]: d.get("chosen") for d in old.get("decisions", [])}
+    """Keep the owner's choices, answers, own don'ts and idea decisions across a revision.
+
+    Matched by the item's wording, not its id: a planner may reuse "I1" for a different idea.
+    """
+    norm = lambda t: " ".join(str(t).lower().split())  # noqa: E731
+    chosen = {norm(d["question"]): d for d in old.get("decisions", []) if d.get("chosen")}
     for d in new["decisions"]:
-        if chosen.get(d["id"]) and any(o["id"] == chosen[d["id"]] for o in d["options"]):
-            d["chosen"] = chosen[d["id"]]
-    answers = {q["id"]: q.get("answer", "") for q in old.get("questions", [])}
+        prev = chosen.get(norm(d["question"]))
+        if prev:
+            label = next((o["label"] for o in prev["options"] if o["id"] == prev["chosen"]), None)
+            match = next((o["id"] for o in d["options"] if norm(o["label"]) == norm(label or "")), None)
+            if match:
+                d["chosen"] = match
+    answers = {norm(q["text"]): q.get("answer", "") for q in old.get("questions", [])}
     for q in new["questions"]:
-        q["answer"] = q.get("answer") or answers.get(q["id"], "")
-    texts = {x["text"] for x in new["dont"]}
-    new["dont"] += [x for x in old.get("dont", []) if x.get("by") == "owner" and x["text"] not in texts]
-    states = {i["id"]: i.get("state", "open") for i in old.get("ideas", [])}
+        q["answer"] = q.get("answer") or answers.get(norm(q["text"]), "")
+    texts = {norm(x["text"]) for x in new["dont"]}
+    new["dont"] += [x for x in old.get("dont", []) if x.get("by") == "owner" and norm(x["text"]) not in texts]
+    states = {norm(i["text"]): i.get("state", "open") for i in old.get("ideas", [])}
     for i in new["ideas"]:
-        i["state"] = states.get(i["id"], "open")
+        i["state"] = states.get(norm(i["text"]), "open")
+    used = {i["id"] for i in new["ideas"]} | {x["id"] for x in new["dont"]}
+    if len(used) < len(new["ideas"]) + len(new["dont"]):  # an owner's don't may clash with a new id
+        for n, x in enumerate(new["dont"]):
+            x["id"] = f"D{n + 1}"
     new["version"] = old.get("version", 1) + 1
     new["history"] = old.get("history", [])
     new["critique"] = old.get("critique")
