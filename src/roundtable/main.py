@@ -17,6 +17,10 @@ Projects (the harness: the best model for each role, working together):
     roundtable feedback DIR TASK --good|--bad ["note"]
     roundtable roles | ask ROLE "prompt" | image ROLE "prompt"
 
+Providers (any AI API):
+    roundtable providers presets | list | add PRESET | remove ID | test ID | models ID
+    roundtable assign ROLE provider/model [fallback ...]   which model does a role
+
 Models & self-improvement:
     roundtable probe [--role R] [--images]   regression / boost detector
     roundtable improve analyze|propose|list|show|test|apply|reject|rollback|status|cycle
@@ -40,7 +44,7 @@ import sys
 HUB_COMMANDS = {"where", "log", "todo", "close", "session", "history", "agents", "cards", "card", "send",
                 "inbox", "reply", "thread", "subscribe", "mcp", "ui"}
 HARNESS_COMMANDS = {"new", "run", "extend", "approve", "status", "retry", "skip", "metrics", "feedback", "roles",
-                    "ask", "image", "probe", "improve"}
+                    "ask", "image", "probe", "improve", "providers", "assign"}
 VALUE_FLAGS = {"--config", "--agent"}
 
 

@@ -76,6 +76,19 @@ class AnthropicProvider(Provider):
         except Exception as e:  # missing credentials etc.
             raise ProviderError(f"anthropic: could not create client ({e}); set {api_key_env}") from e
 
+    def list_models(self) -> list[str]:
+        a = self._anthropic
+        try:
+            return sorted(m.id for m in self.client.models.list())
+        except a.AuthenticationError as e:
+            raise ProviderError(f"anthropic: authentication failed - check your API key ({e.message})") from e
+        except a.APIStatusError as e:
+            raise ProviderError(f"anthropic: API error {e.status_code} ({e.message})") from e
+        except a.APIConnectionError as e:
+            raise ProviderError(f"anthropic: connection error ({e})", retryable=True) from e
+        except TypeError as e:
+            raise ProviderError("anthropic: no credentials - set ANTHROPIC_API_KEY") from e
+
     def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None) -> ChatResponse:
         a = self._anthropic
         options = options or {}

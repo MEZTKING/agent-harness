@@ -44,19 +44,41 @@ def _to_openai_messages(system: str, messages: list[dict[str, Any]], provider_id
     return out
 
 
-def _client(api_key_env: str | None, base_url: str | None, timeout: float):
+def _expand(value: str) -> str:
+    """Expand ${ENV_VAR} references in configured header/query values."""
+    return os.path.expandvars(str(value))
+
+
+def _client(api_key_env: str | None, base_url: str | None, timeout: float, auth_header: str | None = None,
+            auth_prefix: str = "", headers: dict | None = None, query: dict | None = None):
+    """An OpenAI SDK client for any OpenAI-compatible API.
+
+    auth_header: send the key in this header instead of `Authorization: Bearer`
+                 (e.g. Azure OpenAI uses `api-key`); auth_prefix goes before the key.
+    headers/query: extra headers / URL query parameters (values may use ${ENV_VAR}).
+    """
     import openai
 
     key = os.environ.get(api_key_env) if api_key_env else None
-    # Some setups inject credentials at a proxy; the SDK still insists on a value.
-    return openai, openai.OpenAI(api_key=key or "not-set", base_url=base_url, timeout=timeout, max_retries=3)
+    default_headers = {k: _expand(v) for k, v in (headers or {}).items()}
+    if auth_header and key:
+        default_headers[auth_header] = f"{auth_prefix}{key}"
+        key = None  # don't also send it as a Bearer token
+    # Some setups inject credentials at a proxy (or need none, e.g. Ollama); the SDK insists on a value.
+    return openai, openai.OpenAI(api_key=key or "not-set", base_url=base_url, timeout=timeout, max_retries=3,
+                                 default_headers=default_headers or None,
+                                 default_query={k: _expand(v) for k, v in (query or {}).items()} or None)
+
+
+def list_openai_models(openai, client, provider_id: str) -> list[str]:
+    return _wrap_errors(openai, provider_id, "-", None, lambda: sorted(m.id for m in client.models.list()))
 
 
 def _wrap_errors(openai, provider_id: str, model: str, api_key_env: str | None, fn):
     try:
         return fn()
     except openai.AuthenticationError as e:
-        raise ProviderError(f"{provider_id}: authentication failed - set {api_key_env} ({e.message})") from e
+        raise ProviderError(f"{provider_id}: authentication failed - check the API key{(' (' + api_key_env + ')') if api_key_env else ''} ({e.message})") from e
     except openai.NotFoundError as e:
         raise ProviderError(f"{provider_id}: model or endpoint not found: {model} ({e.message})") from e
     except openai.BadRequestError as e:
@@ -76,10 +98,14 @@ class OpenAICompatProvider(Provider):
         api_key_env: str | None = "OPENAI_API_KEY",
         base_url: str | None = None,
         timeout: float = 600.0,
+        **client_opts,
     ):
         self.name = provider_id
         self.api_key_env = api_key_env
-        self._openai, self.client = _client(api_key_env, base_url, timeout)
+        self._openai, self.client = _client(api_key_env, base_url, timeout, **client_opts)
+
+    def list_models(self) -> list[str]:
+        return list_openai_models(self._openai, self.client, self.name)
 
     def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None) -> ChatResponse:
         options = options or {}
@@ -145,10 +171,15 @@ class OpenAICompatProvider(Provider):
 class OpenAIImagesProvider(ImageProvider):
     """OpenAI Images API (e.g. gpt-image-1). Works with any API exposing /images/generations."""
 
-    def __init__(self, provider_id: str, api_key_env: str | None = "OPENAI_API_KEY", base_url: str | None = None, timeout: float = 600.0):
+    def __init__(self, provider_id: str, api_key_env: str | None = "OPENAI_API_KEY", base_url: str | None = None,
+                 timeout: float = 600.0, **client_opts):
         self.name = provider_id
         self.api_key_env = api_key_env
-        self._openai, self.client = _client(api_key_env, base_url, timeout)
+        self._openai, self.client = _client(api_key_env, base_url, timeout, **client_opts)
+
+    def list_models(self) -> list[str]:
+        return [m for m in list_openai_models(self._openai, self.client, self.name) if "image" in m or "dall" in m] \
+            or list_openai_models(self._openai, self.client, self.name)
 
     def generate(self, model, prompt, options=None):
         import base64

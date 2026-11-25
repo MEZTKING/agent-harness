@@ -324,6 +324,50 @@ roundtable image designer "a knight with a blue cape" --style rd_lite__platforme
 roundtable image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
 ```
 
+### Adding any provider
+
+**In the app:** Settings → **AI providers** → pick one → paste the key → **Add provider**. It's tested right away, and **Models** lists everything that provider offers. Then use **Which model does what** to give any role any model, with fallbacks.
+
+**From the terminal:**
+
+```bash
+roundtable providers presets                  # ~20 built in: OpenAI, Gemini, xAI, Mistral, DeepSeek, OpenRouter,
+                                              # Groq, Together, Fireworks, Cerebras, Cohere, Qwen, Kimi, Perplexity,
+                                              # Ollama/LM Studio (local), Retro Diffusion, OpenAI images...
+roundtable providers add groq                 # then set GROQ_API_KEY (or paste it in the app)
+roundtable providers test groq                # checks the key and lists the provider's models
+roundtable providers models openrouter        # every model a provider offers
+roundtable assign coder groq/<model> deepseek/deepseek-v4-pro   # primary, then fallbacks
+```
+
+**Anything else:**
+- **Any OpenAI-compatible API** (vLLM, LiteLLM, a company gateway, Azure OpenAI…):
+
+  ```bash
+  roundtable providers add custom --id mygw --base-url https://gw.example.com/v1
+  roundtable providers add custom --id azure --base-url https://RES.openai.azure.com/openai/v1/ \
+      --auth-header api-key --query api-version=preview
+  ```
+  `--header NAME=VALUE` adds extra headers. Values can use `${ENV_VAR}`.
+- **Anthropic-compatible APIs:** use `type: anthropic` with a `base_url`.
+- **Completely different APIs:** write a small plugin and put it in `plugins/` next to `harness.yaml` (in the app: `%APPDATA%\RoundtableHold\config\plugins`):
+
+  ```python
+  # plugins/myapi.py
+  from roundtable.providers.base import ChatResponse, Provider, Usage
+
+  class MyAPI(Provider):
+      def __init__(self, name, endpoint="https://..."):
+          self.name, self.endpoint = name, endpoint
+      def list_models(self):
+          return ["my-model"]
+      def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None):
+          ...  # call your API, return ChatResponse(text=..., usage=Usage(in_tokens, out_tokens))
+  ```
+  Then run `roundtable providers add plugin --id myapi --class myapi.py:MyAPI`. Image APIs subclass `ImageProvider` and implement `generate()`. Plugins are your own code and run with full access.
+
+Everything added this way goes into **`custom.yaml`** next to `harness.yaml`, which is never rewritten. Delete a line there to undo it.
+
 ### Commands
 
 ```bash
