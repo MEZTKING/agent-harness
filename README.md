@@ -13,7 +13,21 @@ roundtable new mygame "A pixel-art platformer in the browser" --approve
 roundtable ui              # the same, in a web UI
 ```
 
-### Try it on your computer (10 minutes)
+### Windows app (easiest)
+
+1. Download **`RoundtableHold-Setup-<version>.exe`** from the [Releases page](https://github.com/MEZTKING/agent-harness/releases/latest).
+2. Run it. It installs for your user only (no admin needed), with a Start-menu entry and a desktop icon. If Windows SmartScreen says "Windows protected your PC", click **More info → Run anyway**. The app isn't code-signed yet, which is why it asks.
+3. Roundtable Hold opens in its own window with a **setup** screen:
+   - paste your API keys (saved in Windows Credential Manager);
+   - optionally connect your `agent-hub-data` repo for sync (needs [Git for Windows](https://git-scm.com/download/win));
+   - click **Start**.
+4. Everything can be changed later under **Settings**: keys, the hub, which model does which role, prices and limits.
+
+The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
+
+### From the terminal (any OS)
+
+#### Try it on your computer (10 minutes)
 
 You need Python 3.10+ and git.
 

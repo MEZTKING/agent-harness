@@ -68,6 +68,7 @@ const section = (title, ...kids) => h("div", { class: "card" }, h("div", { class
 // ---------- state & routing ----------
 let OV = null;          // overview
 let timer = null;       // auto-refresh timer for the current view
+let setupChecked = false;
 function route() { const p = (location.hash || "#/where").slice(2).split("?")[0].split("/"); return [p[0] || "where", ...p.slice(1).map(decodeURIComponent)]; }
 function setActive(name) {
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === name ||
@@ -84,7 +85,11 @@ async function render(auto = false) {
     const badge = document.getElementById("jobs-badge");
     badge.hidden = !OV.running_jobs; badge.textContent = OV.running_jobs;
     document.getElementById("nav-foot").textContent = OV.hub ? `hub: ${OV.hub_path}` : "";
-    const views = { where: viewWhere, projects: viewProjects, project: viewProject, messages: viewMessages,
+    if (!setupChecked) {  // first launch of the desktop app: go to setup
+      setupChecked = true;
+      try { const st = await api("GET", "/api/setup"); if (st.desktop && !st.setup_done && view !== "setup") { location.hash = "#/setup"; return; } } catch { /* ignore */ }
+    }
+    const views = { setup: viewSetup, settings: viewSettings, where: viewWhere, projects: viewProjects, project: viewProject, messages: viewMessages,
       runs: viewRuns, run: viewRun, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
     const node = await (views[view] || viewWhere)(...args);
     const typing = document.activeElement && $main().contains(document.activeElement) && document.activeElement.value;
@@ -447,6 +452,85 @@ async function viewJob(id) {
     j.error ? h("div", { class: "card", style: "border-color:var(--bad)" }, j.error) : null,
     section("Log", h("pre", { class: "log" }, j.log.join("\n") || "…")),
     j.result && typeof j.result === "object" && !Array.isArray(j.result) ? section("Result", h("pre", {}, JSON.stringify(j.result, null, 2))) : null);
+}
+
+// ---------- setup & settings ----------
+function keysCard(st) {
+  const form = h("form", { class: "stack", onsubmit: async (ev) => {
+    ev.preventDefault();
+    const keys = {};
+    form.querySelectorAll("input[data-key]").forEach((i) => { if (i.value.trim()) keys[i.dataset.key] = i.value.trim(); });
+    if (!Object.keys(keys).length) return toast("Paste at least one key", true);
+    await act(() => api("POST", "/api/setup/keys", { keys }), "Keys saved");
+  } },
+  st.keys.map((k) => h("div", { class: "row" },
+    h("span", { style: "width:210px" }, k.label, " ", k.set ? h("span", { class: "pill good" }, "saved") : h("span", { class: "pill" }, "not set")),
+    h("input", { type: "password", class: "grow", "data-key": k.name, placeholder: k.set ? "•••••••• (paste a new key to replace it)" : `paste your ${k.label} API key`, autocomplete: "off", disabled: !st.desktop }),
+    k.set && st.desktop ? h("button", { type: "button", class: "icon danger", onclick: () => { if (confirm(`Remove the ${k.label} key?`)) act(() => api("POST", "/api/setup/keys", { keys: { [k.name]: "" } }), "Key removed"); } }, "Remove") : null)),
+  st.desktop ? h("div", { class: "row" }, h("button", { class: "primary" }, "Save keys"),
+    h("span", { class: "muted small" }, st.secure_keys ? "Stored in your system's credential manager (Windows Credential Manager), never in plain files." : "Stored in a private file in your Roundtable Hold folder.")) :
+    h("p", { class: "muted small" }, "Running from the terminal: keys come from environment variables (ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, …)."));
+  return section("API keys", h("p", { class: "muted small" }, "Only the providers you use need a key. You can change these any time in Settings."), form);
+}
+
+function hubCard(st) {
+  const url = field("url", { class: "grow", placeholder: "https://github.com/you/agent-hub-data" });
+  const connect = async () => {
+    const j = await act(() => api("POST", "/api/setup/hub", { mode: "github", url: url.value }), "Connecting…");
+    if (j && j.id) location.hash = `#/job/${j.id}`;
+  };
+  return section("Your hub (projects, journal, messages)",
+    h("p", {}, "Now: ", st.hub.mode === "git" ? h("span", { class: "pill good" }, "synced with GitHub") : st.hub.mode === "file" ? h("span", { class: "pill info" }, "this computer only") : h("span", { class: "pill bad" }, "not set up"),
+      st.hub.where ? h("span", { class: "muted small" }, " · " + st.hub.where) : null),
+    st.hub.error ? h("p", { class: "small", style: "color:var(--bad)" }, st.hub.error) : null,
+    st.desktop ? [
+      h("p", { class: "muted small" }, "Sync with a GitHub repository (like your agent-hub-data) to share your journal and projects with every computer and Claude session."),
+      st.git ? h("div", { class: "row" }, url, h("button", { class: "primary", onclick: connect }, "Connect"))
+        : h("p", { class: "small" }, "GitHub sync needs Git: install ", h("a", { href: "https://git-scm.com/download/win", target: "_blank", rel: "noopener" }, "Git for Windows"), ", then reopen Roundtable Hold. Until then everything works on this computer only."),
+      st.hub.mode === "git" ? h("div", { class: "row", style: "margin-top:8px" }, h("button", { onclick: () => { if (confirm("Stop syncing and keep the hub on this computer only?")) act(() => api("POST", "/api/setup/hub", { mode: "local" }), "Hub is now local"); } }, "Use this computer only")) : null,
+    ] : h("p", { class: "muted small" }, `Configured in ${st.config_paths.hub}.`));
+}
+
+async function viewSetup() {
+  const st = await api("GET", "/api/setup");
+  const projects = field("projects_dir", { class: "grow", value: st.projects_dir });
+  const me = st.agents.length ? select("agent", st.agents, st.agent || st.agents[0]) : null;
+  return h("div", {},
+    h("h1", {}, "Welcome to Roundtable Hold"),
+    h("p", { class: "sub" }, "Three quick steps and you're ready: add your API keys, connect your hub, pick a projects folder."),
+    keysCard(st), hubCard(st),
+    section("Finish",
+      h("div", { class: "row" }, h("span", { style: "width:210px" }, "Projects folder"), projects),
+      me ? h("div", { class: "row", style: "margin-top:8px" }, h("span", { style: "width:210px" }, "You are"), me, h("span", { class: "muted small" }, "(your identity in the hub)")) : null,
+      h("div", { class: "row", style: "margin-top:12px" },
+        h("button", { class: "primary", onclick: async () => {
+          await api("POST", "/api/setup/done", { projects_dir: projects.value, agent: me ? me.value : null });
+          toast("All set!"); location.hash = "#/where";
+        } }, "Start using Roundtable Hold"),
+        h("button", { onclick: async () => { const j = await act(() => api("POST", "/api/probes", {}), "Checking your models…"); if (j && j.id) location.hash = `#/job/${j.id}`; } }, "Check my models first"))));
+}
+
+async function viewSettings() {
+  const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
+  const editor = async (which) => {
+    const c = await api("GET", `/api/config?which=${which}`);
+    const ta = h("textarea", { style: "min-height:320px;font-family:ui-monospace,monospace;font-size:12px" }, c.text);
+    return h("details", {}, h("summary", {}, `${which}.yaml`, h("span", { class: "muted small" }, ` · ${c.path}`)),
+      h("p", { class: "muted small" }, which === "harness" ? "Providers, which model does which role, prices, limits." : "Projects (agents) and who may read or message whom."),
+      ta, h("div", { class: "row" }, h("button", { class: "primary", onclick: () => act(() => api("POST", "/api/config", { which, text: ta.value }), (r) => `Saved (backup: ${r.backup})`) }, "Save"),
+        h("span", { class: "muted small" }, "Checked before saving; a backup of the old file is kept.")));
+  };
+  const editors = await Promise.all(["harness", "hub"].map(editor));
+  return h("div", {}, h("h1", {}, "Settings"),
+    h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
+    keysCard(st), hubCard(st),
+    section("Models, roles and limits", editors),
+    section("Updates",
+      h("p", {}, upd.message || upd.error || "…"),
+      h("div", { class: "row" },
+        h("button", { class: "primary", disabled: !upd.available, onclick: async () => { const j = await act(() => api("POST", "/api/update", {}), "Updating…"); if (j && j.id) location.hash = `#/job/${j.id}`; } }, upd.available ? "Install update" : "Up to date"),
+        h("button", { onclick: () => render() }, "Check again"))),
+    st.desktop ? section("Setup", h("button", { onclick: () => (location.hash = "#/setup") }, "Run the setup again")) : null);
 }
 
 // ---------- updater banner (checked once per page load) ----------

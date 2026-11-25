@@ -26,6 +26,7 @@ Everything else:
     roundtable init                       write starter hub.yaml and harness.yaml
     roundtable update [--check] [--ref BRANCH] [--force]   built-in updater
     roundtable version
+    roundtable app                        open the desktop app (window) from a source install
 
 Options: --config FILE (hub.yaml for hub commands, harness.yaml for project commands;
 defaults $HUB_CONFIG / $HARNESS_CONFIG), --agent PROJECT (hub identity, default $HUB_AGENT).
@@ -68,6 +69,10 @@ def main(argv: list[str] | None = None) -> None:
         return _init(argv)
     if cmd in ("update", "version"):
         return _update(argv, cmd)
+    if cmd == "app":
+        from .desktop import main as app_main
+
+        return sys.exit(app_main([a for a in argv if a != "app"]))
     try:
         if cmd in HUB_COMMANDS:
             from .cli import main as hub_main

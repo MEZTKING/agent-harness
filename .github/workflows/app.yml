@@ -1,0 +1,84 @@
+name: Windows app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # attach the installer to releases
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Git identity for tests
+        run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@localhost"
+          git config --global init.defaultBranch main
+      - name: Run tests
+        run: python -m pytest -q
+
+  windows-app:
+    name: Build Windows installer
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: pip install -e ".[desktop]" pyinstaller
+      - name: Version
+        id: version
+        shell: bash
+        run: echo "value=$(python -c 'import roundtable; print(roundtable.__version__)')" >> "$GITHUB_OUTPUT"
+      - name: Build app
+        run: pyinstaller packaging/roundtable.spec --noconfirm
+      - name: Self-test the built app
+        shell: pwsh
+        run: |
+          $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-built"
+          $p = Start-Process -FilePath dist\RoundtableHold\RoundtableHold.exe -ArgumentList "--self-test" -Wait -PassThru
+          Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.value }}" packaging\installer.iss
+      - name: Install silently and self-test the installed app
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\RoundtableHold-Setup-*.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$env:RUNNER_TEMP\rt-install" -Wait
+          Get-Process RoundtableHold -ErrorAction SilentlyContinue | Stop-Process -Force
+          $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-installed"
+          $p = Start-Process -FilePath "$env:RUNNER_TEMP\rt-install\RoundtableHold.exe" -ArgumentList "--self-test" -Wait -PassThru
+          Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
+          if ($p.ExitCode -ne 0) { throw "installed app self-test failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RoundtableHold-Setup-${{ steps.version.outputs.value }}
+          path: dist/RoundtableHold-Setup-*.exe
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/RoundtableHold-Setup-*.exe
+          generate_release_notes: true
