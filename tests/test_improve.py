@@ -3,13 +3,13 @@ import json
 import pytest
 import yaml
 
-from agentharness.harness.config import load_config, parse_config
-from agentharness.harness.orchestrator import Orchestrator
-from agentharness.improve.analysis import analyze, collect, rule_proposals
-from agentharness.improve.evaluate import EvalError, evaluate, find_base_commit
-from agentharness.improve.lab import Lab, Proposal
-from agentharness.improve.loop import cycle
-from agentharness.providers.scripted import ScriptedImages, ScriptedProvider, reply
+from roundtable.harness.config import load_config, parse_config
+from roundtable.harness.orchestrator import Orchestrator
+from roundtable.improve.analysis import analyze, collect, rule_proposals
+from roundtable.improve.evaluate import EvalError, evaluate, find_base_commit
+from roundtable.improve.lab import Lab, Proposal
+from roundtable.improve.loop import cycle
+from roundtable.providers.scripted import ScriptedImages, ScriptedProvider, reply
 
 from .test_harness import RAW, Brain, tool_names
 
@@ -223,7 +223,7 @@ def test_cycle_with_tests_and_llm_analyst(tmp_path):
 
 
 def test_owner_feedback_is_collected(tmp_path, capsys):
-    from agentharness.harness_cli import main
+    from roundtable.harness_cli import main
 
     cfg, lab = make_cfg(tmp_path)
     run_projects(cfg, tmp_path, 1)
@@ -234,7 +234,7 @@ def test_owner_feedback_is_collected(tmp_path, capsys):
 
 
 def test_owner_propose_cli(tmp_path, capsys):
-    from agentharness.harness_cli import main
+    from roundtable.harness_cli import main
 
     raw = json.loads(json.dumps(RAW))
     (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw))

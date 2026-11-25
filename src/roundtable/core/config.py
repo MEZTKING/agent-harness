@@ -1,6 +1,6 @@
 """Loading ``hub.yaml``.
 
-Lookup order: explicit path > $HUB_CONFIG > ./hub.yaml > ~/.agent-hub/hub.yaml
+Lookup order: explicit path > $HUB_CONFIG > ./hub.yaml > ~/.roundtable/hub.yaml > ~/.agent-hub/hub.yaml
 Relative storage paths are resolved against the config file's directory.
 """
 
@@ -41,12 +41,12 @@ class HubConfig:
 
 
 def find_config(explicit: str | None = None) -> Path:
-    candidates = [explicit, os.environ.get("HUB_CONFIG"), "hub.yaml", "~/.agent-hub/hub.yaml"]
+    candidates = [explicit, os.environ.get("HUB_CONFIG"), "hub.yaml", "~/.roundtable/hub.yaml", "~/.agent-hub/hub.yaml"]
     for c in candidates:
         if c and Path(c).expanduser().is_file():
             return Path(c).expanduser().resolve()
     raise FileNotFoundError(
-        "No hub config found. Pass --config, set HUB_CONFIG, or run `agent-hub init`."
+        "No hub config found. Pass --config, set HUB_CONFIG, or run `roundtable init`."
     )
 
 

@@ -1,26 +1,26 @@
-"""`agent-hub` command line.
+"""Hub & journal commands (`roundtable where/log/send/...`; also available as `agent-hub`).
 
-    agent-hub init                       create hub.yaml + data dir
-    agent-hub agents                     list agents and permissions
-    agent-hub cards                      overview of all readable cards
-    agent-hub card show [AGENT]          full card (default: yourself)
-    agent-hub card set --summary ... --change "what changed"
-    agent-hub card refresh-git [--repo-path .]
-    agent-hub send TO[,TO] "subject" "body" [--kind ask]
-    agent-hub inbox [--all] [--mark-read]
-    agent-hub reply MSG_ID "body"
-    agent-hub thread THREAD_ID
-    agent-hub subscribe AGENT [--off]
-    agent-hub mcp                        run the MCP server (stdio)
-    agent-hub ui [--port 8765]           web UI (journal, projects, messages, harness runs, models, improve)
+    roundtable init                       create hub.yaml + data dir
+    roundtable agents                     list agents and permissions
+    roundtable cards                      overview of all readable cards
+    roundtable card show [AGENT]          full card (default: yourself)
+    roundtable card set --summary ... --change "what changed"
+    roundtable card refresh-git [--repo-path .]
+    roundtable send TO[,TO] "subject" "body" [--kind ask]
+    roundtable inbox [--all] [--mark-read]
+    roundtable reply MSG_ID "body"
+    roundtable thread THREAD_ID
+    roundtable subscribe AGENT [--off]
+    roundtable mcp                        run the MCP server (stdio)
+    roundtable ui [--port 8765]           web UI (journal, projects, messages, harness runs, models, improve)
 
   Journal ("where was I"):
-    agent-hub where [AGENT]              briefing: last session, next steps, open todos, plans
-    agent-hub log done|todo|plan|decision|note "text" [--priority high]
-    agent-hub todo [AGENT] [--plans]     open todos (and plans)
-    agent-hub close ID [--drop] [--note]  finish (or drop) a todo / plan
-    agent-hub session "what I did" --next "step" --next "step"   end-of-session handoff
-    agent-hub history [AGENT] [--kind K] [--limit N]
+    roundtable where [AGENT]              briefing: last session, next steps, open todos, plans
+    roundtable log done|todo|plan|decision|note "text" [--priority high]
+    roundtable todo [AGENT] [--plans]     open todos (and plans)
+    roundtable close ID [--drop] [--note]  finish (or drop) a todo / plan
+    roundtable session "what I did" --next "step" --next "step"   end-of-session handoff
+    roundtable history [AGENT] [--kind K] [--limit N]
 
 Identity: --agent or $HUB_AGENT.  Config: --config or $HUB_CONFIG or ./hub.yaml
 """
@@ -54,9 +54,9 @@ def cmd_init(args) -> None:
     target = Path(args.path)
     if target.exists() and not args.force:
         sys.exit(f"error: {target} exists (use --force to overwrite)")
-    template = resources.files("agentharness").joinpath("templates/hub.example.yaml").read_text()
+    template = resources.files("roundtable").joinpath("templates/hub.example.yaml").read_text()
     target.write_text(template, encoding="utf-8")
-    print(f"wrote {target}. Edit the agents and rules, then try: agent-hub --agent <id> cards")
+    print(f"wrote {target}. Edit the agents and rules, then try: roundtable --agent <id> cards")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--config", default=argparse.SUPPRESS, help="path to hub.yaml")
     common.add_argument("--agent", default=argparse.SUPPRESS, help="act as this agent id (default $HUB_AGENT)")
 
-    p = argparse.ArgumentParser(prog="agent-hub", description="Cross-repo agent communication hub")
+    p = argparse.ArgumentParser(prog="roundtable", description="Roundtable Hold: hub, journal and messaging")
     p.add_argument("--config", help="path to hub.yaml")
     p.add_argument("--agent", help="act as this agent id (default $HUB_AGENT)")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -209,7 +209,7 @@ def main(argv: list[str] | None = None) -> None:
 
             briefs = hub.journal.where(me, args.target)
             if not briefs:
-                print("No journal entries yet. Start with: agent-hub log todo \"...\" or agent-hub session \"...\"")
+                print("No journal entries yet. Start with: roundtable log todo \"...\" or roundtable session \"...\"")
             for b in briefs:
                 print(Journal.format_brief(b, compact=not (args.target or args.full)) + "\n")
         elif args.cmd == "log":

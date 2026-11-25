@@ -102,7 +102,7 @@ class GitStore(FileStore):
     """FileStore whose directory is a git working tree synced with a remote.
 
     Git operations on one working tree are serialised in-process, so several
-    Hub objects (e.g. the web UI and a harness run in a background thread) can
+    Hub objects (e.g. the web UI and a roundtable run in a background thread) can
     share a data directory safely.
     """
 
@@ -113,7 +113,7 @@ class GitStore(FileStore):
         branch: str = "main",
         push: bool = True,
         retries: int = 4,
-        author: str = "agent-hub",
+        author: str = "roundtable",
     ):
         root = Path(root).resolve()
         self.branch = branch

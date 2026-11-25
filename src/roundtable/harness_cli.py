@@ -1,32 +1,32 @@
 """`harness` command line.
 
-    harness init                          write a starter harness.yaml
-    harness roles                         show role -> model routing
-    harness ask ROLE "prompt"             one-off question to a role's model (routing check)
-    harness image ROLE "prompt" [--out F] [--style S] [--size WxH] [--remove-bg] [--cost-only]
-    harness image ROLE --styles           list the styles an image role's provider offers
-    harness new DIR "goal" [--approve]    create a project and run it
-    harness extend DIR "goal"             add a new goal to an existing project and run it
-    harness run DIR                       resume a project
-    harness approve DIR                   approve a plan waiting for approval
-    harness status DIR                    task board and spend
-    harness retry DIR TASK_ID             re-open a failed task
-    harness skip DIR TASK_ID              mark a task done without running it
-    harness metrics DIR                   per role/model success rate and cost
-    harness ui [--port 8765]              web UI (same as `agent-hub ui`)
-    harness feedback DIR TASK_ID --good|--bad ["note"]   rate a finished task (feeds learning)
+    roundtable init                          write a starter harness.yaml
+    roundtable roles                         show role -> model routing
+    roundtable ask ROLE "prompt"             one-off question to a role's model (routing check)
+    roundtable image ROLE "prompt" [--out F] [--style S] [--size WxH] [--remove-bg] [--cost-only]
+    roundtable image ROLE --styles           list the styles an image role's provider offers
+    roundtable new DIR "goal" [--approve]    create a project and run it
+    roundtable extend DIR "goal"             add a new goal to an existing project and run it
+    roundtable run DIR                       resume a project
+    roundtable approve DIR                   approve a plan waiting for approval
+    roundtable status DIR                    task board and spend
+    roundtable retry DIR TASK_ID             re-open a failed task
+    roundtable skip DIR TASK_ID              mark a task done without running it
+    roundtable metrics DIR                   per role/model success rate and cost
+    roundtable ui [--port 8765]              web UI (same as `roundtable ui`)
+    roundtable feedback DIR TASK_ID --good|--bad ["note"]   rate a finished task (feeds learning)
 
-    harness probe [--role R] [--model M] [--images]   quick health check: regressions / boosts per model
+    roundtable probe [--role R] [--model M] [--images]   quick health check: regressions / boosts per model
 
-    harness improve analyze [--llm]       find improvement proposals in run history
-    harness improve propose ROLE --models a/x,b/y | --prompt-file F | --options JSON
+    roundtable improve analyze [--llm]       find improvement proposals in run history
+    roundtable improve propose ROLE --models a/x,b/y | --prompt-file F | --options JSON
                                           suggest your own change (then test it like any other)
-    harness improve list | show ID        review proposals
-    harness improve test ID               replay past tasks: current vs proposed setup
-    harness improve apply ID | reject ID  decide
-    harness improve rollback [VERSION]    undo applied changes
-    harness improve status                what has been learned, and history
-    harness improve cycle [--llm] [--test]  analyze + test + auto-apply per policy
+    roundtable improve list | show ID        review proposals
+    roundtable improve test ID               replay past tasks: current vs proposed setup
+    roundtable improve apply ID | reject ID  decide
+    roundtable improve rollback [VERSION]    undo applied changes
+    roundtable improve status                what has been learned, and history
+    roundtable improve cycle [--llm] [--test]  analyze + test + auto-apply per policy
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ def _metrics(project: Project) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="harness", description="Multi-provider project harness")
+    p = argparse.ArgumentParser(prog="roundtable", description="Roundtable Hold: projects, models and self-improvement")
     p.add_argument("--config", help="path to harness.yaml (default $HARNESS_CONFIG or ./harness.yaml)")
     p.add_argument("-v", "--verbose", action="store_true", help="show every model turn and tool call")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -149,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("new")
     s.add_argument("dir")
     s.add_argument("goal")
-    s.add_argument("--approve", action="store_true", help="stop after planning until you run `harness approve`")
+    s.add_argument("--approve", action="store_true", help="stop after planning until you run `roundtable approve`")
     s.add_argument("--max-tasks", type=int)
     s = sub.add_parser("extend")
     s.add_argument("dir")
@@ -268,7 +268,7 @@ def _improve(args, cfg) -> None:
             print(f"  {p.id}  {p.summary()}  [{p.risk}]")
             print(f"        {p.rationale}")
         if new:
-            print("\nNext: harness improve show ID, then test / apply / reject")
+            print("\nNext: roundtable improve show ID, then test / apply / reject")
     elif args.icmd == "propose":
         from .improve.lab import Proposal
 
@@ -281,7 +281,7 @@ def _improve(args, cfg) -> None:
         p = Proposal(id="", kind=kind, role=args.role, change=change, rationale=args.why, risk=args.risk, source="owner")
         p.validate(cfg)
         lab.add_proposal(p)
-        print(f"added {p.id}: {p.summary()}\ntest it with: harness improve test {p.id}")
+        print(f"added {p.id}: {p.summary()}\ntest it with: roundtable improve test {p.id}")
     elif args.icmd == "list":
         props = lab.proposals() if args.all else [p for p in lab.proposals() if p.status in ("proposed", "tested")]
         for p in props:
@@ -301,7 +301,7 @@ def _improve(args, cfg) -> None:
         if p.status == "applied":
             sys.exit(f"{p.id} is already applied")
         if not args.force and not (p.test and p.test.get("passed")) and not (p.source == "rules" and p.kind == "routing"):
-            sys.exit(f"{p.id} has not passed a replay test. Run `harness improve test {p.id}` or use --force.")
+            sys.exit(f"{p.id} has not passed a replay test. Run `roundtable improve test {p.id}` or use --force.")
         if not args.skip_probe and cfg.improve.get("probe_before_apply", True):
             from .improve.probe import check, models_for_proposal
 
@@ -313,7 +313,7 @@ def _improve(args, cfg) -> None:
             if bad and not args.force:
                 sys.exit(f"not applied: {', '.join(bad)} acting up right now. Retry later, or use --force.")
         version = lab.apply(p, cfg, reason="manual")
-        print(f"applied {p.id} as version {version}: {p.summary()}\nundo with: harness improve rollback {version}")
+        print(f"applied {p.id} as version {version}: {p.summary()}\nundo with: roundtable improve rollback {version}")
     elif args.icmd == "reject":
         p = lab.proposal(args.id)
         p.status = "rejected"
@@ -450,8 +450,8 @@ def main(argv: list[str] | None = None) -> None:
         target = Path(args.path)
         if target.exists() and not args.force:
             sys.exit(f"error: {target} exists (use --force)")
-        target.write_text(resources.files("agentharness").joinpath("templates/harness.example.yaml").read_text())
-        print(f"wrote {target}. Set your API keys as environment variables, then: harness roles")
+        target.write_text(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
+        print(f"wrote {target}. Set your API keys as environment variables, then: roundtable roles")
         return
     if args.cmd == "feedback":
         return _feedback(args)
@@ -504,20 +504,20 @@ def main(argv: list[str] | None = None) -> None:
             orch.extend(args.goal)
         elif args.cmd == "approve":
             orch.approve()
-            print("plan approved; run `harness run DIR` to start")
+            print("plan approved; run `roundtable run DIR` to start")
             return
         elif args.cmd in ("retry", "skip"):
             getattr(orch, args.cmd)(args.task_id)
-            print(f"{args.task_id}: {'re-opened' if args.cmd == 'retry' else 'skipped'}; run `harness run DIR` to continue")
+            print(f"{args.task_id}: {'re-opened' if args.cmd == 'retry' else 'skipped'}; run `roundtable run DIR` to continue")
             return
         result = orch.run(max_tasks=getattr(args, "max_tasks", None))
         print()
         _status(orch.project)
         hints = {
-            "awaiting_approval": "Review the plan above, then: harness approve DIR && harness run DIR",
-            "blocked": "A task failed. Inspect with `harness status DIR`, then `harness retry DIR TASK` or `harness skip DIR TASK`.",
-            "paused_budget": "Budget reached. Raise limits.max_cost_usd in harness.yaml, then `harness run DIR`.",
-            "paused": "Paused after --max-tasks. Continue with `harness run DIR`.",
+            "awaiting_approval": "Review the plan above, then: roundtable approve DIR && roundtable run DIR",
+            "blocked": "A task failed. Inspect with `roundtable status DIR`, then `roundtable retry DIR TASK` or `roundtable skip DIR TASK`.",
+            "paused_budget": "Budget reached. Raise limits.max_cost_usd in harness.yaml, then `roundtable run DIR`.",
+            "paused": "Paused after --max-tasks. Continue with `roundtable run DIR`.",
         }
         if result in hints:
             print("\n" + hints[result].replace("DIR", args.dir))
@@ -526,7 +526,7 @@ def main(argv: list[str] | None = None) -> None:
     except (HarnessError, ProviderError, FileNotFoundError, ValueError, KeyError, RuntimeError) as e:
         sys.exit(f"error: {e}")
     except KeyboardInterrupt:
-        sys.exit("\ninterrupted - progress is saved; resume with `harness run DIR`")
+        sys.exit("\ninterrupted - progress is saved; resume with `roundtable run DIR`")
 
 
 if __name__ == "__main__":

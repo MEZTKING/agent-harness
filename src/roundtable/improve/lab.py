@@ -204,7 +204,7 @@ class Lab:
         self.change_overlay(overlay, prompts, p, cfg)
         self.root.mkdir(parents=True, exist_ok=True)
         (self.root / "learned.yaml").write_text(
-            "# Learned by `harness improve`. Layered on top of harness.yaml. Roll back with `harness improve rollback`.\n"
+            "# Learned by `roundtable improve`. Layered on top of harness.yaml. Roll back with `roundtable improve rollback`.\n"
             + yaml.safe_dump(overlay, sort_keys=True)
         )
         if prompts:

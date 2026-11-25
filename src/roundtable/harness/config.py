@@ -140,10 +140,10 @@ class HarnessConfig:
             p = self.prompts_dir / f"{name}.md"
             if p.is_file():
                 return p.read_text(encoding="utf-8")
-        res = resources.files("agentharness").joinpath(f"prompts/{name}.md")
+        res = resources.files("roundtable").joinpath(f"prompts/{name}.md")
         if res.is_file():
             return res.read_text(encoding="utf-8")
-        return resources.files("agentharness").joinpath("prompts/worker.md").read_text(encoding="utf-8")
+        return resources.files("roundtable").joinpath("prompts/worker.md").read_text(encoding="utf-8")
 
     # -- pricing -----------------------------------------------------------
     def cost(self, ref: ModelRef, usage) -> float | None:
@@ -182,10 +182,10 @@ def apply_overlay(cfg: HarnessConfig, overlay: dict[str, Any], prompts: dict[str
 
 
 def find_config(explicit: str | None = None) -> Path:
-    for c in (explicit, os.environ.get("HARNESS_CONFIG"), "harness.yaml", "~/.agent-harness/harness.yaml"):
+    for c in (explicit, os.environ.get("HARNESS_CONFIG"), "harness.yaml", "~/.roundtable/harness.yaml", "~/.agent-harness/harness.yaml"):
         if c and Path(c).expanduser().is_file():
             return Path(c).expanduser().resolve()
-    raise FileNotFoundError("No harness config found. Pass --config, set HARNESS_CONFIG, or run `harness init`.")
+    raise FileNotFoundError("No harness config found. Pass --config, set HARNESS_CONFIG, or run `roundtable init`.")
 
 
 def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig:

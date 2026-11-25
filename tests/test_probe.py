@@ -2,12 +2,12 @@ import json
 
 import pytest
 
-from agentharness.harness.config import ModelRef, parse_config
-from agentharness.improve.lab import Lab, Proposal
-from agentharness.improve.loop import cycle
-from agentharness.improve.probe import BUILTIN, check, compare, models_in_config, run_probes
-from agentharness.providers.base import ProviderError
-from agentharness.providers.scripted import ScriptedImages, ScriptedProvider, reply
+from roundtable.harness.config import ModelRef, parse_config
+from roundtable.improve.lab import Lab, Proposal
+from roundtable.improve.loop import cycle
+from roundtable.improve.probe import BUILTIN, check, compare, models_in_config, run_probes
+from roundtable.providers.base import ProviderError
+from roundtable.providers.scripted import ScriptedImages, ScriptedProvider, reply
 
 FIXED = '''def median(values):
     s = sorted(values)
@@ -105,7 +105,7 @@ def test_down_detection(tmp_path):
 
 
 def test_slow_and_verbose_flags():
-    from agentharness.improve.probe import ProbeResult
+    from roundtable.improve.probe import ProbeResult
 
     hist = [{"run": f"r{i}", "at": f"2026-01-0{i}", "model": "a/m", "probe": "json", "passed": True,
              "seconds": 2.0, "output_tokens": 100, "error": ""} for i in range(1, 4)]

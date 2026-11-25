@@ -1,7 +1,7 @@
 """Local web UI for the hub (journal, cards, messages) and the harness
 (projects, runs, models, probes, self-improvement).
 
-Run:  agent-hub ui   (or: harness ui)   ->  http://127.0.0.1:8765
+Run:  roundtable ui   (or: roundtable ui)   ->  http://127.0.0.1:8765
 
 Same code paths as the terminal commands, so the UI and CLI always agree.
 Long actions (harness runs, probes, replay tests, analysis) run as background
@@ -598,10 +598,10 @@ class UIApp:
 
 # -- HTTP layer ------------------------------------------------------------------------------------
 def make_handler(app: UIApp, token: str | None, allow_remote: bool):
-    static = resources.files("agentharness").joinpath("ui/static")
+    static = resources.files("roundtable").joinpath("ui/static")
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "agent-hub-ui"
+        server_version = "roundtable-ui"
 
         def log_message(self, fmt, *args):  # quiet
             pass
@@ -643,7 +643,7 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                                                     f"ahtoken={token}; HttpOnly; SameSite=Strict; Path=/"})
                 return
             if not self._authorized():
-                self._send(403, b"forbidden: open the URL printed by `agent-hub ui`", "text/plain")
+                self._send(403, b"forbidden: open the URL printed by `roundtable ui`", "text/plain")
                 return
             if url.path.startswith("/api/"):
                 return self._api("GET", url.path, q, {})
@@ -693,7 +693,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:
         url += f"?token={token}"
-    print(f"agent-hub UI: {url}")
+    print(f"Roundtable Hold UI: {url}")
     print(f"  hub:     {app.hub.config.path if app.hub else 'not configured (' + app.hub_error + ')'}")
     cfg = app.cfg()
     print(f"  harness: {cfg.path if cfg else 'not configured (' + app.harness_error + ')'}")

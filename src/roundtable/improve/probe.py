@@ -12,7 +12,7 @@ recent history:
     NEW         no history yet: this run becomes the baseline
     OK          nothing unusual
 
-Use it before big changes (``harness improve apply/cycle`` run it on the
+Use it before big changes (``roundtable improve apply/cycle`` run it on the
 models involved), after a provider announces a model update, or on a
 schedule to catch silent changes.
 

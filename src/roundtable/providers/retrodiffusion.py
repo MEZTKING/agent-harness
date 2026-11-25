@@ -83,7 +83,7 @@ class RetroDiffusionProvider(ImageProvider):
     def build_body(self, style: str, prompt: str, options: dict[str, Any]) -> dict[str, Any]:
         spec = self.styles().get(style)
         if spec is None:
-            raise ProviderError(f"{self.name}: unknown style {style!r} (see `harness image --styles`)")
+            raise ProviderError(f"{self.name}: unknown style {style!r} (see `roundtable image --styles`)")
         if spec.get("require_input_image") and not options.get("input_image"):
             raise ProviderError(f"{self.name}: style {style!r} needs an input image")
 

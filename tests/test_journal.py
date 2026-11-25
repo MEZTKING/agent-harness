@@ -5,10 +5,10 @@ import subprocess
 import pytest
 import yaml
 
-from agentharness.core.policy import PolicyError
-from agentharness.core.store import GitStore
-from agentharness.hub.journal import Journal, JournalError
-from agentharness.hub.mcp_server import build_server
+from roundtable.core.policy import PolicyError
+from roundtable.core.store import GitStore
+from roundtable.hub.journal import Journal, JournalError
+from roundtable.hub.mcp_server import build_server
 
 from .test_hub import RAW, make_hub
 
@@ -103,7 +103,7 @@ def test_journal_shared_across_sessions_via_git(tmp_path):
 
 
 def test_cli_journal_commands(tmp_path, monkeypatch, capsys):
-    from agentharness.cli import main
+    from roundtable.cli import main
 
     cfg = tmp_path / "hub.yaml"
     cfg.write_text(yaml.safe_dump(RAW))
@@ -157,8 +157,8 @@ def test_mcp_journal_tools(tmp_path):
 
 
 def test_harness_writes_project_history(tmp_path):
-    from agentharness.harness.orchestrator import Orchestrator
-    from agentharness.providers.base import ProviderError
+    from roundtable.harness.orchestrator import Orchestrator
+    from roundtable.providers.base import ProviderError
 
     from .test_harness import RAW as HRAW, Brain, make as make_harness
 
@@ -184,7 +184,7 @@ def test_harness_writes_project_history(tmp_path):
     assert orch.run() == "blocked"  # rerun must not duplicate the todo
     hub = orch._hub()
     [b] = hub.journal.where("harness", "harness")
-    assert [e["text"] for e in b["open_todos"]] == ["proj: task T1 'hello module' failed; check `harness status "
+    assert [e["text"] for e in b["open_todos"]] == ["proj: task T1 'hello module' failed; check `roundtable status "
                                                     f"{orch.project.root}`, then retry or skip it"]
     assert b["open_plans"][0]["text"] == "proj: goal: bakery site"
 

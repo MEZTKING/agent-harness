@@ -315,7 +315,7 @@ class Orchestrator:
     # -- planning --------------------------------------------------------------
     def start(self, goal: str, require_approval: bool = False) -> None:
         if self.project.exists:
-            raise HarnessError(f"{self.project.root} already has a project; use `harness extend` to add a goal")
+            raise HarnessError(f"{self.project.root} already has a project; use `roundtable extend` to add a goal")
         self._git_init()
         self.project.save_meta({
             "goals": [goal], "status": "planning", "created_at": utcnow(),
@@ -333,7 +333,7 @@ class Orchestrator:
 
     def extend(self, goal: str) -> None:
         if not self.project.exists:
-            raise HarnessError("no project here yet; use `harness new`")
+            raise HarnessError("no project here yet; use `roundtable new`")
         meta = self.project.meta()
         meta["goals"].append(goal)
         meta["status"] = "planning"
@@ -611,7 +611,7 @@ class Orchestrator:
     def run(self, max_tasks: int | None = None) -> str:
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
         if not self.project.exists:
-            raise HarnessError("no project here; use `harness new`")
+            raise HarnessError("no project here; use `roundtable new`")
         meta = self.project.meta()
         self._register_with_lab()
         try:
@@ -620,8 +620,8 @@ class Orchestrator:
                 meta = self.project.meta()
             if not meta.get("plan_approved"):
                 self._set_status("awaiting_approval")
-                self._attention("approval", f"review the plan, then: harness approve {self.project.root} "
-                                            f"&& harness run {self.project.root}")
+                self._attention("approval", f"review the plan, then: roundtable approve {self.project.root} "
+                                            f"&& roundtable run {self.project.root}")
                 return "awaiting_approval"
             self._resolved("approval", "budget", note="run resumed")
             self._set_status("running")
@@ -641,7 +641,7 @@ class Orchestrator:
                         for t in tasks:
                             if t.status == "failed":
                                 self._attention(f"failed:{t.id}", f"task {t.id} '{t.title}' failed; check "
-                                                f"`harness status {self.project.root}`, then retry or skip it")
+                                                f"`roundtable status {self.project.root}`, then retry or skip it")
                         return "blocked"
                     if all(t.status == "done" for t in tasks):
                         self._finish(tasks)
@@ -677,7 +677,7 @@ class Orchestrator:
             self._save_spend()
             self._set_status("paused_budget", reason=str(e))
             self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
-                                      f"harness run {self.project.root}")
+                                      f"roundtable run {self.project.root}")
             return "paused_budget"
 
     def _finish(self, tasks: list[Task]) -> None:
@@ -707,7 +707,7 @@ class Orchestrator:
         self._journal("session", f"harness finished goal '{meta['goals'][-1][:150]}' ({len(tasks)} tasks, "
                                  f"${self.budget.spent_usd:.2f}). {first[:200]}",
                       next_steps=[f"review the result and report: {self.project.dir / 'summary.md'}",
-                                  f"rate tasks: harness feedback {self.project.root} TASK --good/--bad"])
+                                  f"rate tasks: roundtable feedback {self.project.root} TASK --good/--bad"])
 
     def retry(self, task_id: str) -> None:
         tasks = self.project.tasks()

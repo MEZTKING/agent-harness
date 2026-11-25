@@ -85,11 +85,11 @@ workspace:
 #   config: ~/agent-hub-data/hub.yaml
 #   agent: harness
 
-# Self-improvement (Part 3). See `harness improve --help`.
+# Self-improvement (Part 3). See `roundtable improve --help`.
 improve:
-  auto_apply: none                  # none | low | medium: what `harness improve cycle` may apply on its own
+  auto_apply: none                  # none | low | medium: what `roundtable improve cycle` may apply on its own
   min_samples: 5                    # judged attempts needed before metrics-based routing changes
   probe_before_apply: true          # health-check involved models before applying a change
-  # probes_file: ./probes.yaml      # your own probes (see `harness probe --help` / README)
+  # probes_file: ./probes.yaml      # your own probes (see `roundtable probe --help` / README)
   # analyst_role: orchestrator      # model that reads history and proposes changes (default: planner)
   # lab_dir: ./.harness-lab         # proposals, learned settings, versions

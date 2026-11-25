@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from agentharness.hub.mcp_server import build_server
+from roundtable.hub.mcp_server import build_server
 
 from .test_hub import make_hub
 

@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from agentharness.core.config import parse_config
-from agentharness.core.policy import Policy, PolicyError
-from agentharness.core.store import FileStore, GitStore
-from agentharness.hub.service import Hub, HubError
+from roundtable.core.config import parse_config
+from roundtable.core.policy import Policy, PolicyError
+from roundtable.core.store import FileStore, GitStore
+from roundtable.hub.service import Hub, HubError
 
 RAW = {
     "storage": {"type": "file", "path": "data"},
@@ -136,7 +136,7 @@ def test_git_store_shares_state_between_clones(tmp_path):
 
 def test_cli_agent_flag_either_position(tmp_path, monkeypatch, capsys):
     import yaml
-    from agentharness.cli import main
+    from roundtable.cli import main
 
     cfg = tmp_path / "hub.yaml"
     cfg.write_text(yaml.safe_dump(RAW))
@@ -164,3 +164,25 @@ def test_git_store_works_with_clone_of_initially_empty_repo(tmp_path):
     assert (tmp_path / "early/hub.yaml").exists()  # picked up the remote's history
     log = subprocess.run(["git", "log", "--oneline", "main"], cwd=remote, capture_output=True, text=True).stdout
     assert "card(backend)" in log and "init" in log
+
+
+def test_unified_roundtable_command_routes_to_hub_and_harness(tmp_path, monkeypatch, capsys):
+    import yaml
+
+    from roundtable.main import _command, main
+
+    assert _command(["--agent", "me", "where"]) == "where"
+    assert _command(["--config", "x.yaml", "-v", "new", "d", "g"]) == "new"
+    cfg = tmp_path / "hub.yaml"
+    cfg.write_text(yaml.safe_dump(RAW))
+    monkeypatch.setenv("HUB_CONFIG", str(cfg))
+    main(["--agent", "backend", "log", "todo", "routed through roundtable"])
+    main(["where", "--agent", "backend"])
+    assert "routed through roundtable" in capsys.readouterr().out
+    monkeypatch.chdir(tmp_path / "data")
+    main(["init"])
+    assert (tmp_path / "data/hub.yaml").exists() and (tmp_path / "data/harness.yaml").exists()
+    main([])
+    assert "roundtable where" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        main(["frobnicate"])

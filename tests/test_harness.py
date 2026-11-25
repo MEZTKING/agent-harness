@@ -5,13 +5,13 @@ from importlib import resources
 import pytest
 import yaml
 
-from agentharness.harness.config import ModelRef, parse_config
-from agentharness.harness.orchestrator import Orchestrator, _validate_plan
-from agentharness.harness.tools import ToolError, Workspace
-from agentharness.providers.anthropic_provider import _to_anthropic_messages
-from agentharness.providers.base import ProviderError, Usage
-from agentharness.providers.openai_compat import _to_openai_messages
-from agentharness.providers.scripted import ScriptedImages, ScriptedProvider, reply
+from roundtable.harness.config import ModelRef, parse_config
+from roundtable.harness.orchestrator import Orchestrator, _validate_plan
+from roundtable.harness.tools import ToolError, Workspace
+from roundtable.providers.anthropic_provider import _to_anthropic_messages
+from roundtable.providers.base import ProviderError, Usage
+from roundtable.providers.openai_compat import _to_openai_messages
+from roundtable.providers.scripted import ScriptedImages, ScriptedProvider, reply
 
 RAW = {
     "providers": {"a": {"type": "scripted"}, "b": {"type": "scripted"}, "img": {"type": "scripted_images"}},
@@ -90,7 +90,7 @@ def make(tmp_path, raw=RAW, brain=None, b_brain=None):
 
 
 def test_template_config_is_valid():
-    raw = yaml.safe_load(resources.files("agentharness").joinpath("templates/harness.example.yaml").read_text())
+    raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
     cfg = parse_config(raw)
     assert cfg.roles["coder"].models == [ModelRef("deepseek", "deepseek-v4-pro"), ModelRef("anthropic", "claude-sonnet-5-5")]
     assert cfg.roles["designer"].kind == "image" and cfg.roles["designer"].review is False
@@ -307,7 +307,7 @@ def test_openai_message_conversion():
 def test_retrodiffusion_adapter(monkeypatch):
     import base64
 
-    from agentharness.providers.retrodiffusion import RetroDiffusionProvider
+    from roundtable.providers.retrodiffusion import RetroDiffusionProvider
 
     png = base64.b64encode(b"\x89PNG fake").decode()
     calls = []

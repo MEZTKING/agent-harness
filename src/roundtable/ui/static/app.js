@@ -1,4 +1,4 @@
-// Agent Hub UI - vanilla JS, no build step. Every node is built with h() (textContent),
+// Roundtable Hold UI - vanilla JS, no build step. Every node is built with h() (textContent),
 // never innerHTML, because journal entries, messages and logs contain model output.
 "use strict";
 
@@ -100,12 +100,12 @@ window.addEventListener("hashchange", () => render());
 function needHub() {
   if (OV.hub) return null;
   return h("div", { class: "card" }, h("h2", {}, "Hub not configured"),
-    h("p", { class: "muted" }, OV.hub_error || ""), h("p", {}, "Set HUB_CONFIG or pass --hub-config to agent-hub ui."));
+    h("p", { class: "muted" }, OV.hub_error || ""), h("p", {}, "Set HUB_CONFIG or pass --hub-config to roundtable ui."));
 }
 function needHarness() {
   if (OV.harness) return null;
   return h("div", { class: "card" }, h("h2", {}, "Harness not configured"),
-    h("p", { class: "muted" }, OV.harness_error || ""), h("p", {}, "Set HARNESS_CONFIG or pass --harness-config to agent-hub ui."));
+    h("p", { class: "muted" }, OV.harness_error || ""), h("p", {}, "Set HARNESS_CONFIG or pass --harness-config to roundtable ui."));
 }
 
 // ---------- journal widgets ----------
@@ -164,7 +164,7 @@ async function viewWhere() {
   return h("div", {},
     h("h1", {}, "Where was I?"),
     h("p", { class: "sub" }, `${active.length} active project(s) · ${todos} open todo(s)`, high ? h("span", { class: "prio-high" }, ` · ${high} high priority`) : null),
-    active.length ? h("div", { class: "grid" }, active.map((b) => briefCard(b))) : h("div", { class: "card" }, "No journal entries yet. Add one below or with ", h("code", {}, "agent-hub log todo \"…\"")),
+    active.length ? h("div", { class: "grid" }, active.map((b) => briefCard(b))) : h("div", { class: "card" }, "No journal entries yet. Add one below or with ", h("code", {}, "roundtable log todo \"…\"")),
     quiet.length ? h("div", { class: "card", style: "margin-top:14px" }, h("h2", {}, "Quiet projects"),
       h("ul", { class: "items" }, quiet.map((b) => h("li", {}, h("span", { class: "text" }, h("a", { href: `#/project/${b.agent}` }, b.agent), " ",
         h("span", { class: "muted small" }, b.description || ""))))) ) : null);

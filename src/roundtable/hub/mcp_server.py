@@ -3,8 +3,8 @@
 Each server process acts as exactly one agent identity, given by
 ``--agent`` or $HUB_AGENT. Add it to a repo's ``.mcp.json``:
 
-    {"mcpServers": {"agent-hub": {
-        "command": "agent-hub",
+    {"mcpServers": {"roundtable": {
+        "command": "roundtable",
         "args": ["mcp", "--agent", "backend"],
         "env": {"HUB_CONFIG": "/path/to/hub.yaml"}}}}
 """
@@ -19,7 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from .service import Hub
 
 INSTRUCTIONS = """\
-You are connected to the agent hub, which links agents working in different repositories and keeps
+You are connected to Roundtable Hold, the hub which links agents working in different repositories and keeps
 each project's journal (what was done, what needs doing, plans, decisions) across sessions.
 - At the start of a session, call hub_where to see where work left off (last session, next steps,
   open todos), and hub_inbox for questions or change notices from other agents.
@@ -40,7 +40,7 @@ def _dump(obj: Any) -> str:
 
 def build_server(hub: Hub, agent: str) -> MCPServer:
     hub._require_agent(agent)
-    server = MCPServer(name="agent-hub", instructions=INSTRUCTIONS)
+    server = MCPServer(name="roundtable", instructions=INSTRUCTIONS)
 
     @server.tool()
     def hub_whoami() -> str:

@@ -8,7 +8,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 import yaml
 
-from agentharness.ui.server import ApiError, UIApp, make_handler
+from roundtable.ui.server import ApiError, UIApp, make_handler
 
 from .test_hub import RAW as HUB_RAW
 from .test_harness import RAW as HARNESS_RAW, Brain, make as make_harness
@@ -135,7 +135,7 @@ def http(url, method="GET", body=None, headers=None):
 
 def test_http_serves_ui_and_guards_writes(server):
     status, body, headers = http(server + "/")
-    assert status == 200 and b"Agent Hub" in body and "script-src 'self'" in headers["Content-Security-Policy"]
+    assert status == 200 and b"Roundtable Hold" in body and "script-src 'self'" in headers["Content-Security-Policy"]
     assert http(server + "/app.js")[0] == 200
     assert http(server + "/../pyproject.toml")[0] == 404
     assert http(server + "/api/where")[0] == 200
