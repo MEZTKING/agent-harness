@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a release with this tag (e.g. v0.3.0); must match the app version. Leave empty to only build."
+        required: false
+        default: ""
 
 permissions:
   contents: write  # attach the installer to releases
@@ -86,9 +91,19 @@ jobs:
         with:
           name: RoundtableHold-Setup-${{ steps.version.outputs.value }}
           path: dist/RoundtableHold-Setup-*.exe
+      - name: Check release tag matches the app version
+        if: inputs.release_tag != ''
+        shell: bash
+        run: |
+          if [ "${{ inputs.release_tag }}" != "v${{ steps.version.outputs.value }}" ]; then
+            echo "release_tag ${{ inputs.release_tag }} does not match app version v${{ steps.version.outputs.value }}"; exit 1
+          fi
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Roundtable Hold ${{ steps.version.outputs.value }}
           files: dist/RoundtableHold-Setup-*.exe
           generate_release_notes: true
