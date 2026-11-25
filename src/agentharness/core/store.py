@@ -115,7 +115,11 @@ class GitStore(FileStore):
         super().__init__(root)
         self._has_remote = bool(self._git("remote").strip())
         if self._has_remote and self._remote_branch_exists():
-            self._git("checkout", "-B", branch, f"origin/{branch}")
+            current = self._run(["git", "branch", "--show-current"], cwd=self.root).strip()
+            if current != branch:
+                # FETCH_HEAD, not origin/<branch>: a clone made while the repo was still
+                # empty has no remote-tracking ref for it
+                self._git("checkout", "-B", branch, "FETCH_HEAD")
 
     # -- git plumbing -------------------------------------------------
     @staticmethod

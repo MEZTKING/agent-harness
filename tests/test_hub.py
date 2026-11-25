@@ -146,3 +146,21 @@ def test_cli_agent_flag_either_position(tmp_path, monkeypatch, capsys):
     main(["card", "show", "frontend", "--agent", "backend"])
     out = capsys.readouterr().out
     assert out.count('"agent": "backend"') == 2
+
+
+def test_git_store_works_with_clone_of_initially_empty_repo(tmp_path):
+    remote = tmp_path / "remote.git"
+    _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+    _git("clone", "-q", str(remote), str(tmp_path / "early"), cwd=tmp_path)  # cloned while empty
+    seed = tmp_path / "seed"
+    _git("clone", "-q", str(remote), str(seed), cwd=tmp_path)
+    (seed / "hub.yaml").write_text("x: 1\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "add", ".", cwd=seed)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "init", cwd=seed)
+    _git("push", "-q", "origin", "HEAD:main", cwd=seed)
+
+    hub = make_hub(tmp_path, store=GitStore(tmp_path / "early", remote=str(remote)))
+    hub.update_card("backend", status="ok")
+    assert (tmp_path / "early/hub.yaml").exists()  # picked up the remote's history
+    log = subprocess.run(["git", "log", "--oneline", "main"], cwd=remote, capture_output=True, text=True).stdout
+    assert "card(backend)" in log and "init" in log

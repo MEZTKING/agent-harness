@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> None:
             from .hub.mcp_server import run
 
             run(hub, me, transport=args.transport)
-    except (HubError, PolicyError, FileNotFoundError, ValueError) as e:  # JournalError is a ValueError
+    except (HubError, PolicyError, FileNotFoundError, ValueError, RuntimeError) as e:  # incl. JournalError, GitError
         sys.exit(f"error: {e}")
 
 
