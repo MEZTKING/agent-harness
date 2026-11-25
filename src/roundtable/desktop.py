@@ -260,6 +260,7 @@ def start_server(paths: Paths, keystore: KeyStore, port: int | None = None):
     app = UIApp(str(paths.hub_yaml), str(paths.harness_yaml), agent=settings.get("agent") or "me",
                 projects_dir=str(projects))
     app.desktop = {"paths": paths, "keys": keystore}
+    app.start_auto_sync()
     httpd = ThreadingHTTPServer(("127.0.0.1", port or free_port()), make_handler(app, token=None, allow_remote=False))
     threading.Thread(target=httpd.serve_forever, daemon=True, name="ui-server").start()
     return httpd, app
