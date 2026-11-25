@@ -181,7 +181,7 @@ def activity(app, limit: int = 120) -> list[dict[str, Any]]:
     if cfg and cfg.lab_dir:
         for path in app.lab(cfg).projects():
             ctx = {"task": "", "role": "", "model": ""}
-            for d in _read_jsonl(path / ".harness" / "events.jsonl", tail=400):
+            for seq, d in enumerate(_read_jsonl(path / ".harness" / "events.jsonl", tail=400)):
                 ev = d.get("event")
                 if ev == "task_start":
                     ctx = {"task": d.get("task", ""), "role": d.get("role", ""), "model": ""}
@@ -207,16 +207,18 @@ def activity(app, limit: int = 120) -> list[dict[str, Any]]:
                 who = " ".join(x for x in (ctx["task"], role) if x)
                 if ctx["model"] and ev in ("tool_call", "attempt", "planning", "review"):
                     who += f" ({ctx['model'].split('/', 1)[-1]})"
-                items.append({"at": d.get("at", ""), "project": path.name, "kind": ev, "who": who.strip(),
+                items.append({"at": d.get("at", ""), "seq": seq, "project": path.name, "kind": ev, "who": who.strip(),
                               "task": ctx["task"], "role": role, "model": ctx["model"],
                               "text": text.strip().lstrip("▶✓✗-> ").split("\n")[0][:220]})
     if app.hub:
         with app.hub_lock:
             for agent in app.hub.config.agents:
                 for e in app.hub.journal.entries(agent, agent, limit=15):
-                    items.append({"at": e["created_at"], "project": agent, "kind": f"journal:{e['kind']}",
+                    items.append({"at": e["created_at"], "seq": e.get("ts", 0), "project": agent,
+                                  "kind": f"journal:{e['kind']}",
                                   "text": f"{e['kind']}: {e['text']}"[:220]})
-    items.sort(key=lambda i: i["at"], reverse=True)
+    # newest first; "seq" keeps steps logged within the same second in their real order
+    items.sort(key=lambda i: (i["at"], i["seq"]), reverse=True)
     return items[:limit]
 
 

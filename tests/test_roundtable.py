@@ -197,10 +197,12 @@ def test_feed_lines_say_who_did_what(setup):
     orch.start("goal")
     orch.run()
     steps = [i for i in activity(app) if i["kind"] == "tool_call" and i["project"] == "proj"]
-    write = next(i for i in steps if i["text"].startswith("write_file"))
-    assert write["text"] == "write_file hello.py" and write["role"] == "coder" and write["task"] == "T1"
+    write = next(i for i in steps if i["text"].startswith("write_file") and i["task"] == "T1")
+    assert write["text"] == "write_file hello.py" and write["role"] == "coder"
+    t3 = next(i for i in steps if i["text"].startswith("write_file") and i["task"] == "T3")
+    assert steps.index(t3) < steps.index(write)  # newest first, even within the same second
     assert write["who"] == "T1 coder (coder)"  # model name: provider prefix dropped
-    review = next(i for i in steps if i["text"].startswith("submit_review"))
+    review = next(i for i in steps if i["text"].startswith("submit_review") and i["task"] == "T1")
     assert review["text"] == "submit_review approved" and review["role"] == "reviewer"
     assert review["who"].startswith("T1 reviewer (reviewer)")
 
