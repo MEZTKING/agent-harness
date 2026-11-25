@@ -39,6 +39,7 @@ class Task:
     acceptance: str = ""
     depends_on: list[str] = field(default_factory=list)
     output_path: str = ""
+    image_options: dict[str, Any] = field(default_factory=dict)  # per-task style/size for image roles
     status: str = "pending"
     summary: str = ""
     attempts: list[dict[str, Any]] = field(default_factory=list)
@@ -119,6 +120,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
                 acceptance=str(t.get("acceptance") or ""),
                 depends_on=[str(d) for d in t.get("depends_on") or []],
                 output_path=str(t.get("output_path") or ""),
+                image_options=dict(t.get("image_options") or {}),
             )
         )
     for t in new:
@@ -242,7 +244,8 @@ class Orchestrator:
         for r in self.cfg.roles.values():
             if r.name == self.cfg.planner_role or r.name == self.cfg.reviewer_role:
                 continue
-            kind = " (generates an image file; put the full visual brief in description)" if r.kind == "image" else ""
+            kind = (" (image generation: description = the visual prompt; set output_path, and image_options "
+                    "for style/size when the role description lists choices)") if r.kind == "image" else ""
             lines.append(f"- {r.name}{kind}: {r.description or 'general work'}")
         return "\n".join(lines)
 
@@ -315,6 +318,16 @@ class Orchestrator:
                 "acceptance": {"type": "string", "description": "how to verify it is done (tests to pass, files to exist...)"},
                 "depends_on": {"type": "array", "items": {"type": "string"}},
                 "output_path": {"type": "string", "description": "for image tasks: where to save the file"},
+                "image_options": {
+                    "type": "object",
+                    "description": "image tasks only: e.g. {style, width, height, remove_bg, tile_x, tile_y}",
+                    "properties": {
+                        "style": {"type": "string"}, "width": {"type": "integer"}, "height": {"type": "integer"},
+                        "remove_bg": {"type": "boolean"}, "tile_x": {"type": "boolean"}, "tile_y": {"type": "boolean"},
+                        "seed": {"type": "integer"},
+                    },
+                    "additionalProperties": False,
+                },
             },
             ["id", "title", "role", "description", "acceptance", "depends_on"],
         )
@@ -444,7 +457,8 @@ class Orchestrator:
             t0 = time.monotonic()
             try:
                 self.budget.check()
-                data, ext, usage = provider.generate(ref.model, task.description, role.options)
+                data, ext, usage = provider.generate(ref.model, task.description,
+                                                     {**role.options, **task.image_options})
             except ProviderError as e:
                 last = e
                 self.emit("provider_error", {"model": str(ref), "error": str(e)})
@@ -453,8 +467,10 @@ class Orchestrator:
             cost = self.cfg.cost(ref, usage)
             self.budget.charge(cost)
             self._save_spend()
-            if not rel.endswith(f".{ext}") and "." not in Path(rel).name:
+            if "." not in Path(rel).name:
                 rel = f"{rel}.{ext}"
+            elif Path(rel).suffix.lower() in (".png", ".gif") and Path(rel).suffix.lower() != f".{ext}":
+                rel = str(Path(rel).with_suffix(f".{ext}"))  # e.g. an animation came back as GIF
             path = self.ws.path(rel)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)

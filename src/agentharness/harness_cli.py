@@ -3,6 +3,8 @@
     harness init                          write a starter harness.yaml
     harness roles                         show role -> model routing
     harness ask ROLE "prompt"             one-off question to a role's model (routing check)
+    harness image ROLE "prompt" [--out F] [--style S] [--size WxH] [--remove-bg] [--cost-only]
+    harness image ROLE --styles           list the styles an image role's provider offers
     harness new DIR "goal" [--approve]    create a project and run it
     harness extend DIR "goal"             add a new goal to an existing project and run it
     harness run DIR                       resume a project
@@ -32,6 +34,8 @@ import sys
 from collections import defaultdict
 from importlib import resources
 from pathlib import Path
+
+import yaml
 
 from .harness.agent import Budget, run_agent
 from .harness.config import load_config
@@ -124,6 +128,15 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ask")
     s.add_argument("role")
     s.add_argument("prompt")
+    s = sub.add_parser("image", help="generate one image with an image role")
+    s.add_argument("role")
+    s.add_argument("prompt", nargs="?", default="")
+    s.add_argument("--out", default="image.png")
+    s.add_argument("--style")
+    s.add_argument("--size", help="WIDTHxHEIGHT, e.g. 64x64")
+    s.add_argument("--remove-bg", action="store_true")
+    s.add_argument("--cost-only", action="store_true", help="free price check, generates nothing")
+    s.add_argument("--styles", action="store_true", help="list available styles")
     s = sub.add_parser("new")
     s.add_argument("dir")
     s.add_argument("goal")
@@ -301,6 +314,44 @@ def _improve(args, cfg) -> None:
         print(json.dumps(rep_, indent=2))
 
 
+def _image(args, cfg) -> None:
+    role = cfg.roles.get(args.role)
+    if not role or role.kind != "image":
+        sys.exit(f"error: {args.role!r} is not an image role")
+    ref = role.models[0]
+    provider = cfg.provider(ref.provider)
+    if args.styles:
+        if not hasattr(provider, "styles"):
+            sys.exit(f"error: {ref.provider} has no style catalog")
+        for sid, st in sorted(provider.styles().items()):
+            print(f"{sid:40} {st['min_width']}-{st['max_width']}px  {st.get('name', '')}")
+        return
+    if not args.prompt:
+        sys.exit("error: give a prompt")
+    opts = dict(role.options)
+    if args.style:
+        opts["style"] = args.style
+    if args.size:
+        w, _, h = args.size.lower().partition("x")
+        opts["width"], opts["height"] = int(w), int(h or w)
+    if args.remove_bg:
+        opts["remove_bg"] = True
+    if args.cost_only:
+        if not hasattr(provider, "check_cost"):
+            sys.exit(f"error: {ref.provider} has no free cost check")
+        print(f"${provider.check_cost(opts.get('style') or ref.model, args.prompt, opts):.4f}")
+        return
+    data, ext, usage = provider.generate(ref.model, args.prompt, opts)
+    out = Path(args.out)
+    if out.suffix.lower() != f".{ext}":
+        out = out.with_suffix(f".{ext}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(data)
+    cost = cfg.cost(ref, usage)
+    print(f"saved {out} ({len(data)} bytes) via {opts.get('style') or ref}"
+          + (f" · ${cost:.4f}" if cost is not None else ""))
+
+
 def _feedback(args) -> None:
     project = Project(args.dir)
     tasks = {t.id: t for t in project.tasks()}
@@ -344,6 +395,8 @@ def main(argv: list[str] | None = None) -> None:
             return
         if args.cmd == "improve":
             return _improve(args, cfg)
+        if args.cmd == "image":
+            return _image(args, cfg)
         if args.cmd == "ask":
             role = cfg.roles.get(args.role)
             if not role:
@@ -381,6 +434,8 @@ def main(argv: list[str] | None = None) -> None:
         }
         if result in hints:
             print("\n" + hints[result].replace("DIR", args.dir))
+    except yaml.YAMLError as e:
+        sys.exit(f"error: harness.yaml is not valid YAML:\n{e}")
     except (HarnessError, ProviderError, FileNotFoundError, ValueError, KeyError, RuntimeError) as e:
         sys.exit(f"error: {e}")
     except KeyboardInterrupt:

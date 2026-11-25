@@ -41,13 +41,16 @@ class Usage:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    cost_usd: float | None = None  # exact charge when the provider reports one (e.g. per-image pricing)
 
     def __add__(self, other: "Usage") -> "Usage":
+        cost = None if self.cost_usd is None and other.cost_usd is None else (self.cost_usd or 0) + (other.cost_usd or 0)
         return Usage(
             self.input_tokens + other.input_tokens,
             self.output_tokens + other.output_tokens,
             self.cache_read_tokens + other.cache_read_tokens,
             self.cache_write_tokens + other.cache_write_tokens,
+            cost,
         )
 
 

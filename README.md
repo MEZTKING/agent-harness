@@ -184,7 +184,14 @@ The `description` tells the planner when to use a role. You can add any role, su
 **Providers:**
 - `anthropic`: Claude via the official SDK. Thinking, prompt caching, `effort` and refusal fallbacks are on.
 - `openai_compat`: any OpenAI-compatible API (DeepSeek, OpenAI, Gemini, OpenRouter, Groq, local Ollama).
-- `openai_images`: image generation.
+- `openai_images`: image generation through OpenAI's image API.
+- `retrodiffusion`: **pixel-art game assets** ([Retro Diffusion](https://www.retrodiffusion.ai)). The planner picks a style per task (platformer, top-down, isometric, tiles, items, UI…), plus the size and a transparent background. The exact per-image charge is counted in the budget.
+
+```bash
+harness image designer --styles                                   # browse styles
+harness image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --cost-only
+harness image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
+```
 
 ### Commands
 

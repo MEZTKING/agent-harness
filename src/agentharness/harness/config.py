@@ -25,7 +25,7 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
 }
 
-PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "scripted", "scripted_images")
+PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "scripted", "scripted_images")
 
 
 @dataclass
@@ -115,6 +115,11 @@ class HarnessConfig:
             from ..providers.openai_compat import OpenAIImagesProvider
 
             inst = OpenAIImagesProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"))
+        elif kind == "retrodiffusion":
+            from ..providers.retrodiffusion import RetroDiffusionProvider
+
+            inst = RetroDiffusionProvider(name, api_key_env=spec.get("api_key_env", "RETRODIFFUSION_API_KEY"),
+                                          base_url=spec.get("base_url"))
         else:
             raise ProviderError(f"provider {name!r}: type {kind!r} cannot be built from config")
         self._instances[name] = inst
@@ -142,6 +147,8 @@ class HarnessConfig:
 
     # -- pricing -----------------------------------------------------------
     def cost(self, ref: ModelRef, usage) -> float | None:
+        if getattr(usage, "cost_usd", None) is not None:
+            return usage.cost_usd  # provider reported the exact charge
         price = self.pricing.get(str(ref)) or self.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model)
         if not price:
             return None

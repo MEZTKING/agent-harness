@@ -302,3 +302,66 @@ def test_openai_message_conversion():
     assert out[2] is native  # same provider: native replay keeps reasoning_content
     assert out[3] == {"role": "tool", "tool_call_id": "1", "content": "r"}
     assert out[4]["tool_calls"][0]["function"] == {"name": "z", "arguments": '{"q": 1}'}
+
+
+def test_retrodiffusion_adapter(monkeypatch):
+    import base64
+
+    from agentharness.providers.retrodiffusion import RetroDiffusionProvider
+
+    png = base64.b64encode(b"\x89PNG fake").decode()
+    calls = []
+    polls = {"n": 0}
+
+    def fake_request(self, method, path, body=None, headers=None):
+        calls.append((method, path, body, headers))
+        if path == "/styles/selector":
+            return {"styles": [{"prompt_style": "rd_lite__default", "min_width": 16, "max_width": 512,
+                                "min_height": 16, "max_height": 512, "require_input_image": None},
+                               {"prompt_style": "rd_tile__single_tile", "min_width": 16, "max_width": 64,
+                                "min_height": 16, "max_height": 64, "require_input_image": None}]}
+        if method == "POST" and body.get("check_cost"):
+            return {"balance_cost": 0.05, "base64_images": [], "model": "check_cost"}
+        if method == "POST":
+            return {"status": "accepted", "task_id": "t1"}
+        polls["n"] += 1
+        if polls["n"] < 2:
+            return {"status": "running"}
+        return {"status": "succeeded", "result": {"base64_images": [png], "balance_cost": 0.05}}
+
+    monkeypatch.setattr(RetroDiffusionProvider, "_request", fake_request)
+    p = RetroDiffusionProvider(poll_interval=0)
+    data, ext, usage = p.generate("rd_lite__default", "a knight",
+                                  {"style": "rd_tile__single_tile", "width": 200, "height": 8, "remove_bg": True})
+    assert data == b"\x89PNG fake" and ext == "png" and usage.cost_usd == 0.05
+    submit = next(c for c in calls if c[0] == "POST")
+    assert submit[2]["prompt_style"] == "rd_tile__single_tile"
+    assert (submit[2]["width"], submit[2]["height"]) == (64, 16)  # clamped to the style's limits
+    assert submit[2]["remove_bg"] is True and "Idempotency-Key" in submit[3]
+    assert p.check_cost("rd_lite__default", "x") == 0.05
+    with pytest.raises(ProviderError):
+        p.generate("rd_nope__x", "x")
+    # exact provider cost flows into the budget
+    cfg = parse_config({"providers": {"rd": {"type": "retrodiffusion"}}, "roles": {
+        "orchestrator": {"model": "rd/x"}}})
+    assert cfg.cost(ModelRef("rd", "rd_lite__default"), usage) == 0.05
+
+
+def test_planner_image_options_reach_provider(tmp_path):
+    plan = [{"id": "T1", "title": "hero", "role": "designer", "description": "pixel knight", "acceptance": "png",
+             "depends_on": [], "output_path": "assets/hero.png",
+             "image_options": {"style": "rd_core__platformer", "width": 48, "remove_bg": True}}]
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["designer"]["options"] = {"width": 64, "height": 64}
+    orch, a, b, img, events = make(tmp_path, raw=raw, brain=Brain(plan=plan))
+    seen = {}
+    orig = img.generate
+
+    def spy(model, prompt, options=None):
+        seen.update(options or {})
+        return orig(model, prompt, options)
+
+    img.generate = spy
+    orch.start("goal")
+    assert orch.run() == "done"
+    assert seen == {"width": 48, "height": 64, "style": "rd_core__platformer", "remove_bg": True}
