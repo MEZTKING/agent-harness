@@ -84,6 +84,7 @@ class HarnessConfig:
     hub: dict[str, Any] | None = None
     lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
     improve: dict[str, Any] = field(default_factory=dict)
+    remote: dict[str, Any] = field(default_factory=dict)  # commands through the hub: {enabled, owners}
     # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
     prompt_overrides: dict[str, str] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
@@ -339,6 +340,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         hub=raw.get("hub"),
         lab_dir=_lab_dir(raw, base, path),
         improve=dict(raw.get("improve") or {}),
+        remote=dict(raw.get("remote") or {}),
     )
 
 

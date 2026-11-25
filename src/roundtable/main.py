@@ -12,6 +12,7 @@ Hub & journal (where things stand, across projects and sessions):
     roundtable mcp --agent PROJECT        MCP server for Claude Code and other agents
     roundtable connect [DIR]              join this repo's Claude Code sessions to the hub (MCP + hooks)
     roundtable connect --cloud-script     setup script for Claude Code cloud environments
+    roundtable remote [--watch 60]        do commands sent through the hub (from the phone)
 
 Projects (the harness: the best model for each role, working together):
     roundtable new DIR "goal" [--approve] | run DIR | extend DIR "goal" | approve DIR
@@ -75,6 +76,8 @@ def main(argv: list[str] | None = None) -> None:
         return _init(argv)
     if cmd in ("update", "version"):
         return _update(argv, cmd)
+    if cmd == "remote":
+        return _remote(argv)
     if cmd in ("connect", "hook"):
         from .connect import main as connect_main
 
@@ -105,6 +108,34 @@ def main(argv: list[str] | None = None) -> None:
             notice = cached_notice()
             if notice:
                 print(f"\n{notice}", file=sys.stderr)
+
+
+def _remote(argv: list[str]) -> None:
+    import argparse
+    import time
+
+    from .core.config import load_config as load_hub
+    from .harness.config import load_config
+    from .hub.service import Hub
+    from .remote import process
+
+    p = argparse.ArgumentParser(prog="roundtable remote",
+                                description="Do the owner's commands sent through the hub (e.g. from the phone).")
+    p.add_argument("cmd")
+    p.add_argument("--config", help="harness.yaml (default $HARNESS_CONFIG or ./harness.yaml)")
+    p.add_argument("--watch", type=float, metavar="SECONDS", help="keep checking every SECONDS")
+    args = p.parse_args(argv)
+    cfg = load_config(args.config)
+    if not cfg.hub:
+        sys.exit("roundtable remote: harness.yaml has no hub: section, so there's nowhere to read commands from")
+    hub = Hub(load_hub(cfg.hub.get("config"), nearby=True))
+    while True:
+        n = process(cfg, hub)
+        if n:
+            print(f"did {n} command(s)", flush=True)
+        if not args.watch:
+            return
+        time.sleep(args.watch)
 
 
 def _update(argv: list[str], cmd: str) -> None:

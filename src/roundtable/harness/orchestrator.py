@@ -252,11 +252,41 @@ class Orchestrator:
             self._hub_cache = Hub(load_hub_config(self.cfg.hub.get("config")))
         return self._hub_cache
 
+    def _hub_agent(self) -> str:
+        """The project's own hub project if there is one with its folder name, else the shared harness agent."""
+        hub = self._hub()
+        name = self.project.root.name
+        if hub and name in hub.config.agents:
+            return name
+        return self.cfg.hub["agent"]
+
+    def _publish_plan(self) -> None:
+        """Put the readable plan in the hub (plans/<project>.md), so the phone and other sessions see it."""
+        try:
+            hub = self._hub()
+            doc = self.project.plan_doc()
+            if not hub or not doc:
+                return
+            from ..core.store import TextFile
+
+            agent = self._hub_agent()
+            name = agent if agent == self.project.root.name else f"{agent}--{self.project.root.name}"
+            meta = self.project.meta()
+            state = ("approved, building" if meta.get("plan_approved") and meta.get("status") != "done"
+                     else "done" if meta.get("status") == "done" else "waiting for the owner")
+            gi = doc.get("goal_index", 0)
+            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
+                  + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi]))
+            hub.store.write_json({f"plans/{name}.md": TextFile(md + "\n")},
+                                 f"plan({name}): v{doc.get('version', 1)} {state}")
+        except Exception as e:  # the hub is optional; never fail a run over it
+            self.emit("hub_error", {"error": str(e)})
+
     def _hub_update(self, status: str, note: str | None = None) -> None:
         try:
             hub = self._hub()
             if hub:
-                hub.update_card(self.cfg.hub["agent"], change_note=note, status=status)
+                hub.update_card(self._hub_agent(), change_note=note, status=status)
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
 
@@ -266,8 +296,9 @@ class Orchestrator:
             hub = self._hub()
             if not hub:
                 return None
-            return hub.journal.add(self.cfg.hub["agent"], kind, f"{self.project.root.name}: {text}",
-                                   source="harness", **kw)["id"]
+            agent = self._hub_agent()
+            prefix = "" if agent == self.project.root.name else f"{self.project.root.name}: "
+            return hub.journal.add(agent, kind, f"{prefix}{text}", source="harness", **kw)["id"]
         except Exception as e:
             self.emit("hub_error", {"error": str(e)})
             return None
@@ -278,7 +309,7 @@ class Orchestrator:
         try:
             hub = self._hub()
             if hub:
-                hub.journal.close(self.cfg.hub["agent"], entry_id, note=note)
+                hub.journal.close(self._hub_agent(), entry_id, note=note)
         except Exception as e:
             self.emit("hub_error", {"error": str(e)})
 
@@ -540,6 +571,7 @@ class Orchestrator:
         meta = self.project.meta()
         status = "awaiting_approval" if not meta.get("plan_approved") else "running"
         self._set_status(status)
+        self._publish_plan()
         self._hub_update("planned", f"new plan: {len(new)} tasks for goal: {goal[:200]}")
         plan_id = self._journal("plan", f"goal: {goal[:300]}",
                                 details="\n".join(f"[{t.id}] ({t.role}) {t.title}" for t in new))
@@ -657,6 +689,8 @@ class Orchestrator:
         new_doc["estimate"] = self._estimate(new)
         self.project.save_plan_doc(new_doc, all_tasks)
         self.emit("plan_revised", {"version": new_doc["version"], "by": by, **diff})
+        if by != "critic":  # the first plan publishes after its critique
+            self._publish_plan()
         if by == "owner":
             self.project.append("chat.jsonl", {"at": utcnow(), "who": "orchestrator", "text": summary, "steer": False})
         if critique_again:
@@ -735,6 +769,7 @@ class Orchestrator:
             raise HarnessError(f"action must be one of {', '.join(self.PLAN_ACTIONS)}, revise or approve")
         self.project.save_plan_doc(doc)
         self.emit("plan_edit", {"action": action, "pending": len(pend)})
+        self._publish_plan()
         return {"pending": len(pend), "open": plandoc.open_items(doc)}
 
     def approve(self) -> None:
@@ -748,6 +783,7 @@ class Orchestrator:
             meta["status"] = "running"
         self.project.save_meta(meta)
         self.emit("approved", {})
+        self._publish_plan()
 
     # -- execution ---------------------------------------------------------------
     def _run_with_fallback(
@@ -1018,6 +1054,7 @@ class Orchestrator:
             summary = f"(summary unavailable: {e})"
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
+        self._publish_plan()
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
         for plan_id in meta.get("journal_plans", []):
             self._journal_close(plan_id, "completed by the harness")

@@ -259,6 +259,11 @@ class AutoSync:
                 self.app.hub.store.sync(force=True)
             self.app.last_auto_sync = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.app.auto_sync_error = ""
+            cfg = self.app.cfg()
+            if cfg and cfg.lab_dir and (cfg.remote or {}).get("enabled", True):
+                from ..remote import process
+
+                process(cfg, self.app.hub, background=True, log=lambda s: None)  # commands from the phone
         except Exception as e:  # offline etc.: keep the app working on its local copy
             self.app.auto_sync_error = str(e)[:300]
         time.sleep(0)

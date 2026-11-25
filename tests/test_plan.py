@@ -197,3 +197,69 @@ def test_estimate_uses_history_when_there_is_some(tmp_path):
     assert hist["coder"]["cost"] == 0.5 and hist["coder"]["minutes"] == 2.0
     est = plandoc.estimate(orch.cfg, [Task("X", "x", "coder", "d")], hist)
     assert est["by_role"]["coder"]["basis"] == "history" and est["cost_usd"] == 0.5
+
+
+def test_plan_published_to_the_projects_own_hub_page(tmp_path):
+    import yaml
+
+    from .test_hub import RAW as HUB_RAW
+
+    raw = json.loads(json.dumps(HUB_RAW))
+    raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
+    raw["agents"]["proj"] = {"description": "the project folder's own hub project"}
+    raw["agents"]["harness"] = {"description": "shared"}
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw))
+    hraw = json.loads(json.dumps(RAW))
+    hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
+    orch, *_ = make(tmp_path, raw=hraw, brain=PlanBrain())
+    orch.start("bakery site", require_approval=True)
+    orch.run()
+    page = (tmp_path / "hubdata" / "plans" / "proj.md").read_text()
+    assert page.startswith("_Plan status: waiting for the owner · plan ready: 1 choice, 1 question")
+    assert "## Decisions" in page and "[T1]" in page
+    hub = orch._hub()
+    todo = hub.journal.entries("proj", "proj")
+    assert any(e["kind"] == "plan" and e["text"].startswith("goal: bakery site") for e in todo)  # no name prefix
+    orch.plan_update("choose", decision="C1", option="b")
+    assert "Watercolour (chosen)" in (tmp_path / "hubdata" / "plans" / "proj.md").read_text()
+
+
+def test_commands_through_the_hub(tmp_path):
+    import yaml
+
+    from roundtable.remote import process
+
+    from .test_hub import RAW as HUB_RAW
+
+    raw = json.loads(json.dumps(HUB_RAW))
+    raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
+    raw["agents"].update({"proj": {}, "harness": {}, "me": {}, "stranger": {}})
+    raw["rules"].append({"from": "*", "to": "*", "allow": ["message"]})
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw))
+    hraw = json.loads(json.dumps(RAW))
+    hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
+    brain = PlanBrain()
+    orch, *_ = make(tmp_path, raw=hraw, brain=brain)
+    orch.cfg.lab_dir = tmp_path / "lab"
+    orch.start("bakery site", require_approval=True)
+    orch.run()
+    hub = orch._hub()
+    send = lambda who, body, subject="roundtable: command": hub.send(who, "proj", subject, body, kind="request")  # noqa: E731
+    send("me", json.dumps({"action": "choose", "decision": "C1", "option": "b"}))
+    send("stranger", json.dumps({"action": "approve"}))  # not the owner: ignored
+    send("me", "not json")
+    hub.send("me", "proj", "hello", "just a note")  # a normal message stays for the humans
+    assert process(orch.cfg, hub, log=lambda s: None) == 2
+    assert orch.project.plan_doc()["decisions"][0]["chosen"] == "b"
+    assert not orch.project.meta()["plan_approved"]
+    replies = hub.inbox("me", unread_only=True)
+    assert len(replies) == 2 and any("1 change(s) waiting" in r["body"] for r in replies)
+    assert any("isn't valid JSON" in r["body"] for r in replies)
+    left = {m["subject"] for m in hub.inbox("proj", unread_only=True)}
+    assert left == {"roundtable: command", "hello"}  # the stranger's command and the note
+    send("me", json.dumps({"action": "revise"}))
+    send("me", json.dumps({"action": "approve"}))
+    assert process(orch.cfg, hub, log=lambda s: None) == 2
+    assert orch.project.meta()["status"] == "done"
+    assert any("The run ended as: done" in r["body"] for r in hub.inbox("me", unread_only=True))
+    assert process(orch.cfg, hub, log=lambda s: None) == 0  # each command runs once
