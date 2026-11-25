@@ -474,7 +474,8 @@ class Orchestrator:
             path = self.ws.path(rel)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-            task.summary = f"generated image {rel} with {ref}"
+            style = task.image_options.get("style") or role.options.get("style")
+            task.summary = f"generated image {rel} with {ref}" + (f" (style {style})" if style else "")
             task.attempts.append({"model": str(ref), "outcome": "approved", "cost_usd": cost})
             self.project.append("metrics.jsonl", {
                 "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": "approved",
