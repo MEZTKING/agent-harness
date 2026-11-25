@@ -189,3 +189,23 @@ def test_raise_budget_saves_limit_and_resumes(setup):
     assert j["status"] == "done" and j["result"] == {"status": "done", "max_cost_usd": 50.0}
     assert yaml.safe_load((harness_yaml.parent / "custom.yaml").read_text())["limits"]["max_cost_usd"] == 50.0
     assert yaml.safe_load(harness_yaml.read_text()) == HARNESS_RAW  # harness.yaml untouched
+
+
+def test_feed_lines_say_who_did_what(setup):
+    app, orch, brain, cfg = setup
+    orch._register_with_lab()
+    orch.start("goal")
+    orch.run()
+    steps = [i for i in activity(app) if i["kind"] == "tool_call" and i["project"] == "proj"]
+    write = next(i for i in steps if i["text"].startswith("write_file"))
+    assert write["text"] == "write_file hello.py" and write["role"] == "coder" and write["task"] == "T1"
+    assert write["who"] == "T1 coder (coder)"  # model name: provider prefix dropped
+    review = next(i for i in steps if i["text"].startswith("submit_review"))
+    assert review["text"] == "submit_review approved" and review["role"] == "reviewer"
+    assert review["who"].startswith("T1 reviewer (reviewer)")
+
+
+def test_auto_sync_works_with_a_local_hub(setup):
+    app, orch, brain, cfg = setup
+    AutoSync(app).tick()
+    assert app.auto_sync_error == "" and app.last_auto_sync

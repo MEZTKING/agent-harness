@@ -158,25 +158,58 @@ def build(app) -> dict[str, Any]:
     }
 
 
+TOOL_MAIN_ARG = ("path", "command", "pattern", "query", "summary", "approved")
+
+
+def _tool_text(d: dict[str, Any]) -> str:
+    args = d.get("args") or {}
+    main = next((args[k] for k in TOOL_MAIN_ARG if k in args), "")
+    if d.get("tool") == "submit_review":
+        main = "approved" if args.get("approved") else "rejected"
+    text = f"{d.get('tool')} {main}".strip()
+    return text + (" (failed)" if d.get("error") else "")
+
+
 def activity(app, limit: int = 120) -> list[dict[str, Any]]:
-    """Newest-first feed across harness runs (agent steps) and the hub journal."""
+    """Newest-first feed across harness runs (agent steps) and the hub journal.
+
+    Each step carries who did it: the task, the role and the model, tracked from
+    the task_start / attempt events that precede it.
+    """
     items: list[dict[str, Any]] = []
     cfg = app.cfg()
     if cfg and cfg.lab_dir:
         for path in app.lab(cfg).projects():
-            for d in _read_jsonl(path / ".harness" / "events.jsonl", tail=150):
-                if d.get("event") not in FEED_EVENTS:
+            ctx = {"task": "", "role": "", "model": ""}
+            for d in _read_jsonl(path / ".harness" / "events.jsonl", tail=400):
+                ev = d.get("event")
+                if ev == "task_start":
+                    ctx = {"task": d.get("task", ""), "role": d.get("role", ""), "model": ""}
+                elif ev == "attempt":
+                    ctx["model"] = d.get("model", "")
+                elif ev == "planning":
+                    ctx = {"task": "", "role": "orchestrator", "model": d.get("model", "")}
+                elif ev == "model_turn" and d.get("model"):
+                    ctx["model"] = d["model"]
+                if ev not in FEED_EVENTS:
                     continue
-                if d["event"] == "steer":
+                if ev == "steer":
                     text = f"owner instruction: {d.get('text', '')}"
-                elif d["event"] == "goal":
+                elif ev == "goal":
                     text = f"new goal: {d.get('goal', '')[:160]}"
+                elif ev == "tool_call":
+                    text = _tool_text(d)
                 else:
-                    text = harness_event_line(d["event"], d)
+                    text = harness_event_line(ev, d)
                 if not text:
                     continue
-                items.append({"at": d.get("at", ""), "project": path.name, "kind": d["event"],
-                              "text": text.strip().split("\n")[0][:220]})
+                role = "reviewer" if ev == "review" or d.get("tool") == "submit_review" else ctx["role"]
+                who = " ".join(x for x in (ctx["task"], role) if x)
+                if ctx["model"] and ev in ("tool_call", "attempt", "planning", "review"):
+                    who += f" ({ctx['model'].split('/', 1)[-1]})"
+                items.append({"at": d.get("at", ""), "project": path.name, "kind": ev, "who": who.strip(),
+                              "task": ctx["task"], "role": role, "model": ctx["model"],
+                              "text": text.strip().lstrip("▶✓✗-> ").split("\n")[0][:220]})
     if app.hub:
         with app.hub_lock:
             for agent in app.hub.config.agents:
