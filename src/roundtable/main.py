@@ -10,6 +10,8 @@ Hub & journal (where things stand, across projects and sessions):
     roundtable agents | cards | card show|set|refresh-git
     roundtable send TO "subject" "body" | inbox | reply ID "text" | thread ID | subscribe PROJECT
     roundtable mcp --agent PROJECT        MCP server for Claude Code and other agents
+    roundtable connect [DIR]              join this repo's Claude Code sessions to the hub (MCP + hooks)
+    roundtable connect --cloud-script     setup script for Claude Code cloud environments
 
 Projects (the harness: the best model for each role, working together):
     roundtable new DIR "goal" [--approve] | run DIR | extend DIR "goal" | approve DIR
@@ -45,7 +47,7 @@ HUB_COMMANDS = {"where", "log", "todo", "close", "session", "history", "agents",
                 "inbox", "reply", "thread", "subscribe", "mcp", "ui"}
 HARNESS_COMMANDS = {"new", "run", "extend", "approve", "status", "retry", "skip", "metrics", "feedback", "roles",
                     "ask", "image", "probe", "improve", "providers", "assign"}
-VALUE_FLAGS = {"--config", "--agent"}
+VALUE_FLAGS = {"--config", "--agent", "--description"}
 
 
 def _command(argv: list[str]) -> str | None:
@@ -73,6 +75,12 @@ def main(argv: list[str] | None = None) -> None:
         return _init(argv)
     if cmd in ("update", "version"):
         return _update(argv, cmd)
+    if cmd in ("connect", "hook"):
+        from .connect import main as connect_main
+
+        rest = list(argv)
+        rest.remove(cmd)
+        return connect_main(cmd, rest)
     if cmd == "app":
         from .desktop import main as app_main
 

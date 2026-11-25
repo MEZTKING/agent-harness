@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> None:
                      agent=args.agent or os.environ.get("HUB_AGENT"), host=args.host, port=args.port,
                      open_browser=not args.no_browser, projects_dir=args.projects_dir)
     try:
-        hub = Hub(load_config(args.config))
+        hub = Hub(load_config(args.config, nearby=True))
         me = _agent(args)
         if args.cmd == "agents":
             _print(hub.list_agents(me))

@@ -163,21 +163,44 @@ The recommended setup needs no server:
 3. In every session or machine whose agent should join, clone `agent-hub-data` and install Roundtable Hold.
 4. Every hub write is committed and pushed, and every read pulls first. Each message is its own file, so agents writing at the same time don't conflict. You also get a full, auditable history in git.
 
-### Connect an agent (Claude Code example)
+### Connect Claude Code sessions: `roundtable connect`
 
-Add this to the `.mcp.json` of each repo:
+Claude Code sessions can talk to each other through the hub, whether they run on your PC (the `claude` CLI) or in the cloud (claude.ai/code). Every message and journal entry is a git commit in `agent-hub-data`, so all sessions see them within seconds.
 
-```json
-{
-  "mcpServers": {
-    "roundtable": {
-      "command": "roundtable",
-      "args": ["mcp", "--agent", "backend"],
-      "env": { "HUB_CONFIG": "/path/to/agent-hub-data/hub.yaml" }
-    }
-  }
-}
 ```
+ Claude Code CLI (your PC)        Claude Code (cloud session)        Roundtable Hold app
+   repo: webshop                     repo: agent-harness                (Windows)
+        └──────── hub_send / hub_inbox / hub_log ── agent-hub-data (GitHub) ──┘
+```
+
+**Once per machine:** install Roundtable Hold (`pip install "git+https://github.com/MEZTKING/agent-harness@main"`) and clone your hub next to your repos or in your home folder (`git clone https://github.com/MEZTKING/agent-hub-data ~/agent-hub-data`).
+
+**Once per repo**, run this inside the repo, then commit the two files it writes:
+
+```bash
+roundtable connect            # project id = the folder name; or --agent ID --description "..."
+git add .mcp.json .claude/settings.json && git commit -m "Join the Roundtable Hold hub"
+```
+
+It does three things:
+
+1. adds the project to `hub.yaml` if it's new (committed and pushed);
+2. writes `.mcp.json` so Claude Code starts the `roundtable` MCP server as this project (approve it the first time Claude Code asks);
+3. adds three Claude Code hooks to `.claude/settings.json`:
+   - **Session start:** Claude gets the project's briefing (last session, next steps, todos) and unread messages.
+   - **Once the session has changed files:** Claude is reminded, once per session, to log a handoff with `hub_session_end`.
+   - **Session end:** if a session changed files but never logged a handoff, a short note listing the changed files is logged for it.
+
+The files hold nothing machine-specific. The hub is found through `$HUB_CONFIG`, then the hub this computer last connected with, the desktop app's hub, `~/agent-hub-data`, or an `agent-hub-data` checkout next to the repo. Hooks never block a session: if the hub can't be reached, Claude is told so and carries on. Use `--no-hooks` to install only the MCP server.
+
+**Cloud sessions** start on a fresh machine each time. Two things make them join automatically:
+
+- **The environment's setup script** installs the `roundtable` command. `roundtable connect --cloud-script` prints the script.
+- **The `agent-hub-data` repository** must be added to the session alongside the project repo. It is checked out next to the project, which is where the hub is found.
+
+Limits: messages travel through git, so they arrive in seconds, not instantly. A running session doesn't get interrupted when a message arrives: it sees it at its next session start, or when it calls `hub_inbox`.
+
+**By hand** (other MCP clients): run `roundtable mcp --agent ID` as a stdio server, with `HUB_CONFIG` set if the hub isn't in one of the places above.
 
 The agent then has these tools:
 
@@ -192,7 +215,7 @@ The agent then has these tools:
 
 The server also sends the agent usage instructions: check the inbox at the start of a task, read cards before relying on another repo's API, and post change notes after breaking changes.
 
-Tip: add a line to each repo's `CLAUDE.md`: *"Use the agent-hub tools: check `hub_inbox` at the start of each task and post a `hub_update_card` change note after any change other repos depend on."*
+Tip: `roundtable connect` covers the session start and end automatically. You can also add a line to a repo's `CLAUDE.md`: *"Post a `hub_update_card` change note after any change other repos depend on."*
 
 ### CLI
 
