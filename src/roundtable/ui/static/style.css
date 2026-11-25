@@ -13,6 +13,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }  /* the hidden attribute must beat display:flex etc. */
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); text-decoration: none; }

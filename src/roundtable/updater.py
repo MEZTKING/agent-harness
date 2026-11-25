@@ -4,6 +4,8 @@ Knows how Roundtable Hold was installed (pip writes PEP 610 ``direct_url.json``)
 
 * from git   (``pip install "git+https://github.com/...@branch"``): compares the
   installed commit with the remote branch head, and reinstalls from the same URL.
+* the Windows app (PyInstaller build): checks the latest GitHub Release, downloads
+  its installer and runs it (the app closes and reopens on the new version).
 * editable   (``pip install -e /path/to/checkout``): ``git pull --ff-only`` in the
   checkout (refusing if it has uncommitted changes), then ``pip install -e`` so new
   dependencies and commands are picked up.
@@ -27,6 +29,7 @@ from urllib.parse import urlparse
 
 DIST = "roundtable-hold"
 DEFAULT_URL = "https://github.com/MEZTKING/agent-harness"
+RELEASES_API = "https://api.github.com/repos/MEZTKING/agent-harness/releases/latest"
 CHECK_EVERY = 24 * 3600
 STATE_FILE = Path(os.environ.get("ROUNDTABLE_HOME", "~/.roundtable")).expanduser() / "update-check.json"
 
@@ -39,7 +42,7 @@ def _run(cmd: list[str], cwd: str | Path | None = None, timeout: float = 600) ->
 
 @dataclass
 class InstallInfo:
-    kind: str  # git | editable | other
+    kind: str  # app | git | editable | other
     url: str = ""  # git remote URL
     ref: str = ""  # branch/tag the install tracks
     commit: str = ""  # installed commit
@@ -60,7 +63,50 @@ class UpdateError(RuntimeError):
     pass
 
 
+def _file_url_to_path(url: str) -> str:
+    """file:///C:/Users/x -> C:\\Users\\x on Windows, file:///home/x -> /home/x elsewhere."""
+    from urllib.request import url2pathname
+
+    parsed = urlparse(url)
+    path = url2pathname(parsed.path)
+    if parsed.netloc and parsed.netloc not in ("", "localhost"):
+        path = f"//{parsed.netloc}{path}"  # UNC share
+    return path
+
+
+def _parse_version(v: str) -> tuple:
+    parts = []
+    for p in v.lstrip("vV").split("."):
+        num = "".join(ch for ch in p if ch.isdigit())
+        parts.append(int(num) if num else 0)
+    return tuple(parts)
+
+
+def latest_release(fetch=None) -> dict:
+    """{version, url (installer asset), notes} of the newest GitHub Release."""
+    import urllib.request
+
+    if fetch is None:
+        def fetch(url):
+            req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
+                                                       "User-Agent": "roundtable-hold-updater"})
+            with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310 - fixed GitHub API URL
+                return json.loads(r.read())
+    try:
+        rel = fetch(RELEASES_API)
+    except Exception as e:
+        raise UpdateError(f"could not reach GitHub Releases ({e})") from e
+    asset = next((a for a in rel.get("assets", []) if a.get("name", "").lower().endswith("setup.exe")
+                  or ("setup" in a.get("name", "").lower() and a.get("name", "").lower().endswith(".exe"))), None)
+    return {"version": rel.get("tag_name", "").lstrip("vV"), "url": asset["browser_download_url"] if asset else "",
+            "notes": (rel.get("body") or "")[:2000], "page": rel.get("html_url", "")}
+
+
 def install_info(direct_url: dict | None = None, version: str | None = None, runner: Runner = _run) -> InstallInfo:
+    if getattr(sys, "frozen", False) and direct_url is None:
+        from . import __version__
+
+        return InstallInfo("app", version=__version__, ref="releases", url=DEFAULT_URL)
     try:
         dist = metadata.distribution(DIST)
         version = version or dist.version
@@ -76,7 +122,7 @@ def install_info(direct_url: dict | None = None, version: str | None = None, run
         return InstallInfo("git", url=url, ref=vcs.get("requested_revision", ""), commit=vcs.get("commit_id", ""),
                            version=version or "")
     if direct_url.get("dir_info", {}).get("editable"):
-        path = urlparse(url).path
+        path = _file_url_to_path(url)
         info = InstallInfo("editable", path=path, version=version or "")
         if (Path(path) / ".git").exists():
             info.commit = runner(["git", "rev-parse", "HEAD"], cwd=path).stdout.strip()
@@ -99,6 +145,15 @@ def remote_head(url: str, ref: str, runner: Runner = _run, timeout: float = 30) 
 def check(ref: str | None = None, info: InstallInfo | None = None, runner: Runner = _run,
           timeout: float = 30) -> UpdateStatus:
     info = info or install_info(runner=runner)
+    if info.kind == "app":
+        rel = latest_release()
+        newer = _parse_version(rel["version"]) > _parse_version(info.version)
+        st = UpdateStatus(info, latest=rel["version"], available=newer and bool(rel["url"]))
+        st.message = (f"Roundtable Hold {rel['version']} is available (you have {info.version})" if st.available
+                      else f"up to date (version {info.version})")
+        st.changes = [ln for ln in rel["notes"].splitlines() if ln.strip()][:20]
+        st.install.path = rel["url"]
+        return st
     if info.kind == "other":
         return UpdateStatus(info, message="installed from a package archive; reinstall with "
                                           f"pip install --upgrade \"git+{DEFAULT_URL}\" to enable updates")
@@ -120,6 +175,8 @@ def update(ref: str | None = None, force: bool = False, runner: Runner = _run,
     if not st.available and not force:
         log(st.message)
         return st
+    if info.kind == "app":
+        return _update_app(st, log)
     pip = [sys.executable, "-m", "pip", "install", "--quiet"]
     if info.kind == "git":
         target = f"{DIST} @ git+{info.url or DEFAULT_URL}@{ref or info.ref or 'HEAD'}"
@@ -159,6 +216,35 @@ def update(ref: str | None = None, force: bool = False, runner: Runner = _run,
     return st
 
 
+def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
+    """Download the new installer and run it; it closes this app and reopens the new version."""
+    import tempfile
+    import urllib.request
+
+    url = st.install.path
+    if not url:
+        raise UpdateError("the latest release has no Windows installer attached yet")
+    dest = Path(tempfile.gettempdir()) / f"RoundtableHold-Setup-{st.latest}.exe"
+    log(f"downloading {url}")
+    with urllib.request.urlopen(url, timeout=300) as r, open(dest, "wb") as f:  # noqa: S310 - GitHub release asset
+        while chunk := r.read(1 << 20):
+            f.write(chunk)
+    log(f"starting the installer ({dest.stat().st_size // 1_000_000} MB); Roundtable Hold will close and reopen")
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen([str(dest), "/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"], creationflags=flags)
+    st.available = False
+    st.message = f"installing {st.latest}..."
+
+    def _exit_soon():
+        time.sleep(3)
+        os._exit(0)  # let the installer replace our files
+
+    import threading
+
+    threading.Thread(target=_exit_soon, daemon=True).start()
+    return st
+
+
 # -- passive daily check ------------------------------------------------------------
 def _load_state() -> dict:
     try:
@@ -182,8 +268,8 @@ def cached_notice(runner: Runner = _run, now: float | None = None) -> str | None
     now = now or time.time()
     try:
         info = install_info(runner=runner)
-        if info.kind == "other" or not info.commit:
-            return None
+        if info.kind in ("other", "app") or not info.commit:
+            return None  # the app shows its own banner
         state = _load_state()
         if now - state.get("checked_at", 0) > CHECK_EVERY or state.get("installed") != info.commit:
             st = check(info=info, runner=runner, timeout=2)

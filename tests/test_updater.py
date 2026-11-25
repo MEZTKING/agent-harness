@@ -18,6 +18,15 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.delenv("ROUNDTABLE_NO_UPDATE_CHECK", raising=False)
 
 
+def test_file_url_to_path():
+    from pathlib import Path
+
+    from roundtable.updater import _file_url_to_path
+
+    here = Path.cwd().resolve()
+    assert Path(_file_url_to_path(here.as_uri())) == here  # round-trips on Windows and POSIX
+
+
 def test_install_kinds_from_direct_url():
     git = install_info({"url": "https://github.com/x/y", "vcs_info": {"vcs": "git", "commit_id": "abc",
                                                                      "requested_revision": "main"}}, version="1")
@@ -81,7 +90,7 @@ def test_editable_update_end_to_end_with_real_git(tmp_path):
             return subprocess.CompletedProcess(cmd, 0, "", "")
         return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
-    info = install_info({"url": f"file://{user}", "dir_info": {"editable": True}}, version="1", runner=runner)
+    info = install_info({"url": user.as_uri(), "dir_info": {"editable": True}}, version="1", runner=runner)
     assert info.kind == "editable" and info.ref == "main" and info.commit
     assert check(info=info, runner=runner).available
 

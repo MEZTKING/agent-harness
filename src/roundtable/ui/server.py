@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
+import sys
 import secrets
 import threading
 import time
@@ -131,23 +133,30 @@ class UIApp:
                  agent: str | None = None, projects_dir: str | None = None):
         self.hub = None
         self.hub_error = ""
+        self.hub_config_path = hub_config
+        self.desktop: dict | None = None  # set by the desktop app: {"paths": Paths, "keys": KeyStore}
         self.harness_config_path = harness_config
         self.harness_error = ""
         self.hub_lock = threading.RLock()
         self.jobs = Jobs()
-        try:
-            from ..core.config import load_config
-            from ..hub.service import Hub
-
-            self.hub = Hub(load_config(hub_config))
-        except Exception as e:
-            self.hub_error = str(e)
+        self.reload_hub()
         self.agent = agent
         if self.hub and (not agent or agent not in self.hub.config.agents):
             agents = self.hub.config.agents
             self.agent = "me" if "me" in agents else next(iter(agents), None)
         self.projects_dir = Path(projects_dir or ".").expanduser().resolve()
         self.cfg()  # validate early so the UI can show config errors
+
+    def reload_hub(self) -> None:
+        try:
+            from ..core.config import load_config
+            from ..hub.service import Hub
+
+            with self.hub_lock:
+                self.hub = Hub(load_config(self.hub_config_path))
+                self.hub_error = ""
+        except Exception as e:
+            self.hub, self.hub_error = None, str(e)
 
     # -- shared helpers ----------------------------------------------------------------
     def cfg(self):
@@ -551,6 +560,137 @@ class UIApp:
             return self.jobs.start("improve", f"apply {p.id}", run, target="improve").view()
         raise ApiError(f"unknown action {action!r}")
 
+    # -- setup & settings (desktop app first-run, and config editing) --------------------------------
+    def _config_paths(self) -> dict[str, Path | None]:
+        from ..core.config import find_config as find_hub
+        from ..harness.config import find_config as find_harness
+
+        out: dict[str, Path | None] = {}
+        for which, finder, explicit in (("hub", find_hub, self.hub_config_path),
+                                        ("harness", find_harness, self.harness_config_path)):
+            try:
+                out[which] = finder(explicit)
+            except FileNotFoundError:
+                out[which] = Path(explicit).expanduser() if explicit else None
+        return out
+
+    def setup(self, q=None):
+        from .. import __version__
+
+        d = self.desktop
+        paths = self._config_paths()
+        hub_mode, hub_detail = "none", ""
+        if self.hub:
+            st = self.hub.config.storage
+            hub_mode = st.get("type", "file")
+            hub_detail = str(self.hub.store.root)
+        out: dict[str, Any] = {
+            "desktop": bool(d), "version": __version__, "frozen": bool(getattr(sys, "frozen", False)),
+            "hub": {"mode": hub_mode, "where": hub_detail, "error": self.hub_error},
+            "config_paths": {k: str(v) if v else "" for k, v in paths.items()},
+            "projects_dir": str(self.projects_dir), "agent": self.agent,
+            "agents": list(self.hub.config.agents) if self.hub else [],
+        }
+        if d:
+            from ..desktop import KNOWN_KEYS, git_version
+
+            ks = d["keys"]
+            cfg = self.cfg()
+            extra = [v.get("api_key_env") for v in (cfg.providers.values() if cfg else []) if v.get("api_key_env")]
+            out["keys"] = [{"name": n, "label": KNOWN_KEYS.get(n, n), "set": bool(os.environ.get(n) or ks.get(n))}
+                           for n in ks.names(extra)]
+            out["secure_keys"] = ks.secure
+            out["git"] = git_version()
+            out["home"] = str(d["paths"].home)
+            out["setup_done"] = bool(d["paths"].load_settings().get("setup_done"))
+        else:
+            out["keys"] = [{"name": n, "label": n, "set": bool(os.environ.get(n))}
+                           for n in ("ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "RETRODIFFUSION_API_KEY",
+                                     "OPENAI_API_KEY", "GEMINI_API_KEY")]
+            out["secure_keys"] = False
+            out["setup_done"] = True
+        return out
+
+    def setup_keys(self, body):
+        if not self.desktop:
+            raise ApiError("API keys are read from environment variables when running from the terminal")
+        ks = self.desktop["keys"]
+        for name, value in (body.get("keys") or {}).items():
+            if not isinstance(name, str) or not name.replace("_", "").isalnum() or not name.isupper():
+                raise ApiError(f"invalid key name {name!r}")
+            if value is not None:
+                ks.set(name, str(value))
+        return self.setup()
+
+    def setup_hub(self, body):
+        if not self.desktop:
+            raise ApiError("connect a hub from the terminal: edit hub.yaml")
+        from ..desktop import connect_github_hub, write_local_hub
+
+        paths = self.desktop["paths"]
+        if body.get("mode") == "local":
+            write_local_hub(paths)
+            self.reload_hub()
+            return self.setup()
+
+        def run(job: Job):
+            connect_github_hub(paths, body.get("url", ""), log=job.line)
+            self.reload_hub()
+            if self.hub_error:
+                raise RuntimeError(self.hub_error)
+            job.line(f"hub ready: {len(self.hub.config.agents)} project(s)")
+            return {"agents": list(self.hub.config.agents)}
+
+        return self.jobs.start("setup", "connect hub", run, target="setup").view()
+
+    def setup_done(self, body):
+        if self.desktop:
+            paths = self.desktop["paths"]
+            settings = paths.load_settings()
+            settings["setup_done"] = True
+            if body.get("agent"):
+                settings["agent"] = self.agent = body["agent"]
+            if body.get("projects_dir"):
+                settings["projects_dir"] = body["projects_dir"]
+                self.projects_dir = Path(body["projects_dir"]).expanduser().resolve()
+                self.projects_dir.mkdir(parents=True, exist_ok=True)
+            paths.save_settings(settings)
+        return self.setup()
+
+    def config_get(self, q):
+        which = (q.get("which") or ["harness"])[0]
+        path = self._config_paths().get(which)
+        if not path:
+            raise ApiError(f"no {which} config file", 404)
+        return {"which": which, "path": str(path), "text": path.read_text() if path.exists() else ""}
+
+    def config_save(self, body):
+        import yaml
+
+        which, text = body.get("which"), body.get("text", "")
+        path = self._config_paths().get(which)
+        if which not in ("hub", "harness") or not path:
+            raise ApiError("unknown config")
+        try:
+            raw = yaml.safe_load(text) or {}
+            if which == "harness":
+                from ..harness.config import parse_config
+
+                parse_config(raw, path)
+            else:
+                from ..core.config import parse_config
+
+                parse_config(raw, path)
+        except (yaml.YAMLError, ValueError) as e:
+            raise ApiError(f"not saved - {which}.yaml has a problem: {e}")
+        backup = path.with_suffix(".yaml.bak")
+        if path.exists():
+            backup.write_text(path.read_text())
+        path.write_text(text)
+        if which == "hub":
+            self.reload_hub()
+        return {"saved": str(path), "backup": str(backup)}
+
     # -- updater -----------------------------------------------------------------------------------
     def update_status(self, q):
         from ..updater import status_dict
@@ -587,6 +727,12 @@ class UIApp:
             ("POST", "/api/improve"): R.improve_action,
             ("GET", "/api/jobs"): lambda q: R.jobs.list(),
             ("GET", "/api/update"): R.update_status,
+            ("GET", "/api/setup"): R.setup,
+            ("POST", "/api/setup/keys"): R.setup_keys,
+            ("POST", "/api/setup/hub"): R.setup_hub,
+            ("POST", "/api/setup/done"): R.setup_done,
+            ("GET", "/api/config"): R.config_get,
+            ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
         }
 
