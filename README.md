@@ -89,7 +89,7 @@ roundtable ui                 # → http://127.0.0.1:8765  (or: roundtable ui)
 
 | Page | What you can do |
 |---|---|
-| **Where was I** | Every project's last session and next steps, open todos (high priority first), plans and recent work. Add entries, close or drop todos, write a session handoff. |
+| **Roundtable** (main screen) | Every project at the table with its live status (running and on which task/model, waiting for you and why, idle, done) and progress. **Needs you** puts approvals, failed tasks, budget stops, urgent todos and unread messages first, with one-click actions. For the selected project: its **task tree**, **chat with its orchestrator** (ask questions, or steer it; instructions reach every later task), and the **live minutes** of what every agent is doing, plus model health, today's spend and auto-sync. |
 | **Projects** | All hub projects at a glance. Per project: full journal history by kind, and the editable project card that other agents read. |
 | **Messages** | Any agent's inbox, threads, reply, and send to one or more agents. |
 | **Runs** | Harness projects with status and spend. Start a new project (optionally approving the plan first), approve, resume, run one task, extend with a new goal, retry or skip failed tasks, 👍/👎 results (feeds self-improvement), live run log, completion report, models used. |

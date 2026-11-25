@@ -159,6 +159,9 @@ class Orchestrator:
         self._listener = on_event
         meta = self.project.meta()
         self.budget = Budget(limit_usd=cfg.limits.max_cost_usd, spent_usd=meta.get("spent_usd", 0.0))
+        # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
+        self.budget.on_charge = lambda cost: self.project.append(
+            "spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
 
     # -- logging -------------------------------------------------------------
     def emit(self, kind: str, data: dict[str, Any]) -> None:

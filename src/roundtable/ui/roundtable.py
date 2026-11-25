@@ -120,7 +120,7 @@ def build(app) -> dict[str, Any]:
                 run = run_seat(app, path)
             except (OSError, json.JSONDecodeError):
                 continue
-            for m in _read_jsonl(path / ".harness" / "metrics.jsonl"):
+            for m in _read_jsonl(path / ".harness" / "spend.jsonl"):
                 if str(m.get("at", "")).startswith(today):
                     spend_today += m.get("cost_usd") or 0
             seat = seats.get(run["id"])
@@ -153,7 +153,7 @@ def build(app) -> dict[str, Any]:
     seat_list = sorted(seats.values(), key=lambda s: (order.get(s["status"], 9), _age_s(s.get("last_activity") or "")))
     return {
         "seats": seat_list, "needs_you": needs, "health": sorted(health, key=lambda h: h["model"]),
-        "spend_today": round(spend_today, 4), "synced_at": app.last_auto_sync, "agent": app.agent,
+        "spend_today": round(spend_today, 6), "synced_at": app.last_auto_sync, "agent": app.agent,
         "running_jobs": sum(j.status == "running" for j in app.jobs.jobs.values()),
     }
 

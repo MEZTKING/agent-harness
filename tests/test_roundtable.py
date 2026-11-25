@@ -209,3 +209,16 @@ def test_auto_sync_works_with_a_local_hub(setup):
     app, orch, brain, cfg = setup
     AutoSync(app).tick()
     assert app.auto_sync_error == "" and app.last_auto_sync
+
+
+def test_spend_today_counts_every_charge(setup):
+    app, orch, brain, cfg = setup
+    orch._register_with_lab()
+    orch.start("goal")
+    orch.run()  # planning + tasks + reviews + the final report
+    data = build(app)
+    total = orch.project.meta()["spent_usd"]
+    assert total > 0 and abs(data["spend_today"] - total) < 1e-6
+    tasks_only = sum(json.loads(x).get("cost_usd") or 0
+                     for x in (orch.project.dir / "metrics.jsonl").read_text().splitlines())
+    assert data["spend_today"] > tasks_only  # includes planning and the completion report
