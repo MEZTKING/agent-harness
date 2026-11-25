@@ -247,6 +247,6 @@ def test_owner_propose_cli(tmp_path, capsys):
     assert props["options"].change == {"options": {"temperature": 0.2}}
     routing = props["routing"].id
     with pytest.raises(SystemExit):  # owner routing proposal isn't rule-backed: needs a test or --force
-        main(["--config", cfg_path, "improve", "apply", routing])
-    main(["--config", cfg_path, "improve", "apply", routing, "--force"])
+        main(["--config", cfg_path, "improve", "apply", routing, "--skip-probe"])
+    main(["--config", cfg_path, "improve", "apply", routing, "--force", "--skip-probe"])
     assert [str(m) for m in load_config(cfg_path).roles["coder"].models] == ["b/coder2", "a/coder"]

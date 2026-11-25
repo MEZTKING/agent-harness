@@ -164,9 +164,9 @@ Everything is saved in `<project>/.harness/`. A run can stop at any point (budge
 ```bash
 pip install -e .
 harness init                     # writes harness.yaml: providers, roles, prices, limits
-export ANTHROPIC_API_KEY=... DEEPSEEK_API_KEY=... OPENAI_API_KEY=...
+export ANTHROPIC_API_KEY=... DEEPSEEK_API_KEY=... RETRODIFFUSION_API_KEY=...   # only the providers you use
 harness roles                    # check the routing
-harness ask coder "hello"        # check one role's model works
+harness probe                    # check every model works, and record its baseline (see Part 3)
 ```
 
 **Roles are just config.** To make Gemini your writer or move coding to Claude, edit one line:
@@ -235,6 +235,43 @@ The harness learns from its own history. It never rewrites `harness.yaml`. What 
    apply  ──►  you approve (or auto_apply policy) → versioned → `harness improve rollback`
 ```
 
+### Model health probes (regression and boost detector)
+
+Providers update models silently. `harness probe` runs a 1-minute suite of auto-graded checks on every model in your config: tool calling, strict JSON, following formatting instructions, a small reasoning problem, and fixing a real bug in a file. It then compares each model with **its own recent history**:
+
+```
+model                                      score  usual  time s  usual  tokens   cost $  status
+deepseek/deepseek-v4-pro                   5/5     100%    28.4     37    1124   0.0000  ok
+deepseek/deepseek-flash                    5/5     100%     9.1     11     827   0.0000  ok
+retrodiffusion/rd_lite__default            1/1     100%     0.2      1       0   0.0000  ok
+```
+
+| Status | Meaning |
+|---|---|
+| `REGRESSION` | A probe it reliably passed now fails, or its score dropped |
+| `DOWN` | Every probe failed with a provider error |
+| `BOOST` | A probe it reliably failed now passes, or its score rose |
+| `slow` / `fast` / `verbose` | Time or output length is ≥2× / ≤½ its usual |
+| `new` | First run: this becomes the baseline |
+
+```bash
+harness probe                         # all models (image APIs get a free reachability check)
+harness probe --role coder --details  # one role, every probe result
+harness probe --images                # also generate one real test image per image model (costs a few cents)
+```
+
+- **Exit code:** 1 when anything is `REGRESSION` or `DOWN`, so you can use it in scripts and cron jobs.
+- **Gating:** `harness improve apply` and `cycle` probe the models a change involves first, and hold the change back if one of them is acting up. Use `--skip-probe` to bypass, or `--force` to apply anyway.
+- **Your own probes:** add them in a YAML file set as `improve.probes_file`:
+
+```yaml
+- name: capital
+  prompt: "What is the capital of Australia? One word."
+  expect_contains: Canberra        # or expect_exact / expect_regex / expect_json
+```
+
+**First run with a new provider:** run `harness probe` before anything else. It confirms the key and adapter work, and it records the model's baseline.
+
 ### Commands
 
 ```bash
@@ -271,6 +308,12 @@ improve:
 
 ---
 
+## Examples
+
+- [`examples/knightgame`](examples/knightgame): a browser platformer built from one sentence. DeepSeek planned it and wrote the code, Retro Diffusion made the pixel art, and it cost $0.16. See [HOW_IT_WAS_MADE.md](examples/knightgame/HOW_IT_WAS_MADE.md).
+
+---
+
 ## Development
 
 ```bash
@@ -284,7 +327,7 @@ src/agentharness/
   hub/        hub service, MCP server, git helpers
   providers/  anthropic, openai_compat (DeepSeek/OpenAI/Gemini/...), images, scripted (tests)
   harness/    config (roles), tools (workspace), agent loop, orchestrator
-  improve/    lab (proposals, learned overlay, versions), analysis, replay evaluation, cycle
+  improve/    lab (proposals, learned overlay, versions), analysis, replay evaluation, cycle, probes
   prompts/    default role prompts (override with prompts_dir)
   cli.py          `agent-hub` command
   harness_cli.py  `harness` command

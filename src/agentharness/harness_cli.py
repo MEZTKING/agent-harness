@@ -15,6 +15,8 @@
     harness metrics DIR                   per role/model success rate and cost
     harness feedback DIR TASK_ID --good|--bad ["note"]   rate a finished task (feeds learning)
 
+    harness probe [--role R] [--model M] [--images]   quick health check: regressions / boosts per model
+
     harness improve analyze [--llm]       find improvement proposals in run history
     harness improve propose ROLE --models a/x,b/y | --prompt-file F | --options JSON
                                           suggest your own change (then test it like any other)
@@ -163,6 +165,15 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--bad", action="store_true")
     s.add_argument("note", nargs="?", default="")
 
+    s = sub.add_parser("probe", help="quick model regression / boost check")
+    s.add_argument("--role", action="append", default=[], help="only models used by this role (repeatable)")
+    s.add_argument("--model", action="append", default=[], help="provider/model to probe (repeatable)")
+    s.add_argument("--probe", action="append", default=[], help="only this probe (repeatable)")
+    s.add_argument("--images", action="store_true", help="also generate one real test image per image model (costs)")
+    s.add_argument("--max-cost", type=float, default=1.0)
+    s.add_argument("--no-save", action="store_true", help="don't add this run to the baseline history")
+    s.add_argument("--details", action="store_true", help="show every probe result")
+
     imp = sub.add_parser("improve", help="self-improvement loop")
     isub = imp.add_subparsers(dest="icmd", required=True)
     s = isub.add_parser("analyze")
@@ -183,7 +194,8 @@ def build_parser() -> argparse.ArgumentParser:
         s = isub.add_parser(name)
         s.add_argument("id")
         if name == "apply":
-            s.add_argument("--force", action="store_true", help="apply even if untested or the test failed")
+            s.add_argument("--force", action="store_true", help="apply even if untested, failed, or a model is acting up")
+            s.add_argument("--skip-probe", action="store_true", help="don't health-check the involved models first")
     s = isub.add_parser("test")
     s.add_argument("id")
     s.add_argument("--samples", type=int, default=3)
@@ -192,6 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("version", nargs="?", type=int)
     isub.add_parser("status")
     s = isub.add_parser("cycle")
+    s.add_argument("--skip-probe", action="store_true")
     s.add_argument("--llm", action="store_true")
     s.add_argument("--test", action="store_true", help="replay-test new proposals (spends money)")
     s.add_argument("--samples", type=int, default=3)
@@ -282,6 +295,16 @@ def _improve(args, cfg) -> None:
             sys.exit(f"{p.id} is already applied")
         if not args.force and not (p.test and p.test.get("passed")) and not (p.source == "rules" and p.kind == "routing"):
             sys.exit(f"{p.id} has not passed a replay test. Run `harness improve test {p.id}` or use --force.")
+        if not args.skip_probe and cfg.improve.get("probe_before_apply", True):
+            from .improve.probe import check, models_for_proposal
+
+            models = models_for_proposal(cfg, p)
+            print(f"Health-checking {', '.join(map(str, models))} before applying (skip with --skip-probe)...")
+            reports = check(cfg, lab.root, [m for m in models if cfg.roles[p.role].kind == "chat"])
+            _print_probe_reports(reports, details=False)
+            bad = [r.model for r in reports if r.bad]
+            if bad and not args.force:
+                sys.exit(f"not applied: {', '.join(bad)} acting up right now. Retry later, or use --force.")
         version = lab.apply(p, cfg, reason="manual")
         print(f"applied {p.id} as version {version}: {p.summary()}\nundo with: harness improve rollback {version}")
     elif args.icmd == "reject":
@@ -310,7 +333,7 @@ def _improve(args, cfg) -> None:
                 print(f"  {h['at']}  {h['event']:11} {h.get('proposal', ''):8} v{h.get('version', '')} {detail}")
     elif args.icmd == "cycle":
         rep_ = cycle(cfg, lab, use_llm=args.llm, test=args.test, max_cost=args.max_cost,
-                     samples=args.samples, on_event=on_event)
+                     samples=args.samples, on_event=on_event, probe=not args.skip_probe)
         print(json.dumps(rep_, indent=2))
 
 
@@ -350,6 +373,54 @@ def _image(args, cfg) -> None:
     cost = cfg.cost(ref, usage)
     print(f"saved {out} ({len(data)} bytes) via {opts.get('style') or ref}"
           + (f" · ${cost:.4f}" if cost is not None else ""))
+
+
+STATUS_MARK = {"OK": "ok", "NEW": "new", "DOWN": "DOWN", "REGRESSION": "REGRESSION", "BOOST": "boost",
+               "SLOW": "slow", "FAST": "fast", "VERBOSE": "verbose"}
+
+
+def _print_probe_reports(reports, details: bool) -> None:
+    print(f"\n{'model':40} {'score':>7} {'usual':>6} {'time s':>7} {'usual':>6} {'tokens':>7} {'cost $':>8}  status")
+    for r in reports:
+        usual = f"{r.baseline_score:.0%}" if r.baseline_score is not None else "-"
+        usual_t = f"{r.baseline_seconds:.0f}" if r.baseline_seconds is not None else "-"
+        print(f"{r.model:40} {r.passed:>3}/{r.total:<3} {usual:>6} {r.seconds:7.1f} {usual_t:>6} {r.output_tokens:7} "
+              f"{r.cost_usd:8.4f}  {' '.join(STATUS_MARK.get(s, s) for s in r.status)}")
+        for n in r.notes:
+            print(f"{'':42}- {n[:150]}")
+        if details:
+            for x in r.results:
+                print(f"{'':42}{'pass' if x.passed else 'FAIL'} {x.probe:14} {x.seconds:5.1f}s  {(x.error or x.detail)[:90]}")
+
+
+def _probe(args, cfg) -> None:
+    from .improve.probe import check, models_in_config
+
+    if not cfg.lab_dir:
+        raise HarnessError("no lab directory (set improve.lab_dir in harness.yaml)")
+    if args.model:
+        from .harness.config import ModelRef
+
+        refs = [ModelRef.parse(m) for m in args.model]
+        image_kinds = {str(m) for r in cfg.roles.values() if r.kind == "image" for m in r.models}
+        chat = [m for m in refs if str(m) not in image_kinds]
+        image = [m for m in refs if str(m) in image_kinds]
+    else:
+        chat, image = models_in_config(cfg, args.role or None)
+    print(f"Probing {len(chat)} chat model(s)" + (f" and {len(image)} image model(s)" if image else "") + "...")
+
+    def on_result(r):
+        print(f"  {'pass' if r.passed else 'FAIL'}  {r.model:38} {r.probe:14} {r.seconds:5.1f}s", flush=True)
+
+    reports = check(cfg, cfg.lab_dir, chat, image, only=args.probe or None, generate_images=args.images,
+                    max_cost=args.max_cost, save=not args.no_save, on_result=on_result if args.verbose else None)
+    _print_probe_reports(reports, args.details)
+    bad = [r for r in reports if r.bad]
+    if bad:
+        print(f"\n{len(bad)} model(s) acting up. Hold off on big changes that involve them.")
+        sys.exit(1)
+    if any("NEW" in r.status for r in reports):
+        print("\nFirst run for some models: saved as their baseline. Run again later to detect changes.")
 
 
 def _feedback(args) -> None:
@@ -395,6 +466,8 @@ def main(argv: list[str] | None = None) -> None:
             return
         if args.cmd == "improve":
             return _improve(args, cfg)
+        if args.cmd == "probe":
+            return _probe(args, cfg)
         if args.cmd == "image":
             return _image(args, cfg)
         if args.cmd == "ask":

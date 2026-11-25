@@ -40,6 +40,7 @@ def cycle(
     max_cost: float = 2.0,
     samples: int = 3,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    probe: bool = True,
 ) -> dict[str, Any]:
     emit = on_event or (lambda *_: None)
     policy = cfg.improve.get("auto_apply", "none")
@@ -47,6 +48,22 @@ def cycle(
     report: dict[str, Any] = {"new": [p.id for p in new], "tested": [], "applied": [], "skipped": [],
                               "projects": len(ds.projects), "analyst_cost_usd": analyst_cost}
     remaining = max(max_cost - analyst_cost, 0)
+    health: dict[str, bool] = {}  # model -> acting up?
+
+    def healthy(p: Proposal) -> bool:
+        if not probe or not cfg.improve.get("probe_before_apply", True) or cfg.roles[p.role].kind != "chat":
+            return True
+        from .probe import check, models_for_proposal
+
+        models = [m for m in models_for_proposal(cfg, p) if str(m) not in health]
+        if models:
+            for r in check(cfg, lab.root, models):
+                health[r.model] = r.bad
+        bad = [str(m) for m in models_for_proposal(cfg, p) if health.get(str(m))]
+        if bad:
+            report["skipped"].append({"id": p.id, "reason": f"held back: {', '.join(bad)} acting up (probe)"})
+        return not bad
+
     for p in lab.proposals():
         if p.status not in ("proposed", "tested"):
             continue
@@ -58,7 +75,7 @@ def cycle(
                 emit("tested", {"id": p.id, "verdict": res["verdict"]})
             except (EvalError, BudgetExceeded) as e:
                 report["skipped"].append({"id": p.id, "reason": str(e)})
-        if policy != "none" and auto_apply_allowed(p, policy):
+        if policy != "none" and auto_apply_allowed(p, policy) and healthy(p):
             version = lab.apply(p, cfg, reason=f"auto ({policy} policy)")
             lab.apply_learned(cfg)  # later proposals in this cycle see the new state
             report["applied"].append({"id": p.id, "version": version, "summary": p.summary()})
