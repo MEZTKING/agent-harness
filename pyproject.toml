@@ -12,6 +12,8 @@ dependencies = [
   "mcp>=2.0",
   "anthropic>=2.0",
   "openai>=2.0",
+  "cryptography>=42",  # phone access: the self-signed TLS certificate
+  "segno>=1.5",        # phone access: the pairing QR code
 ]
 
 [project.optional-dependencies]

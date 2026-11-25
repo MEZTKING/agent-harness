@@ -147,6 +147,10 @@ class UIApp:
         self.projects_dir = Path(projects_dir or ".").expanduser().resolve()
         self.last_auto_sync = ""
         self.auto_sync_error = ""
+        from ..desktop import app_home
+        from ..phone import PhoneAccess
+
+        self.phone = PhoneAccess(self, app_home())
         self.cfg()  # validate early so the UI can show config errors
 
     def start_auto_sync(self, every_s: float = 60.0):
@@ -808,6 +812,25 @@ class UIApp:
         return self.jobs.start("update", "update Roundtable Hold", run, target="update").view()
 
     # -- routing table ------------------------------------------------------------------------------
+    def phone_status(self, q=None):
+        st = self.phone.status()
+        if st.get("pairing"):
+            import io
+
+            import segno
+
+            buf = io.BytesIO()
+            segno.make(st["pairing"]["uri"], error="m").save(buf, kind="svg", scale=5, border=2, dark="#1a1410",
+                                                              light="#f3e7c9")
+            import base64
+
+            st["pairing"]["qr"] = "data:image/svg+xml;base64," + base64.b64encode(buf.getvalue()).decode()
+        return st
+
+    def phone_action(self, body):
+        self.phone.api(body)
+        return self.phone_status()
+
     def routes(self):
         R = self
         return {
@@ -842,6 +865,8 @@ class UIApp:
             ("POST", "/api/assign"): R.assign,
             ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
+            ("GET", "/api/phone"): R.phone_status,
+            ("POST", "/api/phone"): R.phone_action,
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:
@@ -961,6 +986,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     remote = host not in LOOPBACK
     token = secrets.token_urlsafe(16) if remote else None
     app.start_auto_sync()
+    app.phone.start()
     httpd = ThreadingHTTPServer((host, port), make_handler(app, token, allow_remote=remote))
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:

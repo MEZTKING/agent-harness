@@ -14,6 +14,8 @@ hidden = (
     + collect_submodules("anthropic")
     + collect_submodules("openai")
     + collect_submodules("keyring")
+    + collect_submodules("segno")  # phone access: pairing QR code
+    + ["cryptography.x509", "cryptography.hazmat.primitives.asymmetric.ec"]  # phone access: TLS certificate
     + ["webview", "yaml"]
 )
 

@@ -775,6 +775,39 @@ async function providersCard() {
       modelList, h("table", {}, h("tr", {}, h("th", {}, "Role"), h("th", {}, "Models"), h("th", {}, "")), roleRows)));
 }
 
+async function phoneCard() {
+  let st;
+  try { st = await api("GET", "/api/phone"); } catch (e) { return section("Phone (Roundtable Mobile)", h("p", { class: "muted" }, e.message)); }
+  const box = h("div");
+  const call = async (body, ok) => { try { const r = await api("POST", "/api/phone", body); if (ok) toast(ok); draw(r); } catch (e) { toast(e.message, true); } };
+  let timer = null;
+  function draw(s) {
+    clearTimeout(timer);
+    const pairing = s.pairing ? h("div", { class: "row", style: "align-items:flex-start;margin-top:10px" },
+      h("img", { src: s.pairing.qr, alt: "Pairing QR code", width: 220, height: 220, style: "border-radius:8px" }),
+      h("div", { class: "stack" },
+        h("p", {}, "In Roundtable Mobile tap ", h("strong", {}, "Pair with a PC"), " and scan this code."),
+        h("p", {}, "Or type the code: ", h("strong", { style: "font-size:20px;letter-spacing:3px" }, s.pairing.code)),
+        h("p", { class: "muted small" }, `Valid for ${Math.max(0, Math.ceil(s.pairing.expires_in / 60))} more minute(s), once.`))) : null;
+    const devices = s.devices.length ? h("table", {}, h("tr", {}, h("th", {}, "Paired phone"), h("th", {}, "Paired"), h("th", {}, "Last seen"), h("th", {}, "")),
+      s.devices.map((d) => h("tr", {}, h("td", {}, d.name), h("td", { class: "small" }, ago(d.paired_at)), h("td", { class: "small" }, ago(d.last_seen)),
+        h("td", { class: "actions" }, h("button", { class: "icon danger", onclick: () => { if (confirm(`Remove ${d.name}? It will need to pair again.`)) call({ action: "revoke", device_id: d.id }, "Phone removed"); } }, "Remove")))))
+      : h("p", { class: "muted small" }, "No phones paired yet.");
+    box.replaceChildren(
+      h("p", {}, "Now: ", s.running ? h("span", { class: "pill good" }, `on · port ${s.port}`) : s.enabled ? h("span", { class: "pill bad" }, "on, but not running") : h("span", { class: "pill" }, "off"),
+        s.running && s.addresses.length ? h("span", { class: "muted small" }, " · reachable at " + s.addresses.join(", ")) : null),
+      s.error ? h("p", { class: "small", style: "color:var(--bad)" }, s.error) : null,
+      h("p", { class: "muted small" }, "Paired phones can see every project, approve, retry, steer and chat, and read and send hub messages. Settings, API keys and updates stay on this PC. The connection is encrypted; away from home it works through Tailscale."),
+      h("div", { class: "row" },
+        s.running ? h("button", { class: "primary", onclick: () => call({ action: "pair" }) }, "Pair a phone") : h("button", { class: "primary", onclick: () => call({ action: "enable" }, "Phone access is on") }, "Turn on phone access"),
+        s.enabled ? h("button", { onclick: () => { if (confirm("Turn off phone access? Paired phones stay paired and reconnect when you turn it on again.")) call({ action: "disable" }, "Phone access is off"); } }, "Turn off") : null),
+      pairing, h("h3", {}, "Paired phones"), devices);
+    if (s.pairing) timer = setTimeout(async () => { if (box.isConnected) draw(await api("GET", "/api/phone")); }, 4000);
+  }
+  draw(st);
+  return section("Phone (Roundtable Mobile)", box);
+}
+
 async function viewSettings() {
   const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
   const editor = async (which) => {
@@ -788,7 +821,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), await providersCard(), hubCard(st),
+    keysCard(st), await providersCard(), hubCard(st), await phoneCard(),
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),
