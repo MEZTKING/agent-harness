@@ -365,3 +365,14 @@ def test_planner_image_options_reach_provider(tmp_path):
     orch.start("goal")
     assert orch.run() == "done"
     assert seen == {"width": 48, "height": 64, "style": "rd_core__platformer", "remove_bg": True}
+
+
+def test_missing_claude_key_gives_a_clear_error(monkeypatch):
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("HOME", "/nonexistent-home-for-test")  # no `ant` profile on disk
+    from roundtable.providers.anthropic_provider import AnthropicProvider
+
+    p = AnthropicProvider(api_key_env="RT_TEST_NO_SUCH_KEY")
+    with pytest.raises(ProviderError, match="ANTHROPIC_API_KEY"):
+        p.chat("claude-opus-5-5", "sys", [{"role": "user", "content": "hi"}], max_tokens=10)

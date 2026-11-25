@@ -13,6 +13,31 @@ roundtable new mygame "A pixel-art platformer in the browser" --approve
 roundtable ui              # the same, in a web UI
 ```
 
+### Try it on your computer (10 minutes)
+
+You need Python 3.10+ and git.
+
+```bash
+# 1. Install (into its own virtual environment)
+python3 -m venv ~/.roundtable-venv && source ~/.roundtable-venv/bin/activate   # Windows: .roundtable-venv\Scripts\activate
+pip install "git+https://github.com/MEZTKING/agent-harness@main"
+
+# 2. Your shared hub (private repo: git will ask you to log in to GitHub)
+git clone https://github.com/MEZTKING/agent-hub-data ~/agent-hub-data
+
+# 3. Config + keys (only the providers you use)
+mkdir -p ~/.roundtable && cd ~/.roundtable && roundtable init      # writes hub.yaml + harness.yaml here
+export HUB_CONFIG=~/agent-hub-data/hub.yaml HUB_AGENT=me HARNESS_CONFIG=~/.roundtable/harness.yaml
+export ANTHROPIC_API_KEY=... DEEPSEEK_API_KEY=... RETRODIFFUSION_API_KEY=...
+
+# 4. Go
+roundtable probe       # first: checks every model + your keys, records baselines
+roundtable where       # where was I? (your real journal)
+roundtable ui          # opens the web UI at http://127.0.0.1:8765
+```
+
+Put the `export` lines in your shell profile (`~/.bashrc` / `~/.zshrc`) so they're set in every terminal. Update any time with `roundtable update`.
+
 One command, `roundtable`, does everything. (`agent-hub` and `harness` still work as aliases.)
 
 **Staying up to date:**
