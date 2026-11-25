@@ -19,8 +19,14 @@ from mcp.server.mcpserver import MCPServer
 from .service import Hub
 
 INSTRUCTIONS = """\
-You are connected to the agent hub, which links agents working in different repositories.
-- At the start of a task, call hub_inbox to see questions or change notices from other agents.
+You are connected to the agent hub, which links agents working in different repositories and keeps
+each project's journal (what was done, what needs doing, plans, decisions) across sessions.
+- At the start of a session, call hub_where to see where work left off (last session, next steps,
+  open todos), and hub_inbox for questions or change notices from other agents.
+- As you work: hub_log "done" for finished work, "todo" for things left to do, "decision" for choices
+  worth remembering, "plan" for future ideas. Close todos you finish with hub_close.
+- Before the session ends (or when the user wraps up), call hub_session_end with a short summary
+  and concrete next steps, so the next session (or the user, days later) can pick up immediately.
 - Before relying on another repo's API/schema, call hub_read_card for it (or hub_ask its agent).
 - After you change something other repos may depend on (APIs, schemas, env vars, behaviour),
   call hub_update_card with a short change_note so dependents are notified.
@@ -107,6 +113,47 @@ def build_server(hub: Hub, agent: str) -> MCPServer:
     def hub_subscribe(agent_id: str, on: bool = True) -> str:
         """Subscribe (or unsubscribe with on=false) to change notes from another agent's card."""
         return _dump({"subscriptions": hub.subscribe(agent, agent_id, on=on)})
+
+    @server.tool()
+    def hub_where(agent_id: str = "") -> str:
+        """Where did work leave off? Last session summary and next steps, open todos (high priority
+        first), plans, recent work and decisions. Default: this project; pass "all" for every project."""
+        if agent_id == "all":
+            briefs = hub.journal.where(agent)
+        else:
+            briefs = hub.journal.where(agent, agent_id or agent)
+        if not briefs:
+            return "No journal entries yet for this project."
+        from .journal import Journal
+
+        return "\n\n".join(Journal.format_brief(b, compact=agent_id == "all") for b in briefs)
+
+    @server.tool()
+    def hub_log(kind: str, text: str, priority: str = "normal", details: str = "") -> str:
+        """Add a journal entry for this project. kind: done | todo | plan | decision | note.
+        priority (todo/plan): high | normal | low. Keep text to one clear line; details are optional."""
+        e = hub.journal.add(agent, kind, text, priority=priority, details=details, source="mcp")
+        return _dump({"logged": e["kind"], "id": e["id"]})
+
+    @server.tool()
+    def hub_todos(include_plans: bool = False) -> str:
+        """Open todos (and optionally future plans) for this project, with their ids."""
+        kinds = ["todo", "plan"] if include_plans else ["todo"]
+        rows = hub.journal.entries(agent, kinds=kinds, status="open")
+        return _dump([{"id": e["id"], "kind": e["kind"], "priority": e["priority"], "text": e["text"]} for e in rows])
+
+    @server.tool()
+    def hub_close(entry_id: str, dropped: bool = False, note: str = "") -> str:
+        """Mark a todo/plan as done (or dropped=true if it is no longer needed)."""
+        e = hub.journal.close(agent, entry_id, dropped=dropped, note=note)
+        return _dump({"id": e["id"], "status": e["status"]})
+
+    @server.tool()
+    def hub_session_end(summary: str, next_steps: list[str]) -> str:
+        """Record what this session did and the concrete next steps, so work can resume later
+        without re-discovering context. Call before the session ends."""
+        e = hub.journal.session_end(agent, summary, next_steps, source="mcp")
+        return _dump({"logged": "session", "id": e["id"], "next_steps": len(e["next"])})
 
     return server
 

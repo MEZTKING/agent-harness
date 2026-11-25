@@ -20,6 +20,10 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+class TextFile(str):
+    """Marks a value to be written as raw text (e.g. Markdown) instead of JSON."""
+
+
 class Store:
     def sync(self) -> None:  # pull latest state
         pass
@@ -59,8 +63,11 @@ class FileStore(Store):
             p.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".tmp-")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, sort_keys=True, ensure_ascii=False)
-                f.write("\n")
+                if isinstance(data, TextFile):
+                    f.write(str(data))
+                else:
+                    json.dump(data, f, indent=2, sort_keys=True, ensure_ascii=False)
+                    f.write("\n")
             os.replace(tmp, p)
             written.append(rel)
         return written

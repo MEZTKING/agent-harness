@@ -13,6 +13,14 @@
     agent-hub subscribe AGENT [--off]
     agent-hub mcp                        run the MCP server (stdio)
 
+  Journal ("where was I"):
+    agent-hub where [AGENT]              briefing: last session, next steps, open todos, plans
+    agent-hub log done|todo|plan|decision|note "text" [--priority high]
+    agent-hub todo [AGENT] [--plans]     open todos (and plans)
+    agent-hub close ID [--drop] [--note]  finish (or drop) a todo / plan
+    agent-hub session "what I did" --next "step" --next "step"   end-of-session handoff
+    agent-hub history [AGENT] [--kind K] [--limit N]
+
 Identity: --agent or $HUB_AGENT.  Config: --config or $HUB_CONFIG or ./hub.yaml
 """
 
@@ -112,6 +120,30 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("target")
     s.add_argument("--off", action="store_true")
 
+    s = sub.add_parser("where", help="where was I? briefing for one or all projects")
+    s.add_argument("target", nargs="?")
+    s.add_argument("--full", action="store_true", help="don't abbreviate (all-projects view)")
+    s = sub.add_parser("log", help="add a journal entry")
+    s.add_argument("kind", choices=["done", "todo", "plan", "decision", "note"])
+    s.add_argument("text")
+    s.add_argument("--priority", default="normal", choices=["high", "normal", "low"])
+    s.add_argument("--details", default="")
+    s.add_argument("--tag", action="append", default=[])
+    s = sub.add_parser("todo", help="list open todos")
+    s.add_argument("target", nargs="?")
+    s.add_argument("--plans", action="store_true", help="include future plans")
+    s = sub.add_parser("close", help="mark a todo/plan done")
+    s.add_argument("entry_id")
+    s.add_argument("--drop", action="store_true", help="dropped instead of done")
+    s.add_argument("--note", default="")
+    s = sub.add_parser("session", help="end-of-session summary and next steps")
+    s.add_argument("summary")
+    s.add_argument("--next", action="append", default=[], help="a next step (repeatable)")
+    s = sub.add_parser("history", help="journal entries, oldest first")
+    s.add_argument("target", nargs="?")
+    s.add_argument("--kind", action="append", default=[])
+    s.add_argument("--limit", type=int, default=30)
+
     s = sub.add_parser("mcp", help="run the MCP server for this agent")
     s.add_argument("--transport", default="stdio", choices=["stdio", "sse", "streamable-http"])
     return p
@@ -158,11 +190,42 @@ def main(argv: list[str] | None = None) -> None:
             _print(hub.thread(me, args.thread_id))
         elif args.cmd == "subscribe":
             _print({"subscriptions": hub.subscribe(me, args.target, on=not args.off)})
+        elif args.cmd == "where":
+            from .hub.journal import Journal
+
+            briefs = hub.journal.where(me, args.target)
+            if not briefs:
+                print("No journal entries yet. Start with: agent-hub log todo \"...\" or agent-hub session \"...\"")
+            for b in briefs:
+                print(Journal.format_brief(b, compact=not (args.target or args.full)) + "\n")
+        elif args.cmd == "log":
+            e = hub.journal.add(me, args.kind, args.text, priority=args.priority, details=args.details,
+                                source="cli", tags=args.tag)
+            print(f"logged {e['kind']} [{e['id']}] for {me}")
+        elif args.cmd == "todo":
+            kinds = ["todo", "plan"] if args.plans else ["todo"]
+            rows = hub.journal.entries(me, args.target, kinds=kinds, status="open")
+            for e in sorted(rows, key=lambda e: ({"high": 0, "normal": 1, "low": 2}[e["priority"]], e["created_at"])):
+                print(f"[{e['id']}] {e['kind']:4} {'!' if e['priority'] == 'high' else ' '} {e['text']}")
+            if not rows:
+                print("nothing open")
+        elif args.cmd == "close":
+            e = hub.journal.close(me, args.entry_id, dropped=args.drop, note=args.note)
+            print(f"{e['status']}: [{e['id']}] {e['text']}")
+        elif args.cmd == "session":
+            e = hub.journal.session_end(me, args.summary, args.next, source="cli")
+            print(f"session logged [{e['id']}] with {len(e['next'])} next step(s)")
+        elif args.cmd == "history":
+            for e in hub.journal.entries(me, args.target, kinds=args.kind or None, limit=args.limit):
+                state = f" ({e['status']})" if e["status"] else ""
+                print(f"{e['created_at'][:16]}  {e['kind']:8} [{e['id']}] {e['text']}{state}")
+                for n in e["next"]:
+                    print(f"{'':35}next: {n}")
         elif args.cmd == "mcp":
             from .hub.mcp_server import run
 
             run(hub, me, transport=args.transport)
-    except (HubError, PolicyError, FileNotFoundError, ValueError) as e:
+    except (HubError, PolicyError, FileNotFoundError, ValueError) as e:  # JournalError is a ValueError
         sys.exit(f"error: {e}")
 
 

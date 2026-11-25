@@ -115,12 +115,48 @@ agent-hub reply <message-id> "thanks!"
 agent-hub subscribe backend
 ```
 
+### Project journal: "where was I?"
+
+When you juggle several projects across sessions and machines, each project keeps a journal in the hub. It records what was **done**, what's **todo** (with priority), future **plans**, **decisions** and why, **notes**, and **session** handoffs: what a session was doing and its next steps. It lives in the shared hub data repo, so every session on every machine sees the same history.
+
+```bash
+agent-hub where                       # briefing for ALL your projects, most recent first
+agent-hub where backend               # full briefing for one project
+agent-hub log todo "add auth to /orders" --priority high
+agent-hub log done "order endpoints"
+agent-hub log plan "move to Postgres in v2"
+agent-hub log decision "JWT, not sessions: the mobile app needs it"
+agent-hub todo --plans                # open todos and plans, with ids
+agent-hub close 3fa2c1                # finish a todo (or --drop it)
+agent-hub session "built order endpoints; auth is next" --next "JWT middleware" --next "test auth"
+agent-hub history backend --kind session
+```
+
+```
+== backend (you/bakery-api)  - last activity 2h ago
+Last session (2h ago): built order endpoints; auth is next
+   next: JWT middleware
+Open todos (2):
+  ![3fa2c1] add auth to /orders
+   [9b04e7] write API docs
+Plans: 1 open
+Recently done:
+   - order endpoints (3h ago)
+```
+
+- **On GitHub:** every write also updates `status/<project>.md` in the data repo, a readable status page you can open from your phone.
+- **Claude Code and other MCP agents** get `hub_where`, `hub_log`, `hub_todos`, `hub_close` and `hub_session_end`. The server tells them to call `hub_where` when a session starts and `hub_session_end` (summary plus next steps) before it ends, so sessions hand off to each other and to you.
+- **The harness logs on its own** when `hub:` is set in `harness.yaml`: the plan, each finished task, and a handoff note when a run ends. It also opens a **high-priority todo** whenever it needs you: a plan to approve, a failed task, or the budget limit reached. That todo closes itself once the issue is resolved.
+- **Personal plans:** add an agent like `me` to `hub.yaml` for plans that don't belong to one repo.
+
 ### Data layout
 
 ```
 cards/<agent>.json            project cards
 inbox/<agent>/<msg-id>.json   one file per message
 state/<agent>.json            read markers + subscriptions
+journal/<agent>/<id>.json     one file per journal entry
+status/<agent>.md             generated status page per project
 ```
 
 Plain JSON, easy to read, diff and edit by hand.

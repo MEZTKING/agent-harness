@@ -226,17 +226,69 @@ class Orchestrator:
         return diff or "(no changes)"
 
     # -- hub -------------------------------------------------------------------
-    def _hub_update(self, status: str, note: str | None = None) -> None:
+    _hub_cache: Any = None
+
+    def _hub(self):
         if not self.cfg.hub:
-            return
-        try:
+            return None
+        if self._hub_cache is None:
             from ..core.config import load_config as load_hub_config
             from ..hub.service import Hub
 
-            hub = Hub(load_hub_config(self.cfg.hub.get("config")))
-            hub.update_card(self.cfg.hub["agent"], change_note=note, status=status)
+            self._hub_cache = Hub(load_hub_config(self.cfg.hub.get("config")))
+        return self._hub_cache
+
+    def _hub_update(self, status: str, note: str | None = None) -> None:
+        try:
+            hub = self._hub()
+            if hub:
+                hub.update_card(self.cfg.hub["agent"], change_note=note, status=status)
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
+
+    # journal: the project's history in the hub ("where was I")
+    def _journal(self, kind: str, text: str, **kw: Any) -> str | None:
+        try:
+            hub = self._hub()
+            if not hub:
+                return None
+            return hub.journal.add(self.cfg.hub["agent"], kind, f"{self.project.root.name}: {text}",
+                                   source="harness", **kw)["id"]
+        except Exception as e:
+            self.emit("hub_error", {"error": str(e)})
+            return None
+
+    def _journal_close(self, entry_id: str | None, note: str = "") -> None:
+        if not entry_id:
+            return
+        try:
+            hub = self._hub()
+            if hub:
+                hub.journal.close(self.cfg.hub["agent"], entry_id, note=note)
+        except Exception as e:
+            self.emit("hub_error", {"error": str(e)})
+
+    def _attention(self, key: str, text: str) -> None:
+        """Open a high-priority todo for the owner once per issue (no duplicates across reruns)."""
+        meta = self.project.meta()
+        open_ = meta.setdefault("journal_todos", {})
+        if key in open_:
+            return
+        entry = self._journal("todo", text, priority="high")
+        if entry:
+            open_[key] = entry
+            self.project.save_meta(meta)
+
+    def _resolved(self, *keys: str, note: str = "") -> None:
+        meta = self.project.meta()
+        open_ = meta.get("journal_todos", {})
+        changed = False
+        for k in keys:
+            if k in open_:
+                self._journal_close(open_.pop(k), note)
+                changed = True
+        if changed:
+            self.project.save_meta(meta)
 
     # -- context ---------------------------------------------------------------
     def _roles_text(self) -> str:
@@ -361,6 +413,12 @@ class Orchestrator:
         status = "awaiting_approval" if not meta.get("plan_approved") else "running"
         self._set_status(status)
         self._hub_update("planned", f"new plan: {len(new)} tasks for goal: {meta['goals'][-1][:200]}")
+        plan_id = self._journal("plan", f"goal: {meta['goals'][-1][:300]}",
+                                details="\n".join(f"[{t.id}] ({t.role}) {t.title}" for t in new))
+        if plan_id:
+            meta = self.project.meta()
+            meta.setdefault("journal_plans", []).append(plan_id)
+            self.project.save_meta(meta)
         return new
 
     def approve(self) -> None:
@@ -562,7 +620,10 @@ class Orchestrator:
                 meta = self.project.meta()
             if not meta.get("plan_approved"):
                 self._set_status("awaiting_approval")
+                self._attention("approval", f"review the plan, then: harness approve {self.project.root} "
+                                            f"&& harness run {self.project.root}")
                 return "awaiting_approval"
+            self._resolved("approval", "budget", note="run resumed")
             self._set_status("running")
 
             executed = 0
@@ -577,6 +638,10 @@ class Orchestrator:
                 if not ready:
                     if any(t.status == "failed" for t in tasks):
                         self._set_status("blocked")
+                        for t in tasks:
+                            if t.status == "failed":
+                                self._attention(f"failed:{t.id}", f"task {t.id} '{t.title}' failed; check "
+                                                f"`harness status {self.project.root}`, then retry or skip it")
                         return "blocked"
                     if all(t.status == "done" for t in tasks):
                         self._finish(tasks)
@@ -600,6 +665,8 @@ class Orchestrator:
                 self.emit("task_end", {"task": task.id, "status": task.status, "summary": task.summary[:500]})
                 if ok:
                     self._git_commit(f"[{task.id}] {task.title}")
+                    self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
+                    self._resolved(f"failed:{task.id}", note="task completed")
                 executed += 1
         except BudgetExceeded as e:
             tasks = self.project.tasks()
@@ -609,6 +676,8 @@ class Orchestrator:
             self.project.save_tasks(tasks)
             self._save_spend()
             self._set_status("paused_budget", reason=str(e))
+            self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
+                                      f"harness run {self.project.root}")
             return "paused_budget"
 
     def _finish(self, tasks: list[Task]) -> None:
@@ -628,6 +697,17 @@ class Orchestrator:
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
+        for plan_id in meta.get("journal_plans", []):
+            self._journal_close(plan_id, "completed by the harness")
+        if meta.get("journal_plans"):
+            meta = self.project.meta()
+            meta["journal_plans"] = []
+            self.project.save_meta(meta)
+        first = next((ln.strip("# ").strip() for ln in summary.splitlines() if ln.strip()), "")
+        self._journal("session", f"harness finished goal '{meta['goals'][-1][:150]}' ({len(tasks)} tasks, "
+                                 f"${self.budget.spent_usd:.2f}). {first[:200]}",
+                      next_steps=[f"review the result and report: {self.project.dir / 'summary.md'}",
+                                  f"rate tasks: harness feedback {self.project.root} TASK --good/--bad"])
 
     def retry(self, task_id: str) -> None:
         tasks = self.project.tasks()

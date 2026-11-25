@@ -26,6 +26,8 @@ agents:
   manager:
     role: manager
     description: Coordinates work across repos
+  me:
+    description: My own notes and plans that don't belong to one repo
 
 # Rules are checked in order; the LAST match wins.
 # Actions: read_card, message.  Wildcards (*, ?) work in from/to.
@@ -35,3 +37,4 @@ rules:
   - {from: frontend, to: backend, allow: [message]}
   - {from: manager, to: "*", allow: [message]}         # manager can message anyone
   - {from: "*", to: manager, allow: [message]}         # anyone can escalate to manager
+  - {from: me, to: "*", allow: [message]}              # you can message any agent

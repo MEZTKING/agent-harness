@@ -30,6 +30,9 @@ class Hub:
     def __init__(self, config: HubConfig, store: Store | None = None):
         self.config = config
         self.store = store or make_store(config.storage, config.base_dir)
+        from .journal import Journal
+
+        self.journal = Journal(self)
 
     # -- helpers ----------------------------------------------------------
     def _require_agent(self, agent: str) -> None:
