@@ -210,8 +210,8 @@ def test_offline_reads_fall_back_to_local_copy(tmp_path):
     _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
     hub = make_hub(tmp_path, store=GitStore(tmp_path / "c", remote=str(remote), sync_interval=0))
     hub.update_card("backend", status="cached")
-    import shutil
-
-    shutil.rmtree(remote)  # the remote disappears (offline)
+    # go "offline": point the remote at a location that doesn't exist (deleting the bare repo
+    # would fail on Windows, where git marks its object files read-only)
+    _git("remote", "set-url", "origin", str(tmp_path / "unreachable.git"), cwd=tmp_path / "c")
     assert hub.get_card("frontend", "backend")["status"] == "cached"
     assert hub.store.last_sync_error
