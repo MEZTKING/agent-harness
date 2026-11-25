@@ -114,9 +114,15 @@ class GitStore(FileStore):
         push: bool = True,
         retries: int = 4,
         author: str = "roundtable",
+        sync_interval: float = 20.0,
     ):
         root = Path(root).resolve()
         self.branch = branch
+        # Reads reuse a sync this recent (each sync is a network round-trip to the
+        # remote); writes always sync first, so no change is ever lost.
+        self.sync_interval = sync_interval
+        self._last_sync = 0.0
+        self.last_sync_error = ""
         self.push_enabled = push
         self.retries = retries
         self.author = author
@@ -155,17 +161,37 @@ class GitStore(FileStore):
         except GitError:
             return False
 
-    def sync(self) -> None:
+    def sync(self, force: bool = False) -> None:
         with _lock_for(self.root):
-            if self._has_remote and self._remote_branch_exists():
-                self._git("pull", "--rebase", "origin", self.branch)
+            if not self._has_remote:
+                return
+            if not force and time.monotonic() - self._last_sync < self.sync_interval:
+                return  # recent enough for reading
+            try:
+                try:
+                    self._git("fetch", "origin", self.branch)
+                    remote_has_branch = True
+                except GitError as e:
+                    if "couldn't find remote ref" not in str(e).lower():
+                        raise  # unreachable remote, auth, ... (not just "branch not created yet")
+                    remote_has_branch = False
+                if remote_has_branch:
+                    self._git("pull", "--rebase", "origin", self.branch)
+                self._last_sync = time.monotonic()
+                self.last_sync_error = ""
+            except GitError as e:
+                if force:
+                    raise
+                # offline or remote trouble: reading the local copy beats failing the page
+                self.last_sync_error = str(e)
+                self._last_sync = time.monotonic()
 
     def write_json(self, items: dict[str, Any], message: str) -> None:
         with _lock_for(self.root):
             self._write_json_locked(items, message)
 
     def _write_json_locked(self, items: dict[str, Any], message: str) -> None:
-        self.sync()
+        self.sync(force=True)
         written = self._write_files(items)
         self._git("add", "--", *written)
         if not self._git("status", "--porcelain", "--", *written).strip():
@@ -198,6 +224,7 @@ def make_store(cfg: dict[str, Any], base_dir: Path) -> Store:
             path,
             remote=cfg.get("remote"),
             branch=cfg.get("branch", "main"),
+            sync_interval=float(cfg.get("sync_interval", 20)),
             push=cfg.get("push", True),
         )
     raise ValueError(f"unknown storage type {kind!r} (expected 'file' or 'git')")

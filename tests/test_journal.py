@@ -89,8 +89,8 @@ def _git(*args, cwd):
 def test_journal_shared_across_sessions_via_git(tmp_path):
     remote = tmp_path / "remote.git"
     _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
-    laptop = make_hub(tmp_path, store=GitStore(tmp_path / "laptop", remote=str(remote)))
-    cloud = make_hub(tmp_path, store=GitStore(tmp_path / "cloud", remote=str(remote)))
+    laptop = make_hub(tmp_path, store=GitStore(tmp_path / "laptop", remote=str(remote), sync_interval=0))
+    cloud = make_hub(tmp_path, store=GitStore(tmp_path / "cloud", remote=str(remote), sync_interval=0))
 
     laptop.journal.session_end("backend", "half-way through auth", ["finish JWT refresh tokens"])
     t = laptop.journal.add("backend", "todo", "rotate secrets")
