@@ -22,6 +22,7 @@ from typing import Any, Callable
 from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, run_agent
+from . import plandoc
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
@@ -45,6 +46,7 @@ class Task:
     attempts: list[dict[str, Any]] = field(default_factory=list)
     goal_index: int = 0
     base_commit: str | None = None  # project state the task started from (for replays)
+    section: str = ""  # the plan's spec section (or decision) this task belongs to
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -89,6 +91,14 @@ class Project:
     def save_tasks(self, tasks: list[Task]) -> None:
         self._write("tasks.json", [asdict(t) for t in tasks])
 
+    def plan_doc(self) -> dict[str, Any] | None:
+        return self._read("plan.json", None)
+
+    def save_plan_doc(self, doc: dict[str, Any], tasks: list[Task] | None = None) -> None:
+        self._write("plan.json", doc)
+        goal_tasks = [t for t in (tasks if tasks is not None else self.tasks()) if t.goal_index == doc.get("goal_index", 0)]
+        (self.dir / "plan.md").write_text(plandoc.render_markdown(doc, goal_tasks) + "\n", encoding="utf-8")
+
     def append(self, name: str, row: dict[str, Any]) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
         with open(self.dir / name, "a", encoding="utf-8") as f:
@@ -121,6 +131,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
                 depends_on=[str(d) for d in t.get("depends_on") or []],
                 output_path=str(t.get("output_path") or ""),
                 image_options=dict(t.get("image_options") or {}),
+                section=str(t.get("section") or ""),
             )
         )
     for t in new:
@@ -297,7 +308,7 @@ class Orchestrator:
     def _roles_text(self) -> str:
         lines = []
         for r in self.cfg.roles.values():
-            if r.name == self.cfg.planner_role or r.name == self.cfg.reviewer_role:
+            if r.name in (self.cfg.planner_role, self.cfg.reviewer_role, self.cfg.critic_role):
                 continue
             kind = (" (image generation: description = the visual prompt; set output_path, and image_options "
                     "for style/size when the role description lists choices)") if r.kind == "image" else ""
@@ -309,7 +320,11 @@ class Orchestrator:
         goals = "\n".join(f"{i + 1}. {g}" for i, g in enumerate(meta.get("goals", [])))
         done = [f"- [{t.id}] {t.title} ({t.role}): {t.summary}" for t in tasks if t.status == "done"]
         board = "\n".join(f"- [{t.id}] {t.status:8} {t.title} ({t.role})" for t in tasks)
-        parts = [f"# Project goals\n{goals}", f"# Task board\n{board}"]
+        parts = [f"# Project goals\n{goals}"]
+        plan_text = plandoc.context_text(self.project.plan_doc())
+        if plan_text:
+            parts.append(plan_text)
+        parts.append(f"# Task board\n{board}")
         if done:
             parts.append("# Completed work\n" + "\n".join(done))
         guidance = self._guidance_text()
@@ -421,34 +436,17 @@ class Orchestrator:
         self.project.save_meta(meta)
         self.emit("goal", {"goal": goal})
 
-    def plan(self) -> list[Task]:
-        meta = self.project.meta()
-        existing = self.project.tasks()
-        goal_index = len(meta["goals"]) - 1
-        role = self.cfg.roles[self.cfg.planner_role]
-        captured: dict[str, Any] = {}
+    def _task_schema(self) -> dict[str, Any]:
         roles = self.cfg.roles
-        last_error: list[str] = []
-
-        def submit_plan(args: dict) -> str:
-            try:
-                new = _validate_plan(args.get("tasks"), roles, existing)
-            except ValueError as e:
-                last_error.append(str(e))
-                raise Exception(f"plan rejected: {e}. Fix it and call submit_plan again.")
-            captured["tasks"] = new
-            captured["notes"] = args.get("notes", "")
-            return f"plan accepted with {len(new)} tasks"
-
-        box = self.ws.toolbox(READ_ONLY)
-        task_schema = _obj(
+        schema = _obj(
             {
                 "id": {"type": "string", "description": "short unique id like T1, T2"},
                 "title": {"type": "string"},
-                "role": {"type": "string", "enum": sorted(r for r in roles if r not in (self.cfg.planner_role,))},
+                "role": {"type": "string", "enum": sorted(r for r in roles if r not in (self.cfg.planner_role, self.cfg.critic_role))},
                 "description": {"type": "string", "description": "complete, self-contained instructions"},
                 "acceptance": {"type": "string", "description": "how to verify it is done (tests to pass, files to exist...)"},
                 "depends_on": {"type": "array", "items": {"type": "string"}},
+                "section": {"type": "string", "description": "id of the spec section (or decision) this task belongs to"},
                 "output_path": {"type": "string", "description": "for image tasks: where to save the file"},
                 "image_options": {
                     "type": "object",
@@ -463,20 +461,33 @@ class Orchestrator:
             },
             ["id", "title", "role", "description", "acceptance", "depends_on"],
         )
-        task_schema["required"] = ["id", "title", "role", "description", "acceptance", "depends_on"]
+        schema["required"] = ["id", "title", "role", "description", "acceptance", "depends_on"]
+        return schema
+
+    def _plan_call(self, job: str, reserved: list[Task]) -> tuple[list[Task], dict[str, Any]]:
+        """Ask the planner for a plan document + tasks; returns the validated tasks and the raw submission."""
+        role = self.cfg.roles[self.cfg.planner_role]
+        captured: dict[str, Any] = {}
+        roles = self.cfg.roles
+        last_error: list[str] = []
+
+        def submit_plan(args: dict) -> str:
+            try:
+                new = _validate_plan(args.get("tasks"), roles, reserved)
+            except ValueError as e:
+                last_error.append(str(e))
+                raise Exception(f"plan rejected: {e}. Fix it and call submit_plan again.")
+            captured["tasks"] = new
+            captured["args"] = args
+            return f"plan accepted with {len(new)} tasks"
+
+        box = self.ws.toolbox(READ_ONLY)
         box.add(Tool(
-            ToolSpec("submit_plan", "Submit the task plan. Call exactly once when the plan is complete.",
-                     _obj({"tasks": {"type": "array", "items": task_schema}, "notes": {"type": "string"}}, ["tasks"])),
+            ToolSpec("submit_plan", "Submit the plan: the plan document and its tasks. Call exactly once when complete.",
+                     plandoc.submission_schema(self._task_schema())),
             submit_plan, terminal=True,  # only counts once validation passes
         ))
-
-        prompt = (
-            f"{self._project_context(existing)}\n\n"
-            f"# Roles you can assign\n{self._roles_text()}\n\n"
-            f"# Your job\nPlan the work for goal #{goal_index + 1}: {meta['goals'][-1]}\n"
-            + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
-            + "Inspect the existing files if useful, then call submit_plan."
-        )
+        prompt = f"{self._project_context(self.project.tasks())}\n\n# Roles you can assign\n{self._roles_text()}\n\n{job}"
         self.emit("planning", {"model": str(role.models[0])})
         result = self._run_with_fallback(
             role, self.cfg.prompt_text(role.prompt), prompt, box, require="submit_plan",
@@ -484,16 +495,53 @@ class Orchestrator:
         )
         if "tasks" not in captured:
             raise HarnessError(f"planner did not produce a valid plan ({'; '.join(last_error[-1:]) or result.stop})")
-        new = captured["tasks"]
+        return captured["tasks"], captured["args"]
+
+    def _estimate(self, tasks: list[Task]) -> dict[str, Any]:
+        files = [self.project.dir / "metrics.jsonl"]
+        if self.cfg.lab_dir:
+            try:
+                from ..improve.lab import Lab
+
+                files += [p / ".harness" / "metrics.jsonl" for p in Lab(self.cfg.lab_dir).projects()]
+            except Exception:  # the estimate must never stop planning
+                pass
+        seen, uniq = set(), []
+        for f in files:
+            if f.resolve() not in seen and f.is_file():
+                seen.add(f.resolve())
+                uniq.append(f)
+        return plandoc.estimate(self.cfg, [t for t in tasks if t.status == "pending"], plandoc.history_by_role(uniq))
+
+    def plan(self) -> list[Task]:
+        meta = self.project.meta()
+        existing = self.project.tasks()
+        goal_index = len(meta["goals"]) - 1
+        goal = meta["goals"][-1]
+        job = (
+            f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
+            + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
+            + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
+              "don't-do list, a short spec, the real decisions with your recommendation, questions only you can't "
+              "answer, worthwhile ideas) and the tasks, each linked to its spec section."
+        )
+        new, args = self._plan_call(job, existing)
         for t in new:
             t.goal_index = goal_index
-        self.project.save_tasks(existing + new)
-        self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": captured.get("notes", "")})
+        tasks = existing + new
+        self.project.save_tasks(tasks)
+        doc = plandoc.doc_from_submission(args, goal, goal_index)
+        doc["estimate"] = self._estimate(new)
+        self.project.save_plan_doc(doc, tasks)
+        self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": doc["summary"][:500]})
+        self._critique()
+        doc = self.project.plan_doc() or doc
+        new = [t for t in self.project.tasks() if t.goal_index == goal_index]
         meta = self.project.meta()
         status = "awaiting_approval" if not meta.get("plan_approved") else "running"
         self._set_status(status)
-        self._hub_update("planned", f"new plan: {len(new)} tasks for goal: {meta['goals'][-1][:200]}")
-        plan_id = self._journal("plan", f"goal: {meta['goals'][-1][:300]}",
+        self._hub_update("planned", f"new plan: {len(new)} tasks for goal: {goal[:200]}")
+        plan_id = self._journal("plan", f"goal: {goal[:300]}",
                                 details="\n".join(f"[{t.id}] ({t.role}) {t.title}" for t in new))
         if plan_id:
             meta = self.project.meta()
@@ -501,7 +549,199 @@ class Orchestrator:
             self.project.save_meta(meta)
         return new
 
+    def _critique(self) -> dict[str, Any] | None:
+        """A second model (ideally another maker's) reviews the plan; a serious problem gets one revision."""
+        role = self.cfg.roles.get(self.cfg.critic_role or "")
+        doc = self.project.plan_doc()
+        if not role or not doc:
+            return None
+        verdict: dict[str, Any] = {}
+
+        def submit_critique(args: dict) -> str:
+            verdict.update(args)
+            return "critique recorded"
+
+        box = self.ws.toolbox(READ_ONLY)
+        point = {"type": "object", "properties": {
+            "severity": {"type": "string", "enum": ["high", "medium", "low"]},
+            "text": {"type": "string", "description": "the problem, concretely"},
+            "suggestion": {"type": "string"}}, "required": ["severity", "text"]}
+        box.add(Tool(ToolSpec("submit_critique", "Record your critique of the plan.",
+                              _obj({"verdict": {"type": "string", "enum": ["good", "revise"]},
+                                    "points": {"type": "array", "items": point}}, ["verdict", "points"])),
+                     submit_critique, terminal=True))
+        goal_tasks = [t for t in self.project.tasks() if t.goal_index == doc["goal_index"]]
+        prompt = (f"{plandoc.render_markdown(doc, goal_tasks)}\n\n# Task details\n"
+                  + "\n".join(f"[{t.id}] ({t.role}) {t.title}: {t.description[:600]} | done when: {t.acceptance[:300]}"
+                               + (f" | after {', '.join(t.depends_on)}" if t.depends_on else "") for t in goal_tasks)
+                  + "\n\nCritique this plan before any work starts. Look for: missing pieces, wrong order, tasks too big "
+                    "or vague to verify, risky or over-engineered choices, choices the owner should make that are "
+                    "hidden, and a better recommendation where you'd pick differently. Severity high = the plan "
+                    "would fail or waste most of the budget. Be brief; call submit_critique.")
+        self.emit("critique_start", {"model": str(role.models[0])})
+        try:
+            res = self._run_with_fallback(
+                role, "You are a senior engineer critiquing another team's project plan. Be specific and fair.",
+                prompt, box, require="submit_critique", done=lambda: bool(verdict))
+        except HarnessError as e:
+            self.emit("critique", {"error": str(e)[:300]})
+            return None
+        if not verdict:
+            return None
+        points = [p for p in verdict.get("points") or [] if isinstance(p, dict) and p.get("text")]
+        doc = self.project.plan_doc() or doc
+        doc["critique"] = {"model": res.model or str(role.models[0]), "verdict": verdict.get("verdict", "good"),
+                           "points": points, "at": utcnow(), "version": doc.get("version", 1)}
+        self.project.save_plan_doc(doc)
+        self.emit("critique", {"verdict": doc["critique"]["verdict"], "points": len(points),
+                               "high": sum(p.get("severity") == "high" for p in points)})
+        if doc["critique"]["verdict"] == "revise" and any(p.get("severity") == "high" for p in points):
+            notes = "\n".join(f"- [{p['severity']}] {p['text']}" + (f" (suggestion: {p['suggestion']})" if p.get("suggestion") else "")
+                              for p in points)
+            self.revise_plan(f"A second model critiqued the plan. Address the points you agree with, especially the "
+                             f"high-severity ones; say in the summary which you didn't take and why:\n{notes}",
+                             by="critic", critique_again=False)
+        return doc["critique"]
+
+    def revise_plan(self, instruction: str = "", by: str = "owner", critique_again: bool = False) -> dict[str, Any]:
+        """Re-plan the current goal with the owner's pending changes (and/or an instruction).
+
+        Done and running tasks stay; the planner returns the full updated document and the tasks still
+        to do, keeping unchanged tasks as they were. Returns what changed.
+        """
+        doc = self.project.plan_doc()
+        if not doc:
+            raise HarnessError("this project has no plan document yet")
+        pending = doc.get("pending", [])
+        instruction = (instruction or "").strip()
+        if not pending and not instruction:
+            raise HarnessError("nothing to change: choose, answer, edit or write what you want changed first")
+        meta = self.project.meta()
+        gi = doc["goal_index"]
+        tasks = self.project.tasks()
+        keep = [t for t in tasks if t.goal_index != gi or t.status in ("done", "running")]
+        old_open = {t.id: t for t in tasks if t.goal_index == gi and t.status not in ("done", "running")}
+        changes = "\n".join(f"- {c['text']}" for c in pending)
+        job = (
+            f"# Current plan (version {doc.get('version', 1)})\n{plandoc.render_markdown(doc, [t for t in tasks if t.goal_index == gi])}\n\n"
+            + (f"# The owner's changes to apply\n{changes}\n\n" if changes else "")
+            + (f"# {'The owner says' if by == 'owner' else 'Also'}\n{instruction}\n\n" if instruction else "")
+            + f"# Your job\nRevise the plan for goal #{gi + 1}: {meta['goals'][gi]}\n"
+            "Call submit_plan with the complete updated plan document and the complete list of tasks still to do. "
+            + (f"Already done or in progress, don't repeat (you may depend on them): {', '.join(t.id for t in keep if t.goal_index == gi)}. " if any(t.goal_index == gi for t in keep) else "")
+            + "Keep the same id, role and wording for tasks these changes don't affect. Respect the owner's choices, "
+            "answers and don't-do list; drop questions that are now answered and decisions that are now settled "
+            "(keep a settled decision only if it's still useful to show)."
+        )
+        new, args = self._plan_call(job, keep)
+        for t in new:
+            t.goal_index = gi
+            old = old_open.get(t.id)
+            if old and old.status == "failed" and (old.description, old.role) == (t.description, t.role):
+                t.attempts = old.attempts  # same task: keep its history (it stays to-do)
+        new_doc = plandoc.carry_over(plandoc.doc_from_submission(args, meta["goals"][gi], gi), doc)
+        added = [t.id for t in new if t.id not in old_open]
+        removed = [i for i in old_open if i not in {t.id for t in new}]
+        changed = [t.id for t in new if t.id in old_open and (t.title, t.role, t.description, t.acceptance)
+                   != (old_open[t.id].title, old_open[t.id].role, old_open[t.id].description, old_open[t.id].acceptance)]
+        diff = {"added": added, "removed": removed, "changed": changed,
+                "unchanged": len(new) - len(added) - len(changed)}
+        summary = (f"Plan v{new_doc['version']}: " + ", ".join(
+            f"{len(v)} {k} ({', '.join(v[:8])})" for k, v in (("added", added), ("changed", changed), ("removed", removed)) if v)
+            or f"Plan v{new_doc['version']}: tasks unchanged")
+        new_doc["history"].append({"at": utcnow(), "version": new_doc["version"], "by": by,
+                                   "change": (instruction[:300] or changes[:300]), "diff": diff})
+        new_doc["pending"] = []
+        all_tasks = keep + new
+        self.project.save_tasks(all_tasks)
+        new_doc["estimate"] = self._estimate(new)
+        self.project.save_plan_doc(new_doc, all_tasks)
+        self.emit("plan_revised", {"version": new_doc["version"], "by": by, **diff})
+        if by == "owner":
+            self.project.append("chat.jsonl", {"at": utcnow(), "who": "orchestrator", "text": summary, "steer": False})
+        if critique_again:
+            self._critique()
+        return {"version": new_doc["version"], "summary": summary, **diff}
+
+    PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note")
+
+    def plan_update(self, action: str, **kw: Any) -> dict[str, Any]:
+        """The owner edits the plan. Edits wait in `pending` until revise_plan applies them (one model call)."""
+        doc = self.project.plan_doc()
+        if not doc:
+            raise HarnessError("this project has no plan document yet")
+        pend = doc.setdefault("pending", [])
+
+        def note(text: str, key: str) -> None:
+            pend[:] = [p for p in pend if p.get("key") != key]  # a later edit of the same thing replaces it
+            pend.append({"at": utcnow(), "key": key, "text": text})
+
+        def find(items: list[dict[str, Any]], iid: str) -> dict[str, Any]:
+            for x in items:
+                if x.get("id") == iid:
+                    return x
+            raise HarnessError(f"no item {iid!r} in the plan")
+
+        if action == "choose":
+            d = find(doc["decisions"], kw.get("decision", ""))
+            opt = find(d["options"], kw.get("option", ""))
+            d["chosen"] = opt["id"]
+            note(f"For '{d['question']}' the owner chose: {opt['label']}", f"choose:{d['id']}")
+        elif action == "answer":
+            q = find(doc["questions"], kw.get("question", ""))
+            q["answer"] = str(kw.get("text", "")).strip()[:2000]
+            note(f"Answer to '{q['text']}': {q['answer']}", f"answer:{q['id']}")
+        elif action == "dont_add":
+            text = str(kw.get("text", "")).strip()[:500]
+            if not text:
+                raise HarnessError("write what not to do")
+            iid = f"D{len(doc['dont']) + 1}o{len(doc.get('history', []))}"
+            doc["dont"].append({"id": iid, "text": text, "why": "", "by": "owner"})
+            note(f"Don't: {text}", f"dont:{iid}")
+        elif action == "dont_remove":
+            x = find(doc["dont"], kw.get("id", ""))
+            doc["dont"].remove(x)
+            note(f"The owner removed the rule 'don't {x['text']}': it is allowed again", f"dont:{x['id']}")
+        elif action == "idea":
+            i = find(doc["ideas"], kw.get("id", ""))
+            i["state"] = "accepted" if kw.get("accept") else "rejected"
+            if i["state"] == "accepted":
+                note(f"The owner wants this idea too: {i['text']}", f"idea:{i['id']}")
+            else:
+                pend[:] = [p for p in pend if p.get("key") != f"idea:{i['id']}"]
+        elif action == "section":
+            sec = find(doc["spec"], kw.get("id", ""))
+            sec["text"] = str(kw.get("text", "")).strip()[:8000]
+            note(f"The owner rewrote spec section {sec['id']} '{sec['title']}' to:\n{sec['text']}", f"section:{sec['id']}")
+        elif action in ("scope_add", "scope_remove"):
+            key = "out_of_scope" if kw.get("out") else "in_scope"
+            text = str(kw.get("text", "")).strip()[:500]
+            if not text:
+                raise HarnessError("write the scope item")
+            if action == "scope_add":
+                doc[key].append(text)
+                note(f"{'Out of' if kw.get('out') else 'In'} scope (owner): {text}", f"{key}:{text[:40]}")
+            else:
+                if text not in doc[key]:
+                    raise HarnessError("no such scope item")
+                doc[key].remove(text)
+                note(f"No longer {'out of' if kw.get('out') else 'in'} scope: {text}", f"{key}:{text[:40]}")
+        elif action == "note":
+            text = str(kw.get("text", "")).strip()[:2000]
+            if not text:
+                raise HarnessError("write the change you want")
+            note(text, f"note:{len(pend)}:{text[:20]}")
+        else:
+            raise HarnessError(f"action must be one of {', '.join(self.PLAN_ACTIONS)}, revise or approve")
+        self.project.save_plan_doc(doc)
+        self.emit("plan_edit", {"action": action, "pending": len(pend)})
+        return {"pending": len(pend), "open": plandoc.open_items(doc)}
+
     def approve(self) -> None:
+        doc = self.project.plan_doc()
+        if doc and doc.get("pending"):
+            raise HarnessError(f"{len(doc['pending'])} change(s) to the plan aren't applied yet: update the plan first "
+                               "(or undo them)")
         meta = self.project.meta()
         meta["plan_approved"] = True
         if meta.get("status") == "awaiting_approval":
@@ -567,7 +807,8 @@ class Orchestrator:
             f"# Task [{task.id}] {task.title}\n{task.description}\n\n"
             f"# Acceptance criteria\n{task.acceptance or '(use judgement)'}\n\n"
             f"# Worker's summary\n{worker_summary}\n\n"
-            + (f"{self._guidance_text()}\n\n" if self._guidance_text() else "") +
+            + (f"{self._guidance_text()}\n\n" if self._guidance_text() else "")
+            + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "") +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
             "Verify the work (read files, run tests if relevant), then call submit_review."
         )

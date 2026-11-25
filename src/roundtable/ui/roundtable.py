@@ -65,7 +65,15 @@ def run_seat(app, path: Path) -> dict[str, Any]:
         else:
             detail = "planning…"
     elif st == "awaiting_approval":
-        status, detail, actions = "waiting", "plan ready: approve it to start", ["approve"]
+        from ..harness.plandoc import summary_line
+
+        doc = None
+        try:
+            doc = json.loads((hdir / "plan.json").read_text())
+        except (OSError, ValueError):
+            pass
+        line = summary_line(doc) if doc else "plan ready"
+        status, detail, actions = "waiting", f"{line}: review and approve it to start", ["approve"]
     elif st == "blocked" and failed:
         t = failed[0]
         status, detail, actions = "waiting", f"{t['id']} {t['title']} failed", ["retry", "skip"]

@@ -147,6 +147,10 @@ class UIApp:
         self.projects_dir = Path(projects_dir or ".").expanduser().resolve()
         self.last_auto_sync = ""
         self.auto_sync_error = ""
+        from ..desktop import app_home
+        from ..phone import PhoneAccess
+
+        self.phone = PhoneAccess(self, app_home())
         self.cfg()  # validate early so the UI can show config errors
 
     def start_auto_sync(self, every_s: float = 60.0):
@@ -458,6 +462,49 @@ class UIApp:
         else:
             raise ApiError(f"unknown action {action!r}")
         return {"ok": True}
+
+    # -- the living plan ------------------------------------------------------------------------
+    def plan_get(self, q):
+        from ..harness import plandoc
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, q.get("path", [""])[0])
+        doc = proj.plan_doc()
+        meta = proj.meta()
+        tasks = proj.tasks()
+        gi = doc["goal_index"] if doc else len(meta.get("goals", [])) - 1
+        busy = any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values())
+        return {"path": str(proj.root), "name": proj.root.name, "doc": doc, "status": meta.get("status"),
+                "approved": bool(meta.get("plan_approved")), "busy": busy,
+                "tasks": [asdict(t) for t in tasks if t.goal_index == gi],
+                "open": plandoc.open_items(doc), "line": plandoc.summary_line(doc) if doc else ""}
+
+    def plan_post(self, body):
+        from ..harness.orchestrator import HarnessError, Orchestrator
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, body.get("path", ""))
+        action = body.get("action", "")
+        if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
+            raise ApiError("wait for the running job on this project to finish", 409)
+        if action == "revise":
+            def run(job: Job):
+                orch = self._orch(cfg, proj.root, job)
+                return orch.revise_plan(body.get("text", ""), critique_again=bool(body.get("critique")))
+
+            return self.jobs.start("plan", f"update the plan of {proj.root.name}", run, target=str(proj.root)).view()
+        if action == "approve":
+            Orchestrator(cfg, proj.root).approve()
+
+            def run(job: Job):
+                return {"status": self._orch(cfg, proj.root, job).run()}
+
+            return self.jobs.start("run", f"run {proj.root.name}", run, target=str(proj.root)).view()
+        try:
+            kw = {k: v for k, v in body.items() if k not in ("path", "action")}
+            return Orchestrator(cfg, proj.root).plan_update(action, **kw)
+        except HarnessError as e:
+            raise ApiError(str(e))
 
     # -- models & probes ------------------------------------------------------------------------
     def probes(self, q):
@@ -808,6 +855,25 @@ class UIApp:
         return self.jobs.start("update", "update Roundtable Hold", run, target="update").view()
 
     # -- routing table ------------------------------------------------------------------------------
+    def phone_status(self, q=None):
+        st = self.phone.status()
+        if st.get("pairing"):
+            import io
+
+            import segno
+
+            buf = io.BytesIO()
+            segno.make(st["pairing"]["uri"], error="m").save(buf, kind="svg", scale=5, border=2, dark="#1a1410",
+                                                              light="#f3e7c9")
+            import base64
+
+            st["pairing"]["qr"] = "data:image/svg+xml;base64," + base64.b64encode(buf.getvalue()).decode()
+        return st
+
+    def phone_action(self, body):
+        self.phone.api(body)
+        return self.phone_status()
+
     def routes(self):
         R = self
         return {
@@ -842,6 +908,10 @@ class UIApp:
             ("POST", "/api/assign"): R.assign,
             ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
+            ("GET", "/api/plan"): R.plan_get,
+            ("POST", "/api/plan"): R.plan_post,
+            ("GET", "/api/phone"): R.phone_status,
+            ("POST", "/api/phone"): R.phone_action,
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:
@@ -961,6 +1031,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     remote = host not in LOOPBACK
     token = secrets.token_urlsafe(16) if remote else None
     app.start_auto_sync()
+    app.phone.start()
     httpd = ThreadingHTTPServer((host, port), make_handler(app, token, allow_remote=remote))
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:

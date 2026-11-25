@@ -305,13 +305,26 @@ roundtable new bakery "A bakery website with an order API, tests and a logo"
 
 ### How it works
 
-1. **Plan.** The planner role (e.g. Claude Fable) reads the project and splits the goal into tasks. Each task has a role, standalone instructions, acceptance criteria and dependencies.
+1. **Plan.** The planner role (e.g. Claude Fable) reads the project and writes the plan as a document (see "The living plan" below), with tasks. Each task has a role, standalone instructions, acceptance criteria, dependencies and the spec section it belongs to.
 2. **Route.** Each task goes to the model configured for its role. Every chat model, whatever its provider, gets the same workspace tools: `read_file`, `write_file`, `edit_file`, `list_files`, `search`, `run_command`. Image roles call an image API and save the file into the project.
 3. **Review.** The reviewer role reads the changes (the git diff and files), runs the tests, and approves or rejects with specific feedback.
 4. **Retry and fall back.** A rejection goes back to the worker with the feedback. If a provider errors, refuses, or the same model is rejected twice, the next model in the role's `fallback` list takes over.
 5. **Commit and continue.** Each approved task becomes a git commit. When every task is done, the planner writes a report.
 
-Everything is saved in `<project>/.harness/`. A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `roundtable run` resumes where it left off.
+### The living plan
+
+You write the idea; the plan is a page you can argue with before anything is built. Open it from the Roundtable (**Open plan**) or `#/plan/...` in the app. It has:
+
+- **summary, in scope / out of scope, and a "don't" list** of traps to avoid;
+- **a short spec** (stack, structure, screens, data, art style…), with the tasks grouped under the section they belong to;
+- **choices**: real decisions with 2–4 options, an effort/cost note each, the planner's recommendation and why. The tasks follow the recommendation until you choose otherwise;
+- **questions** only you can answer, and **recommended ideas** beyond the goal that you can accept or turn down;
+- **a second opinion**: if a `critic` role is set (ideally another maker's model), it critiques every new plan, and a serious problem gets one automatic revision;
+- **an estimate** of cost and time before you approve, from your past runs where there are some, else typical task sizes (models without a price are listed, not guessed).
+
+Your edits wait as "changes" until you press **Update plan** (one planner call): the planner revises the document and the tasks, keeping finished work and every task your changes don't touch, and the page shows what was added, changed or removed. **Approve & start** begins the build. Every task and review is told the plan, your choices, answers and don'ts. To add the critic to an existing setup: Settings > Which model does what, role `critic`, any model (a different maker from your planner works best).
+
+Everything is saved in `<project>/.harness/` (`plan.json` and a readable `plan.md` included). A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `roundtable run` resumes where it left off.
 
 ### Setup
 
