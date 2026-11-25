@@ -7,7 +7,8 @@ It has two parts that share one core:
 | Part | What it does | Status |
 |---|---|---|
 | **1. Hub** | Lets agents working in different repos share what they're building and talk to each other, within the permissions you set. | ✅ Built (this release) |
-| **2. Harness** | Runs whole projects: an orchestrator breaks the work into tasks and routes each one to the model you've assigned to that role (Claude, DeepSeek, OpenAI, Gemini…), with a self-improvement loop. | 🔜 Next — see [ROADMAP.md](ROADMAP.md) |
+| **2. Harness** | Runs whole projects: an orchestrator breaks the work into tasks and routes each one to the model you've assigned to that role (Claude, DeepSeek, OpenAI, Gemini…), reviews every result, and retries or falls back to another model. | ✅ Built |
+| **3. Self-improvement** | Learns from the harness's metrics which models and prompts work best, and proposes tested changes. | 🔜 Next: see [ROADMAP.md](ROADMAP.md) |
 
 ---
 
@@ -130,6 +131,82 @@ This is built for **one owner** (you). An agent's identity comes from its config
 
 ---
 
+## Part 2: the Harness
+
+```
+harness new bakery "A bakery website with an order API, tests and a logo"
+```
+
+```
+ goal ──► orchestrator (plans tasks, assigns roles)
+              │
+              ▼
+        task board  ──►  coder: DeepSeek ──► reviewer: Claude ──► approved → git commit
+                         designer: OpenAI images                   rejected → feedback → retry
+                         manager: Claude                           provider down → fallback model
+              │
+              ▼
+        final report (.harness/summary.md)
+```
+
+### How it works
+
+1. **Plan.** The planner role (e.g. Claude Fable) reads the project and splits the goal into tasks. Each task has a role, standalone instructions, acceptance criteria and dependencies.
+2. **Route.** Each task goes to the model configured for its role. Every chat model, whatever its provider, gets the same workspace tools: `read_file`, `write_file`, `edit_file`, `list_files`, `search`, `run_command`. Image roles call an image API and save the file into the project.
+3. **Review.** The reviewer role reads the changes (the git diff and files), runs the tests, and approves or rejects with specific feedback.
+4. **Retry and fall back.** A rejection goes back to the worker with the feedback. If a provider errors, refuses, or the same model is rejected twice, the next model in the role's `fallback` list takes over.
+5. **Commit and continue.** Each approved task becomes a git commit. When every task is done, the planner writes a report.
+
+Everything is saved in `<project>/.harness/`. A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `harness run` resumes where it left off.
+
+### Setup
+
+```bash
+pip install -e .
+harness init                     # writes harness.yaml: providers, roles, prices, limits
+export ANTHROPIC_API_KEY=... DEEPSEEK_API_KEY=... OPENAI_API_KEY=...
+harness roles                    # check the routing
+harness ask coder "hello"        # check one role's model works
+```
+
+**Roles are just config.** To make Gemini your writer or move coding to Claude, edit one line:
+
+```yaml
+roles:
+  orchestrator: {model: anthropic/claude-fable-5-2, fallback: [anthropic/claude-opus-5-5], options: {effort: high}}
+  coder:        {model: deepseek/deepseek-v4-pro, fallback: [anthropic/claude-sonnet-5-5], description: writes and tests code}
+  reviewer:     {model: anthropic/claude-opus-5-5}
+  designer:     {kind: image, model: openai_images/gpt-image-1, description: logos and illustrations}
+```
+
+The `description` tells the planner when to use a role. You can add any role, such as `writer`, `researcher` or `devops`, and give it its own prompt file through `prompts_dir`.
+
+**Providers:**
+- `anthropic`: Claude via the official SDK. Thinking, prompt caching, `effort` and refusal fallbacks are on.
+- `openai_compat`: any OpenAI-compatible API (DeepSeek, OpenAI, Gemini, OpenRouter, Groq, local Ollama).
+- `openai_images`: image generation.
+
+### Commands
+
+```bash
+harness new DIR "goal" [--approve]    # --approve: stop after planning so you can check the plan
+harness approve DIR && harness run DIR
+harness status DIR                    # task board + spend
+harness run DIR [--max-tasks N]       # resume / step through
+harness retry DIR T3                  # re-open a failed task
+harness skip DIR T3                   # mark a task done yourself
+harness extend DIR "next goal"        # add features to an existing project
+harness metrics DIR                   # success rate, cost and time per role/model
+harness -v ...                        # show every model turn and tool call
+```
+
+### Budget and safety
+- `limits.max_cost_usd` pauses a project when reached; `harness run` continues after you raise it. Claude prices are built in. **Add `pricing:` for the other providers**, or their calls are counted as "unpriced" and don't count toward the budget.
+- `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
+- `hub:` in `harness.yaml` reports project progress to the Hub, so your repo agents can see what the harness is building.
+
+---
+
 ## Development
 
 ```bash
@@ -139,7 +216,11 @@ pytest
 
 ```
 src/agentharness/
-  core/      models, config, policy, storage (file + git)   ← shared by Hub and Harness
-  hub/       hub service, MCP server, git helpers
-  cli.py     `agent-hub` command
+  core/       models, config, policy, storage (file + git)   ← shared by Hub and Harness
+  hub/        hub service, MCP server, git helpers
+  providers/  anthropic, openai_compat (DeepSeek/OpenAI/Gemini/...), images, scripted (tests)
+  harness/    config (roles), tools (workspace), agent loop, orchestrator
+  prompts/    default role prompts (override with prompts_dir)
+  cli.py          `agent-hub` command
+  harness_cli.py  `harness` command
 ```

@@ -1,0 +1,74 @@
+# agent-harness configuration: who does what.
+# Model references are "<provider>/<model>". Swap any of them freely.
+
+providers:
+  anthropic:
+    type: anthropic                 # native Claude SDK
+    api_key_env: ANTHROPIC_API_KEY
+  deepseek:
+    type: openai_compat             # any OpenAI-compatible API
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+  openai:
+    type: openai_compat
+    api_key_env: OPENAI_API_KEY
+  openai_images:
+    type: openai_images
+    api_key_env: OPENAI_API_KEY
+  gemini:
+    type: openai_compat
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+  # openrouter: {type: openai_compat, base_url: https://openrouter.ai/api/v1, api_key_env: OPENROUTER_API_KEY}
+  # local:      {type: openai_compat, base_url: http://localhost:11434/v1}   # Ollama
+
+roles:
+  orchestrator:                     # plans the project and writes the final report
+    model: anthropic/claude-fable-5-2
+    fallback: [anthropic/claude-opus-5-5]
+    options: {effort: high}
+  manager:
+    model: anthropic/claude-opus-5-5
+    description: specs, architecture and API documents, READMEs, project coordination
+  coder:
+    model: deepseek/deepseek-v4-pro
+    fallback: [anthropic/claude-sonnet-5-5]
+    description: writes and tests code
+  reviewer:                         # checks every task against its acceptance criteria
+    model: anthropic/claude-opus-5-5
+    options: {effort: medium}
+  designer:
+    kind: image
+    model: openai_images/gpt-image-1
+    description: generates images (logos, illustrations, UI mockups)
+    options: {size: 1024x1024}
+  # writer:
+  #   model: gemini/<current-gemini-model>
+  #   description: marketing copy and long-form content
+  #   prompt: worker                # any file in prompts_dir, or a built-in prompt name
+
+planner_role: orchestrator
+reviewer_role: reviewer             # remove to skip reviews
+# prompts_dir: ./prompts            # override built-in prompts (orchestrator.md, coder.md, ...)
+
+# USD per 1M tokens. Claude prices are built in; add the rest from each
+# provider's pricing page so the budget covers them. Calls with no price are
+# counted as "unpriced" and do NOT count toward max_cost_usd.
+pricing:
+  # deepseek/deepseek-v4-pro: {input: 0.0, output: 0.0, cache_read: 0.0}
+  # openai_images/gpt-image-1: {input: 0.0, output: 0.0}
+
+limits:
+  max_cost_usd: 10                  # per project; the run pauses when reached
+  max_steps_per_task: 40            # model turns per attempt
+  max_attempts_per_task: 3
+  command_timeout: 120              # seconds per shell command
+
+workspace:
+  allow_shell: true                 # models may run commands in the project dir (NOT a sandbox)
+  git: true                         # commit after every approved task
+
+# Optional: report progress to the agent hub (Part 1)
+# hub:
+#   config: ~/agent-hub-data/hub.yaml
+#   agent: harness
