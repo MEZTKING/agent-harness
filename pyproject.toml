@@ -25,7 +25,7 @@ harness = "agentharness.harness_cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentharness = ["templates/*.yaml", "prompts/*.md"]
+agentharness = ["templates/*.yaml", "prompts/*.md", "ui/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

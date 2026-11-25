@@ -13,6 +13,7 @@
     harness retry DIR TASK_ID             re-open a failed task
     harness skip DIR TASK_ID              mark a task done without running it
     harness metrics DIR                   per role/model success rate and cost
+    harness ui [--port 8765]              web UI (same as `agent-hub ui`)
     harness feedback DIR TASK_ID --good|--bad ["note"]   rate a finished task (feeds learning)
 
     harness probe [--role R] [--model M] [--images]   quick health check: regressions / boosts per model
@@ -130,6 +131,12 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ask")
     s.add_argument("role")
     s.add_argument("prompt")
+    s = sub.add_parser("ui", help="open the web UI")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--hub-config")
+    s.add_argument("--projects-dir", default=".")
+    s.add_argument("--no-browser", action="store_true")
     s = sub.add_parser("image", help="generate one image with an image role")
     s.add_argument("role")
     s.add_argument("prompt", nargs="?", default="")
@@ -448,6 +455,13 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.cmd == "feedback":
         return _feedback(args)
+    if args.cmd == "ui":
+        import os
+
+        from .ui.server import serve
+
+        return serve(hub_config=args.hub_config, harness_config=args.config, agent=os.environ.get("HUB_AGENT"),
+                     host=args.host, port=args.port, open_browser=not args.no_browser, projects_dir=args.projects_dir)
     if args.cmd in ("status", "metrics"):
         project = Project(args.dir)
         if not project.exists:

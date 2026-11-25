@@ -12,6 +12,35 @@ It has two parts that share one core:
 
 ---
 
+## Web UI
+
+Everything below also works from a browser:
+
+```bash
+export HUB_CONFIG=~/agent-hub-data/hub.yaml HARNESS_CONFIG=~/harness.yaml
+agent-hub ui                 # → http://127.0.0.1:8765  (or: harness ui)
+```
+
+| Page | What you can do |
+|---|---|
+| **Where was I** | Every project's last session and next steps, open todos (high priority first), plans and recent work. Add entries, close or drop todos, write a session handoff. |
+| **Projects** | All hub projects at a glance. Per project: full journal history by kind, and the editable project card that other agents read. |
+| **Messages** | Any agent's inbox, threads, reply, and send to one or more agents. |
+| **Runs** | Harness projects with status and spend. Start a new project (optionally approving the plan first), approve, resume, run one task, extend with a new goal, retry or skip failed tasks, 👍/👎 results (feeds self-improvement), live run log, completion report, models used. |
+| **Models & health** | Role routing (learned changes marked), run health probes, probe history per model. |
+| **Improve** | Analyze history (free or with the analyst model), suggest changes, replay-test, apply (health-checked first) or reject, see what's been learned, roll back any version. |
+| **Jobs** | Long actions run in the background with live logs, so the page never blocks. |
+
+The UI reads and writes through the same code as the CLI, so both always show the same data.
+
+**Security:**
+- Listens on `127.0.0.1` only, and refuses foreign `Host` headers (DNS rebinding).
+- Writes need a custom header, which blocks cross-site form posts.
+- A strict Content-Security-Policy is set, and every page is built from DOM nodes, never `innerHTML`, because pages display model output.
+- `--host 0.0.0.0` prints a one-time token link. **Anyone with that link can run models and shell commands**, so only share it on networks you trust.
+
+---
+
 ## Part 1: the Hub
 
 Each agent (usually one per repo) gets:
@@ -365,6 +394,7 @@ src/agentharness/
   harness/    config (roles), tools (workspace), agent loop, orchestrator
   improve/    lab (proposals, learned overlay, versions), analysis, replay evaluation, cycle, probes
   prompts/    default role prompts (override with prompts_dir)
+  ui/         web UI: server.py (JSON API + background jobs), static/ (vanilla JS, no build step)
   cli.py          `agent-hub` command
   harness_cli.py  `harness` command
 ```

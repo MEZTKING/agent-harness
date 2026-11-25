@@ -174,6 +174,7 @@ class Journal:
             "repo": spec.repo,
             "description": spec.description,
             "last_activity": es[-1].created_at if es else "",
+            "last_ts": es[-1].ts if es else 0.0,
             "last_session": asdict(sessions[-1]) if sessions else None,
             "open_todos": [asdict(e) for e in open_todos],
             "open_plans": [asdict(e) for e in es if e.kind == "plan" and e.status == "open"],
@@ -192,7 +193,7 @@ class Journal:
             return [b] if b["last_activity"] else []
         out = [self.brief(actor, a) for a in self.hub.config.agents if self.hub._allowed(actor, a, "read_card")]
         out = [b for b in out if b["last_activity"]]
-        out.sort(key=lambda b: b["last_activity"], reverse=True)
+        out.sort(key=lambda b: (b["last_activity"], b["last_ts"]), reverse=True)
         return out
 
     # -- rendering ----------------------------------------------------------------------

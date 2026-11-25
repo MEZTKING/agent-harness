@@ -12,6 +12,7 @@
     agent-hub thread THREAD_ID
     agent-hub subscribe AGENT [--off]
     agent-hub mcp                        run the MCP server (stdio)
+    agent-hub ui [--port 8765]           web UI (journal, projects, messages, harness runs, models, improve)
 
   Journal ("where was I"):
     agent-hub where [AGENT]              briefing: last session, next steps, open todos, plans
@@ -144,6 +145,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--kind", action="append", default=[])
     s.add_argument("--limit", type=int, default=30)
 
+    s = sub.add_parser("ui", help="open the web UI")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--harness-config", help="harness.yaml (default $HARNESS_CONFIG or ./harness.yaml)")
+    s.add_argument("--projects-dir", default=".", help="where new harness projects are created")
+    s.add_argument("--no-browser", action="store_true")
+
     s = sub.add_parser("mcp", help="run the MCP server for this agent")
     s.add_argument("--transport", default="stdio", choices=["stdio", "sse", "streamable-http"])
     return p
@@ -154,6 +162,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "init":
         return cmd_init(args)
 
+    if args.cmd == "ui":
+        from .ui.server import serve
+
+        return serve(hub_config=args.config, harness_config=args.harness_config,
+                     agent=args.agent or os.environ.get("HUB_AGENT"), host=args.host, port=args.port,
+                     open_browser=not args.no_browser, projects_dir=args.projects_dir)
     try:
         hub = Hub(load_config(args.config))
         me = _agent(args)

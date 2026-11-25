@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, Iterable
@@ -88,8 +89,22 @@ class GitError(RuntimeError):
     pass
 
 
+_GIT_LOCKS: dict[str, threading.RLock] = {}
+_GIT_LOCKS_GUARD = threading.Lock()
+
+
+def _lock_for(root: Path) -> threading.RLock:
+    with _GIT_LOCKS_GUARD:
+        return _GIT_LOCKS.setdefault(str(root), threading.RLock())
+
+
 class GitStore(FileStore):
-    """FileStore whose directory is a git working tree synced with a remote."""
+    """FileStore whose directory is a git working tree synced with a remote.
+
+    Git operations on one working tree are serialised in-process, so several
+    Hub objects (e.g. the web UI and a harness run in a background thread) can
+    share a data directory safely.
+    """
 
     def __init__(
         self,
@@ -141,10 +156,15 @@ class GitStore(FileStore):
             return False
 
     def sync(self) -> None:
-        if self._has_remote and self._remote_branch_exists():
-            self._git("pull", "--rebase", "origin", self.branch)
+        with _lock_for(self.root):
+            if self._has_remote and self._remote_branch_exists():
+                self._git("pull", "--rebase", "origin", self.branch)
 
     def write_json(self, items: dict[str, Any], message: str) -> None:
+        with _lock_for(self.root):
+            self._write_json_locked(items, message)
+
+    def _write_json_locked(self, items: dict[str, Any], message: str) -> None:
         self.sync()
         written = self._write_files(items)
         self._git("add", "--", *written)
