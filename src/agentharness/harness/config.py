@@ -6,8 +6,9 @@ adding a provider or changing a role is a config edit, not a code change.
 
 from __future__ import annotations
 
+import copy
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -78,7 +79,21 @@ class HarnessConfig:
     reviewer_role: str | None = "reviewer"
     prompts_dir: Path | None = None
     hub: dict[str, Any] | None = None
+    lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
+    improve: dict[str, Any] = field(default_factory=dict)
+    # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
+    prompt_overrides: dict[str, str] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    def variant(self) -> "HarnessConfig":
+        """Independent copy of roles/prompts/limits that shares provider clients."""
+        return replace(
+            self,
+            roles=copy.deepcopy(self.roles),
+            prompt_overrides=dict(self.prompt_overrides),
+            limits=copy.deepcopy(self.limits),
+            _instances=self._instances,
+        )
 
     # -- providers -------------------------------------------------------
     def provider(self, name: str) -> Provider | ImageProvider:
@@ -114,6 +129,8 @@ class HarnessConfig:
     def prompt_text(self, name: str) -> str:
         if "\n" in name or " " in name.strip():
             return name  # inline prompt text
+        if name in self.prompt_overrides:
+            return self.prompt_overrides[name]
         if self.prompts_dir:
             p = self.prompts_dir / f"{name}.md"
             if p.is_file():
@@ -134,6 +151,27 @@ class HarnessConfig:
             + usage.cache_read_tokens * price.get("cache_read", price.get("input", 0))
             + usage.cache_write_tokens * price.get("cache_write", price.get("input", 0) * 1.25)
         ) / 1_000_000
+
+
+def apply_overlay(cfg: HarnessConfig, overlay: dict[str, Any], prompts: dict[str, str] | None = None) -> None:
+    """Layer learned settings on top of a config (in place).
+
+    overlay = {"roles": {role: {"model": "...", "fallback": [...], "options": {...}}}}
+    prompts = {prompt name: text}
+    """
+    for name, spec in (overlay.get("roles") or {}).items():
+        role = cfg.roles.get(name)
+        if not role:
+            continue  # role was removed from harness.yaml; ignore stale learning
+        if "model" in spec:
+            models = [ModelRef.parse(spec["model"])] + [ModelRef.parse(m) for m in spec.get("fallback", [])]
+            for m in models:
+                if cfg.providers and m.provider not in cfg.providers:
+                    raise ValueError(f"learned routing for {name!r} uses unknown provider {m.provider!r}")
+            role.models = models
+        if "options" in spec:
+            role.options = dict(spec["options"])
+    cfg.prompt_overrides.update(prompts or {})
 
 
 def find_config(explicit: str | None = None) -> Path:
@@ -201,9 +239,23 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         reviewer_role=reviewer,
         prompts_dir=(base / prompts_dir) if prompts_dir else None,
         hub=raw.get("hub"),
+        lab_dir=_lab_dir(raw, base, path),
+        improve=dict(raw.get("improve") or {}),
     )
+
+
+def _lab_dir(raw: dict[str, Any], base: Path, path: Path | None) -> Path | None:
+    imp = raw.get("improve") or {}
+    if imp.get("lab_dir"):
+        return (base / Path(imp["lab_dir"]).expanduser()).resolve()
+    return (base / ".harness-lab") if path else None
 
 
 def load_config(explicit: str | None = None) -> HarnessConfig:
     path = find_config(explicit)
-    return parse_config(yaml.safe_load(path.read_text(encoding="utf-8")) or {}, path)
+    cfg = parse_config(yaml.safe_load(path.read_text(encoding="utf-8")) or {}, path)
+    if cfg.lab_dir and cfg.lab_dir.is_dir():
+        from ..improve.lab import Lab
+
+        Lab(cfg.lab_dir).apply_learned(cfg)
+    return cfg

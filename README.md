@@ -8,7 +8,7 @@ It has two parts that share one core:
 |---|---|---|
 | **1. Hub** | Lets agents working in different repos share what they're building and talk to each other, within the permissions you set. | ✅ Built (this release) |
 | **2. Harness** | Runs whole projects: an orchestrator breaks the work into tasks and routes each one to the model you've assigned to that role (Claude, DeepSeek, OpenAI, Gemini…), reviews every result, and retries or falls back to another model. | ✅ Built |
-| **3. Self-improvement** | Learns from the harness's metrics which models and prompts work best, and proposes tested changes. | 🔜 Next: see [ROADMAP.md](ROADMAP.md) |
+| **3. Self-improvement** | Learns from every run which models, prompts and settings work best, tests proposed changes by replaying real past tasks, and applies them with your approval (or automatically, per your policy). Every change is versioned and can be rolled back. | ✅ Built |
 
 ---
 
@@ -207,6 +207,63 @@ harness -v ...                        # show every model turn and tool call
 
 ---
 
+## Part 3: Self-improvement
+
+The harness learns from its own history. It never rewrites `harness.yaml`. What it learns goes into `.harness-lab/` (next to `harness.yaml`) and is layered on top, so you can always see and undo exactly what changed.
+
+```
+ every run ──► metrics: role, model, approved?, first try?, cost, time
+                + reviewer rejection feedback + your ratings (harness feedback)
+                         │
+                         ▼
+   analyze ──►  rules:  data-backed routing ("the fallback model is approved 40% more often: promote it")
+                LLM:    analyst model reads stats, rejections and ratings → prompt / routing / option changes
+                you:    harness improve propose ...
+                         │
+                         ▼
+   test   ──►  replay real past tasks from their original git state:
+                current setup vs proposed setup, same reviewer judges both
+                         │
+                         ▼
+   apply  ──►  you approve (or auto_apply policy) → versioned → `harness improve rollback`
+```
+
+### Commands
+
+```bash
+harness feedback myproject T3 --bad "UI ignores the brand colours"   # your ratings are training signal
+harness improve analyze            # stats + data-backed proposals (no model call, no cost)
+harness improve analyze --llm      # also ask the analyst model to study failures and propose changes
+harness improve propose coder --models anthropic/claude-sonnet-5-5,deepseek/deepseek-v4-pro
+harness improve propose coder --prompt-file my-coder-prompt.md
+harness improve list / show P1a2b3c
+harness improve test P1a2b3c --samples 3 --max-cost 2   # replay; spends real tokens, capped
+harness improve apply P1a2b3c      # needs a passed test (or a rule-based routing change) unless --force
+harness improve status             # effective routing, learned prompts, history
+harness improve rollback [VERSION] # exact restore of the state before that version
+harness improve cycle --llm --test # analyze + test + apply whatever the policy allows
+```
+
+### Keeping it always improving
+
+Set the policy in `harness.yaml`, then run `harness improve cycle` after projects or on a schedule (e.g. a nightly cron job):
+
+```yaml
+improve:
+  auto_apply: low       # none (default) | low | medium
+  min_samples: 5        # judged attempts before metrics-based routing changes
+```
+
+**Guardrails:**
+- LLM-proposed changes are only auto-applied after **passing a replay test**.
+- Rule-based routing changes may apply untested, because they come straight from production metrics.
+- A rewritten prompt must **beat** the current one in replay, not just tie it.
+- The reviewer can't be tested by replay, since it is the judge; change it manually.
+- Replay tests cost real money: `--max-cost` caps them. With only a few samples, results are noisy, and the report shows how many tasks were compared.
+- Cost comparisons need `pricing:` for every model. Without prices, only quality is compared.
+
+---
+
 ## Development
 
 ```bash
@@ -220,6 +277,7 @@ src/agentharness/
   hub/        hub service, MCP server, git helpers
   providers/  anthropic, openai_compat (DeepSeek/OpenAI/Gemini/...), images, scripted (tests)
   harness/    config (roles), tools (workspace), agent loop, orchestrator
+  improve/    lab (proposals, learned overlay, versions), analysis, replay evaluation, cycle
   prompts/    default role prompts (override with prompts_dir)
   cli.py          `agent-hub` command
   harness_cli.py  `harness` command

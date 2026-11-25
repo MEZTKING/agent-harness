@@ -43,6 +43,7 @@ class Task:
     summary: str = ""
     attempts: list[dict[str, Any]] = field(default_factory=list)
     goal_index: int = 0
+    base_commit: str | None = None  # project state the task started from (for replays)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -204,6 +205,12 @@ class Orchestrator:
         if self._git("status", "--porcelain").strip():
             self._git("commit", "-q", "-m", message)
 
+    def _head(self) -> str | None:
+        if not self.cfg.git or not (self.project.root / ".git").exists():
+            return None
+        res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.project.root, capture_output=True, text=True)
+        return res.stdout.strip() if res.returncode == 0 else None
+
     def _diff(self) -> str:
         if not self.cfg.git or not (self.project.root / ".git").exists():
             return "(git disabled - inspect files directly)"
@@ -261,6 +268,13 @@ class Orchestrator:
         })
         self.project.save_tasks([])
         self.emit("goal", {"goal": goal})
+        self._register_with_lab()
+
+    def _register_with_lab(self) -> None:
+        if self.cfg.lab_dir:
+            from ..improve.lab import Lab
+
+            Lab(self.cfg.lab_dir).register_project(self.project.root)
 
     def extend(self, goal: str) -> None:
         if not self.project.exists:
@@ -524,6 +538,7 @@ class Orchestrator:
         if not self.project.exists:
             raise HarnessError("no project here; use `harness new`")
         meta = self.project.meta()
+        self._register_with_lab()
         try:
             if meta.get("status") == "planning":
                 self.plan()
@@ -557,6 +572,9 @@ class Orchestrator:
 
                 task = ready[0]
                 task.status = "running"
+                if not task.base_commit:
+                    self._git_commit("harness: snapshot before task")  # capture any manual edits
+                    task.base_commit = self._head() or ""
                 self.project.save_tasks(tasks)
                 self.emit("task_start", {"task": task.id, "title": task.title, "role": task.role})
                 ok = self._run_task(task, tasks)

@@ -26,12 +26,9 @@ Agent registry, permission policy, file and git storage, project cards, messagin
 Done: adapters (Anthropic native, OpenAI-compatible, OpenAI images), roles with fallback chains, planner, review/retry loop, git-backed workspace, budget, approval gate, resume, hub reporting, per-attempt metrics.
 Possible later: run independent tasks in parallel; per-task budgets; live Gemini-native adapter.
 
-## Phase 3: Self-improvement loop
-1. **Record:** each task's outcome, cost, latency, retries and your corrections.
-2. **Analyze:** a reviewer agent finds patterns (which models fail which task types, which prompts cause retries).
-3. **Propose:** concrete changes to prompts, routing or tools.
-4. **Test:** replay past tasks with the change and compare against the current setup.
-5. **Apply:** you approve, or low-risk changes apply automatically. Every change is versioned with one-command rollback.
+## ✅ Phase 3: Self-improvement loop
+Done: metrics + reviewer feedback + owner ratings → rule-based and LLM-analyst proposals (routing, prompts, options) and owner proposals → replay tests on real past tasks (current vs candidate, same judge) → manual or policy-based auto-apply → versioned learned overlay with exact rollback.
+Possible later: cross-provider "new model scouting" (benchmark a newly released model on your past tasks automatically); larger benchmark sets with statistical confidence; per-task-type routing (e.g. frontend vs backend coding).
 
 ## Phase 4: Dashboard and real-time
 - Web dashboard: agents, cards, threads, tasks, spend, improvement proposals.

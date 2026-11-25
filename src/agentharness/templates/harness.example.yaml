@@ -72,3 +72,10 @@ workspace:
 # hub:
 #   config: ~/agent-hub-data/hub.yaml
 #   agent: harness
+
+# Self-improvement (Part 3). See `harness improve --help`.
+improve:
+  auto_apply: none                  # none | low | medium: what `harness improve cycle` may apply on its own
+  min_samples: 5                    # judged attempts needed before metrics-based routing changes
+  # analyst_role: orchestrator      # model that reads history and proposes changes (default: planner)
+  # lab_dir: ./.harness-lab         # proposals, learned settings, versions
