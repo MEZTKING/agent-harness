@@ -148,6 +148,7 @@ data class Message(
     val body: String = "",
     val created_at: String = "",
     val thread_id: String = "",
+    val in_reply_to: String? = null,
     val read: Boolean = false,
 )
 

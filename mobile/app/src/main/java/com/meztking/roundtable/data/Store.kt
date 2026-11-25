@@ -8,7 +8,15 @@ import com.meztking.roundtable.net.PcLink
 
 /** The PC link, its token and the optional GitHub token, encrypted with a key kept in Android's keystore. */
 class Store(context: Context) {
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
+    private val prefs: SharedPreferences = try {
+        open(context)
+    } catch (e: Exception) {
+        // the keystore key is gone (restored backup, OS bug): start afresh rather than crash
+        context.deleteSharedPreferences("roundtable.secure")
+        open(context)
+    }
+
+    private fun open(context: Context): SharedPreferences = EncryptedSharedPreferences.create(
         context, "roundtable.secure",
         MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
@@ -47,6 +55,18 @@ class Store(context: Context) {
     var identity: String
         get() = prefs.getString("identity", "me")!!
         set(v) = prefs.edit().putString("identity", v.trim()).apply()
+
+    /** Which way in is used when both are set up: "hub" or "pc". */
+    var mode: String
+        get() = prefs.getString("mode", null) ?: if (githubToken != null) "hub" else if (link != null) "pc" else ""
+        set(v) = prefs.edit().putString("mode", v).apply()
+
+    val configured: Boolean get() = githubToken != null || link != null
+
+    /** The last table we showed, so the app opens with something while it refreshes. */
+    var cachedHall: String
+        get() = prefs.getString("cached_hall", "")!!
+        set(v) = prefs.edit().putString("cached_hall", v).apply()
 
     var lastVersion: String
         get() = prefs.getString("last_version", "")!!

@@ -1,0 +1,332 @@
+package com.meztking.roundtable.data
+
+import com.meztking.roundtable.net.Api
+import com.meztking.roundtable.net.GitHubHub
+import com.meztking.roundtable.net.HubSnapshot
+import com.meztking.roundtable.net.Message
+import com.meztking.roundtable.net.Progress
+import com.meztking.roundtable.net.Seat
+import com.meztking.roundtable.net.Task
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.Serializable
+import java.time.Duration
+import java.time.Instant
+
+enum class Mode { HUB, PC }
+
+/** One seat at the table, the same shape in both modes. */
+@Serializable
+data class SeatView(
+    val id: String,
+    /** running | waiting | idle | done */
+    val status: String = "idle",
+    val statusText: String = "",
+    val description: String = "",
+    val repo: String = "",
+    val lastActivity: String = "",
+    val leftOff: String = "",
+    val nextSteps: List<String> = emptyList(),
+    val openTodos: Int = 0,
+    val high: Int = 0,
+    val unread: Int = 0,
+    val progress: Progress? = null,
+    val hasPlan: Boolean = false,
+    /** PC mode: the harness run's folder, for its task tree and actions. */
+    val path: String? = null,
+) {
+    val initials: String get() = initialsOf(id)
+    val badge: Int get() = unread + high
+}
+
+/** One thing that waits for the owner. [key] identifies it for "notify once". */
+@Serializable
+data class NeedView(
+    val key: String,
+    /** todo | message | run */
+    val kind: String,
+    val project: String,
+    val title: String,
+    val text: String = "",
+    val actions: List<String> = emptyList(),
+    val id: String? = null,
+    val task: String? = null,
+    val path: String? = null,
+    val message: Message? = null,
+    val at: String = "",
+)
+
+@Serializable
+data class HallState(val seats: List<SeatView> = emptyList(), val needs: List<NeedView> = emptyList(), val fetchedAt: String = "")
+
+/** What the Plan tab shows: the hub's plan page, or (PC mode) the run's task tree. */
+data class PlanView(val doc: PlanDoc? = null, val tasks: List<Task> = emptyList(), val runStatus: String = "", val canApprove: Boolean = false)
+
+/** The two ways in (the hub on GitHub, or the paired PC) behind one face. */
+interface Backend {
+    val mode: Mode
+    val identity: String
+    suspend fun hall(): HallState
+    suspend fun projects(): List<String>
+    suspend fun status(project: String): StatusDoc
+    suspend fun plan(seat: SeatView): PlanView
+    suspend fun inbox(project: String): List<Message>
+    suspend fun letters(): List<Message>
+    suspend fun send(to: String, subject: String, body: String)
+    suspend fun reply(original: Message, body: String)
+    /** Marks the owner's own messages read (agents' inboxes are theirs to read). */
+    suspend fun markRead(messages: List<Message>)
+    /** A one-tap answer on a Needs-you card. Returns a short line to show. */
+    suspend fun act(need: NeedView, action: String): String
+    /** Hub only: a command through the hub (see GitHubHub.command). */
+    suspend fun command(project: String, action: String, fields: Map<String, Any?> = emptyMap()): String
+}
+
+class HubBackend(private val hub: GitHubHub, override val identity: String) : Backend {
+    override val mode = Mode.HUB
+    @Volatile private var last: HubSnapshot? = null
+
+    private suspend fun snap(fresh: Boolean = false): HubSnapshot = (if (fresh) null else last) ?: hub.snapshot().also { last = it }
+
+    override suspend fun projects() = snap().projects.map { it.id }
+
+    override suspend fun hall(): HallState {
+        val s = snap(fresh = true)
+        val seats = s.projects.map { p ->
+            val doc = StatusDoc.parse(s.status[p.id].orEmpty())
+            val todos = doc.todos
+            val high = todos.count { it.high }
+            val unread = s.unread(p.id).size
+            SeatView(
+                id = p.id,
+                status = if (high > 0 || (p.id == identity && unread > 0)) "waiting" else "idle",
+                statusText = when {
+                    doc.isEmpty -> "no status page yet"
+                    high > 0 -> "$high high-priority to-do" + if (high > 1) "s" else ""
+                    doc.updated.isNotEmpty() -> "idle · ${ago(doc.updated)}"
+                    else -> "idle"
+                },
+                description = p.description.ifBlank { doc.description },
+                repo = p.repo,
+                lastActivity = doc.updated.ifBlank { doc.leftOffAt },
+                leftOff = Markdown.plain(doc.leftOff),
+                nextSteps = doc.nextSteps.map { Markdown.plain(it) },
+                openTodos = todos.size, high = high, unread = unread,
+                hasPlan = p.id in s.plans,
+            )
+        }
+        val needs = mutableListOf<NeedView>()
+        val mine = s.unread(identity).take(20)
+        if (mine.isNotEmpty()) {
+            hub.messages(identity, mine, s.readIds[identity].orEmpty()).forEach { m ->
+                needs += NeedView("msg:${m.id}", "message", m.sender, "Letter from ${m.sender}", m.subject,
+                    listOf("read", "reply"), id = m.id, message = m, at = m.created_at)
+            }
+        }
+        for (seat in seats) {
+            val doc = StatusDoc.parse(s.status[seat.id].orEmpty())
+            doc.todos.filter { it.high }.forEach { t ->
+                needs += NeedView("todo:${seat.id}:${t.id ?: t.text.hashCode()}", "todo", seat.id, "To do: ${Markdown.plain(t.text)}",
+                    "${seat.id} · high priority · from the journal", listOf("open"), id = t.id, at = doc.updated)
+            }
+        }
+        return HallState(sortSeats(seats), needs, Instant.now().toString())
+    }
+
+    override suspend fun status(project: String) = StatusDoc.parse(hub.status(project))
+
+    override suspend fun plan(seat: SeatView): PlanView {
+        val md = hub.plan(seat.id) ?: return PlanView()
+        val doc = PlanDoc.parse(md)
+        return PlanView(doc = doc, canApprove = doc.waitingForOwner)
+    }
+
+    override suspend fun inbox(project: String) = hub.inbox(project)
+
+    override suspend fun letters(): List<Message> = coroutineScope {
+        val s = snap()
+        s.projects.map { p ->
+            async { hub.messages(p.id, s.inboxIds[p.id].orEmpty().take(25), s.readIds[p.id].orEmpty()) }
+        }.awaitAll().flatten().sortedByDescending { it.created_at.ifBlank { it.id } }
+    }
+
+    override suspend fun send(to: String, subject: String, body: String) { hub.send(identity, to, subject, body) }
+
+    override suspend fun reply(original: Message, body: String) {
+        // answer the sender; if the owner wrote the original, the reply goes on to its recipient
+        val to = if (original.sender == identity) original.recipient else original.sender
+        hub.send(identity, to, "", body, inReplyTo = original)
+    }
+
+    override suspend fun markRead(messages: List<Message>) {
+        val mine = messages.filter { it.recipient == identity && !it.read }.map { it.id }
+        if (mine.isNotEmpty()) hub.markRead(identity, mine)
+    }
+
+    override suspend fun act(need: NeedView, action: String): String = when (action) {
+        "read" -> { need.message?.let { markRead(listOf(it)) }; "Marked as read" }
+        else -> ""
+    }
+
+    override suspend fun command(project: String, action: String, fields: Map<String, Any?>): String {
+        hub.command(identity, project, action, fields)
+        return "Sent. Roundtable will reply in Letters."
+    }
+}
+
+class PcBackend(private val api: Api, override val identity: String) : Backend {
+    override val mode = Mode.PC
+    @Volatile private var seats: List<Seat> = emptyList()
+
+    override suspend fun projects(): List<String> {
+        if (seats.isEmpty()) hall()
+        return seats.filter { it.kind != "run" }.map { it.id }
+    }
+
+    override suspend fun hall(): HallState {
+        val r = api.roundtable()
+        seats = r.seats
+        val views = r.seats.map { s ->
+            SeatView(
+                id = s.id, status = s.status,
+                statusText = when {
+                    s.detail.isNotBlank() -> "${s.status} · ${s.detail}"
+                    s.last_activity.isNotBlank() -> "${s.status} · ${ago(s.last_activity)}"
+                    else -> s.status
+                },
+                description = s.description.ifBlank { s.goal }, repo = s.repo, lastActivity = s.last_activity,
+                leftOff = s.brief?.last_session?.text.orEmpty(), nextSteps = s.brief?.last_session?.next.orEmpty(),
+                openTodos = s.open_todos, high = s.high, unread = s.unread, progress = s.progress, path = s.path,
+                hasPlan = s.path != null,
+            )
+        }
+        val needs = r.needs_you.map { n ->
+            val title = when (n.kind) {
+                "run" -> when {
+                    "approve" in n.actions -> "Plan waits for your seal"
+                    "retry" in n.actions -> "A task failed"
+                    "budget" in n.actions -> "Budget reached"
+                    else -> "${n.project} waits"
+                }
+                "todo" -> "To do: ${n.text}"
+                "messages" -> "Letters for you"
+                else -> n.text
+            }
+            NeedView("pc:${n.kind}:${n.project}:${n.id ?: n.task ?: n.text}", if (n.kind == "messages") "message" else n.kind,
+                n.project, title, if (n.kind == "todo") "${n.project} · high priority · from the journal" else n.text,
+                n.actions, id = n.id, task = n.task, path = n.path, at = n.at)
+        }
+        return HallState(views, needs, Instant.now().toString())
+    }
+
+    override suspend fun status(project: String): StatusDoc {
+        val seat = seats.firstOrNull { it.id == project } ?: run { hall(); seats.firstOrNull { it.id == project } }
+        val b = seat?.brief ?: return StatusDoc(title = project, description = seat?.description.orEmpty())
+        val md = buildString {
+            appendLine("# ${b.agent}"); appendLine()
+            if (b.description.isNotBlank()) { appendLine(b.description); appendLine() }
+            if (b.last_activity.isNotBlank()) { appendLine("_Updated ${b.last_activity}_"); appendLine() }
+            b.last_session?.let { s ->
+                appendLine("## Where we left off"); appendLine()
+                appendLine("**${s.created_at}**: ${s.text}"); appendLine()
+                s.next.forEach { appendLine("- [ ] $it") }; appendLine()
+            }
+            appendLine("## To do"); appendLine()
+            if (b.open_todos.isEmpty()) appendLine("_Nothing open._")
+            b.open_todos.forEach { appendLine("- [ ] ${if (it.priority == "high") "**(high)** " else ""}${it.text} `${it.id}`") }
+            appendLine()
+            if (b.open_plans.isNotEmpty()) { appendLine("## Future plans"); appendLine(); b.open_plans.forEach { appendLine("- ${it.text} `${it.id}`") }; appendLine() }
+            if (b.recent_decisions.isNotEmpty()) { appendLine("## Decisions"); appendLine(); b.recent_decisions.forEach { appendLine("- ${it.created_at.take(10)}: ${it.text}") }; appendLine() }
+            if (b.recent_done.isNotEmpty()) { appendLine("## Done (latest first)"); appendLine(); b.recent_done.forEach { appendLine("- ${it.created_at.take(10)}: ${it.text}") } }
+        }
+        return StatusDoc.parse(md)
+    }
+
+    override suspend fun plan(seat: SeatView): PlanView {
+        val path = seat.path ?: return PlanView()
+        val p = api.project(path)
+        return PlanView(tasks = p.tasks, runStatus = p.meta.status, canApprove = p.meta.status == "awaiting_approval")
+    }
+
+    override suspend fun inbox(project: String) = api.inbox(project, all = true)
+
+    override suspend fun letters(): List<Message> = coroutineScope {
+        projects().map { p -> async { runCatching { api.inbox(p, all = true) }.getOrDefault(emptyList()) } }
+            .awaitAll().flatten().sortedByDescending { it.created_at.ifBlank { it.id } }
+    }
+
+    override suspend fun send(to: String, subject: String, body: String) = api.send(identity, to, subject, body)
+
+    override suspend fun reply(original: Message, body: String) {
+        if (original.recipient == identity) api.reply(identity, original.id, body)
+        else {
+            val to = if (original.sender == identity) original.recipient else original.sender
+            val subj = if (original.subject.lowercase().startsWith("re:")) original.subject else "Re: ${original.subject}"
+            api.send(identity, to, subj, body)
+        }
+    }
+
+    override suspend fun markRead(messages: List<Message>) {
+        val mine = messages.filter { it.recipient == identity && !it.read }.map { it.id }
+        if (mine.isNotEmpty()) api.markRead(identity, mine)
+    }
+
+    override suspend fun act(need: NeedView, action: String): String {
+        when (action) {
+            "approve" -> api.projectAction(need.path ?: error("no run"), "approve").also { return "Approved: the run starts" }
+            "retry", "skip" -> api.projectAction(need.path ?: error("no run"), action, task = need.task)
+                .also { return if (action == "retry") "Trying it again" else "Skipped" }
+            "budget" -> api.projectAction(need.path ?: error("no run"), "raise_budget").also { return "Budget raised: the run goes on" }
+            "resume" -> api.projectAction(need.path ?: error("no run"), "run").also { return "Resumed" }
+            "done" -> api.closeTodo(need.project, need.id ?: error("no id")).also { return "Marked done" }
+            "read" -> api.markRead(identity, api.inbox(identity).filter { !it.read }.map { it.id }).also { return "Marked as read" }
+        }
+        return ""
+    }
+
+    override suspend fun command(project: String, action: String, fields: Map<String, Any?>): String {
+        val path = seats.firstOrNull { it.id == project }?.path
+        if (action != "approve" || path == null) {
+            throw IllegalStateException("From the phone, plan changes go through the hub: switch to Hub mode in Settings.")
+        }
+        api.projectAction(path, "approve")
+        return "Approved: the run starts"
+    }
+}
+
+/** Running first, then waiting, idle, done; most recently active first within each group. */
+fun sortSeats(seats: List<SeatView>): List<SeatView> {
+    val order = mapOf("running" to 0, "waiting" to 1, "idle" to 2, "done" to 3)
+    return seats.sortedWith(compareBy<SeatView> { order[it.status] ?: 9 }.thenByDescending { it.lastActivity })
+}
+
+fun initialsOf(id: String): String {
+    val parts = id.split('-', '_', ' ', '.').filter { it.isNotEmpty() }
+    return when {
+        parts.size >= 2 -> "${parts[0][0].uppercaseChar()}${parts[1][0].lowercaseChar()}"
+        id.length >= 2 -> "${id[0].uppercaseChar()}${id[1].lowercaseChar()}"
+        else -> id.uppercase()
+    }
+}
+
+fun parseInstant(iso: String): Instant? {
+    if (iso.isBlank()) return null
+    return runCatching { Instant.parse(iso) }.getOrNull()
+        ?: runCatching { Instant.parse(iso + if (iso.length == 16) ":00Z" else "Z") }.getOrNull()
+        ?: runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull()
+        ?: runCatching { java.time.LocalDateTime.parse(iso).toInstant(java.time.ZoneOffset.UTC) }.getOrNull()
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago". */
+fun ago(iso: String, now: Instant = Instant.now()): String {
+    val t = parseInstant(iso) ?: return iso.take(10)
+    val s = Duration.between(t, now).seconds.coerceAtLeast(0)
+    return when {
+        s < 60 -> "just now"
+        s < 3600 -> "${s / 60} min ago"
+        s < 86400 -> "${s / 3600} h ago"
+        s < 86400 * 2 -> "yesterday"
+        else -> "${s / 86400} days ago"
+    }
+}
