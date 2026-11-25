@@ -201,6 +201,9 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None) -> 
 
 # -- reading it -------------------------------------------------------------------------------
 def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None) -> str:
+    """Readable plan. Items end with their id in braces ({C1}-style ids for options {a}, questions {Q1},
+    ideas {I1}, don'ts {D1}; decisions and spec sections carry [C1]/[S1] in their heading) so a phone
+    can send commands about them."""
     L = [f"# Plan v{doc.get('version', 1)}: {doc.get('goal', '')}", ""]
     if doc.get("summary"):
         L += [doc["summary"], ""]
@@ -212,7 +215,8 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None) -> str:
         if doc.get(key):
             L += [f"## {title}"] + [f"- {x}" for x in doc[key]] + [""]
     if doc.get("dont"):
-        L += ["## Don't"] + [f"- {x['text']}" + (f" ({x['why']})" if x.get("why") else "") for x in doc["dont"]] + [""]
+        L += ["## Don't"] + [f"- {x['text']}" + (f" ({x['why']})" if x.get("why") else "") + f" {{{x['id']}}}"
+                             for x in doc["dont"]] + [""]
     for s in doc.get("spec", []):
         L += [f"## {s['title']} [{s['id']}]", s.get("text", ""), ""]
     if doc.get("decisions"):
@@ -222,16 +226,17 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None) -> str:
             for o in d["options"]:
                 mark = " (chosen)" if d.get("chosen") == o["id"] else " (recommended)" if d["recommended"] == o["id"] else ""
                 L.append(f"- {o['label']}{mark}" + (f": {o['detail']}" if o.get("detail") else "")
-                         + (f" [{o['cost']}]" if o.get("cost") else ""))
+                         + (f" [{o['cost']}]" if o.get("cost") else "") + f" {{{o['id']}}}")
             if d.get("why"):
                 L.append(f"Why: {d['why']}")
             L.append("")
     if doc.get("questions"):
         L += ["## Questions for the owner"] + [
-            f"- {q['text']}" + (f"\n  Answer: {q['answer']}" if q.get("answer") else "") for q in doc["questions"]] + [""]
+            f"- {q['text']} {{{q['id']}}}" + (f"\n  Answer: {q['answer']}" if q.get("answer") else "")
+            for q in doc["questions"]] + [""]
     if doc.get("ideas"):
         L += ["## Ideas"] + [f"- [{i['state']}] {i['text']}" + (f" ({i['why']})" if i.get("why") else "")
-                             for i in doc["ideas"]] + [""]
+                             + f" {{{i['id']}}}" for i in doc["ideas"]] + [""]
     c = doc.get("critique")
     if c and c.get("points"):
         L += [f"## Critique by {c.get('model', 'a second model')}"] + [
