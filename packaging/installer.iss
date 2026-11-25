@@ -43,11 +43,12 @@ Filename: "{app}\RoundtableHold.exe"; Description: "Open Roundtable Hold"; Flags
 ; after a silent in-app update, reopen the app (pass /NOLAUNCH=1 to skip, e.g. in CI)
 Filename: "{app}\RoundtableHold.exe"; Flags: nowait; Check: ShouldRelaunch
 
+; Your projects, journal, settings and keys are kept on uninstall
+; (%APPDATA%\RoundtableHold and Windows Credential Manager).
+
 [Code]
+// Pascal Script: comments here use // not ;
 function ShouldRelaunch: Boolean;
 begin
   Result := WizardSilent and (ExpandConstant('{param:NOLAUNCH|0}') = '0');
 end;
-
-; Your projects, journal, settings and keys are kept on uninstall
-; (%APPDATA%\RoundtableHold and Windows Credential Manager).
