@@ -63,6 +63,17 @@ class UpdateError(RuntimeError):
     pass
 
 
+def _file_url_to_path(url: str) -> str:
+    """file:///C:/Users/x -> C:\\Users\\x on Windows, file:///home/x -> /home/x elsewhere."""
+    from urllib.request import url2pathname
+
+    parsed = urlparse(url)
+    path = url2pathname(parsed.path)
+    if parsed.netloc and parsed.netloc not in ("", "localhost"):
+        path = f"//{parsed.netloc}{path}"  # UNC share
+    return path
+
+
 def _parse_version(v: str) -> tuple:
     parts = []
     for p in v.lstrip("vV").split("."):
@@ -111,7 +122,7 @@ def install_info(direct_url: dict | None = None, version: str | None = None, run
         return InstallInfo("git", url=url, ref=vcs.get("requested_revision", ""), commit=vcs.get("commit_id", ""),
                            version=version or "")
     if direct_url.get("dir_info", {}).get("editable"):
-        path = urlparse(url).path
+        path = _file_url_to_path(url)
         info = InstallInfo("editable", path=path, version=version or "")
         if (Path(path) / ".git").exists():
             info.commit = runner(["git", "rev-parse", "HEAD"], cwd=path).stdout.strip()
