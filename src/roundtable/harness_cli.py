@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import sys
 from collections import defaultdict
@@ -131,6 +132,28 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ask")
     s.add_argument("role")
     s.add_argument("prompt")
+    pv = sub.add_parser("providers", help="add, test and list AI providers")
+    psub = pv.add_subparsers(dest="pcmd", required=True)
+    psub.add_parser("presets", help="providers you can add with one command")
+    psub.add_parser("list", help="configured providers")
+    s = psub.add_parser("add", help="add a provider (to custom.yaml)")
+    s.add_argument("preset", help="a preset id from `providers presets`, or custom / plugin")
+    s.add_argument("--id", help="name to use in model refs (default: the preset id)")
+    s.add_argument("--base-url")
+    s.add_argument("--key-env", help="environment variable holding the API key")
+    s.add_argument("--auth-header", help="send the key in this header instead of Authorization (e.g. api-key)")
+    s.add_argument("--auth-prefix", default="", help="text before the key in that header (e.g. 'Bearer ')")
+    s.add_argument("--header", action="append", default=[], help="extra header NAME=VALUE (repeatable)")
+    s.add_argument("--query", action="append", default=[], help="extra URL query NAME=VALUE (e.g. api-version=...)")
+    s.add_argument("--class", dest="plugin_class", help="plugin: 'my_file.py:MyProvider' in the plugins folder")
+    for name in ("remove", "test", "models"):
+        psub.add_parser(name).add_argument("id")
+    s = sub.add_parser("assign", help="choose the model(s) a role uses: primary first, then fallbacks")
+    s.add_argument("role")
+    s.add_argument("models", nargs="+", help="provider/model ...")
+    s.add_argument("--kind", choices=["chat", "image"], help="for a new role")
+    s.add_argument("--description", help="for a new role: what it's good at (the planner reads this)")
+
     s = sub.add_parser("ui", help="open the web UI")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8765)
@@ -430,6 +453,51 @@ def _probe(args, cfg) -> None:
         print("\nFirst run for some models: saved as their baseline. Run again later to detect changes.")
 
 
+def _pairs(items: list[str]) -> dict[str, str]:
+    out = {}
+    for it in items:
+        if "=" not in it:
+            raise ValueError(f"expected NAME=VALUE, got {it!r}")
+        k, v = it.split("=", 1)
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _providers(args, cfg) -> None:
+    from .providers.catalog import PRESETS
+    from .providers.manage import add_provider, list_providers, provider_models, remove_provider, test_provider
+
+    if args.pcmd == "presets":
+        for pid, p in PRESETS.items():
+            print(f"{pid:15} {p['category']:5} {p['name']}" + (f"  [{p['api_key_env']}]" if p.get("api_key_env") else ""))
+        print("\nAdd one:  roundtable providers add <id>   (then set its key, and `roundtable providers test <id>`)")
+        print("Anything else: `providers add custom --id NAME --base-url URL`, or a plugin (see README).")
+    elif args.pcmd == "list":
+        for p in list_providers(cfg.path):
+            key = "" if not p["needs_key"] else ("key set" if p["key_set"] else f"set {p['api_key_env']}")
+            print(f"{p['id']:15} {p['type']:14} {p['source']:12} {key:24} {p['base_url']}")
+    elif args.pcmd == "add":
+        block = add_provider(cfg.path, args.preset, pid=args.id, base_url=args.base_url, api_key_env=args.key_env,
+                             auth_header=args.auth_header, auth_prefix=args.auth_prefix,
+                             headers=_pairs(args.header), query=_pairs(args.query), **{"class": args.plugin_class})
+        print(f"added provider {block['id']!r} to custom.yaml")
+        if block.get("api_key_env") and not os.environ.get(block["api_key_env"]):
+            print(f"next: set {block['api_key_env']} (or paste the key in the app's Settings), then "
+                  f"`roundtable providers test {block['id']}`")
+    elif args.pcmd == "remove":
+        remove_provider(cfg.path, args.id)
+        print(f"removed {args.id}")
+    elif args.pcmd == "test":
+        r = test_provider(cfg, args.id)
+        if r["ok"]:
+            print(f"{args.id}: OK, {r['models']} model(s), e.g. {', '.join(r['sample'][:6])}")
+        else:
+            sys.exit(f"{args.id}: FAILED - {r['error']}")
+    elif args.pcmd == "models":
+        for m in provider_models(cfg, args.id):
+            print(f"{args.id}/{m}")
+
+
 def _feedback(args) -> None:
     project = Project(args.dir)
     tasks = {t.id: t for t in project.tasks()}
@@ -480,6 +548,14 @@ def main(argv: list[str] | None = None) -> None:
             return
         if args.cmd == "improve":
             return _improve(args, cfg)
+        if args.cmd == "providers":
+            return _providers(args, cfg)
+        if args.cmd == "assign":
+            from .providers.manage import set_role_models
+
+            set_role_models(cfg.path, args.role, args.models, kind=args.kind, description=args.description)
+            print(f"{args.role}: {' -> '.join(args.models)}  (saved in custom.yaml)")
+            return
         if args.cmd == "probe":
             return _probe(args, cfg)
         if args.cmd == "image":

@@ -164,3 +164,22 @@ def test_cycle_holds_back_changes_involving_a_regressed_model(tmp_path):
     behaviours["flaky"] = smart  # recovered
     report = cycle(cfg, lab)
     assert len(report["applied"]) == 1
+
+
+def test_code_fix_grading_runs_in_process(tmp_path, monkeypatch):
+    """The packaged app has no Python interpreter at sys.executable; grading must not need one."""
+    import sys
+
+    from roundtable.improve.probe import _grade_median
+
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "RoundtableHold.exe"))  # like the frozen app
+    good = tmp_path / "good.py"
+    good.write_text(FIXED)
+    assert _grade_median(good) == (True, "tests pass")
+    bad = tmp_path / "bad.py"
+    bad.write_text("def median(v):\n    s = sorted(v)\n    return s[len(s) // 2]\n")
+    ok, detail = _grade_median(bad)
+    assert not ok and "expected 2.5" in detail
+    broken = tmp_path / "broken.py"
+    broken.write_text("def median(:\n")
+    assert _grade_median(broken)[0] is False

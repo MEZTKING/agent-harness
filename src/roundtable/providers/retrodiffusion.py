@@ -77,6 +77,9 @@ class RetroDiffusionProvider(ImageProvider):
             self._styles = {s["prompt_style"]: s for s in data.get("styles", [])}
         return self._styles
 
+    def list_models(self) -> list[str]:
+        return sorted(self.styles())
+
     def balance(self) -> float:
         return float(self._request("GET", "/inferences/credits").get("balance", 0.0))
 

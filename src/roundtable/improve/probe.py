@@ -30,8 +30,6 @@ from __future__ import annotations
 import json
 import re
 import statistics
-import subprocess
-import sys
 import tempfile
 import time
 from dataclasses import asdict, dataclass, field
@@ -147,14 +145,26 @@ BUGGY = '''def median(values):
     s = sorted(values)
     return s[len(s) // 2]
 '''
-CHECK = '''import sys; sys.path.insert(0, ".")
-from stats import median
-assert median([3, 1, 2]) == 2
-assert median([4, 1, 3, 2]) == 2.5
-assert median([5]) == 5
-assert median([1.5, 2.5]) == 2.0
-print("ok")
-'''
+def _grade_median(path: Path) -> tuple[bool, str]:
+    """Load the model's stats.py in-process and check median().
+
+    Runs inside this process (not `sys.executable -c ...`): in the packaged desktop
+    app sys.executable is the app itself, not a Python interpreter.
+    """
+    import importlib.util
+
+    try:
+        spec = importlib.util.spec_from_file_location(f"probe_stats_{id(path)}", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cases = [([3, 1, 2], 2), ([4, 1, 3, 2], 2.5), ([5], 5), ([1.5, 2.5], 2.0)]
+        for values, want in cases:
+            got = mod.median(list(values))
+            if got != want:
+                return False, f"median({values}) returned {got!r}, expected {want!r}"
+        return True, "tests pass"
+    except Exception as e:  # the model's code can fail in any way
+        return False, f"{type(e).__name__}: {e}"[:100]
 
 
 def probe_code_fix(cfg, ref, budget):
@@ -168,9 +178,8 @@ def probe_code_fix(cfg, ref, budget):
                         "stats.py has a bug: median() is wrong for even-length lists (it must return the mean of the "
                         "two middle values). Fix it in the file, then call finish_task.",
                         box, budget, max_steps=8, max_tokens=4000, require_terminal="finish_task")
-        run = subprocess.run([sys.executable, "-c", CHECK], cwd=d, capture_output=True, text=True, timeout=30)
-        ok = run.returncode == 0
-        return ok, res, "tests pass" if ok else (run.stderr.strip().splitlines() or ["failed"])[-1][:100]
+        ok, detail = _grade_median(Path(d) / "stats.py")
+        return ok, res, detail
 
 
 BUILTIN: dict[str, Callable] = {

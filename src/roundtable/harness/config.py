@@ -25,7 +25,9 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
 }
 
-PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "scripted", "scripted_images")
+PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "plugin", "scripted",
+                  "scripted_images")
+CLIENT_OPTS = ("auth_header", "auth_prefix", "headers", "query")  # extra openai_compat settings
 
 
 @dataclass
@@ -110,11 +112,15 @@ class HarnessConfig:
         elif kind == "openai_compat":
             from ..providers.openai_compat import OpenAICompatProvider
 
-            inst = OpenAICompatProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"))
+            inst = OpenAICompatProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"),
+                                        **{k: spec[k] for k in CLIENT_OPTS if spec.get(k)})
         elif kind == "openai_images":
             from ..providers.openai_compat import OpenAIImagesProvider
 
-            inst = OpenAIImagesProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"))
+            inst = OpenAIImagesProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"),
+                                        **{k: spec[k] for k in CLIENT_OPTS if spec.get(k)})
+        elif kind == "plugin":
+            inst = self._load_plugin(name, spec)
         elif kind == "retrodiffusion":
             from ..providers.retrodiffusion import RetroDiffusionProvider
 
@@ -123,6 +129,47 @@ class HarnessConfig:
         else:
             raise ProviderError(f"provider {name!r}: type {kind!r} cannot be built from config")
         self._instances[name] = inst
+        return inst
+
+    def _load_plugin(self, name: str, spec: dict[str, Any]):
+        """type: plugin  ->  class: "module_or_file.py:ClassName", options: {...} passed to the constructor.
+
+        Files are looked up in the plugins folder next to the config (plugins/), then on the
+        Python path. The class must implement Provider.chat (and list_models) or
+        ImageProvider.generate. Plugins are your own code and run with full access.
+        """
+        import importlib
+        import importlib.util
+        import sys
+
+        target = spec.get("class", "")
+        if ":" not in target:
+            raise ProviderError(f"provider {name!r}: plugin needs class: 'module_or_file.py:ClassName'")
+        modname, clsname = target.rsplit(":", 1)
+        plugins_dir = (self.path.parent / "plugins") if self.path else Path.cwd() / "plugins"
+        try:
+            candidate = plugins_dir / modname if modname.endswith(".py") else plugins_dir / f"{modname}.py"
+            if candidate.is_file():
+                mod_spec = importlib.util.spec_from_file_location(f"roundtable_plugin_{name}", candidate)
+                module = importlib.util.module_from_spec(mod_spec)
+                sys.modules[mod_spec.name] = module
+                mod_spec.loader.exec_module(module)
+            else:
+                module = importlib.import_module(modname.removesuffix(".py"))
+            cls = getattr(module, clsname)
+        except Exception as e:
+            raise ProviderError(f"provider {name!r}: could not load plugin {target!r} ({type(e).__name__}: {e})") from e
+        if not (isinstance(cls, type) and issubclass(cls, (Provider, ImageProvider))):
+            raise ProviderError(f"provider {name!r}: {clsname} must subclass roundtable.providers.base.Provider "
+                                "or ImageProvider")
+        try:
+            inst = cls(name, **(spec.get("options") or {}))
+        except Exception as e:
+            raise ProviderError(f"provider {name!r}: plugin {clsname} failed to start ({type(e).__name__}: {e})") from e
+        if not isinstance(inst, (Provider, ImageProvider)):
+            raise ProviderError(f"provider {name!r}: {clsname} must subclass roundtable.providers.base.Provider "
+                                "or ImageProvider")
+        inst.name = name
         return inst
 
     def register(self, name: str, instance: Provider | ImageProvider) -> None:
@@ -179,6 +226,43 @@ def apply_overlay(cfg: HarnessConfig, overlay: dict[str, Any], prompts: dict[str
         if "options" in spec:
             role.options = dict(spec["options"])
     cfg.prompt_overrides.update(prompts or {})
+
+
+# -- custom.yaml: providers and model choices made in the app / CLI ---------------------------------
+def custom_path(harness_path: Path) -> Path:
+    return harness_path.parent / "custom.yaml"
+
+
+def load_custom(harness_path: Path | None) -> dict[str, Any]:
+    if not harness_path:
+        return {}
+    p = custom_path(harness_path)
+    return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}) if p.is_file() else {}
+
+
+def save_custom(harness_path: Path, data: dict[str, Any]) -> None:
+    custom_path(harness_path).write_text(
+        "# Providers and model choices added from the Roundtable Hold app or `roundtable providers`.\n"
+        "# Merged on top of harness.yaml (which is never rewritten). Safe to edit by hand.\n"
+        + yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
+def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
+    """custom.yaml adds providers (harness.yaml wins on a name clash) and overrides role models."""
+    if not custom:
+        return raw
+    out = dict(raw)
+    providers = dict(custom.get("providers") or {})
+    providers.update(raw.get("providers") or {})
+    out["providers"] = providers
+    roles = {k: dict(v or {}) for k, v in (raw.get("roles") or {}).items()}
+    for role, spec in (custom.get("roles") or {}).items():
+        if role in roles:
+            roles[role].update({k: v for k, v in spec.items() if k in ("model", "fallback")})
+        elif spec.get("model"):
+            roles[role] = dict(spec)  # a brand-new role defined in the app
+    out["roles"] = roles
+    return out
 
 
 def find_config(explicit: str | None = None) -> Path:
@@ -260,7 +344,9 @@ def _lab_dir(raw: dict[str, Any], base: Path, path: Path | None) -> Path | None:
 
 def load_config(explicit: str | None = None) -> HarnessConfig:
     path = find_config(explicit)
-    cfg = parse_config(yaml.safe_load(path.read_text(encoding="utf-8")) or {}, path)
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = merge_custom(raw, load_custom(path))
+    cfg = parse_config(raw, path)
     if cfg.lab_dir and cfg.lab_dir.is_dir():
         from ..improve.lab import Lab
 

@@ -117,8 +117,8 @@ def test_git_store_shares_state_between_clones(tmp_path):
     remote = tmp_path / "remote.git"
     _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
 
-    hub_a = make_hub(tmp_path, store=GitStore(tmp_path / "clone_a", remote=str(remote)))
-    hub_b = make_hub(tmp_path, store=GitStore(tmp_path / "clone_b", remote=str(remote)))
+    hub_a = make_hub(tmp_path, store=GitStore(tmp_path / "clone_a", remote=str(remote), sync_interval=0))
+    hub_b = make_hub(tmp_path, store=GitStore(tmp_path / "clone_b", remote=str(remote), sync_interval=0))
 
     hub_a.update_card("backend", change_note="v1 api", status="live")
     [m] = hub_a.send("backend", "frontend", "heads up", "v1 is live")
@@ -186,3 +186,32 @@ def test_unified_roundtable_command_routes_to_hub_and_harness(tmp_path, monkeypa
     assert "roundtable where" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         main(["frobnicate"])
+
+
+def test_reads_reuse_a_recent_sync_but_writes_always_sync(tmp_path):
+    remote = tmp_path / "remote.git"
+    _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+    a = make_hub(tmp_path, store=GitStore(tmp_path / "a", remote=str(remote), sync_interval=0))
+    b_store = GitStore(tmp_path / "b", remote=str(remote), sync_interval=3600)
+    b = make_hub(tmp_path, store=b_store)
+    a.update_card("backend", status="v1")
+    b.store.sync(force=True)
+    assert b.get_card("frontend", "backend")["status"] == "v1"
+    a.update_card("backend", status="v2")
+    assert b.get_card("frontend", "backend")["status"] == "v1"  # read within the window: local copy, no network
+    b.update_card("frontend", status="writing")  # a write always pulls first...
+    assert b.get_card("frontend", "backend")["status"] == "v2"  # ...so it sees the latest state
+    log = subprocess.run(["git", "log", "--oneline", "main"], cwd=remote, capture_output=True, text=True).stdout
+    assert log.count("card(") == 3  # nothing lost
+
+
+def test_offline_reads_fall_back_to_local_copy(tmp_path):
+    remote = tmp_path / "remote.git"
+    _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+    hub = make_hub(tmp_path, store=GitStore(tmp_path / "c", remote=str(remote), sync_interval=0))
+    hub.update_card("backend", status="cached")
+    # go "offline": point the remote at a location that doesn't exist (deleting the bare repo
+    # would fail on Windows, where git marks its object files read-only)
+    _git("remote", "set-url", "origin", str(tmp_path / "unreachable.git"), cwd=tmp_path / "c")
+    assert hub.get_card("frontend", "backend")["status"] == "cached"
+    assert hub.store.last_sync_error

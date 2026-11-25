@@ -510,6 +510,65 @@ async function viewSetup() {
         h("button", { onclick: async () => { const j = await act(() => api("POST", "/api/probes", {}), "Checking your models…"); if (j && j.id) location.hash = `#/job/${j.id}`; } }, "Check my models first"))));
 }
 
+async function providersCard() {
+  let data;
+  try { data = await api("GET", "/api/providers"); } catch (e) { return section("AI providers", h("p", { class: "muted" }, e.message)); }
+  const out = h("div", { class: "small", style: "margin-top:8px" });
+  const models = new Set();
+  const modelList = h("datalist", { id: "known-models" });
+  const addModels = (pid, list) => { list.forEach((m) => models.add(`${pid}/${m}`)); modelList.replaceChildren(...[...models].sort().map((m) => h("option", { value: m }))); };
+  data.roles.forEach((r) => r.models.forEach((m) => models.add(m)));
+  addModels("", []);
+  const showResult = (pid, r) => out.replaceChildren(r.ok ? h("span", {}, h("span", { class: "pill good" }, "OK"), ` ${pid}: ${r.models} model(s), e.g. ${r.sample.slice(0, 6).join(", ")}`)
+    : h("span", {}, h("span", { class: "pill bad" }, "failed"), ` ${pid}: ${r.error}`));
+  const table = h("table", {}, h("tr", {}, h("th", {}, "Provider"), h("th", {}, "Type"), h("th", {}, "Key"), h("th", {}, "")),
+    data.providers.map((p) => h("tr", {},
+      h("td", {}, h("strong", {}, p.id), p.base_url ? h("div", { class: "muted small" }, p.base_url) : null),
+      h("td", { class: "small" }, p.type, h("div", { class: "muted small" }, p.source)),
+      h("td", {}, !p.needs_key ? h("span", { class: "pill" }, "none needed") : p.key_set ? h("span", { class: "pill good" }, "set") : h("span", { class: "pill warn" }, `missing: ${p.api_key_env}`)),
+      h("td", { class: "actions" }, h("div", { class: "row" },
+        h("button", { class: "icon", onclick: async () => { out.textContent = `testing ${p.id}…`; try { showResult(p.id, await api("POST", "/api/providers", { action: "test", id: p.id })); } catch (e) { toast(e.message, true); } } }, "Test"),
+        h("button", { class: "icon", onclick: async () => { out.textContent = `loading ${p.id} models…`; try { const r = await api("POST", "/api/providers", { action: "models", id: p.id }); addModels(p.id, r.models); out.replaceChildren(h("pre", {}, r.models.map((m) => `${p.id}/${m}`).join("\n"))); } catch (e) { out.textContent = ""; toast(e.message, true); } } }, "Models"),
+        p.source === "custom.yaml" ? h("button", { class: "icon danger", onclick: () => { if (confirm(`Remove provider ${p.id}?`)) act(() => api("POST", "/api/providers", { action: "remove", id: p.id }), "Removed"); } }, "Remove") : null)))));
+  // add a provider
+  const presetIds = Object.keys(data.presets);
+  const preset = select("preset", presetIds.map((id) => [id, data.presets[id].name]), "openrouter");
+  const idIn = field("id", { placeholder: "name (optional)", style: "width:150px" });
+  const urlIn = field("base_url", { class: "grow", placeholder: "base URL (custom only)" });
+  const keyIn = h("input", { type: "password", name: "key", class: "grow", placeholder: data.desktop ? "API key (saved securely)" : "set the key as an environment variable", disabled: !data.desktop, autocomplete: "off" });
+  const hdr = field("auth_header", { placeholder: "key header, e.g. api-key (optional)" });
+  const qry = field("query", { class: "grow", placeholder: "query params, e.g. api-version=2025-01-01 (optional)" });
+  const docs = h("a", { target: "_blank", rel: "noopener" });
+  const sync = () => { const p = data.presets[preset.value]; urlIn.value = p.base_url || ""; urlIn.disabled = !p.custom; docs.href = p.docs || "#"; docs.textContent = p.docs ? "where to get a key" : ""; keyIn.disabled = !data.desktop || (!p.api_key_env && !p.custom); };
+  preset.addEventListener("change", sync); sync();
+  const addForm = h("form", { class: "stack", onsubmit: async (ev) => {
+    ev.preventDefault();
+    const query = {};
+    qry.value.split(/[,&]/).map((x) => x.trim()).filter(Boolean).forEach((kv) => { const [k, ...v] = kv.split("="); query[k.trim()] = v.join("=").trim(); });
+    try {
+      const r = await api("POST", "/api/providers", { action: "add", preset: preset.value, id: idIn.value, base_url: urlIn.value, key: keyIn.value, auth_header: hdr.value, query });
+      toast(`Added ${r.added.id}`);
+      await render();
+      showResult(r.added.id, r.test);
+    } catch (e) { toast(e.message, true); }
+  } },
+  h("div", { class: "row" }, preset, idIn, docs),
+  h("div", { class: "row" }, urlIn, keyIn),
+  h("details", {}, h("summary", { class: "small" }, "advanced (Azure, custom gateways)"), h("div", { class: "row", style: "margin-top:6px" }, hdr, qry)),
+  h("div", { class: "row" }, h("button", { class: "primary" }, "Add provider"), h("span", { class: "muted small" }, "Saved to custom.yaml; tested right away. Anything not listed: choose Custom (any OpenAI-compatible URL) or add a plugin (see README).")));
+  // which model does what
+  const roleRows = data.roles.map((r) => {
+    const inp = field("models", { style: "width:100%", value: r.models.join(", "), list: "known-models", placeholder: "provider/model, fallback, …" });
+    return h("tr", {}, h("td", {}, h("strong", {}, r.name), h("div", { class: "muted small" }, r.kind)),
+      h("td", { style: "width:70%" }, inp), h("td", {}, h("button", { class: "icon", onclick: () => act(() => api("POST", "/api/assign", { role: r.name, models: inp.value }), `${r.name} updated`) }, "Save")));
+  });
+  return h("div", {},
+    section("AI providers", h("p", { class: "muted small" }, "Any API works: pick one of the built-in providers, a custom OpenAI-compatible URL, or a plugin."), table, out,
+      h("h3", {}, "Add a provider"), addForm),
+    section("Which model does what", h("p", { class: "muted small" }, "Primary model first, then fallbacks, separated by commas. Click Models on a provider to fill the suggestions."),
+      modelList, h("table", {}, h("tr", {}, h("th", {}, "Role"), h("th", {}, "Models"), h("th", {}, "")), roleRows)));
+}
+
 async function viewSettings() {
   const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
   const editor = async (which) => {
@@ -523,8 +582,8 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), hubCard(st),
-    section("Models, roles and limits", editors),
+    keysCard(st), await providersCard(), hubCard(st),
+    section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),
       h("div", { class: "row" },

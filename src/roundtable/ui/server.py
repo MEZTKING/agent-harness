@@ -691,6 +691,53 @@ class UIApp:
             self.reload_hub()
         return {"saved": str(path), "backup": str(backup)}
 
+    # -- providers & role models (any AI API) ---------------------------------------------------------
+    def providers(self, q):
+        from ..providers.catalog import PRESETS
+        from ..providers.manage import list_providers
+
+        cfg = self.need_cfg()
+        roles = [{"name": r.name, "kind": r.kind, "models": [str(m) for m in r.models], "description": r.description}
+                 for r in cfg.roles.values()]
+        return {"presets": PRESETS, "providers": list_providers(cfg.path), "roles": roles, "desktop": bool(self.desktop)}
+
+    def providers_action(self, body):
+        from ..providers import manage
+
+        cfg = self.need_cfg()
+        action, pid = body.get("action"), (body.get("id") or "").strip()
+        if action == "add":
+            block = manage.add_provider(cfg.path, body.get("preset", ""), pid=pid or None,
+                                        base_url=body.get("base_url"), api_key_env=body.get("api_key_env"),
+                                        auth_header=body.get("auth_header"), auth_prefix=body.get("auth_prefix", ""),
+                                        headers=body.get("headers") or None, query=body.get("query") or None,
+                                        **{"class": body.get("class")})
+            key = (body.get("key") or "").strip()
+            if key and block.get("api_key_env"):
+                if not self.desktop:
+                    raise ApiError(f"provider added; set {block['api_key_env']} in your environment for the key")
+                self.desktop["keys"].set(block["api_key_env"], key)
+            cfg = self.need_cfg()
+            return {"added": block, "test": manage.test_provider(cfg, block["id"])}
+        if action == "remove":
+            manage.remove_provider(cfg.path, pid)
+            return {"removed": pid}
+        if action == "test":
+            return manage.test_provider(cfg, pid)
+        if action == "models":
+            return {"id": pid, "models": manage.provider_models(cfg, pid)}
+        raise ApiError(f"unknown action {action!r}")
+
+    def assign(self, body):
+        from ..providers.manage import set_role_models
+
+        cfg = self.need_cfg()
+        models = body.get("models") or []
+        if isinstance(models, str):
+            models = [m.strip() for m in models.replace("\n", ",").split(",")]
+        return set_role_models(cfg.path, body.get("role", ""), models, kind=body.get("kind"),
+                               description=body.get("description"))
+
     # -- updater -----------------------------------------------------------------------------------
     def update_status(self, q):
         from ..updater import status_dict
@@ -732,6 +779,9 @@ class UIApp:
             ("POST", "/api/setup/hub"): R.setup_hub,
             ("POST", "/api/setup/done"): R.setup_done,
             ("GET", "/api/config"): R.config_get,
+            ("GET", "/api/providers"): R.providers,
+            ("POST", "/api/providers"): R.providers_action,
+            ("POST", "/api/assign"): R.assign,
             ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
         }
