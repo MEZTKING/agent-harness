@@ -111,6 +111,10 @@ class AnthropicProvider(Provider):
             raise ProviderError(f"anthropic: API error {e.status_code} ({e.message})", retryable=e.status_code >= 500) from e
         except a.APIConnectionError as e:
             raise ProviderError(f"anthropic: connection error ({e})", retryable=True) from e
+        except TypeError as e:  # the SDK raises TypeError when it finds no credentials at request time
+            if "authentication" in str(e).lower() or "api_key" in str(e):
+                raise ProviderError("anthropic: no credentials - set ANTHROPIC_API_KEY (or log in with `ant auth login`)") from e
+            raise
 
         text_parts, calls = [], []
         for block in resp.content:
