@@ -24,6 +24,8 @@ Models & self-improvement:
 Everything else:
     roundtable ui [--port 8765]           web UI for all of the above
     roundtable init                       write starter hub.yaml and harness.yaml
+    roundtable update [--check] [--ref BRANCH] [--force]   built-in updater
+    roundtable version
 
 Options: --config FILE (hub.yaml for hub commands, harness.yaml for project commands;
 defaults $HUB_CONFIG / $HARNESS_CONFIG), --agent PROJECT (hub identity, default $HUB_AGENT).
@@ -64,18 +66,55 @@ def main(argv: list[str] | None = None) -> None:
         return
     if cmd == "init":
         return _init(argv)
-    if cmd in HUB_COMMANDS:
-        from .cli import main as hub_main
+    if cmd in ("update", "version"):
+        return _update(argv, cmd)
+    try:
+        if cmd in HUB_COMMANDS:
+            from .cli import main as hub_main
 
-        return hub_main(argv)
-    if cmd in HARNESS_COMMANDS:
-        from .harness_cli import main as harness_main
+            return hub_main(argv)
+        if cmd in HARNESS_COMMANDS:
+            from .harness_cli import main as harness_main
 
-        if "--agent" in argv:  # hub identity flag means nothing to project commands
-            i = argv.index("--agent")
-            del argv[i:i + 2]
-        return harness_main(argv)
-    sys.exit(f"roundtable: unknown command {cmd!r}. Run `roundtable help`.")
+            if "--agent" in argv:  # hub identity flag means nothing to project commands
+                i = argv.index("--agent")
+                del argv[i:i + 2]
+            return harness_main(argv)
+        sys.exit(f"roundtable: unknown command {cmd!r}. Run `roundtable help`.")
+    finally:
+        if cmd not in ("mcp", "ui") and sys.stderr.isatty():
+            from .updater import cached_notice
+
+            notice = cached_notice()
+            if notice:
+                print(f"\n{notice}", file=sys.stderr)
+
+
+def _update(argv: list[str], cmd: str) -> None:
+    import argparse
+
+    from . import __version__
+    from .updater import UpdateError, check, install_info, update
+
+    p = argparse.ArgumentParser(prog=f"roundtable {cmd}")
+    p.add_argument("cmd")
+    p.add_argument("--check", action="store_true", help="only report whether an update is available")
+    p.add_argument("--ref", help="branch or tag to follow (default: the one you installed from)")
+    p.add_argument("--force", action="store_true", help="reinstall even if up to date / checkout is dirty")
+    args = p.parse_args(argv)
+    info = install_info()
+    if cmd == "version":
+        where = info.path or info.url or "package archive"
+        print(f"Roundtable Hold {__version__} ({info.kind} install, {info.ref or '-'} @ {info.commit[:7] or '-'}, {where})")
+        return
+    try:
+        if args.check:
+            st = check(args.ref, info)
+            print(st.message)
+            sys.exit(1 if st.available else 0)
+        update(args.ref, force=args.force, info=info)
+    except UpdateError as e:
+        sys.exit(f"update failed: {e}")
 
 
 def _init(argv: list[str]) -> None:

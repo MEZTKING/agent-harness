@@ -15,6 +15,21 @@ roundtable ui              # the same, in a web UI
 
 One command, `roundtable`, does everything. (`agent-hub` and `harness` still work as aliases.)
 
+**Staying up to date:**
+
+```bash
+roundtable version          # what's installed, from where, which commit
+roundtable update --check   # is there a newer version? (exit code 1 if yes)
+roundtable update           # install it and list what changed
+roundtable update --ref main   # follow another branch or tag
+```
+
+The updater works with both kinds of install:
+- **From GitHub** (`pip install git+…`): reinstalls from the same URL and branch.
+- **From a local checkout** (`pip install -e .`): runs `git pull --ff-only` and reinstalls, so new dependencies and commands are picked up. It refuses if you have uncommitted changes.
+
+Any `roundtable` command checks for updates at most once a day (2-second timeout) and prints a one-line notice. Turn this off with `ROUNDTABLE_NO_UPDATE_CHECK=1`. The web UI shows an **Update now** banner. After an update, restart any running `roundtable ui` or `mcp` servers.
+
 | Part | What it does |
 |---|---|
 | **1. Hub & journal** | Lets agents working in different repos share what they're building and talk to each other, within the permissions you set. Each project keeps a journal: done, todo, plans, decisions, session handoffs. |
@@ -417,7 +432,8 @@ src/roundtable/
   improve/    lab (proposals, learned overlay, versions), analysis, replay evaluation, cycle, probes
   prompts/    default role prompts (override with prompts_dir)
   ui/         web UI: server.py (JSON API + background jobs), static/ (vanilla JS, no build step)
-  main.py         `roundtable` command (routes to the two below)
+  main.py         `roundtable` command (routes to the two below) + init/update/version
+  updater.py      built-in updater (git or editable installs) and the daily update notice
   cli.py          hub & journal commands (alias: `agent-hub`)
   harness_cli.py  project, model and improve commands (alias: `harness`)
 ```

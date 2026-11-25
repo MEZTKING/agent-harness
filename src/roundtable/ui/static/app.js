@@ -449,4 +449,22 @@ async function viewJob(id) {
     j.result && typeof j.result === "object" && !Array.isArray(j.result) ? section("Result", h("pre", {}, JSON.stringify(j.result, null, 2))) : null);
 }
 
+// ---------- updater banner (checked once per page load) ----------
+async function checkUpdate() {
+  const el = document.getElementById("update-banner");
+  try {
+    const st = await api("GET", "/api/update");
+    if (!st.available) return;
+    el.replaceChildren(h("strong", {}, "Update available"), h("span", { class: "muted small" }, st.message),
+      h("span", { class: "spacer" }),
+      h("button", { class: "primary", onclick: async () => {
+        const j = await act(() => api("POST", "/api/update", {}), "Updating…");
+        if (j && j.id) { el.hidden = true; location.hash = `#/job/${j.id}`; }
+      } }, "Update now"),
+      h("button", { onclick: () => (el.hidden = true) }, "Later"));
+    el.hidden = false;
+  } catch { /* offline: no banner */ }
+}
+
 render();
+checkUpdate();

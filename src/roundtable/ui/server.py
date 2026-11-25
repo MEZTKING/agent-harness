@@ -551,6 +551,21 @@ class UIApp:
             return self.jobs.start("improve", f"apply {p.id}", run, target="improve").view()
         raise ApiError(f"unknown action {action!r}")
 
+    # -- updater -----------------------------------------------------------------------------------
+    def update_status(self, q):
+        from ..updater import status_dict
+
+        return status_dict()
+
+    def update_run(self, body):
+        from ..updater import update
+
+        def run(job: Job):
+            st = update(force=bool(body.get("force")), log=job.line)
+            return {"message": st.message, "changes": st.changes}
+
+        return self.jobs.start("update", "update Roundtable Hold", run, target="update").view()
+
     # -- routing table ------------------------------------------------------------------------------
     def routes(self):
         R = self
@@ -571,6 +586,8 @@ class UIApp:
             ("GET", "/api/proposals"): R.proposals,
             ("POST", "/api/improve"): R.improve_action,
             ("GET", "/api/jobs"): lambda q: R.jobs.list(),
+            ("GET", "/api/update"): R.update_status,
+            ("POST", "/api/update"): R.update_run,
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:
