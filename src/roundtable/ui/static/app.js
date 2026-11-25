@@ -69,7 +69,7 @@ const section = (title, ...kids) => h("div", { class: "card" }, h("div", { class
 let OV = null;          // overview
 let timer = null;       // auto-refresh timer for the current view
 let setupChecked = false;
-function route() { const p = (location.hash || "#/where").slice(2).split("?")[0].split("/"); return [p[0] || "where", ...p.slice(1).map(decodeURIComponent)]; }
+function route() { const p = (location.hash || "#/roundtable").slice(2).split("?")[0].split("/"); return [p[0] === "where" || !p[0] ? "roundtable" : p[0], ...p.slice(1).map(decodeURIComponent)]; }
 function setActive(name) {
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === name ||
     (name === "project" && a.dataset.nav === "projects") || (name === "run" && a.dataset.nav === "runs") ||
@@ -89,9 +89,9 @@ async function render(auto = false) {
       setupChecked = true;
       try { const st = await api("GET", "/api/setup"); if (st.desktop && !st.setup_done && view !== "setup") { location.hash = "#/setup"; return; } } catch { /* ignore */ }
     }
-    const views = { setup: viewSetup, settings: viewSettings, where: viewWhere, projects: viewProjects, project: viewProject, messages: viewMessages,
+    const views = { setup: viewSetup, settings: viewSettings, roundtable: viewRoundtable, projects: viewProjects, project: viewProject, messages: viewMessages,
       runs: viewRuns, run: viewRun, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
-    const node = await (views[view] || viewWhere)(...args);
+    const node = await (views[view] || viewRoundtable)(...args);
     const typing = document.activeElement && $main().contains(document.activeElement) && document.activeElement.value;
     if (auto && typing) { autoRefresh(3000); return; } // don't clobber what the user is typing
     $main().replaceChildren(node);
@@ -160,101 +160,225 @@ function briefCard(b, full = false) {
 }
 
 // ---------- views ----------
-// Inline SVG is built node by node too (createElementNS), never from markup strings.
-function svg(tag, attrs, ...kids) {
-  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [k, v] of Object.entries(attrs || {})) if (v !== null && v !== undefined && v !== false) el.setAttribute(k, v);
-  for (const kid of kids.flat(Infinity)) if (kid) el.append(kid);
-  return el;
+// The Roundtable: every project (hub journal + harness runs) as a seat, what needs the owner, and for the selected
+// seat its plan, a chat with its orchestrator and the live minutes. It refreshes itself in place; sections are only
+// redrawn when their data changed, so typing, scroll positions and animations are left alone.
+const RT_POLL_MS = 4000;
+let rtSel = null;       // the selected seat; survives refreshes and re-renders
+let rtDraft = "";       // unsent chat text
+let rtSteer = false;    // chat mode: ask (false) or steer (true)
+try { rtSel = sessionStorage.getItem("rt-seat"); } catch { /* storage unavailable */ }
+function tagClass(id) { let n = 0; for (const ch of String(id)) n = (n * 31 + ch.charCodeAt(0)) >>> 0; return "tg" + (n % 8); }
+const tagDot = (id) => h("i", { class: "tagc " + tagClass(id) });
+function clock(ts) { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour12: false }); }
+function patch(el, sig, build) {  // redraw el only when sig changed, and never under the user's cursor
+  if (el._sig === sig) return false;
+  const a = document.activeElement;
+  if (el._sig !== undefined && a && el.contains(a) && a.value) return false;
+  el._sig = sig;
+  el.replaceChildren(...[build()].flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false));
+  return true;
 }
-const MAX_SEATS = 10;   // more projects than this and the placards go in rows instead of round the table
-let seatSel = null;     // the project that "has the floor" on the Where page; survives re-renders
-
-// The round table seen from above, in a 118 x 100 box: (59, 50) is the centre. seats: [{x, y, high}] in box units.
-function tableArt(seats) {
-  const cx = 59, cy = 50, R = 23;
-  const stops = (...list) => list.map(([offset, color, opacity]) => svg("stop", { offset, "stop-color": color, "stop-opacity": opacity ?? 1 }));
-  const spokes = [], places = [];
-  seats.forEach((s) => {
-    const dx = s.x - cx, dy = s.y - cy, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
-    spokes.push(svg("line", { class: "tbl-spoke", x1: cx + ux * (R + 1.2), y1: cy + uy * (R + 1.2), x2: s.x, y2: s.y }));
-    places.push(svg("circle", { class: "tbl-place" + (s.high ? " high" : ""), cx: cx + ux * 19.6, cy: cy + uy * 19.6, r: 1.15 }));
+function taskTree(tasks) {
+  const ids = new Set(tasks.map((t) => t.id)), kids = {}, roots = [];
+  tasks.forEach((t) => {
+    const deps = (t.depends_on || []).filter((d) => ids.has(d) && d !== t.id), parent = deps[deps.length - 1];
+    if (parent) (kids[parent] = kids[parent] || []).push(t); else roots.push(t);
   });
-  const candle = (x, y, k, cls) => svg("g", {},
-    svg("circle", { cx: x, cy: y, r: 1.5 * k, fill: "#d9cba6", stroke: "#8f7b55", "stroke-width": 0.2 }),
-    svg("ellipse", { class: "tbl-flame " + cls, cx: x, cy: y - 0.35 * k, rx: 0.8 * k, ry: 1.25 * k, fill: "url(#rt-flame)" }));
-  const art = svg("svg", { viewBox: "0 0 118 100", "aria-hidden": "true", focusable: "false" },
-    svg("defs", {},
-      svg("radialGradient", { id: "rt-pool" }, stops(["0%", "#e2a24a", 0.3], ["45%", "#e2a24a", 0.11], ["100%", "#e2a24a", 0])),
-      svg("radialGradient", { id: "rt-wood", cx: "50%", cy: "46%", r: "62%" }, stops(["0%", "#5a4028"], ["55%", "#3a2917"], ["100%", "#1d140b"])),
-      svg("radialGradient", { id: "rt-halo" }, stops(["0%", "#ffd98a", 0.75], ["35%", "#e2a24a", 0.28], ["100%", "#e2a24a", 0])),
-      svg("radialGradient", { id: "rt-flame", cx: "50%", cy: "65%", r: "60%" }, stops(["0%", "#fff6d8"], ["45%", "#ffc861"], ["100%", "#e2792c"]))),
-    svg("circle", { class: "tbl-glow", cx, cy, r: 49, fill: "url(#rt-pool)" }),
-    spokes,
-    svg("circle", { cx, cy: cy + 1.4, r: R + 0.6, fill: "#000", opacity: 0.55 }),
-    svg("circle", { cx, cy, r: R, fill: "url(#rt-wood)", stroke: "#b8924a", "stroke-width": 0.55 }),
-    svg("circle", { cx, cy, r: R - 1.5, fill: "none", stroke: "#000", "stroke-width": 0.3, opacity: 0.5 }),
-    svg("circle", { cx, cy, r: 16.6, fill: "none", stroke: "#d0ab62", "stroke-width": 0.3, opacity: 0.75 }),
-    svg("circle", { cx, cy, r: 15.4, fill: "none", stroke: "#d0ab62", "stroke-width": 0.9, "stroke-dasharray": "0.35 2.06", opacity: 0.55 }),
-    svg("circle", { cx, cy, r: 8.2, fill: "none", stroke: "#d0ab62", "stroke-width": 0.3, opacity: 0.6 }),
-    Array.from({ length: 12 }, (_, i) => { const a = (i * Math.PI) / 6; return svg("line", { x1: cx + 8.2 * Math.cos(a), y1: cy + 8.2 * Math.sin(a),
-      x2: cx + 14.6 * Math.cos(a), y2: cy + 14.6 * Math.sin(a), stroke: "#d0ab62", "stroke-width": 0.18, opacity: 0.4 }); }),
-    places,
-    svg("circle", { class: "tbl-glow", cx, cy, r: 11, fill: "url(#rt-halo)" }),
-    candle(cx - 2.5, cy + 1.4, 1, "a"), candle(cx + 2.6, cy + 1.1, 0.85, "b"), candle(cx + 0.1, cy - 2.4, 1.1, "c"));
-  return { art, spokes, places };
+  const cls = { done: "done", running: "run", failed: "fail" };
+  const node = (t, depth) => {
+    const last = t.attempts[t.attempts.length - 1], deps = t.depends_on || [];
+    const model = (last && last.model) || (t.image_options && t.image_options.style) || "";
+    const why = t.status === "failed" && last ? (last.review || last.error || "") : "";
+    return h("li", {},
+      h("div", { class: "node " + (cls[t.status] || "pend") }, h("i", { class: "dot" }),
+        h("div", { class: "b" }, h("b", {}, t.id), " ", t.title,
+          h("small", {}, [t.role, model, t.attempts.length ? `${t.attempts.length} attempt(s)${last.outcome ? ", " + last.outcome : ""}` : "",
+            deps.length > 1 ? "after " + deps.join(", ") : ""].filter(Boolean).join(" · ")),
+          why ? h("small", { class: "why" }, why.slice(0, 200)) : null),
+        statusPill(t.status)),
+      kids[t.id] && depth < 30 ? h("ul", {}, kids[t.id].map((k) => node(k, depth + 1))) : null);
+  };
+  return h("ul", { class: "tree" }, roots.map((t) => node(t, 0)));
 }
 
-async function viewWhere() {
-  if (!OV.hub) return needHub();
-  const briefs = await api("GET", "/api/where");
-  const active = briefs.filter((b) => b.last_activity), quiet = briefs.filter((b) => !b.last_activity);
-  const highOf = (b) => b.open_todos.filter((e) => e.priority === "high").length;
-  const todos = active.reduce((n, b) => n + b.open_todos.length, 0);
-  const high = active.reduce((n, b) => n + highOf(b), 0);
-  let council = null;
-  if (active.length) {
-    if (!active.some((b) => b.agent === seatSel)) seatSel = active[0].agent;
-    const n = active.length, crowded = n > MAX_SEATS;
-    const pos = active.map((_, i) => { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; return { c: Math.cos(a), s: Math.sin(a) }; });
-    const table = crowded ? null : tableArt(active.map((b, i) => ({ x: 59 + 43.66 * pos[i].c, y: 50 + 40 * pos[i].s, high: highOf(b) > 0 })));
-    const speaker = h("div", { class: "speaker", "aria-live": "polite" });
-    const seats = [];
-    const choose = (i, scroll) => {
-      seatSel = active[i].agent;
-      seats.forEach((el, k) => { el.classList.toggle("on", k === i); el.setAttribute("aria-pressed", k === i ? "true" : "false"); });
-      if (table) [table.spokes, table.places].forEach((list) => list.forEach((el, k) => el.classList.toggle("on", k === i)));
-      speaker.replaceChildren(h("div", { class: "speaker-label" }, "Has the floor"), briefCard(active[i], true));
-      if (scroll && window.matchMedia("(max-width: 1099px)").matches) speaker.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-    active.forEach((b, i) => {
-      const hi = highOf(b), open = b.open_todos.length;
-      seats.push(h("div", { class: "seat", role: "button", tabindex: "0", "data-seat": b.agent,
-        title: `${b.agent}: ${open} open todo(s)${hi ? `, ${hi} high priority` : ""}`,
-        style: `left:${(50 + 37 * pos[i].c).toFixed(2)}%;top:${(50 + 40 * pos[i].s).toFixed(2)}%`,
-        onclick: () => choose(i, true),
-        onkeydown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(i, true); } } },
-      h("span", { class: "seat-name" }, b.agent),
-      h("span", { class: "seat-when" }, ago(b.last_activity)),
-      h("span", { class: "seat-marks" },
-        h("span", { class: "seat-count" + (open ? "" : " zero") }, open),
-        hi ? h("span", { class: "seat-high" }, h("span", {}, `${hi} high`)) : null)));
-    });
-    choose(active.findIndex((b) => b.agent === seatSel), false);
-    council = h("div", { class: "council" },
-      h("div", { class: "round" + (crowded ? " crowded" : n > 6 ? " many" : "") }, table ? table.art : null, seats),
-      speaker);
+async function viewRoundtable() {
+  let data = null, feed = [], proj = null, chat = null, projPath = null, pending = null, ticks = 0, offline = false;
+  const stats = h("div", { class: "rt-stats" }), strip = h("div", { class: "rt-strip" }), needs = h("div", { class: "card needs" });
+  const plan = h("div", { class: "rt-col" }), chatHead = h("div", { class: "card-head" }), chatLog = h("div", { class: "chat" });
+  const chatBox = h("div"), feedHead = h("div", { class: "card-head" }), feedLog = h("div", { class: "feed" });
+  const sel = () => (data ? data.seats.find((s) => s.id === rtSel) : null);
+  const post = (path, body) => api("POST", "/api/project", { path, ...body });
+  const run = async (btn, fn, ok) => {  // one-click action: do it, say so, refresh in place
+    if (btn) btn.disabled = true;
+    try { await fn(); if (ok) toast(ok); } catch (e) { toast(e.message, true); }
+    await refresh(true);
+  };
+  const actionButtons = (path, actions, task, small) => actions.map((a) => {
+    const cls = (small ? "icon " : "") + (a === "skip" ? "" : "primary");
+    if (a === "approve") return h("button", { class: cls, onclick: (ev) => run(ev.currentTarget, async () => { await post(path, { action: "approve" }); await post(path, { action: "run" }); }, "Plan approved: the run has started") }, "Approve plan");
+    if (a === "retry") return h("button", { class: cls, onclick: (ev) => run(ev.currentTarget, async () => { await post(path, { action: "retry", task }); await post(path, { action: "run" }); }, `Retrying ${task}`) }, "Retry task");
+    if (a === "skip") return h("button", { class: cls, onclick: (ev) => run(ev.currentTarget, async () => { await post(path, { action: "skip", task }); await post(path, { action: "run" }); }, `${task} skipped`) }, "Skip");
+    if (a === "budget") return h("button", { class: cls, onclick: (ev) => run(ev.currentTarget, () => post(path, { action: "raise_budget" }), "Budget raised: resuming") }, "Raise budget");
+    if (a === "resume") return h("button", { class: cls, onclick: (ev) => run(ev.currentTarget, () => post(path, { action: "run" }), "Resumed") }, "Resume");
+    return null;
+  });
+  const choose = (id) => {
+    if (id === rtSel) return;
+    rtSel = id;
+    try { sessionStorage.setItem("rt-seat", id); } catch { /* storage unavailable */ }
+    strip.querySelectorAll(".seat").forEach((x) => x.classList.toggle("on", x.dataset.seat === id));
+    refresh(true);
+  };
+
+  async function load(full) {
+    try {
+      [data, feed] = await Promise.all([api("GET", "/api/roundtable"), api("GET", "/api/activity?limit=120")]);
+      offline = false;
+    } catch (e) { offline = true; if (!data) throw e; return; }
+    if (!sel()) { const first = data.seats.find((s) => s.status === "running" || s.status === "waiting") || data.seats[0]; rtSel = first ? first.id : null; }
+    const s = sel();
+    if (s && s.path) {
+      if (full || s.status === "running" || projPath !== s.path || ticks % 5 === 0) {
+        const path = s.path, q = encodeURIComponent(path);
+        const [p, c] = await Promise.all([api("GET", `/api/project?path=${q}`).catch(() => null), api("GET", `/api/chat?path=${q}`).catch(() => null)]);
+        if (rtSel !== s.id) return;  // the user picked another seat meanwhile
+        if (projPath !== path) { proj = null; chat = null; }
+        proj = p || proj; chat = c || chat || []; projPath = path;
+      }
+    } else { proj = null; chat = null; projPath = null; }
   }
-  return h("div", {},
-    h("h1", {}, "Where was I?"),
-    h("p", { class: "sub agenda" }, h("span", { class: "agenda-label" }, "Agenda"),
-      h("span", { class: "agenda-item" }, h("b", {}, active.length), " active project(s)"),
-      h("span", { class: "agenda-item" }, h("b", {}, todos), " open todo(s)"),
-      high ? h("span", { class: "agenda-item urgent" }, h("b", {}, high), " high priority") : null),
-    council || h("div", { class: "card" }, "No journal entries yet. Add one below or with ", h("code", {}, "roundtable log todo \"…\"")),
-    quiet.length ? h("div", { class: "card", style: "margin-top:20px" }, h("div", { class: "card-head" }, h("h2", {}, "Quiet projects"), h("span", { class: "muted small" }, "not at the table yet")),
-      h("ul", { class: "items" }, quiet.map((b) => h("li", {}, h("span", { class: "text" }, h("a", { href: `#/project/${b.agent}` }, b.agent), " ",
-        h("span", { class: "muted small" }, b.description || ""))))) ) : null);
+
+  function seatCard(s) {
+    const p = s.progress, total = p ? p.total : 0, failed = s.failed_task ? 1 : 0;
+    const label = { running: "running", waiting: "needs you", idle: "idle", done: "done" }[s.status] || s.status;
+    const cls = { running: "info", waiting: s.failed_task ? "bad" : "warn", idle: "", done: "good" }[s.status] || "";
+    const count = total ? `${p.done}/${total} tasks` : s.open_todos ? `${s.open_todos} todo(s)` : "";
+    const now = s.detail || (s.last_session ? s.last_session.text : "") || (s.last_activity ? `last activity ${ago(s.last_activity)}` : s.description || "no activity yet");
+    return h("div", { class: `seat ${s.status}${s.id === rtSel ? " on" : ""}`, role: "button", tabindex: "0", "data-seat": s.id, title: `${s.id}: ${label}${s.detail ? " · " + s.detail : ""}`,
+      onclick: () => choose(s.id), onkeydown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(s.id); } } },
+    h("div", { class: "nm" }, tagDot(s.id), h("span", {}, s.id), s.high ? h("span", { class: "seat-high", title: `${s.high} high priority` }) : null,
+      s.unread ? h("span", { class: "badge", title: `${s.unread} unread` }, s.unread) : null),
+    h("div", { class: "st" }, h("span", { class: "pill " + cls }, s.status === "running" ? h("i", { class: "cdl" }) : null, label), h("span", {}, count)),
+    h("div", { class: "bar" }, total ? [h("i", { style: `width:${(100 * p.done) / total}%` }),
+      s.status === "running" && p.done < total ? h("i", { class: "run", style: `width:${100 / total}%` }) : null,
+      failed ? h("i", { class: "fail", style: `width:${100 / total}%` }) : null] : null),
+    h("div", { class: "now" }, now));
+  }
+
+  function needItem(n) {
+    let acts = null;
+    if (n.kind === "run") acts = [actionButtons(n.path, n.actions || [], n.task, true), h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(n.path)}` }, "View")];
+    else if (n.kind === "todo") acts = h("button", { class: "icon primary", onclick: (ev) => run(ev.currentTarget, () => api("POST", `/api/journal/${n.project}/${n.id}/close`, {}), "Marked done") }, "✓ done");
+    else if (n.kind === "messages") acts = h("a", { class: "btn icon primary", href: `#/messages/${encodeURIComponent(n.project)}` }, "Read");
+    return h("div", { class: "need" }, tagDot(n.project),
+      h("div", { class: "t" }, h("b", { class: "link", onclick: () => choose(n.project) }, n.project), " · ", n.text,
+        h("small", {}, { run: "harness run", todo: "high-priority todo", messages: "letters for you" }[n.kind] || n.kind, n.at ? ` · ${ago(n.at)}` : "")),
+      h("div", { class: "acts" }, acts));
+  }
+
+  function planColumn(s) {
+    if (!s) return h("div", { class: "card" }, h("div", { class: "empty" }, "No projects yet. Start one with “+ New project”, or add agents to your hub."));
+    const out = [];
+    if (s.path) {
+      const tasks = proj && projPath === s.path ? proj.tasks : null, p = s.progress || { done: 0, total: 0 };
+      out.push(h("div", { class: "card" },
+        h("div", { class: "card-head" }, h("h2", {}, tagDot(s.id), s.id),
+          h("span", { class: "muted small" }, [p.total ? `${p.done} of ${p.total} done` : "", money(s.spent_usd)].filter(Boolean).join(" · "))),
+        h("div", { class: "row rt-acts" }, statusPill(s.status === "waiting" ? (s.failed_task ? "failed" : proj ? proj.meta.status : "waiting") : s.status),
+          h("span", { class: "spacer" }), actionButtons(s.path, s.actions || [], s.failed_task, true), h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(s.path)}` }, "Open run")),
+        s.detail ? h("div", { class: "small muted rt-detail" }, s.detail) : null,
+        h("h3", {}, "Plan"),
+        s.goal ? h("div", { class: "goal" }, h("b", {}, "Goal"), s.goal) : null,
+        tasks === null ? h("div", { class: "empty" }, "Loading the plan…")
+          : tasks.length ? taskTree(tasks) : h("div", { class: "empty" }, s.status === "running" ? "The orchestrator is drawing up the plan…" : "No tasks yet: the planner runs first.")));
+    }
+    if (s.brief) out.push(s.path ? h("div", { class: "card" }, h("details", {}, h("summary", {}, `Journal (${s.open_todos || 0} open todo(s))`), h("div", { class: "nested" }, briefCard(s.brief, true)))) : briefCard(s.brief, true));
+    return out;
+  }
+
+  function chatMessages(s) {
+    if (!s || !s.path) return h("div", { class: "empty" }, s ? "This project keeps a journal but has no harness run, so there is no orchestrator to talk to here." : "Pick a seat to talk to its orchestrator.");
+    const rows = (chat || []).map((m) => h("div", { class: "msgl " + (m.who === "owner" ? "you" : "orc") + (m.steer && m.who === "owner" ? " steer" : "") },
+      h("small", {}, m.who === "owner" ? `You · ${m.steer ? "steer" : "ask"}` : `Orchestrator${m.model ? " · " + m.model : ""}`, m.at ? ` · ${clock(m.at)}` : ""),
+      h("div", { class: "body" }, m.text),
+      m.steer && m.who === "owner" ? h("div", { class: "steer-note" }, "Instruction for the next tasks") : null));
+    if (pending && pending.path === s.path) rows.push(
+      h("div", { class: "msgl you" + (pending.steer ? " steer" : "") }, h("small", {}, `You · ${pending.steer ? "steer" : "ask"}`), h("div", { class: "body" }, pending.text)),
+      h("div", { class: "msgl orc pending" }, h("small", {}, "Orchestrator"), h("div", { class: "body" }, h("i", { class: "cdl" }), pending.steer ? "noting the instruction…" : "thinking…")));
+    return rows.length ? rows : h("div", { class: "empty" }, "Ask the orchestrator about this project (“what's left?”, “why did T3 fail?”), or steer it with an instruction for the next tasks.");
+  }
+
+  function chatCompose(s) {
+    if (!s || !s.path) return s ? h("div", { class: "row", style: "margin-top:10px" }, h("a", { class: "btn primary", href: "#/messages" }, "Message this project")) : null;
+    const input = h("input", { name: "message", class: "grow", autocomplete: "off", value: rtDraft, oninput: (ev) => { rtDraft = ev.target.value; } });
+    const ask = h("button", { type: "button" }, "Ask"), steer = h("button", { type: "button" }, "Steer");
+    const send = h("button", { class: "primary" }, "Send");
+    const mode = (v) => { rtSteer = v; ask.classList.toggle("on", !v); steer.classList.toggle("on", v);
+      input.placeholder = v ? "An instruction for the next tasks, e.g. “use 32x32 sprites from now on”" : "Ask about this project, e.g. “what's left?”"; };
+    ask.addEventListener("click", () => mode(false)); steer.addEventListener("click", () => mode(true)); mode(rtSteer);
+    const form = h("form", { class: "compose", onsubmit: async (ev) => {
+      ev.preventDefault();
+      const text = input.value.trim(), path = s.path, isSteer = rtSteer;
+      if (!text || pending) return;
+      pending = { path, text, steer: isSteer }; input.value = ""; rtDraft = ""; send.disabled = true; draw();
+      try { await api("POST", "/api/chat", { path, message: text, steer: isSteer }); if (isSteer) toast("Instruction stored for the next tasks"); }
+      catch (e) { toast(e.message, true); if (!input.value) { input.value = text; rtDraft = text; } }
+      pending = null; send.disabled = false;
+      await refresh(true);
+    } }, h("div", { class: "seg" }, ask, steer), input, send);
+    return form;
+  }
+
+  function draw() {
+    if (!data) return;
+    const s = sel();
+    document.getElementById("jobs-badge").hidden = !data.running_jobs; document.getElementById("jobs-badge").textContent = data.running_jobs;
+    const unread = data.seats.reduce((n, x) => n + (x.id === data.agent || !data.agent ? x.unread || 0 : 0), 0);
+    const synced = data.synced_at ? `synced ${ago(data.synced_at)}` : "auto-refresh on";
+    patch(stats, JSON.stringify([offline, synced, data.sync_error, data.health, data.spend_today, unread]), () => [
+      h("span", { class: "live" + (offline ? " off" : ""), title: data.sync_error || "" }, h("i", {}), h("b", {}, offline ? "offline" : "live"), ` · ${offline ? "retrying…" : synced}`,
+        data.sync_error ? h("span", { class: "pill warn", title: data.sync_error }, "sync problem") : null),
+      h("a", { class: "stat", href: "#/models", title: data.health.map((x) => `${x.model}: ${x.passed}/${x.total}`).join("\n") || "No health probe yet" }, "Models ",
+        data.health.length ? [h("span", { class: "health" }, data.health.map((x) => h("i", { class: x.state }))),
+          h("span", { class: "muted" }, ["ok", "warn", "bad"].map((k) => { const n = data.health.filter((x) => x.state === k).length; return n ? `${n} ${{ ok: "ok", warn: "off", bad: "down" }[k]}` : ""; }).filter(Boolean).join(" · "))]
+          : h("span", { class: "muted" }, "not probed yet")),
+      h("span", { class: "stat" }, "Today ", h("b", {}, money(data.spend_today))),
+      h("a", { class: "stat", href: "#/messages" }, "Unread ", h("b", {}, unread)),
+      h("a", { class: "btn primary", href: "#/runs" }, "+ New project")]);
+    patch(strip, JSON.stringify([rtSel, data.seats.map((x) => ({ ...x, brief: null, last_activity: x.last_activity ? ago(x.last_activity) : "" }))]), () =>
+      [data.seats.length ? data.seats.map(seatCard) : h("div", { class: "empty" }, "Nobody at the table yet."), h("div", { class: "candles" }, h("i", { class: "cdl" }), h("i", { class: "cdl" }), h("i", { class: "cdl" }))]);
+    patch(needs, JSON.stringify(data.needs_you.map((n) => ({ ...n, at: n.at ? ago(n.at) : "" }))), () => [
+      h("div", { class: "card-head" }, h("h2", {}, "Needs you"), data.needs_you.length ? h("span", { class: "cnt" }, data.needs_you.length) : null),
+      data.needs_you.length ? h("div", { class: "list" }, data.needs_you.map(needItem)) : h("div", { class: "empty" }, "Nothing is waiting on you.")]);
+    patch(plan, JSON.stringify([s, projPath, proj && proj.tasks, proj && proj.meta.status]), () => planColumn(s));
+    patch(chatHead, JSON.stringify([s && s.id, s && s.path]), () => [h("h2", {}, s && !s.path ? "Chat" : "Chat with the orchestrator"), s ? h("span", { class: "muted small" }, s.id) : null]);
+    const atEnd = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 40;
+    if (patch(chatLog, JSON.stringify([s && s.id, s && s.path, chat, pending]), () => chatMessages(s)) && atEnd) chatLog.scrollTop = chatLog.scrollHeight;
+    patch(chatBox, JSON.stringify([s && s.id, s && s.path]), () => chatCompose(s));
+    patch(feedHead, String(offline), () => [h("h2", {}, "Minutes, live"), h("span", { class: "live" + (offline ? " off" : "") }, h("i", {}), "all projects")]);
+    const top = feedLog.scrollTop, height = feedLog.scrollHeight;
+    if (patch(feedLog, JSON.stringify([feed.length, feed[0], feed[feed.length - 1]]), () => (feed.length ? feed.map((f) =>
+      h("div", {}, h("time", { title: f.at }, clock(f.at)), h("span", { class: "p link " + tagClass(f.project), onclick: () => choose(f.project) }, f.project),
+        f.who ? h("span", { class: "w" }, f.who) : null,
+        h("span", { title: f.text, class: "a" + (/journal:done|approved|passed|\bdone\b/i.test(f.kind + " " + f.text) ? " ok" : /reject|fail|error/i.test(f.text) ? " no" : f.kind === "steer" ? " wn" : "") }, f.text)))
+      : h("div", { class: "empty" }, "Nothing has happened yet."))) && top > 0) feedLog.scrollTop = top + (feedLog.scrollHeight - height);
+  }
+
+  async function refresh(full) { await load(full); if (root.isConnected || !root._drawn) { draw(); root._drawn = true; } }
+  const root = h("div", { class: "rt" },
+    h("div", { class: "rt-head" }, h("h1", {}, "Roundtable"), stats),
+    h("div", { class: "rt-top" }, strip, needs),
+    h("div", { class: "rt-three" }, plan, h("div", { class: "card" }, chatHead, chatLog, chatBox), h("div", { class: "card" }, feedHead, feedLog)));
+  await refresh(true);
+  const tick = async () => {
+    if (!root.isConnected) return;
+    ticks++;
+    try { await refresh(false); } catch { /* keep trying */ }
+    if (root.isConnected) timer = setTimeout(tick, RT_POLL_MS);
+  };
+  timer = setTimeout(tick, RT_POLL_MS);
+  return root;
 }
 
 async function viewProjects() {
@@ -587,7 +711,7 @@ async function viewSetup() {
       h("div", { class: "row", style: "margin-top:12px" },
         h("button", { class: "primary", onclick: async () => {
           await api("POST", "/api/setup/done", { projects_dir: projects.value, agent: me ? me.value : null });
-          toast("All set!"); location.hash = "#/where";
+          toast("All set!"); location.hash = "#/roundtable";
         } }, "Start using Roundtable Hold"),
         h("button", { onclick: async () => { const j = await act(() => api("POST", "/api/probes", {}), "Checking your models…"); if (j && j.id) location.hash = `#/job/${j.id}`; } }, "Check my models first"))));
 }

@@ -1,6 +1,9 @@
 """Loading ``hub.yaml``.
 
-Lookup order: explicit path > $HUB_CONFIG > ./hub.yaml > ~/.roundtable/hub.yaml > ~/.agent-hub/hub.yaml
+Lookup order: explicit path > $HUB_CONFIG > ./hub.yaml > the hub saved by `roundtable connect` > the desktop
+app's hub > ~/.roundtable/hub.yaml > ~/.agent-hub/hub.yaml. With ``nearby`` (used by the CLI, the MCP server and
+the Claude Code hooks), also ~/agent-hub-data/hub.yaml and an ``agent-hub-data`` checkout next to the current repo,
+which is how cloud sessions find the hub without any per-machine setup.
 Relative storage paths are resolved against the config file's directory.
 """
 
@@ -40,8 +43,38 @@ class HubConfig:
         return self.path.parent
 
 
-def find_config(explicit: str | None = None) -> Path:
-    candidates = [explicit, os.environ.get("HUB_CONFIG"), "hub.yaml", "~/.roundtable/hub.yaml", "~/.agent-hub/hub.yaml"]
+HUB_REPO_DIR = "agent-hub-data"
+
+
+def saved_hub_pointer() -> Path:
+    """File where `roundtable connect` remembers this computer's hub.yaml."""
+    from ..desktop import app_home
+
+    return app_home() / "hub-path"
+
+
+def _pointer_target() -> str | None:
+    try:
+        return saved_hub_pointer().read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _nearby_candidates() -> list[str]:
+    out = [f"~/{HUB_REPO_DIR}/hub.yaml"]
+    cwd = Path.cwd()
+    for d in [cwd, *cwd.parents][:4]:  # the repo root (or a folder in it) sits next to the hub checkout
+        out.append(str(d.parent / HUB_REPO_DIR / "hub.yaml"))
+    return out
+
+
+def find_config(explicit: str | None = None, nearby: bool = False) -> Path:
+    from ..desktop import app_home
+
+    candidates = [explicit, os.environ.get("HUB_CONFIG"), "hub.yaml", _pointer_target(),
+                  str(app_home() / "config" / "hub.yaml"), "~/.roundtable/hub.yaml", "~/.agent-hub/hub.yaml"]
+    if nearby:
+        candidates += _nearby_candidates()
     for c in candidates:
         if c and Path(c).expanduser().is_file():
             return Path(c).expanduser().resolve()
@@ -70,7 +103,7 @@ def parse_config(raw: dict[str, Any], path: Path) -> HubConfig:
     return HubConfig(path=path, storage=raw.get("storage") or {}, agents=agents, policy=policy)
 
 
-def load_config(explicit: str | None = None) -> HubConfig:
-    path = find_config(explicit)
+def load_config(explicit: str | None = None, nearby: bool = False) -> HubConfig:
+    path = find_config(explicit, nearby=nearby)
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return parse_config(raw, path)

@@ -145,7 +145,15 @@ class UIApp:
             agents = self.hub.config.agents
             self.agent = "me" if "me" in agents else next(iter(agents), None)
         self.projects_dir = Path(projects_dir or ".").expanduser().resolve()
+        self.last_auto_sync = ""
+        self.auto_sync_error = ""
         self.cfg()  # validate early so the UI can show config errors
+
+    def start_auto_sync(self, every_s: float = 60.0):
+        from .roundtable import AutoSync
+
+        self.auto_sync = AutoSync(self, every_s).start()
+        return self.auto_sync
 
     def reload_hub(self) -> None:
         try:
@@ -401,6 +409,22 @@ class UIApp:
         cfg = self.need_cfg()
         proj = self.project(cfg, body.get("path", ""))
         action = body.get("action")
+        if action == "raise_budget":
+            from ..providers.manage import set_budget
+
+            spent = proj.meta().get("spent_usd", 0)
+            new = set_budget(cfg.path, body.get("max_cost_usd") or max(cfg.limits.max_cost_usd * 2, spent + 5))
+            cfg = self.need_cfg()
+            action = "run"  # and continue the paused run
+            body = {**body, "action": "run"}
+
+            def run(job: Job):
+                orch = self._orch(cfg, proj.root, job)
+                job.line(f"budget raised to ${new:.2f}; resuming")
+                return {"status": orch.run(), "max_cost_usd": new}
+
+            return self.jobs.start("run", f"resume {proj.root.name} (budget ${new:.2f})", run,
+                                   target=str(proj.root)).view()
         if action in ("run", "extend"):
             if action == "extend" and not (body.get("goal") or "").strip():
                 raise ApiError("a goal is required")
@@ -738,6 +762,36 @@ class UIApp:
         return set_role_models(cfg.path, body.get("role", ""), models, kind=body.get("kind"),
                                description=body.get("description"))
 
+    # -- Roundtable main screen ----------------------------------------------------------------------
+    def roundtable(self, q):
+        from .roundtable import build
+
+        data = build(self)
+        data["sync_error"] = self.auto_sync_error
+        return data
+
+    def activity(self, q):
+        from .roundtable import activity
+
+        return activity(self, limit=int((q.get("limit") or ["120"])[0]))
+
+    def chat_get(self, q):
+        cfg = self.need_cfg()
+        from ..harness.orchestrator import Orchestrator
+
+        proj = self.project(cfg, q.get("path", [""])[0])
+        return Orchestrator(cfg, proj.root).chat_history()
+
+    def chat_post(self, body):
+        cfg = self.need_cfg()
+        from ..harness.orchestrator import Orchestrator
+
+        proj = self.project(cfg, body.get("path", ""))
+        orch = Orchestrator(cfg, proj.root)
+        if body.get("steer"):
+            return orch.steer(body.get("message", ""))
+        return orch.ask(body.get("message", ""))
+
     # -- updater -----------------------------------------------------------------------------------
     def update_status(self, q):
         from ..updater import status_dict
@@ -774,6 +828,10 @@ class UIApp:
             ("POST", "/api/improve"): R.improve_action,
             ("GET", "/api/jobs"): lambda q: R.jobs.list(),
             ("GET", "/api/update"): R.update_status,
+            ("GET", "/api/roundtable"): R.roundtable,
+            ("GET", "/api/activity"): R.activity,
+            ("GET", "/api/chat"): R.chat_get,
+            ("POST", "/api/chat"): R.chat_post,
             ("GET", "/api/setup"): R.setup,
             ("POST", "/api/setup/keys"): R.setup_keys,
             ("POST", "/api/setup/hub"): R.setup_hub,
@@ -902,6 +960,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     app = UIApp(hub_config, harness_config, agent, projects_dir)
     remote = host not in LOOPBACK
     token = secrets.token_urlsafe(16) if remote else None
+    app.start_auto_sync()
     httpd = ThreadingHTTPServer((host, port), make_handler(app, token, allow_remote=remote))
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:

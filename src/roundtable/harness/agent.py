@@ -25,12 +25,15 @@ class Budget:
     limit_usd: float
     spent_usd: float = 0.0
     unpriced_calls: int = 0
+    on_charge: Any = field(default=None, repr=False, compare=False)  # callback(cost) for spend logs
 
     def charge(self, cost: float | None) -> None:
         if cost is None:
             self.unpriced_calls += 1
         else:
             self.spent_usd += cost
+            if self.on_charge and cost:
+                self.on_charge(cost)
 
     def check(self) -> None:
         if self.spent_usd >= self.limit_usd:

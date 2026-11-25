@@ -159,6 +159,9 @@ class Orchestrator:
         self._listener = on_event
         meta = self.project.meta()
         self.budget = Budget(limit_usd=cfg.limits.max_cost_usd, spent_usd=meta.get("spent_usd", 0.0))
+        # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
+        self.budget.on_charge = lambda cost: self.project.append(
+            "spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
 
     # -- logging -------------------------------------------------------------
     def emit(self, kind: str, data: dict[str, Any]) -> None:
@@ -309,8 +312,85 @@ class Orchestrator:
         parts = [f"# Project goals\n{goals}", f"# Task board\n{board}"]
         if done:
             parts.append("# Completed work\n" + "\n".join(done))
+        guidance = self._guidance_text()
+        if guidance:
+            parts.append(guidance)
         parts.append(f"# Files\n{self.ws.tree()}")
         return "\n\n".join(parts)
+
+    # -- owner steering & chat ----------------------------------------------------
+    def _guidance_text(self) -> str:
+        notes = self.project.meta().get("guidance", [])
+        if not notes:
+            return ""
+        lines = "\n".join(f"- {g['text']}" for g in notes)
+        return ("# Owner's instructions (from the project owner; follow them; later ones win on conflict)\n"
+                + lines)
+
+    def steer(self, text: str) -> dict[str, Any]:
+        """Record an instruction from the owner; every later plan, task and review sees it."""
+        text = (text or "").strip()
+        if not text:
+            raise HarnessError("empty instruction")
+        meta = self.project.meta()
+        meta.setdefault("guidance", []).append({"at": utcnow(), "text": text[:2000]})
+        self.project.save_meta(meta)
+        remaining = [t.id for t in self.project.tasks() if t.status in ("pending", "running", "failed")]
+        reply = ("Noted. This instruction now goes to every remaining task"
+                 + (f" ({', '.join(remaining)})" if remaining else "") + " and to future plans and reviews.")
+        self.project.append("chat.jsonl", {"at": utcnow(), "who": "owner", "text": text, "steer": True})
+        self.project.append("chat.jsonl", {"at": utcnow(), "who": "orchestrator", "text": reply, "steer": True})
+        self.emit("steer", {"text": text[:300]})
+        return {"reply": reply, "guidance": len(meta["guidance"])}
+
+    def chat_history(self, limit: int = 50) -> list[dict[str, Any]]:
+        p = self.project.dir / "chat.jsonl"
+        rows = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()] if p.is_file() else []
+        return rows[-limit:]
+
+    def ask(self, question: str) -> dict[str, Any]:
+        """Ask the project's orchestrator (the planner role) about the project. Read-only."""
+        question = (question or "").strip()
+        if not question:
+            raise HarnessError("empty question")
+        tasks = self.project.tasks()
+        detail = []
+        for t in tasks:
+            line = f"[{t.id}] {t.status} {t.title} ({t.role})"
+            for a in t.attempts[-3:]:
+                line += f"\n    attempt: {a.get('model')} -> {a.get('outcome')}"
+                if a.get("review"):
+                    line += f"; review: {a['review'][:300]}"
+                if a.get("error"):
+                    line += f"; error: {a['error'][:200]}"
+            detail.append(line)
+        ev = self.project.dir / "events.jsonl"
+        recent = []
+        if ev.is_file():
+            for raw in ev.read_text(encoding="utf-8").splitlines()[-40:]:
+                try:
+                    d = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if d.get("event") in ("task_start", "task_end", "review", "provider_error", "status", "plan"):
+                    recent.append(f"{d.get('at', '')[11:19]} {d['event']}: "
+                                  + json.dumps({k: v for k, v in d.items() if k not in ('at', 'event')})[:240])
+        history = "\n".join(f"{c['who']}: {c['text']}" for c in self.chat_history(10))
+        prompt = (f"{self._project_context(tasks)}\n\n# Task details\n" + "\n".join(detail)
+                  + (f"\n\n# Recent events\n" + "\n".join(recent) if recent else "")
+                  + (f"\n\n# Conversation so far\n{history}" if history else "")
+                  + f"\n\n# The owner asks\n{question}\n\nAnswer briefly and concretely. You may read project "
+                    "files with your tools. Do not change anything.")
+        role = self.cfg.roles[self.cfg.planner_role]
+        res = self._run_with_fallback(
+            role, "You are the orchestrator of this software project, answering its owner's questions about "
+                  "progress, problems and next steps. Be direct and specific; cite task ids.",
+            prompt, self.ws.toolbox(READ_ONLY))
+        answer = res.text.strip() or "(no answer)"
+        self.project.append("chat.jsonl", {"at": utcnow(), "who": "owner", "text": question, "steer": False})
+        self.project.append("chat.jsonl", {"at": utcnow(), "who": "orchestrator", "text": answer, "steer": False,
+                                           "model": res.model, "cost_usd": round(res.cost_usd, 6)})
+        return {"reply": answer, "model": res.model, "cost_usd": res.cost_usd}
 
     # -- planning --------------------------------------------------------------
     def start(self, goal: str, require_approval: bool = False) -> None:
@@ -487,6 +567,7 @@ class Orchestrator:
             f"# Task [{task.id}] {task.title}\n{task.description}\n\n"
             f"# Acceptance criteria\n{task.acceptance or '(use judgement)'}\n\n"
             f"# Worker's summary\n{worker_summary}\n\n"
+            + (f"{self._guidance_text()}\n\n" if self._guidance_text() else "") +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
             "Verify the work (read files, run tests if relevant), then call submit_review."
         )

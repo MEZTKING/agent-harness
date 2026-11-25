@@ -26,7 +26,7 @@ class TextFile(str):
 
 
 class Store:
-    def sync(self) -> None:  # pull latest state
+    def sync(self, force: bool = False) -> None:  # pull latest state (no-op for local stores)
         pass
 
     def read_json(self, rel: str) -> Any | None:
