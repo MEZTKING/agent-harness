@@ -262,6 +262,8 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         elif spec.get("model"):
             roles[role] = dict(spec)  # a brand-new role defined in the app
     out["roles"] = roles
+    if custom.get("limits"):
+        out["limits"] = {**(raw.get("limits") or {}), **custom["limits"]}
     return out
 
 

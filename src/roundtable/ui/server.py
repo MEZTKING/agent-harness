@@ -409,6 +409,22 @@ class UIApp:
         cfg = self.need_cfg()
         proj = self.project(cfg, body.get("path", ""))
         action = body.get("action")
+        if action == "raise_budget":
+            from ..providers.manage import set_budget
+
+            spent = proj.meta().get("spent_usd", 0)
+            new = set_budget(cfg.path, body.get("max_cost_usd") or max(cfg.limits.max_cost_usd * 2, spent + 5))
+            cfg = self.need_cfg()
+            action = "run"  # and continue the paused run
+            body = {**body, "action": "run"}
+
+            def run(job: Job):
+                orch = self._orch(cfg, proj.root, job)
+                job.line(f"budget raised to ${new:.2f}; resuming")
+                return {"status": orch.run(), "max_cost_usd": new}
+
+            return self.jobs.start("run", f"resume {proj.root.name} (budget ${new:.2f})", run,
+                                   target=str(proj.root)).view()
         if action in ("run", "extend"):
             if action == "extend" and not (body.get("goal") or "").strip():
                 raise ApiError("a goal is required")

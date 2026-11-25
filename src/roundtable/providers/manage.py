@@ -128,3 +128,16 @@ def test_provider(cfg, pid: str) -> dict[str, Any]:
         return {"ok": True, "models": len(models), "sample": models[:12]}
     except (ProviderError, ValueError) as e:
         return {"ok": False, "error": str(e)}
+
+
+def set_budget(harness_path: str | Path | None, max_cost_usd: float) -> float:
+    """Raise (or lower) the per-project spending limit; saved in custom.yaml."""
+    path = find_config(str(harness_path) if harness_path else None)
+    value = round(float(max_cost_usd), 2)
+    if not 0 < value <= 10_000:
+        raise ValueError("budget must be between $0.01 and $10,000")
+    custom = load_custom(path)
+    custom.setdefault("limits", {})["max_cost_usd"] = value
+    _validate(path, custom)
+    save_custom(path, custom)
+    return value

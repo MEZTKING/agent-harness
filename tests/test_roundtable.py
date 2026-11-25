@@ -157,3 +157,35 @@ def test_auto_sync_picks_up_other_sessions(tmp_path):
     _git("remote", "set-url", "origin", str(tmp_path / "gone.git"), cwd=tmp_path / "mine")
     AutoSync(app).tick()  # offline: recorded, nothing breaks
     assert app.auto_sync_error
+
+
+def test_raise_budget_saves_limit_and_resumes(setup):
+    import time
+
+    app, orch, brain, cfg = setup
+    cfg.limits.max_cost_usd = orch.budget.limit_usd = 0.0004  # trips mid-run
+    orch._register_with_lab()
+    orch.start("goal")
+    assert orch.run() == "paused_budget"
+    s = seat(build(app), "proj")
+    assert s["status"] == "waiting" and s["actions"] == ["budget"]
+    harness_yaml = cfg.path = orch.project.root.parent / "harness.yaml"
+    harness_yaml.write_text(yaml.safe_dump(HARNESS_RAW))
+    from roundtable.harness.config import load_config
+
+    def fresh():
+        c = load_config(str(harness_yaml))
+        c._instances, c.lab_dir = cfg._instances, cfg.lab_dir
+        return c
+
+    app.cfg = fresh
+    job = app.dispatch("POST", "/api/project", {}, {"path": str(orch.project.root), "action": "raise_budget",
+                                                    "max_cost_usd": 50})
+    for _ in range(200):
+        j = app.dispatch("GET", f"/api/jobs/{job['id']}", {}, {})
+        if j["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert j["status"] == "done" and j["result"] == {"status": "done", "max_cost_usd": 50.0}
+    assert yaml.safe_load((harness_yaml.parent / "custom.yaml").read_text())["limits"]["max_cost_usd"] == 50.0
+    assert yaml.safe_load(harness_yaml.read_text()) == HARNESS_RAW  # harness.yaml untouched
