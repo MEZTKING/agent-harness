@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roundtable-hold"
+version = "0.2.0"
+description = "Roundtable Hold: the best AI models working together - a cross-repo hub with project journals, a role-routed multi-provider project harness, self-improvement and a web UI."
+requires-python = ">=3.10"
+dependencies = [
+  "pyyaml>=6",
+  "mcp>=2.0",
+  "anthropic>=2.0",
+  "openai>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+roundtable = "roundtable.main:main"
+agent-hub = "roundtable.cli:main"        # alias: hub commands only
+harness = "roundtable.harness_cli:main"  # alias: harness commands only
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+roundtable = ["templates/*.yaml", "prompts/*.md", "ui/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

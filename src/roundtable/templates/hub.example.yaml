@@ -1,0 +1,40 @@
+# agent-hub configuration
+# Docs: README.md in the agent-harness repo.
+
+storage:
+  # "file": a local folder (one machine only).
+  # "git":  a git clone; every write is committed + pushed, so agents in
+  #         different repos/machines share state through one GitHub repo.
+  type: file
+  path: ./hub-data
+  # remote: https://github.com/<you>/agent-hub-data.git   # git only; cloned if path is missing
+  # branch: main
+
+# What happens when no rule matches: deny (safer) or allow.
+default_policy: deny
+
+# One entry per agent. Usually one agent per repo.
+agents:
+  backend:
+    repo: <you>/bakery-api
+    role: coder
+    description: REST API and database for the bakery app
+  frontend:
+    repo: <you>/bakery-web
+    role: coder
+    description: Customer-facing website
+  manager:
+    role: manager
+    description: Coordinates work across repos
+  me:
+    description: My own notes and plans that don't belong to one repo
+
+# Rules are checked in order; the LAST match wins.
+# Actions: read_card, message.  Wildcards (*, ?) work in from/to.
+rules:
+  - {from: "*", to: "*", allow: [read_card]}          # everyone can see every card
+  - {from: backend, to: frontend, allow: [message]}
+  - {from: frontend, to: backend, allow: [message]}
+  - {from: manager, to: "*", allow: [message]}         # manager can message anyone
+  - {from: "*", to: manager, allow: [message]}         # anyone can escalate to manager
+  - {from: me, to: "*", allow: [message]}              # you can message any agent
