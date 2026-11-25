@@ -37,6 +37,9 @@ roles:
     model: deepseek/deepseek-v4-pro
     fallback: [anthropic/claude-sonnet-5-5]
     description: writes and tests code
+  critic:                           # a second opinion on every new plan, from another maker's model
+    model: deepseek/deepseek-v4-pro
+    fallback: [anthropic/claude-opus-5-5]
   reviewer:                         # checks every task against its acceptance criteria
     model: anthropic/claude-opus-5-5
     options: {effort: medium}
@@ -60,6 +63,7 @@ roles:
 
 planner_role: orchestrator
 reviewer_role: reviewer             # remove to skip reviews
+critic_role: critic                 # remove to skip the plan critique
 # prompts_dir: ./prompts            # override built-in prompts (orchestrator.md, coder.md, ...)
 
 # USD per 1M tokens. Claude prices are built in; add the rest from each

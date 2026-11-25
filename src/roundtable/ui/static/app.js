@@ -90,7 +90,7 @@ async function render(auto = false) {
       try { const st = await api("GET", "/api/setup"); if (st.desktop && !st.setup_done && view !== "setup") { location.hash = "#/setup"; return; } } catch { /* ignore */ }
     }
     const views = { setup: viewSetup, settings: viewSettings, roundtable: viewRoundtable, projects: viewProjects, project: viewProject, messages: viewMessages,
-      runs: viewRuns, run: viewRun, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
+      runs: viewRuns, run: viewRun, plan: viewPlan, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
     const node = await (views[view] || viewRoundtable)(...args);
     const typing = document.activeElement && $main().contains(document.activeElement) && document.activeElement.value;
     if (auto && typing) { autoRefresh(3000); return; } // don't clobber what the user is typing
@@ -268,7 +268,9 @@ async function viewRoundtable() {
 
   function needItem(n) {
     let acts = null;
-    if (n.kind === "run") acts = [actionButtons(n.path, n.actions || [], n.task, true), h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(n.path)}` }, "View")];
+    if (n.kind === "run") acts = (n.actions || []).includes("approve")
+      ? h("a", { class: "btn icon primary", href: `#/plan/${encodeURIComponent(n.path)}` }, "Open plan")
+      : [actionButtons(n.path, n.actions || [], n.task, true), h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(n.path)}` }, "View")];
     else if (n.kind === "todo") acts = h("button", { class: "icon primary", onclick: (ev) => run(ev.currentTarget, () => api("POST", `/api/journal/${n.project}/${n.id}/close`, {}), "Marked done") }, "✓ done");
     else if (n.kind === "messages") acts = h("a", { class: "btn icon primary", href: `#/messages/${encodeURIComponent(n.project)}` }, "Read");
     return h("div", { class: "need" }, tagDot(n.project),
@@ -286,7 +288,9 @@ async function viewRoundtable() {
         h("div", { class: "card-head" }, h("h2", {}, tagDot(s.id), s.id),
           h("span", { class: "muted small" }, [p.total ? `${p.done} of ${p.total} done` : "", money(s.spent_usd)].filter(Boolean).join(" · "))),
         h("div", { class: "row rt-acts" }, statusPill(s.status === "waiting" ? (s.failed_task ? "failed" : proj ? proj.meta.status : "waiting") : s.status),
-          h("span", { class: "spacer" }), actionButtons(s.path, s.actions || [], s.failed_task, true), h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(s.path)}` }, "Open run")),
+          h("span", { class: "spacer" }), actionButtons(s.path, (s.actions || []).filter((a) => a !== "approve"), s.failed_task, true),
+          h("a", { class: "btn icon" + ((s.actions || []).includes("approve") ? " primary" : ""), href: `#/plan/${encodeURIComponent(s.path)}` }, "Open plan"),
+          h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(s.path)}` }, "Open run")),
         s.detail ? h("div", { class: "small muted rt-detail" }, s.detail) : null,
         h("h3", {}, "Plan"),
         s.goal ? h("div", { class: "goal" }, h("b", {}, "Goal"), s.goal) : null,
@@ -496,6 +500,109 @@ async function viewRuns() {
         h("td", { class: "num" }, money(p.spent_usd), p.unpriced_calls ? h("div", { class: "muted small" }, `+${p.unpriced_calls} unpriced`) : null),
         h("td", { class: "small muted" }, ago(p.updated_at))))) : h("div", { class: "empty" }, "No harness projects yet.")),
     section("New project", form));
+}
+
+// ---------- the living plan ----------
+async function viewPlan(path) {
+  const q = encodeURIComponent(path);
+  const d = await api("GET", `/api/plan?path=${q}`);
+  const doc = d.doc;
+  const edit = async (body, ok) => { try { await api("POST", "/api/plan", { path, ...body }); if (ok) toast(ok); await render(); } catch (e) { toast(e.message, true); } };
+  const startJob = async (body, ok) => { try { const j = await api("POST", "/api/plan", { path, ...body }); toast(ok); location.hash = `#/job/${j.id}`; } catch (e) { toast(e.message, true); } };
+  const back = h("a", { href: "#/roundtable", class: "muted small" }, "← Roundtable");
+  if (!doc) {
+    return h("div", {}, back, h("h1", {}, `Plan · ${d.name}`),
+      section("No plan document", h("p", { class: "muted" }, d.tasks.length ? "This project was planned before plans became documents: its tasks are below." : "The planner hasn't run yet."),
+        d.tasks.length ? taskTree(d.tasks) : null));
+  }
+  const o = d.open, est = doc.estimate || {};
+  const pending = doc.pending || [];
+  const instr = h("textarea", { rows: 2, class: "grow", placeholder: "Tell the planner what to change (optional), e.g. “make it a 2D platformer, no multiplayer”" });
+  const busy = d.busy ? h("p", { class: "small muted" }, "A job is running on this project; edits wait until it finishes.") : null;
+  const head = h("div", { class: "card plan-head" },
+    h("div", { class: "card-head" }, h("h2", {}, `Plan v${doc.version}`), h("span", { class: "muted small" }, d.approved ? "approved" : "waiting for you")),
+    h("div", { class: "goal" }, h("b", {}, "Goal"), doc.goal),
+    doc.summary ? h("p", {}, doc.summary) : null,
+    h("div", { class: "row plan-est" },
+      h("span", { class: "pill info" }, `about ${money(est.cost_usd || 0)}`),
+      est.unpriced && est.unpriced.length ? h("span", { class: "pill warn", title: "Add prices for these in Settings > AI providers / pricing" }, `+ unpriced: ${est.unpriced.join(", ")}`) : null,
+      h("span", { class: "pill" }, `about ${Math.round(est.minutes || 0)} min`),
+      h("span", { class: "pill" }, `${est.tasks || 0} task(s) to do`),
+      h("span", { class: "muted small", title: est.note || "" }, "estimate")),
+    busy,
+    h("div", { class: "row", style: "margin-top:10px" }, instr),
+    h("div", { class: "row" },
+      h("button", { class: pending.length ? "primary" : "", disabled: d.busy, onclick: () => startJob({ action: "revise", text: instr.value }, "Updating the plan…") },
+        pending.length ? `Update plan (${pending.length} change${pending.length > 1 ? "s" : ""})` : "Update plan"),
+      h("button", { class: pending.length ? "" : "primary", disabled: d.busy || d.approved || pending.length > 0, title: pending.length ? "Apply your changes first" : "",
+        onclick: () => startJob({ action: "approve" }, "Approved: building has started") }, d.approved ? "Approved" : "Approve & start"),
+      o.choices ? h("span", { class: "muted small" }, `${o.choices} choice(s) left on the recommendation`) : null),
+    pending.length ? h("details", { class: "small" }, h("summary", {}, `Your changes waiting to be applied (${pending.length})`), h("ul", {}, pending.map((p) => h("li", {}, p.text)))) : null);
+
+  const decisions = (doc.decisions || []).map((c) => h("div", { class: "decision" },
+    h("div", { class: "q" }, h("b", {}, c.question), c.why ? h("div", { class: "muted small" }, "Recommended because: ", c.why) : null),
+    h("div", { class: "opts" }, c.options.map((op) => {
+      const chosen = c.chosen === op.id, rec = c.recommended === op.id;
+      return h("button", { class: "opt" + (chosen ? " chosen" : !c.chosen && rec ? " rec" : ""), disabled: d.busy,
+        onclick: () => edit({ action: "choose", decision: c.id, option: op.id }, `Chosen: ${op.label}`) },
+      h("b", {}, op.label, rec ? h("span", { class: "pill good", style: "margin-left:6px" }, "recommended") : null, chosen ? h("span", { class: "pill info", style: "margin-left:6px" }, "your choice") : null),
+      op.detail ? h("span", { class: "small" }, op.detail) : null, op.cost ? h("span", { class: "muted small" }, op.cost) : null);
+    }))));
+  const questions = (doc.questions || []).map((qq) => {
+    const inp = h("input", { class: "grow", value: qq.answer || "", placeholder: "your answer" });
+    return h("div", { class: "decision" }, h("div", { class: "q" }, h("b", {}, qq.text), qq.why ? h("div", { class: "muted small" }, qq.why) : null),
+      h("div", { class: "row" }, inp, h("button", { class: "icon primary", disabled: d.busy, onclick: () => edit({ action: "answer", question: qq.id, text: inp.value }, "Answer saved") }, "Save")));
+  });
+  const ideas = (doc.ideas || []).map((i) => h("div", { class: "row idea" },
+    h("span", { class: "grow" }, i.text, i.why ? h("span", { class: "muted small" }, ` · ${i.why}`) : null),
+    i.state === "open" ? [h("button", { class: "icon primary", disabled: d.busy, onclick: () => edit({ action: "idea", id: i.id, accept: true }, "Idea added") }, "Yes, add it"),
+      h("button", { class: "icon", disabled: d.busy, onclick: () => edit({ action: "idea", id: i.id, accept: false }) }, "No thanks")]
+      : h("span", { class: "pill " + (i.state === "accepted" ? "good" : "") }, i.state)));
+  const input = (o.choices || o.questions || o.ideas || decisions.length) ? section("Your input",
+    decisions.length ? [h("h3", {}, "Choices"), decisions] : null,
+    questions.length ? [h("h3", {}, "Questions for you"), questions] : null,
+    ideas.length ? [h("h3", {}, "Recommended ideas"), ideas] : null) : null;
+
+  const cr = doc.critique;
+  const critique = cr ? section(`Second opinion · ${cr.model}`,
+    h("p", {}, h("span", { class: "pill " + (cr.verdict === "good" ? "good" : "warn") }, cr.verdict === "good" ? "looks good" : "suggested changes"),
+      h("span", { class: "muted small" }, ` on plan v${cr.version || 1}` + (cr.verdict !== "good" && (doc.history || []).some((x) => x.by === "critic") ? " · the planner revised the plan in response" : ""))),
+    h("ul", {}, (cr.points || []).map((pt) => h("li", {}, h("span", { class: "pill " + ({ high: "bad", medium: "warn" }[pt.severity] || "") }, pt.severity), " ", pt.text,
+      pt.suggestion ? h("div", { class: "muted small" }, "Suggestion: ", pt.suggestion) : null)))) : null;
+
+  const listEditor = (title, items, addBody, removeBody, placeholder) => {
+    const inp = h("input", { class: "grow", placeholder });
+    return h("div", {}, h("h3", {}, title),
+      h("ul", { class: "plain" }, items.map((it) => h("li", { class: "row" }, h("span", { class: "grow" }, it.text, it.why ? h("span", { class: "muted small" }, ` · ${it.why}`) : null, it.by === "owner" ? h("span", { class: "pill info", style: "margin-left:6px" }, "yours") : null),
+        h("button", { class: "icon danger", disabled: d.busy, onclick: () => edit(removeBody(it)) }, "×")))),
+      h("div", { class: "row" }, inp, h("button", { class: "icon", disabled: d.busy, onclick: () => edit(addBody(inp.value)) }, "Add")));
+  };
+  const scope = section("Scope and rules",
+    h("div", { class: "grid2" },
+      listEditor("In scope", (doc.in_scope || []).map((t) => ({ text: t })), (v) => ({ action: "scope_add", text: v }), (it) => ({ action: "scope_remove", text: it.text }), "add something it must do"),
+      listEditor("Out of scope", (doc.out_of_scope || []).map((t) => ({ text: t })), (v) => ({ action: "scope_add", out: true, text: v }), (it) => ({ action: "scope_remove", out: true, text: it.text }), "add something to leave out")),
+    listEditor("Don't", doc.dont || [], (v) => ({ action: "dont_add", text: v }), (it) => ({ action: "dont_remove", id: it.id }), "add something not to do"));
+
+  const bySection = {};
+  d.tasks.forEach((t) => (bySection[t.section || ""] = bySection[t.section || ""] || []).push(t));
+  const spec = section("Spec and tasks", (doc.spec || []).map((sp) => {
+    const ta = h("textarea", { rows: 4, style: "display:none;width:100%" }, sp.text);
+    const save = h("button", { class: "icon primary", style: "display:none", onclick: () => edit({ action: "section", id: sp.id, text: ta.value }, "Section changed") }, "Save");
+    const txt = h("p", { class: "pre" }, sp.text);
+    return h("div", { class: "spec" },
+      h("div", { class: "row" }, h("h3", { class: "grow" }, sp.title, h("span", { class: "muted small" }, ` ${sp.id}`)),
+        h("button", { class: "icon", disabled: d.busy, onclick: () => { ta.style.display = ""; save.style.display = ""; txt.style.display = "none"; } }, "Edit")),
+      txt, ta, save,
+      bySection[sp.id] ? taskTree(bySection[sp.id]) : h("div", { class: "muted small" }, "no tasks under this section"));
+  }), (bySection[""] || []).length ? [h("h3", {}, "Other tasks"), taskTree(bySection[""])] : null);
+
+  const history = (doc.history || []).length > 1 ? section("History", h("ul", {}, doc.history.slice().reverse().map((hh) => h("li", { class: "small" },
+    `v${hh.version} · ${ago(hh.at)} · ${hh.by === "critic" ? "revised after the second opinion" : hh.by === "owner" ? "your changes" : hh.change || "first plan"}`,
+    hh.diff ? h("span", { class: "muted" }, ` (${["added", "changed", "removed"].filter((k) => hh.diff[k] && hh.diff[k].length).map((k) => `${hh.diff[k].length} ${k}`).join(", ") || "tasks unchanged"})`) : null)))) : null;
+
+  return h("div", { class: "plan-page" }, back, h("h1", {}, `Plan · ${d.name}`),
+    h("p", { class: "sub" }, "Read it, choose, answer, cut or add, then Update plan. Nothing is built until you approve."),
+    head, input, critique, scope, spec, history);
 }
 
 async function viewRun(path) {
@@ -775,6 +882,7 @@ async function providersCard() {
       modelList, h("table", {}, h("tr", {}, h("th", {}, "Role"), h("th", {}, "Models"), h("th", {}, "")), roleRows)));
 }
 
+const SHOW_PHONE = false;  // turned on with the Roundtable Mobile release
 async function phoneCard() {
   let st;
   try { st = await api("GET", "/api/phone"); } catch (e) { return section("Phone (Roundtable Mobile)", h("p", { class: "muted" }, e.message)); }
@@ -821,7 +929,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), await providersCard(), hubCard(st), await phoneCard(),
+    keysCard(st), await providersCard(), hubCard(st), SHOW_PHONE ? await phoneCard() : null,
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),

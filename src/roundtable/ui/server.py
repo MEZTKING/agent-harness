@@ -463,6 +463,49 @@ class UIApp:
             raise ApiError(f"unknown action {action!r}")
         return {"ok": True}
 
+    # -- the living plan ------------------------------------------------------------------------
+    def plan_get(self, q):
+        from ..harness import plandoc
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, q.get("path", [""])[0])
+        doc = proj.plan_doc()
+        meta = proj.meta()
+        tasks = proj.tasks()
+        gi = doc["goal_index"] if doc else len(meta.get("goals", [])) - 1
+        busy = any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values())
+        return {"path": str(proj.root), "name": proj.root.name, "doc": doc, "status": meta.get("status"),
+                "approved": bool(meta.get("plan_approved")), "busy": busy,
+                "tasks": [asdict(t) for t in tasks if t.goal_index == gi],
+                "open": plandoc.open_items(doc), "line": plandoc.summary_line(doc) if doc else ""}
+
+    def plan_post(self, body):
+        from ..harness.orchestrator import HarnessError, Orchestrator
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, body.get("path", ""))
+        action = body.get("action", "")
+        if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
+            raise ApiError("wait for the running job on this project to finish", 409)
+        if action == "revise":
+            def run(job: Job):
+                orch = self._orch(cfg, proj.root, job)
+                return orch.revise_plan(body.get("text", ""), critique_again=bool(body.get("critique")))
+
+            return self.jobs.start("plan", f"update the plan of {proj.root.name}", run, target=str(proj.root)).view()
+        if action == "approve":
+            Orchestrator(cfg, proj.root).approve()
+
+            def run(job: Job):
+                return {"status": self._orch(cfg, proj.root, job).run()}
+
+            return self.jobs.start("run", f"run {proj.root.name}", run, target=str(proj.root)).view()
+        try:
+            kw = {k: v for k, v in body.items() if k not in ("path", "action")}
+            return Orchestrator(cfg, proj.root).plan_update(action, **kw)
+        except HarnessError as e:
+            raise ApiError(str(e))
+
     # -- models & probes ------------------------------------------------------------------------
     def probes(self, q):
         cfg = self.need_cfg()
@@ -865,6 +908,8 @@ class UIApp:
             ("POST", "/api/assign"): R.assign,
             ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
+            ("GET", "/api/plan"): R.plan_get,
+            ("POST", "/api/plan"): R.plan_post,
             ("GET", "/api/phone"): R.phone_status,
             ("POST", "/api/phone"): R.phone_action,
         }

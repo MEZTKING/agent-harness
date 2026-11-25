@@ -375,3 +375,19 @@ ul.tree ul li::after { content: ""; position: absolute; left: -11px; top: 23px; 
 
 /* who did a feed step: task, role and model */
 #main .w { color: var(--muted); margin-right: 6px; font-size: 0.92em; }
+
+/* ---------- the living plan ---------- */
+.plan-page .plan-est { gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.plan-page .decision { border-top: 1px solid var(--line, rgba(255,255,255,.08)); padding: 10px 0; }
+.plan-page .decision .q { margin-bottom: 8px; }
+.plan-page .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.plan-page .opt { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 10px 12px; height: auto; white-space: normal; }
+.plan-page .opt.rec { border-color: var(--good, #8bb174); }
+.plan-page .opt.chosen { border-color: var(--accent, #d9a441); box-shadow: 0 0 0 1px var(--accent, #d9a441) inset; }
+.plan-page .idea { padding: 6px 0; }
+.plan-page ul.plain { list-style: none; padding: 0; margin: 0 0 6px; }
+.plan-page ul.plain li { padding: 3px 0; }
+.plan-page .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.plan-page .spec { border-top: 1px solid var(--line, rgba(255,255,255,.08)); padding-top: 8px; margin-top: 8px; }
+.plan-page .pre { white-space: pre-wrap; }
+@media (max-width: 720px) { .plan-page .grid2 { grid-template-columns: 1fr; } }

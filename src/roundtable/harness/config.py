@@ -79,6 +79,7 @@ class HarnessConfig:
     git: bool = True
     planner_role: str = "orchestrator"
     reviewer_role: str | None = "reviewer"
+    critic_role: str | None = None  # a second model that critiques each new plan (ideally another maker's)
     prompts_dir: Path | None = None
     hub: dict[str, Any] | None = None
     lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
@@ -310,6 +311,9 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         raise ValueError(f"planner_role {planner!r} is not defined under roles")
     if reviewer and reviewer not in roles:
         reviewer = None
+    critic = raw.get("critic_role", "critic" if "critic" in roles else None)
+    if critic and critic not in roles:
+        critic = None
 
     lim = raw.get("limits") or {}
     base = path.parent if path else Path.cwd()
@@ -330,6 +334,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         git=bool(ws.get("git", True)),
         planner_role=planner,
         reviewer_role=reviewer,
+        critic_role=critic,
         prompts_dir=(base / prompts_dir) if prompts_dir else None,
         hub=raw.get("hub"),
         lab_dir=_lab_dir(raw, base, path),
