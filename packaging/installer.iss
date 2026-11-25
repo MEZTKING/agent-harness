@@ -40,8 +40,14 @@ Name: "{autodesktop}\Roundtable Hold"; Filename: "{app}\RoundtableHold.exe"; Tas
 
 [Run]
 Filename: "{app}\RoundtableHold.exe"; Description: "Open Roundtable Hold"; Flags: nowait postinstall skipifsilent
-; after a silent in-app update, reopen the app
-Filename: "{app}\RoundtableHold.exe"; Flags: nowait; Check: WizardSilent
+; after a silent in-app update, reopen the app (pass /NOLAUNCH=1 to skip, e.g. in CI)
+Filename: "{app}\RoundtableHold.exe"; Flags: nowait; Check: ShouldRelaunch
+
+[Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:NOLAUNCH|0}') = '0');
+end;
 
 ; Your projects, journal, settings and keys are kept on uninstall
 ; (%APPDATA%\RoundtableHold and Windows Credential Manager).

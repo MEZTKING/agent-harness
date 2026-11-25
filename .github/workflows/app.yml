@@ -18,6 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +38,7 @@ jobs:
     name: Build Windows installer
     needs: tests
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,10 +53,12 @@ jobs:
       - name: Build app
         run: pyinstaller packaging/roundtable.spec --noconfirm
       - name: Self-test the built app
+        timeout-minutes: 3
         shell: pwsh
         run: |
           $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-built"
-          $p = Start-Process -FilePath dist\RoundtableHold\RoundtableHold.exe -ArgumentList "--self-test" -Wait -PassThru
+          $p = Start-Process -FilePath dist\RoundtableHold\RoundtableHold.exe -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
           Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
           if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
       - name: Build installer
@@ -63,13 +67,19 @@ jobs:
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.value }}" packaging\installer.iss
       - name: Install silently and self-test the installed app
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $setup = Get-ChildItem dist\RoundtableHold-Setup-*.exe | Select-Object -First 1
-          Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$env:RUNNER_TEMP\rt-install" -Wait
+          # wait for the installer process only (-Wait would also wait for anything it launches)
+          $inst = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOLAUNCH=1","/DIR=$env:RUNNER_TEMP\rt-install" -PassThru
+          $inst.WaitForExit()
+          if ($inst.ExitCode -ne 0) { throw "installer failed with exit code $($inst.ExitCode)" }
+          if (-not (Test-Path "$env:RUNNER_TEMP\rt-install\RoundtableHold.exe")) { throw "app not installed" }
           Get-Process RoundtableHold -ErrorAction SilentlyContinue | Stop-Process -Force
           $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-installed"
-          $p = Start-Process -FilePath "$env:RUNNER_TEMP\rt-install\RoundtableHold.exe" -ArgumentList "--self-test" -Wait -PassThru
+          $p = Start-Process -FilePath "$env:RUNNER_TEMP\rt-install\RoundtableHold.exe" -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
           Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
           if ($p.ExitCode -ne 0) { throw "installed app self-test failed" }
       - uses: actions/upload-artifact@v4
