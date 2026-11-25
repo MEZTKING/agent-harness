@@ -121,7 +121,7 @@ fun LetterRow(m: Message, showTo: Boolean, onClick: () -> Unit) {
             }
             Text(m.subject.ifBlank { "(no subject)" }, fontFamily = Serif, fontWeight = if (m.read) FontWeight.Normal else FontWeight.SemiBold,
                 fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(m.body, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(com.meztking.roundtable.data.Markdown.plain(m.body).replace("\n", " "), style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

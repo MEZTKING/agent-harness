@@ -217,12 +217,12 @@ fun RoundTable(
         val w = maxWidth.coerceAtMost(460.dp)
         val h = w * 1.22f
         val ring = if (seats.size > 6) 50.dp else 58.dp
-        val label = 104.dp
+        val label = 100.dp
         val cx = maxWidth / 2
         val cy = h * 0.46f
-        val rx = w * 0.355f
+        val rx = w * 0.37f
         val ry = h * 0.36f
-        val centreR = w * 0.2f
+        val centreR = w * 0.17f
         Box(Modifier.fillMaxWidth().height(h)) {
             // the table top and its glow
             Canvas(Modifier.fillMaxSize()) {

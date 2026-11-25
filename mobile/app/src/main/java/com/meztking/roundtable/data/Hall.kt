@@ -145,7 +145,7 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
     override suspend fun inbox(project: String) = hub.inbox(project)
 
     override suspend fun letters(): List<Message> = coroutineScope {
-        val s = snap()
+        val s = snap(fresh = true)
         s.projects.map { p ->
             async { hub.messages(p.id, s.inboxIds[p.id].orEmpty().take(25), s.readIds[p.id].orEmpty()) }
         }.awaitAll().flatten().sortedByDescending { it.created_at.ifBlank { it.id } }

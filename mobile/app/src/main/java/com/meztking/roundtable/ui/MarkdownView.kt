@@ -66,6 +66,15 @@ fun styled(s: String, codeBg: Color = Hall.code, codeFg: Color = Hall.goldBright
         }
     }
 
+private val boldTime = Regex("\\*\\*(\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d[0-9:.]*Z?)\\*\\*")
+private val shortTime = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(java.time.ZoneId.systemDefault())
+
+/** "**2026-11-25T13:41:57Z**" (as the status pages write it) becomes "**25 Nov, 13:41 (3 h ago)**" in the phone's time zone. */
+fun readableTimes(s: String): String = boldTime.replace(s) { m ->
+    val t = com.meztking.roundtable.data.parseInstant(m.groupValues[1]) ?: return@replace m.value
+    "**${shortTime.format(t)} (${com.meztking.roundtable.data.ago(m.groupValues[1])})**"
+}
+
 /** The sections of a status page or plan, drawn natively. */
 @Composable
 fun SectionsView(sections: List<StatusDoc.Section>, modifier: Modifier = Modifier) {
@@ -96,7 +105,7 @@ fun MdBlocks(blocks: List<Md>, modifier: Modifier = Modifier) {
                 color = Hall.goldBright, modifier = Modifier.padding(top = 6.dp))
             is Md.Paragraph -> {
                 val italicOnly = b.text.startsWith("_") && b.text.endsWith("_")
-                Text(styled(b.text), style = MaterialTheme.typography.bodyMedium, color = if (italicOnly) Hall.muted else text)
+                Text(styled(readableTimes(b.text)), style = MaterialTheme.typography.bodyMedium, color = if (italicOnly) Hall.muted else text)
             }
             is Md.Item -> ItemRow(b)
             is Md.Quote -> Row {
@@ -127,7 +136,13 @@ fun MdBlocks(blocks: List<Md>, modifier: Modifier = Modifier) {
 @Composable
 private fun ItemRow(b: Md.Item) {
     val high = b.text.startsWith("**(high)**")
-    val body = remember(b.text) { styled(b.text.removePrefix("**(high)**").trim()) }
+    val body = remember(b.text) {
+        val rest = styled(b.text.removePrefix("**(high)**").trim())
+        if (!high) rest else buildAnnotatedString {
+            withStyle(SpanStyle(color = Hall.bad, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)) { append("HIGH  ") }
+            append(rest)
+        }
+    }
     Row(Modifier.fillMaxWidth().padding(start = (b.depth * 16).dp), verticalAlignment = Alignment.Top) {
         when {
             b.checked != null -> Box(
@@ -138,10 +153,7 @@ private fun ItemRow(b: Md.Item) {
             else -> Box(Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp).size(5.dp).background(Hall.gold, CircleShape))
         }
         Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            if (high) Chip("high", Hall.bad)
-            Text(body, style = MaterialTheme.typography.bodyMedium)
-        }
+        Text(body, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         if (b.id != null) {
             Spacer(Modifier.width(6.dp))
             Chip(b.id, Hall.goldDim, mono = true)

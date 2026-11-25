@@ -77,6 +77,8 @@ android {
             all {
                 it.systemProperty("roborazzi.test.record", if (project.hasProperty("screenshots")) "true" else "false")
                 it.systemProperty("screenshots.dir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
+                // where Robolectric downloads Android itself from (-ProbolectricRepo=<maven mirror> when Maven Central is busy)
+                project.findProperty("robolectricRepo")?.let { url -> it.systemProperty("robolectric.dependency.repo.url", url.toString()) }
             }
         }
     }

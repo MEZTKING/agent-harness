@@ -120,6 +120,10 @@ class ScreensTest {
         TableScreen(Load(hall), Mode.HUB, "Hub on GitHub · example/hub", emptySet(), {}, {}, { _, _ -> }, {}, false, {})
     }
 
+    @Test fun seatCard() = shot("1b-seat-card") {
+        androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) { SeatSummary(seats[0]) {} }
+    }
+
     @Test fun tableWithManySeats() = shot("2-table-list") {
         val many = seats + seats.map { it.copy(id = it.id + "-2") }
         TableScreen(Load(hall.copy(seats = many)), Mode.HUB, "Hub on GitHub · example/hub", emptySet(), {}, {}, { _, _ -> }, {}, false, {})

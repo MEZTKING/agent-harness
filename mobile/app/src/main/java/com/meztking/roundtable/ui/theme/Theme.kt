@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -112,8 +113,10 @@ fun RoundtableTheme(content: @Composable () -> Unit) {
         colorScheme = scheme,
         typography = typography,
         shapes = Shapes(small = RoundedCornerShape(5.dp), medium = RoundedCornerShape(8.dp), large = RoundedCornerShape(14.dp)),
-        content = content,
-    )
+    ) {
+        // text drawn straight on the hall (not inside a Surface) is parchment-light, not black
+        CompositionLocalProvider(LocalContentColor provides Hall.text, content = content)
+    }
 }
 
 /** The hall behind every screen: candle glow from above over dark stone. */
@@ -144,6 +147,7 @@ fun Parchment(modifier: Modifier = Modifier, seal: Color = Hall.ember, content: 
     Box(modifier) {
         Column(
             Modifier
+                .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Hall.parchment, Hall.parchmentLo)), shape)
                 .border(BorderStroke(1.dp, Hall.goldDim), shape)
                 .drawBehind {
@@ -153,7 +157,7 @@ fun Parchment(modifier: Modifier = Modifier, seal: Color = Hall.ember, content: 
                     // the wax seal
                     val r = 9.dp.toPx()
                     val c = Offset(size.width - 18.dp.toPx(), 18.dp.toPx())
-                    drawCircle(Brush.radialGradient(listOf(seal.copy(alpha = 0.95f), seal.copy(red = seal.red * 0.6f)), center = c, radius = r), r, c)
+                    drawCircle(Brush.radialGradient(listOf(seal, androidx.compose.ui.graphics.lerp(seal, Color.Black, 0.45f)), center = c, radius = r), r, c)
                     drawCircle(Color.Black.copy(alpha = 0.18f), r * 0.55f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f))
                 }
                 .padding(start = 16.dp, end = 34.dp, top = 14.dp, bottom = 14.dp),
