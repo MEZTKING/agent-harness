@@ -160,17 +160,99 @@ function briefCard(b, full = false) {
 }
 
 // ---------- views ----------
+// Inline SVG is built node by node too (createElementNS), never from markup strings.
+function svg(tag, attrs, ...kids) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v !== null && v !== undefined && v !== false) el.setAttribute(k, v);
+  for (const kid of kids.flat(Infinity)) if (kid) el.append(kid);
+  return el;
+}
+const MAX_SEATS = 10;   // more projects than this and the placards go in rows instead of round the table
+let seatSel = null;     // the project that "has the floor" on the Where page; survives re-renders
+
+// The round table seen from above, in a 118 x 100 box: (59, 50) is the centre. seats: [{x, y, high}] in box units.
+function tableArt(seats) {
+  const cx = 59, cy = 50, R = 23;
+  const stops = (...list) => list.map(([offset, color, opacity]) => svg("stop", { offset, "stop-color": color, "stop-opacity": opacity ?? 1 }));
+  const spokes = [], places = [];
+  seats.forEach((s) => {
+    const dx = s.x - cx, dy = s.y - cy, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+    spokes.push(svg("line", { class: "tbl-spoke", x1: cx + ux * (R + 1.2), y1: cy + uy * (R + 1.2), x2: s.x, y2: s.y }));
+    places.push(svg("circle", { class: "tbl-place" + (s.high ? " high" : ""), cx: cx + ux * 19.6, cy: cy + uy * 19.6, r: 1.15 }));
+  });
+  const candle = (x, y, k, cls) => svg("g", {},
+    svg("circle", { cx: x, cy: y, r: 1.5 * k, fill: "#d9cba6", stroke: "#8f7b55", "stroke-width": 0.2 }),
+    svg("ellipse", { class: "tbl-flame " + cls, cx: x, cy: y - 0.35 * k, rx: 0.8 * k, ry: 1.25 * k, fill: "url(#rt-flame)" }));
+  const art = svg("svg", { viewBox: "0 0 118 100", "aria-hidden": "true", focusable: "false" },
+    svg("defs", {},
+      svg("radialGradient", { id: "rt-pool" }, stops(["0%", "#e2a24a", 0.3], ["45%", "#e2a24a", 0.11], ["100%", "#e2a24a", 0])),
+      svg("radialGradient", { id: "rt-wood", cx: "50%", cy: "46%", r: "62%" }, stops(["0%", "#5a4028"], ["55%", "#3a2917"], ["100%", "#1d140b"])),
+      svg("radialGradient", { id: "rt-halo" }, stops(["0%", "#ffd98a", 0.75], ["35%", "#e2a24a", 0.28], ["100%", "#e2a24a", 0])),
+      svg("radialGradient", { id: "rt-flame", cx: "50%", cy: "65%", r: "60%" }, stops(["0%", "#fff6d8"], ["45%", "#ffc861"], ["100%", "#e2792c"]))),
+    svg("circle", { class: "tbl-glow", cx, cy, r: 49, fill: "url(#rt-pool)" }),
+    spokes,
+    svg("circle", { cx, cy: cy + 1.4, r: R + 0.6, fill: "#000", opacity: 0.55 }),
+    svg("circle", { cx, cy, r: R, fill: "url(#rt-wood)", stroke: "#b8924a", "stroke-width": 0.55 }),
+    svg("circle", { cx, cy, r: R - 1.5, fill: "none", stroke: "#000", "stroke-width": 0.3, opacity: 0.5 }),
+    svg("circle", { cx, cy, r: 16.6, fill: "none", stroke: "#d0ab62", "stroke-width": 0.3, opacity: 0.75 }),
+    svg("circle", { cx, cy, r: 15.4, fill: "none", stroke: "#d0ab62", "stroke-width": 0.9, "stroke-dasharray": "0.35 2.06", opacity: 0.55 }),
+    svg("circle", { cx, cy, r: 8.2, fill: "none", stroke: "#d0ab62", "stroke-width": 0.3, opacity: 0.6 }),
+    Array.from({ length: 12 }, (_, i) => { const a = (i * Math.PI) / 6; return svg("line", { x1: cx + 8.2 * Math.cos(a), y1: cy + 8.2 * Math.sin(a),
+      x2: cx + 14.6 * Math.cos(a), y2: cy + 14.6 * Math.sin(a), stroke: "#d0ab62", "stroke-width": 0.18, opacity: 0.4 }); }),
+    places,
+    svg("circle", { class: "tbl-glow", cx, cy, r: 11, fill: "url(#rt-halo)" }),
+    candle(cx - 2.5, cy + 1.4, 1, "a"), candle(cx + 2.6, cy + 1.1, 0.85, "b"), candle(cx + 0.1, cy - 2.4, 1.1, "c"));
+  return { art, spokes, places };
+}
+
 async function viewWhere() {
   if (!OV.hub) return needHub();
   const briefs = await api("GET", "/api/where");
   const active = briefs.filter((b) => b.last_activity), quiet = briefs.filter((b) => !b.last_activity);
+  const highOf = (b) => b.open_todos.filter((e) => e.priority === "high").length;
   const todos = active.reduce((n, b) => n + b.open_todos.length, 0);
-  const high = active.reduce((n, b) => n + b.open_todos.filter((e) => e.priority === "high").length, 0);
+  const high = active.reduce((n, b) => n + highOf(b), 0);
+  let council = null;
+  if (active.length) {
+    if (!active.some((b) => b.agent === seatSel)) seatSel = active[0].agent;
+    const n = active.length, crowded = n > MAX_SEATS;
+    const pos = active.map((_, i) => { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; return { c: Math.cos(a), s: Math.sin(a) }; });
+    const table = crowded ? null : tableArt(active.map((b, i) => ({ x: 59 + 43.66 * pos[i].c, y: 50 + 40 * pos[i].s, high: highOf(b) > 0 })));
+    const speaker = h("div", { class: "speaker", "aria-live": "polite" });
+    const seats = [];
+    const choose = (i, scroll) => {
+      seatSel = active[i].agent;
+      seats.forEach((el, k) => { el.classList.toggle("on", k === i); el.setAttribute("aria-pressed", k === i ? "true" : "false"); });
+      if (table) [table.spokes, table.places].forEach((list) => list.forEach((el, k) => el.classList.toggle("on", k === i)));
+      speaker.replaceChildren(h("div", { class: "speaker-label" }, "Has the floor"), briefCard(active[i], true));
+      if (scroll && window.matchMedia("(max-width: 1099px)").matches) speaker.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    active.forEach((b, i) => {
+      const hi = highOf(b), open = b.open_todos.length;
+      seats.push(h("div", { class: "seat", role: "button", tabindex: "0", "data-seat": b.agent,
+        title: `${b.agent}: ${open} open todo(s)${hi ? `, ${hi} high priority` : ""}`,
+        style: `left:${(50 + 37 * pos[i].c).toFixed(2)}%;top:${(50 + 40 * pos[i].s).toFixed(2)}%`,
+        onclick: () => choose(i, true),
+        onkeydown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(i, true); } } },
+      h("span", { class: "seat-name" }, b.agent),
+      h("span", { class: "seat-when" }, ago(b.last_activity)),
+      h("span", { class: "seat-marks" },
+        h("span", { class: "seat-count" + (open ? "" : " zero") }, open),
+        hi ? h("span", { class: "seat-high" }, h("span", {}, `${hi} high`)) : null)));
+    });
+    choose(active.findIndex((b) => b.agent === seatSel), false);
+    council = h("div", { class: "council" },
+      h("div", { class: "round" + (crowded ? " crowded" : n > 6 ? " many" : "") }, table ? table.art : null, seats),
+      speaker);
+  }
   return h("div", {},
     h("h1", {}, "Where was I?"),
-    h("p", { class: "sub" }, `${active.length} active project(s) · ${todos} open todo(s)`, high ? h("span", { class: "prio-high" }, ` · ${high} high priority`) : null),
-    active.length ? h("div", { class: "grid" }, active.map((b) => briefCard(b))) : h("div", { class: "card" }, "No journal entries yet. Add one below or with ", h("code", {}, "roundtable log todo \"…\"")),
-    quiet.length ? h("div", { class: "card", style: "margin-top:14px" }, h("h2", {}, "Quiet projects"),
+    h("p", { class: "sub agenda" }, h("span", { class: "agenda-label" }, "Agenda"),
+      h("span", { class: "agenda-item" }, h("b", {}, active.length), " active project(s)"),
+      h("span", { class: "agenda-item" }, h("b", {}, todos), " open todo(s)"),
+      high ? h("span", { class: "agenda-item urgent" }, h("b", {}, high), " high priority") : null),
+    council || h("div", { class: "card" }, "No journal entries yet. Add one below or with ", h("code", {}, "roundtable log todo \"…\"")),
+    quiet.length ? h("div", { class: "card", style: "margin-top:20px" }, h("div", { class: "card-head" }, h("h2", {}, "Quiet projects"), h("span", { class: "muted small" }, "not at the table yet")),
       h("ul", { class: "items" }, quiet.map((b) => h("li", {}, h("span", { class: "text" }, h("a", { href: `#/project/${b.agent}` }, b.agent), " ",
         h("span", { class: "muted small" }, b.description || ""))))) ) : null);
 }
