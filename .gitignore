@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
+# local hub config / data (keep your real ones out of the code repo)
+hub.yaml
+hub-data/
