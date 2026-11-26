@@ -65,6 +65,8 @@ async function waitingFor(id) {
 function moveOn(s) {
   if (s.path) {
     const out = runButtons({ path: s.path, actions: s.actions || [], task: s.failed_task }, () => refreshHall());
+    if ((s.actions || []).includes("resume")) out.push(h("button", { title: "Builds just the next task, then stops so you can look",
+      onclick: (ev) => act(ev.currentTarget, () => post("/api/project", { path: s.path, action: "run", max_tasks: 1 }), "Building the next task", () => refreshHall()) }, "Just the next task"));
     if (s.status === "running") out.push(h("a", { class: "btn primary", href: projectHref(s.id, "watch") }, h("i", { class: "cdl" }), "Watch it work"));
     if (["done", "idle"].includes(s.status) && !(s.actions || []).length) out.push(h("button", { class: s.status === "done" ? "primary" : "", title: "Give it a new goal: the planner adds tasks for it, then builds them",
       onclick: async (ev) => {
@@ -214,6 +216,13 @@ function briefCard(seat) {
 }
 
 // ---------- Settings ----------
+const ABOUT = { test: "The command that checks the app after each task. A task that breaks a check that passed before is sent back.",
+  env: "Settings that command needs, one a line, like NAME=value. Never keys or passwords.", setup: "A command run once before the first task, to get the app ready.",
+  timeout: "How long the check or set-up may take.", branch: "Where Roundtable's work goes in an existing app; never its main line.",
+  rules_files: "The app's own rule files, which every model follows.", rules_budget: "At most this much of those rules goes to the models.",
+  providers_allowed: "Only these AI services may see this project. None ticked: any of them.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
+  limits: "Money and effort limits for this project only. Empty: the app's own.", look: "Offer looks to choose from before building.",
+  show_it: "Take pictures of the app's screens after each task.", notes: "Anything the planner should know about this project, in your own words." };
 const LABELS = { test: ["Check command", "How the app is checked after each task"], env: ["Settings for the check", ""], setup: ["Set-up command", ""],
   timeout: ["Time allowed for the check (seconds)", ""], branch: ["Where the work goes", ""], rules_files: ["The app's own rules", ""],
   rules_budget: ["How much of those rules the models read (characters)", ""], providers_allowed: ["Only these AI services may see it", ""],
@@ -224,6 +233,7 @@ const GROUPS = [["What it costs and who builds it", ["profile", "limits", "provi
   ["How it's checked (for an existing app)", ["test", "setup", "env", "timeout", "branch", "rules_files", "rules_budget"]]];
 
 async function settingsTab(seat) {
+  if (!S.routing) { try { S.routing = await get("/api/routing"); } catch { /* the service names fall back to their ids */ } }
   const box = h("div", { class: "stack" });
   const load = async () => {
     let st;
@@ -234,24 +244,29 @@ async function settingsTab(seat) {
       const [label] = LABELS[it.key] || [it.key];
       let el;
       if (it.type === "choice") {
-        el = h("select", { title: it.description }, it.choices.map((c) => h("option", { value: c, selected: c === (it.value ?? "") }, it.key === "profile" ? (c ? setWord(c) : "The app's choice") : CHOICE_WORDS[c] || c)));
+        el = h("select", { title: ABOUT[it.key] || it.description }, it.choices.map((c) => h("option", { value: c, selected: c === (it.value ?? "") }, it.key === "profile" ? (c ? setWord(c) : "The app's choice") : CHOICE_WORDS[c] || c)));
       } else if (it.type === "number-map") {
         el = h("div", { class: "limits" }, (it.keys || Object.keys(LIMIT_WORDS)).map((k) => h("label", { class: "field small" }, h("span", { class: "label" }, LIMIT_WORDS[k] || k),
           h("input", { type: "number", step: "any", min: "0", "data-k": k, value: (it.value || {})[k] ?? "", placeholder: "default" }))));
       } else if (it.type === "map") {
-        el = h("textarea", { rows: 2, title: it.description, placeholder: "NAME=value, one a line" }, Object.entries(it.value || {}).map(([k, x]) => `${k}=${x}`).join("\n"));
-      } else if (it.key === "notes") el = h("textarea", { rows: 3, title: it.description }, it.value || "");
-      else if (it.type === "lines") el = h("input", { title: it.description, value: (it.value || []).join(", "), placeholder: "separate with commas" });
-      else el = h("input", { title: it.description, value: it.value ?? "", type: it.type === "int" ? "number" : "text" });
+        el = h("textarea", { rows: 2, title: ABOUT[it.key] || it.description, placeholder: "NAME=value, one a line" }, Object.entries(it.value || {}).map(([k, x]) => `${k}=${x}`).join("\n"));
+      } else if (it.key === "notes") el = h("textarea", { rows: 3, title: ABOUT[it.key] || it.description }, it.value || "");
+      else if (it.key === "providers_allowed") {
+        const on = new Set(it.value || []);
+        el = h("div", { class: "to-list" }, Object.entries((S.routing || {}).providers || {}).map(([pid, p]) =>
+          h("label", { class: "check" }, h("input", { type: "checkbox", value: pid, checked: on.has(pid) }), p.name)));
+      } else if (it.type === "lines") el = h("input", { title: ABOUT[it.key] || it.description, value: (it.value || []).join(", "), placeholder: "separate with commas" });
+      else el = h("input", { title: ABOUT[it.key] || it.description, value: it.value ?? "", type: it.type === "int" ? "number" : "text" });
       inputs[it.key] = el;
-      return h("div", { class: "setting" }, h("label", { class: "label", title: it.description }, label,
+      return h("div", { class: "setting" }, h("label", { class: "label", title: ABOUT[it.key] || it.description }, label,
         it.source !== "default" ? h("span", { class: "muted small", title: it.source === "roundtable.yaml" ? "From the app's own folder: the default for everyone who builds it" : "Set for this project" }, it.source === "roundtable.yaml" ? " · from the app" : " · set here") : null),
-      el, h("p", { class: "muted small" }, it.description));
+      el, h("p", { class: "muted small" }, ABOUT[it.key] || it.description));
     };
     const value = (it) => {
       const el = inputs[it.key];
       if (it.type === "number-map") { const out = {}; el.querySelectorAll("input").forEach((i) => { if (i.value !== "") out[i.dataset.k] = Number(i.value); }); return out; }
       if (it.type === "map") return el.value.replace(/\n/g, ",");
+      if (it.key === "providers_allowed") return [...el.querySelectorAll("input:checked")].map((i) => i.value).join(", ");
       return el.value;
     };
     const shown = (it) => it.type === "number-map" ? Object.fromEntries(Object.entries(it.value || {})) : it.type === "map" ? Object.entries(it.value || {}).map(([k, x]) => `${k}=${x}`).join(",")

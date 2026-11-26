@@ -28,6 +28,7 @@ async function keysPart(st) {
   const result = {};
   const rows = st.keys.map((k) => {
     const input = h("input", { type: "password", class: "grow", autocomplete: "off", disabled: !st.desktop, "aria-label": `${k.label} key`,
+      oninput: (ev) => ev.target.parentNode.querySelector(".save-key")?.classList.toggle("primary", !!ev.target.value.trim()),
       placeholder: k.set ? "Saved. Paste a new key to replace it" : `Paste your ${k.label} key` });
     const out = h("p", { class: "key-result small", "aria-live": "polite" });
     const pill = k.set ? h("span", { class: "pill good" }, "saved") : h("span", { class: "pill" }, "no key yet");
@@ -45,7 +46,7 @@ async function keysPart(st) {
     return h("div", { class: "key-row", id: `key-${k.name}` },
       h("div", { class: "key-name" }, h("b", {}, k.label), pill),
       h("div", { class: "row" }, input,
-        st.desktop ? h("button", { class: "primary small", onclick: (ev) => {
+        st.desktop ? h("button", { class: "small save-key", onclick: (ev) => {
           if (!input.value.trim()) return toast("Paste the key first.", true);
           act(ev.currentTarget, () => post("/api/setup/keys", { keys: { [k.name]: input.value.trim() } }), `${k.label} key saved`, async (r) => { S.setup = r; input.value = ""; pill.className = "pill good"; pill.textContent = "saved"; await test(null); });
         } }, "Save") : null,
@@ -199,7 +200,8 @@ async function backupsPart() {
     fill(box,
       card("Backups", h("p", { class: "muted small" }, "A backup holds your settings, what Roundtable has learned, and every project's plan and history. It never holds your keys."),
         s.destination ? h("p", {}, "They go to: ", h("b", { title: s.destination }, s.destination.split(/[\\/]/).slice(-2).join(" › ")))
-          : h("p", { class: "warn" }, noDrive, " ", h("a", { href: "https://www.google.com/drive/download/", target: "_blank", rel: "noopener" }, "Get Google Drive")),
+          : h("p", { class: "warn", title: noDrive }, "There's no Google Drive folder on this computer. Choose a folder below, or ",
+            h("a", { href: "https://www.google.com/drive/download/", target: "_blank", rel: "noopener", title: "Opens Google's download page; install it and sign in, then come back" }, "get Google Drive"), "."),
         h("div", { class: "row" }, folder, h("button", { class: "small", onclick: (ev) => save(ev.currentTarget, { to: folder.value.trim() || "auto" }, "Saved") }, "Use this folder"),
           set.to !== "auto" ? h("button", { class: "small", onclick: (ev) => save(ev.currentTarget, { to: "auto" }, "Backups go to Google Drive") }, "Use Google Drive") : null),
         h("p", {}, "Last backup: ", last, s.last.last_error ? h("span", { class: "pill warn" }, "it had a problem") : null),

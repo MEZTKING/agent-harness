@@ -28,10 +28,12 @@ function seat(s) {
 
 function placeRing(ring, n) {  // the seats on an ellipse around the table, the empty chair last
   const items = [...ring.querySelectorAll(":scope > .seat")];
+  if (!items.length) return;
+  ring.style.height = `${Math.min(860, Math.max(600, 74 * items.length))}px`;  // room for every seat, taller as the table fills
   items.forEach((el, i) => {
     const a = (2 * Math.PI * i) / items.length - Math.PI / 2;
     el.style.left = `${50 + 41 * Math.cos(a)}%`;
-    el.style.top = `${50 + 40 * Math.sin(a)}%`;
+    el.style.top = `${50 + 42 * Math.sin(a)}%`;
   });
   ring.dataset.n = n;
 }
@@ -47,7 +49,7 @@ export async function viewHall() {
     h("b", {}, "+ Pull up a chair"), h("span", {}, "Start a new idea"));
 
   let wide = true;
-  const ro = new ResizeObserver(() => { const w = table.clientWidth > 640; if (w !== wide) { wide = w; table._sig = undefined; draw(S.rt); } });
+  const ro = new ResizeObserver(() => { const w = table.clientWidth > 760; if (w !== wide) { wide = w; table._sig = undefined; draw(S.rt); } });
   ro.observe(table);
 
   async function draw(rt) {

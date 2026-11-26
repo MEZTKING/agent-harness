@@ -5,7 +5,7 @@ import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, refresh
 const KINDS = [["all", "Everything"], ["todo", "To-dos"], ["plan", "Plans"], ["decision", "Decisions"], ["done", "Done"], ["note", "Notes"], ["session", "Sessions"]];
 const KIND_WORD = { todo: "To-do", plan: "Plan", decision: "Decided", done: "Done", note: "Note", session: "Session" };
 const ADD = [["todo", "To-do", "Something to do"], ["note", "Note", "Something worth remembering"], ["plan", "Plan", "Something you mean to do later"],
-  ["decision", "Decision", "Something you decided"], ["done", "Done", "Something that's finished"]];
+  ["decision", "Decision", "Something you decided"], ["done", "Done", "Something that's finished"], ["session", "Session", "What a working session did, and what comes next"]];
 
 export async function journalTab(seat) {
   const hubAgent = (S.ov.agents || []).some((a) => a.id === seat.id);
@@ -57,14 +57,16 @@ function addForm(agent, reload) {
   let kind = "todo";
   const text = h("input", { class: "grow", placeholder: "Write a to-do, a note or a decision…", "aria-label": "What to write", autocomplete: "off" });
   const high = h("input", { type: "checkbox" });
+  const next = h("textarea", { rows: 2, hidden: true, placeholder: "What comes next, one a line", "aria-label": "What comes next" });
   const form = h("form", { class: "add-entry", onsubmit: async (ev) => {
     ev.preventDefault();
     if (!text.value.trim()) return toast("Write something first.", true);
-    await act(form.querySelector("button.primary"), () => post(`/api/journal/${encodeURIComponent(agent)}`, { kind, text: text.value.trim(), priority: high.checked ? "high" : "normal" }),
-      "Written down", async () => { text.value = ""; high.checked = false; await reload(); await refreshHall(); });
-  } }, seg(ADD.map(([k, t, tip]) => [k, t, tip]), kind, (v) => { kind = v; }, "Kind"), text,
+    await act(form.querySelector("button.primary"), () => post(`/api/journal/${encodeURIComponent(agent)}`, { kind, text: text.value.trim(), priority: high.checked ? "high" : "normal",
+      ...(kind === "session" ? { next: next.value.split("\n").map((x) => x.trim()).filter(Boolean) } : {}) }),
+      "Written down", async () => { text.value = ""; next.value = ""; high.checked = false; await reload(); await refreshHall(); });
+  } }, seg(ADD.map(([k, t, tip]) => [k, t, tip]), kind, (v) => { kind = v; next.hidden = v !== "session"; }, "Kind"), text,
   h("label", { class: "check small", title: "An important to-do for you shows up in Needs you" }, high, "Important"),
-  h("button", { class: "primary" }, "Add"));
+  h("button", { class: "primary" }, "Add"), next);
   return form;
 }
 

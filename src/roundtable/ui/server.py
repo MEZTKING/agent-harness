@@ -78,7 +78,7 @@ class Jobs:
     def start(self, kind: str, title: str, fn: Callable[[Job], Any], target: str = "") -> Job:
         with self.lock:
             if target and target in self.busy:
-                raise ApiError("Something is already running for this project. Wait for it to finish (see Jobs), then try again.", 409)
+                raise ApiError("Something is already running for this project. Wait for it to finish (Activity → Background work), then try again.", 409)
             job = Job(secrets.token_hex(4), kind, title, target)
             self.jobs[job.id] = job
             if target:
@@ -233,8 +233,8 @@ class UIApp:
         from ..improve.lab import Lab
 
         if not cfg.lab_dir:
-            raise ApiError("There's no folder for Roundtable's own records yet (lab in harness.yaml). Open Settings to set "
-                           "one.", 503)
+            raise ApiError("There's no folder for Roundtable's own records yet. Run the set-up again from Settings → "
+                           "Advanced.", 503)
         return Lab(cfg.lab_dir)
 
     def _lab_projects(self) -> list[Path]:
@@ -549,7 +549,7 @@ class UIApp:
 
             return self.jobs.start("run", f"{action} {proj.root.name}", run, target=str(proj.root)).view()
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
-            raise ApiError("Wait for the job running on this project to finish (see Jobs), then try again.", 409)
+            raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         from ..harness.orchestrator import Orchestrator
 
         orch = Orchestrator(cfg, proj.root)
@@ -605,7 +605,7 @@ class UIApp:
         proj = self.project(cfg, body.get("path", ""))
         action = body.get("action", "")
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
-            raise ApiError("Wait for the job running on this project to finish (see Jobs), then try again.", 409)
+            raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         if action == "revise":
             def run(job: Job):
                 orch = self._orch(cfg, proj.root, job)
@@ -668,7 +668,7 @@ class UIApp:
             return self._wizard_start(cfg, body["wizard"])
         proj = self.project(cfg, body.get("path", ""))
         if self._busy(proj.root):
-            raise ApiError("Wait for the job running on this project to finish (see Jobs), then try again.", 409)
+            raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         try:
             r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
                            str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
@@ -958,7 +958,7 @@ class UIApp:
 
     def setup_keys(self, body):
         if not self.desktop:
-            raise ApiError("API keys are read from environment variables when running from the terminal")
+            raise ApiError("This copy reads keys from the computer's own settings. Open the Roundtable Hold app to save keys here.")
         ks = self.desktop["keys"]
         for name, value in (body.get("keys") or {}).items():
             if not isinstance(name, str) or not name.replace("_", "").isalnum() or not name.isupper():
@@ -972,7 +972,7 @@ class UIApp:
 
         path = self._config_paths().get("harness")
         if not path or not path.exists():
-            raise ApiError("There's no harness.yaml yet. Run the setup again to make one.", 404)
+            raise ApiError("Roundtable's settings are missing. Run the set-up again from Settings → Advanced.", 404)
         return preview(path)
 
     def recommended_apply(self, body):
@@ -980,17 +980,17 @@ class UIApp:
 
         path = self._config_paths().get("harness")
         if not path or not path.exists():
-            raise ApiError("There's no harness.yaml yet. Run the setup again to make one.", 404)
+            raise ApiError("Roundtable's settings are missing. Run the set-up again from Settings → Advanced.", 404)
         try:
             done = apply(path)
         except ValueError as e:
             raise ApiError(f"Nothing was changed: the recommended setup didn't fit your settings ({e}). "
-                           "Check the Config files below, then try again.")
+                           "Choose the jobs yourself in Models, or ask for help.")
         return {**done, **self.recommended()}
 
     def setup_hub(self, body):
         if not self.desktop:
-            raise ApiError("connect a hub from the terminal: edit hub.yaml")
+            raise ApiError("This copy was started with its own hub settings. Open the Roundtable Hold app to connect a hub here.")
         from ..desktop import connect_github_hub, write_local_hub
 
         paths = self.desktop["paths"]
@@ -1027,7 +1027,7 @@ class UIApp:
         which = (q.get("which") or ["harness"])[0]
         path = self._config_paths().get(which)
         if not path:
-            raise ApiError(f"no {which} config file", 404)
+            raise ApiError("That settings file isn't there yet. Run the set-up again from Settings → Advanced.", 404)
         return {"which": which, "path": str(path), "text": path.read_text(encoding="utf-8") if path.exists() else ""}
 
     def config_save(self, body):
@@ -1188,7 +1188,7 @@ class UIApp:
         except (PermissionError, ValueError) as e:
             raise ApiError(f"The hub didn't take it: {e}. Check the hub's rules let you message this project.") from None
         return {"reply": "Sent: it starts when that computer next checks the hub. Its answer comes back in "
-                         "Messages."}
+                         "Letters."}
 
     def activity(self, q):
         from .roundtable import activity
@@ -1411,7 +1411,7 @@ class UIApp:
         if parts[:2] == ["api", "jobs"] and len(parts) == 3 and method == "GET":
             job = self.jobs.jobs.get(parts[2])
             if not job:
-                raise ApiError("That job has gone (the app was restarted). Look at Jobs for the current ones.", 404)
+                raise ApiError("That job has gone (the app was restarted). Look in Activity → Background work for the current ones.", 404)
             return job.view(int((q.get("since") or ["0"])[0]))
         if parts[:2] == ["api", "plugins"]:
             from ..plugins.manage import api as plugins_api
