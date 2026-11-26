@@ -220,6 +220,8 @@ def build(app) -> dict[str, Any]:
             briefs[r] = rest
         for a, b in briefs.items():
             spec = agents[a]
+            if spec.role == "machine" and a not in runners:  # a PC or a phone: in the machines, not a project
+                continue
             if a == app.agent and not spec.repo:  # the owner's own notes: beside the table, not at it
                 notes = {"id": a, "name": hall.NOTES_NAME, "open_todos": len(b["open_todos"]),
                          "unread": unread.get(a, 0), "last_activity": b["last_activity"], "brief": b}
@@ -350,13 +352,35 @@ def build(app) -> dict[str, Any]:
     order = {"running": 0, "waiting": 1, "idle": 2, "done": 3}
     # running first, then waiting, idle, done; most recently active first within each group
     seat_list = sorted(seats.values(), key=lambda s: (order.get(s["status"], 9), _age_s(s.get("last_activity") or "")))
+    machines, claims = _machines(app)
+    from ..sync import claim_fresh
+
+    for s in seat_list:  # which machine builds it now (one at a time)
+        c = next((c for c in claims.values() if claim_fresh(c) and (
+            (s.get("hub_name") and c.get("hub_name") == s["hub_name"]) or c.get("folder") == s["id"])), None)
+        if c:
+            s["building_on"] = {"machine": c.get("machine"), "name": c.get("machine_name"), "since": c.get("since")}
     return {
+        "machines": machines,
         "seats": seat_list, "needs_you": needs, "health": sorted(health, key=lambda h: h["model"]),
         "notes": notes,
         "spend_today": round(spend_today, 6), "synced_at": app.last_auto_sync, "agent": app.agent,
         "running_jobs": sum(j.status == "running" for j in app.jobs.jobs.values()),
         "autopilot": pilot,
     }
+
+
+def _machines(app) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Every machine seat and every claim; never breaks the table."""
+    if not app.hub:
+        return [], {}
+    try:
+        from ..sync import machines, read_claims
+
+        with app.hub_lock:
+            return machines(app.hub), read_claims(app.hub)
+    except Exception:
+        return [], {}
 
 
 def _blank_brief(agent: str) -> dict[str, Any]:
@@ -515,7 +539,13 @@ class AutoSync:
             self.app.last_auto_sync = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.app.auto_sync_error = ""
             cfg = self.app.cfg()
-            if cfg and cfg.lab_dir and (cfg.remote or {}).get("enabled", True):
+            listening = bool(cfg and cfg.lab_dir and (cfg.remote or {}).get("enabled", True))
+            from ..sync import tick as sync_tick
+
+            done = sync_tick(self.app, listening=listening)  # this machine's seat, heartbeat, shared settings
+            if done.get("error"):
+                self.app.auto_sync_error = done["error"]
+            if listening:
                 from ..remote import process
 
                 process(cfg, self.app.hub, background=True, log=lambda s: None)  # commands from the phone

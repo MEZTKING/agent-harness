@@ -86,6 +86,14 @@ def harness_config(hub_yaml: Path, seat: str) -> dict[str, Any]:
     }
 
 
+def machine_env(paths: Paths, seat: str) -> None:
+    """This phone as a machine of the hub (sync.py): its seat and its friendly name, "Phone (OPPO)"."""
+    from .sync import MACHINE_ENV, MACHINE_NAME_ENV, phone_title
+
+    os.environ[MACHINE_ENV] = seat
+    os.environ[MACHINE_NAME_ENV] = phone_title(paths.load_settings().get("device_name"))
+
+
 def write_local_hub(paths: Paths, seat: str) -> None:
     from .desktop import write_local_hub as write
 
@@ -222,9 +230,26 @@ class LocalAccess:
         return self.keys_list()
 
     def hub_status(self) -> dict[str, Any]:
+        from .sync import this_machine
+
         st = self.app.hub.config.storage if self.app.hub else {}
         return {"mode": st.get("type", "none"), "url": self.paths.load_settings().get("hub_url", ""),
-                "seat": self.app.agent, "error": self.app.hub_error, "token": bool(self.keys.get(HUB_TOKEN))}
+                "seat": self.app.agent, "error": self.app.hub_error, "token": bool(self.keys.get(HUB_TOKEN)),
+                "machine": this_machine(), "seat_error": getattr(self, "seat_error", "")}
+
+    def join_hub(self) -> None:
+        """This phone as its own seat in the shared hub.yaml (the PC sees it after its next sync)."""
+        from .sync import register_seat, this_machine
+
+        self.seat_error = ""
+        if not self.app.hub:
+            return
+        me = this_machine()
+        try:
+            with self.app.hub_lock:
+                register_seat(self.app.hub, me["id"], me["name"], me["kind"], "Roundtable on this phone")
+        except Exception as e:  # offline: the next sync adds it
+            self.seat_error = f"The phone isn't in the hub's list yet ({e}); it tries again at the next sync."[:300]
 
     def local_api(self, method: str, path: str, q: dict, body: dict) -> tuple[bool, Any]:
         if (method, path) == ("GET", "/api/keys"):
@@ -234,11 +259,18 @@ class LocalAccess:
         if (method, path) == ("GET", "/api/hub"):
             return True, self.hub_status()
         if (method, path) == ("POST", "/api/hub"):
+            device = " ".join(str(body.get("device_name") or "").split())[:40]
+            if device:
+                settings = self.paths.load_settings()
+                settings["device_name"] = device
+                self.paths.save_settings(settings)
+            machine_env(self.paths, self.app.agent or seat_id(self.paths))
             connect_hub(self.paths, self.keys, str(body.get("url") or ""), str(body.get("token") or ""),
                         self.app.agent or seat_id(self.paths), log=lambda _t: None)
             self.app.reload_hub()
             if self.app.hub_error:
                 raise RuntimeError(self.app.hub_error)
+            self.join_hub()
             return True, self.hub_status()
         return False, None
 
@@ -259,6 +291,7 @@ def make_local_server(home: Path, port: int, token: str):
     keys = KeyStore(paths, file_only=True)
     keys.load_into_env(list(PROVIDER_KEYS.values()))
     use_hub_token(paths, keys)
+    machine_env(paths, setup["seat"])
     os.environ["HUB_CONFIG"] = str(paths.hub_yaml)
     os.environ["HARNESS_CONFIG"] = str(paths.harness_yaml)
     app = UIApp(str(paths.hub_yaml), str(paths.harness_yaml), agent=setup["seat"], projects_dir=str(setup["projects"]))

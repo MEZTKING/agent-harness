@@ -233,6 +233,8 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
     def emit(self, kind: str, data: dict[str, Any]) -> None:
         row = {"at": utcnow(), "event": kind, **data}
         self.project.append("events.jsonl", row)
+        if self._live is not None:  # watched from the other machine (sync.py)
+            self._live.add(kind, row)
         plugins_notify(self.cfg, kind, data, self.project.root, self.emit)
         if self._listener:
             self._listener(kind, data)
@@ -302,6 +304,7 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
 
     # -- hub -------------------------------------------------------------------
     _hub_cache: Any = None
+    _live: Any = None  # sync.LiveRun while a run holds the project's claim
 
     def _hub(self):
         if not self.cfg.hub:
@@ -354,7 +357,11 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
         except Exception as e:  # the cards are a help: never fail a publish over them
             self.emit("hub_error", {"error": f"asks: {e}"})
             asks = []
-        return json.dumps({"project": self.project.root.name, "at": utcnow(), "asks": asks}, indent=1,
+        from ..sync import this_machine
+
+        me = this_machine()  # where the project's files are: commands for it go to that machine
+        return json.dumps({"project": self.project.root.name, "at": utcnow(), "asks": asks, "machine": me["id"],
+                           "machine_name": me["name"]}, indent=1,
                           ensure_ascii=False) + "\n"
 
     def _hub_update(self, status: str, note: str | None = None) -> None:
@@ -1222,19 +1229,83 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
 
     def run(self, max_tasks: int | None = None) -> str:
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
+        self._hold()  # one machine builds a project at a time (refuses when another one is building it)
         plugins_begin_run(self.cfg)
-        start = self._note_balance("start")
-        self._balance_start = start
-        self._last_real_check = time.time()
+        status = "stopped"
         try:
-            status = self._run(max_tasks)
+            start = self._note_balance("start")
+            self._balance_start = start
+            self._last_real_check = time.time()
+            try:
+                status = self._run(max_tasks)
+            finally:
+                self._close_mcp()
+                if start:
+                    self._note_balance("end", start)
         finally:
-            self._close_mcp()
-            if start:
-                self._note_balance("end", start)
+            self._let_go(status)
         if status != "awaiting_approval":
             self._learn_after_run()
         return status
+
+    def _hold(self) -> None:
+        """Take the project's claim in the hub and publish the run as it goes (sync.py). No hub, or a run that
+        won't build anything (a plan waiting for approval, a start later on): nothing to claim."""
+        if self._live is not None or not self.cfg.hub:
+            return
+        meta = self.project.meta() if self.project.exists else {}
+        after = meta.get("start_after")
+        if not (meta.get("plan_approved") or meta.get("status") == "planning") or (
+                after and after > datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")):
+            return
+        from .. import sync
+
+        try:
+            hub = self._hub()
+        except Exception as e:  # the hub is optional; never stop a run because it can't be reached
+            self.emit("hub_error", {"error": f"claim: {e}"})
+            return
+        if hub is None:
+            return
+        try:
+            self._live, note = sync.hold(hub, self.project.root, self._hub_name(), self.project.root.name,
+                                         {"goal": (meta.get("goals") or [""])[-1][:200]})
+        except sync.ClaimedElsewhere as e:
+            raise HarnessError(str(e)) from None
+        except Exception as e:  # offline: build anyway, the other machine can't be asked
+            self.emit("hub_error", {"error": f"claim: {e}"})
+            return
+        if note:
+            self._journal("note", note)
+
+    def _let_go(self, status: str) -> None:
+        live, self._live = self._live, None
+        if live is not None:
+            live.stop(status)
+
+    def _taken_elsewhere(self) -> bool:
+        return self._live is not None and self._live.lost
+
+    def _spent_today(self) -> float:
+        """Today's spend on every project of this lab (for limits.max_usd_per_day)."""
+        from ..remote import project_dirs
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        roots = {Path(r).resolve() for r in project_dirs(self.cfg)} | {self.project.root.resolve()}
+        total = 0.0
+        for root in roots:
+            try:
+                rows = (root / ".harness" / "spend.jsonl").read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for ln in rows:
+                try:
+                    row = json.loads(ln)
+                except ValueError:
+                    continue
+                if str(row.get("at", "")).startswith(today):
+                    total += float(row.get("cost_usd") or 0)
+        return total
 
     def _learn_after_run(self) -> None:
         """improve.after_each_run: look at what the runs showed and apply what the policy allows.
@@ -1402,6 +1473,16 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
                     return "paused"
                 if max_tasks is not None and executed >= max_tasks:
                     self._set_status("paused")
+                    return "paused"
+                if self._taken_elsewhere():
+                    self._set_status("paused", pause="elsewhere")
+                    self._journal("note", "Paused: another machine has taken this project over.")
+                    return "paused"
+                day = self.cfg.limits.max_usd_per_day
+                if day and self._spent_today() >= day:
+                    self._set_status("paused", pause="money_day")
+                    self._attention("money_day", f"Today's spending limit (${day:.2f}) is reached: this run carries on "
+                                                 "tomorrow, or raise the limit in Settings")
                     return "paused"
 
                 task = ready[0]
