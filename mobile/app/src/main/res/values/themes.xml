@@ -1,7 +1,9 @@
 <resources>
-    <style name="Theme.Roundtable" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/ink</item>
-        <item name="android:statusBarColor">@color/ink</item>
-        <item name="android:navigationBarColor">@color/ink</item>
+    <!-- Candlelit Oak: the warm floor behind the app while it starts (light; values-night has the dark one) -->
+    <style name="Theme.Roundtable" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/oak_light</item>
+        <item name="android:statusBarColor">@color/oak_light</item>
+        <item name="android:navigationBarColor">@color/oak_light</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

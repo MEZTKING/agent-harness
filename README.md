@@ -23,7 +23,24 @@ roundtable ui              # the same, in a web UI
    - click **Start**.
 4. Everything can be changed later under **Settings**: keys, the hub, which model does which role, prices and limits.
 
+The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs you is lit by a candle. It follows your computer's light or dark setting; pick one under **Settings → Look**.
+
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
+
+### What's new in 0.7.0
+
+- **Answer by tapping**: everything Roundtable asks you is a card with ready answers (the
+  recommended one first) and an Other box; a new-project wizard of cards.
+- **A new look, Candlelit Oak**: the Hall round a painted table, light and dark.
+- **A look of its own for every app you make** (the Look step), **"Make it like this"**
+  (links and repos read by a scout), **plugins** (the token saver is the first),
+  **backups** to Google Drive's folder, **picture models** (GPT Image, Nano Banana).
+- **Budget / Balanced / Quality** per project, **OpenRouter** and **Openference**, exact costs
+  and real balances, and many savings: the cheapest OpenRouter route, Claude's cache through
+  gateways, big files read as an outline, DeepSeek's half-price hours (approve to start then).
+- **Safer runs**: real-money limits, pausing when an account is empty, stronger checks after a
+  rejection, tasks split when too big, "accept as it is", and model switches learned after
+  each run (written in the journal with the reason).
 
 ### From the terminal (any OS)
 
@@ -68,6 +85,31 @@ The updater works with both kinds of install:
 - **From a local checkout** (`pip install -e .`): runs `git pull --ff-only` and reinstalls, so new dependencies and commands are picked up. It refuses if you have uncommitted changes.
 
 Any `roundtable` command checks for updates at most once a day (2-second timeout) and prints a one-line notice. Turn this off with `ROUNDTABLE_NO_UPDATE_CHECK=1`. The web UI shows an **Update now** banner. After an update, restart any running `roundtable ui` or `mcp` servers.
+
+### Backups
+
+Roundtable Hold can back up everything that would be hard to make again, in one file:
+
+- **your settings**: which model does what, providers, prices and limits (`harness.yaml`, `custom.yaml`), the hub's settings (not a GitHub hub's data: that's on GitHub already; a hub kept only on this computer is included) and the app's own settings;
+- **what Roundtable has learned**: learned settings, suggestions, versions and model check history (files over 20 MB are left out and listed);
+- **every project's plan and history**: the plan, tasks, costs, events and pictures in its `.harness` folder (not the rebuildable `spill`, `scratch` and `references` folders). Add **with code** to include the project's own files too (off by default: projects can be big);
+- **the list of paired phones**.
+
+**Never in a backup:** API keys and passwords. Every file is checked first; one that looks like it holds a key is left out, and the backup says which. The phone connection's private key isn't included either.
+
+**Where backups go:** if you have [Google Drive for desktop](https://www.google.com/drive/download/), Roundtable finds its **My Drive** folder (on Windows usually `G:\My Drive`) and puts backups in `My Drive\Roundtable backups`, so they're in your Google Drive with no extra setup. Any other folder works too: OneDrive, a USB stick, another disk.
+
+In the app: **Settings → Backups**. Back up now, see the last backup, back up every day (once a day while the app is open, never while a project is running), keep the newest 10, and lock backups with a **passphrase** (recommended: a backup holds your plans; the passphrase is never saved, and a backup can't be opened without it). A backup is also made just before the app installs an update.
+
+```bash
+roundtable backup where                     # which Google Drive folder it found
+roundtable backup now [--to FOLDER] [--with-code] [--passphrase]
+roundtable backup list
+roundtable backup restore FILE [--yes]      # asks for the passphrase if the backup is locked
+roundtable backup settings --daily on --keep 10 --encrypt on
+```
+
+**Restoring** (Settings → Backups → Restore…, or `roundtable backup restore`) shows what's in the backup and what it would replace, and asks first. It saves what's there now as a safety backup next to it, then puts everything back; projects whose folders are gone are made again. Afterwards **type your API keys again** (Settings → API keys) and **pair your phones again**.
 
 | Part | What it does |
 |---|---|
@@ -296,7 +338,7 @@ roundtable new bakery "A bakery website with an order API, tests and a logo"
               │
               ▼
         task board  ──►  coder: DeepSeek ──► reviewer: Claude ──► approved → git commit
-                         designer: OpenAI images                   rejected → feedback → retry
+                         artist: OpenAI images                     rejected → feedback → retry
                          manager: Claude                           provider down → fallback model
               │
               ▼
@@ -324,6 +366,28 @@ You write the idea; the plan is a page you can argue with before anything is bui
 
 Your edits wait as "changes" until you press **Update plan** (one planner call): the planner revises the document and the tasks, keeping finished work and every task your changes don't touch, and the page shows what was added, changed or removed. **Approve & start** begins the build. Every task and review is told the plan, your choices, answers and don'ts. To add the critic to an existing setup: Settings > Which model does what, role `critic`, any model (a different maker from your planner works best).
 
+#### Answer by tapping
+
+Roundtable asks you things the way a good assistant does: one card per question, with a short label at the top, the question, two to four answers to tap (the one it recommends comes first, marked **(Recommended)**), and **Other…** when you'd rather type. Where more than one answer fits you tick them and press **Done**. On a computer, number keys pick and Enter sends.
+
+The same cards are everywhere: **Needs you** on the Roundtable shows the next one for each project, the plan page shows them all (the answered ones fold away under **Answered**, where you can change an answer until you approve), and the phone shows them on its Needs you list and the project's Plan tab. They cover the plan's choices, its questions (the planner now offers likely answers), its ideas, the look, the setting (Budget, Balanced or Quality, each with its estimate), approving the plan, a task that failed (Retry, Retry with the stronger model, Accept as it is, Skip it) and a run paused for money (Carry on with $X more, Stop here, Switch to the Budget setting). Anything that would spend beyond the estimate shows a second card first: **Are you sure?** **Not now** leaves a card for later.
+
+**+ New project** is a few cards too: what you want to make (web app, game, Android app, Windows app or something else), your idea in a few words, something to make it like, the setting, and whether to see three looks. Then the planner makes the plan, with its own questions for you. From the phone in Hub mode a card's answer goes through the hub as the `answer` command (`id`, `chosen`, `other`, `confirmed`); the cards themselves are written next to the plan as `plans/<project>.asks.json`.
+
+#### A look of its own
+
+So that every app you make looks like itself, an app with screens gets a **Look** step in its plan. A designer (the `designer` role: a model that can see pictures) makes three clearly different looks, each with a name, a mood, light and dark colours, fonts, shapes, one signature detail and a list of things it must never do, plus a picture of the app's main screen in that look (on a computer and on a phone). They're never the same as the looks you chose for your other projects, unless you ask. Give a starting point if you like ("like an old record shop") and press **Make new looks** for another three.
+
+Press **Choose this look** (you can add a note, such as "warmer"), then **Update plan**. Roundtable writes the look into the project as `design/DESIGN.md` (in plain words) and `design/tokens.css` (the colours, fonts and corners for light and dark), and every task and review follows it: a check finds colours or fonts written into the code instead of taken from the design file, and the reviewer sends that work back. If screens are already built, a task "Restyle the app in the chosen look" is added. Choosing a look never blocks **Approve & start**; an unchosen look shows under Needs you. From the phone: `look` (choose, with `id` and an optional `note`) and `looks` (new ones). Set `look_stage: off` in harness.yaml to make looks only when you ask. The pictures need Playwright (`pip install playwright && playwright install chromium`); without it you still get the looks and their pages.
+
+#### Make it like this
+
+If something like your idea already exists, give it to Roundtable: a web link (an app, a game page, a website, a forum post), a GitHub repository (`owner/name` or its address), or a plain description ("the queue from Spotify"). Put them in the **Make it like this** box when you start a project (one per line), add them later in **Like these** on the plan page, from the terminal with `roundtable new DIR "goal" --like ADDRESS_OR_TEXT` (repeat it for more), or from the phone (`reference_add` with `text`, `reference_remove` with `id`).
+
+Before planning, a `scout` role (any cheap, capable chat model; without one the planner does it) reads each one and writes a short report: what it is, its features, how the parts worth borrowing work, its look in words, its licence, what to borrow for your project and what to avoid. The plan shows the reports under **Like these**, the planner builds on them, the designer starts its looks from them, and every task sees a short form. One you add later is read when you press **Update plan**. Each reading costs a little and counts in the budget. Many sites refuse automated readers (Reddit does): the report then says plainly what couldn't be read, and nothing is made up.
+
+**Similar, never a copy.** Your project borrows the kind of thing it is, how it works and its general style, never another product's name, characters, story, art, music, sounds, levels, logos or text, and it is never presented as that product. Pictures, sounds, fonts and models are never copied. Code is used only when its licence is clearly open (MIT, BSD, Apache, ISC, zlib, MPL); Roundtable decides that from the licence itself, and such code is credited in the project's `THIRD_PARTY_NOTICES.md`.
+
 Everything is saved in `<project>/.harness/` (`plan.json` and a readable `plan.md` included). A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `roundtable run` resumes where it left off.
 
 ### Setup
@@ -343,7 +407,7 @@ roles:
   orchestrator: {model: anthropic/claude-fable-5-2, fallback: [anthropic/claude-opus-5-5], options: {effort: high}}
   coder:        {model: deepseek/deepseek-v4-pro, fallback: [anthropic/claude-sonnet-5-5], description: writes and tests code}
   reviewer:     {model: anthropic/claude-opus-5-5}
-  designer:     {kind: image, model: openai_images/gpt-image-1, description: logos and illustrations}
+  artist:       {kind: image, model: openai_images/gpt-image-1, description: logos and illustrations}
 ```
 
 The `description` tells the planner when to use a role. You can add any role, such as `writer`, `researcher` or `devops`, and give it its own prompt file through `prompts_dir`.
@@ -355,10 +419,53 @@ The `description` tells the planner when to use a role. You can add any role, su
 - `retrodiffusion`: **pixel-art game assets** ([Retro Diffusion](https://www.retrodiffusion.ai)). The planner picks a style per task (platformer, top-down, isometric, tiles, items, UI…), plus the size and a transparent background. The exact per-image charge is counted in the budget.
 
 ```bash
-roundtable image designer --styles                                   # browse styles
-roundtable image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --cost-only
-roundtable image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
+roundtable image artist --styles                                   # browse styles
+roundtable image artist "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --cost-only
+roundtable image artist "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
 ```
+
+### The recommended split: Openference plus DeepSeek
+
+One [Openference](https://openference.com) key reaches Claude, GPT, Gemini, GLM, Kimi, Qwen and
+more, so each check can be done by a different maker. Bulk coding stays on a direct DeepSeek key,
+which is much cheaper than DeepSeek through Openference.
+
+| Job | Model | Why |
+|---|---|---|
+| Planner | Claude Opus 5.5 (Openference), DeepSeek V4 Pro if that fails | the best plans |
+| Critic | GPT-6.1 Terra (Openference), GLM-5.3 if that fails | a second opinion from another maker |
+| Designer | Claude Sonnet 5.5 (Openference), GLM-5.3 if that fails | designs the looks and can see pictures |
+| Coder | DeepSeek V4 Flash (direct), V4 Pro when it gets stuck | cheap for the bulk of the work |
+| Reviewer | GPT-6 Luna (Openference), Claude Haiku 5.5 if that fails | cheap, and a different maker from the coder |
+
+```bash
+roundtable providers add openference          # then set OPENFERENCE_API_KEY
+roundtable assign orchestrator "openference/Claude Opus 5.5" deepseek/deepseek-v4-pro
+roundtable assign critic "openference/GPT-6.1 Terra" openference/GLM-5.3
+roundtable assign designer "openference/Claude Sonnet 5.5" openference/GLM-5.3
+roundtable assign coder deepseek/deepseek-v4-flash deepseek/deepseek-v4-pro
+roundtable assign reviewer "openference/GPT-6 Luna" "openference/Claude Haiku 5.5"
+```
+
+Good to know: Claude through Openference is paid from your credit there and needs at least $1
+kept on the account; don't use its "bring your own key" mode for agents (it adds $0.01 to every
+request, and an agent makes one per step); turn on ZDR mode for the key if you want makers not to
+keep your prompts. Openference shows no balance through its API, so `roundtable balance` can't
+check its real cost yet.
+
+### Budget, Balanced, Quality
+
+A project can switch between named sets of models (`profiles:` in `harness.yaml`). The plan shows
+what each would cost, and you switch on the plan page, from the phone (`profile` command) or with
+`roundtable` in a script. Only the tasks still to do use the new setting.
+
+- **Budget:** open models (DeepSeek, GLM, GPT-6 Luna) for everything.
+- **Balanced** (the default): Claude plans and designs, other makers check, DeepSeek codes.
+- **Quality:** Claude Opus plans and designs, Claude Sonnet codes, GPT checks, all through
+  OpenRouter. It costs roughly ten to twenty times as much as Balanced for the coding.
+
+OpenRouter models need no `pricing:` lines: Roundtable reads OpenRouter's published prices, the exact
+cost of every call, and the account balance (`roundtable balance`).
 
 ### Adding any provider
 
@@ -419,9 +526,80 @@ roundtable -v ...                        # show every model turn and tool call
 ```
 
 ### Budget and safety
+
+Roundtable counts each run's cost from the tokens used and the pricing table. To check that count
+against your bill, a run notes the provider's real balance at its start and end where the provider
+reports one (DeepSeek does): see `.harness/balance.jsonl` in the project, or run `roundtable balance`.
+Text a model has already seen (a cache hit) is counted at a tenth of the input price unless you set
+`cache_read` in `pricing:`.
+
 - `limits.max_cost_usd` pauses a project when reached; `roundtable run` continues after you raise it. Claude prices are built in. **Add `pricing:` for the other providers**, or their calls are counted as "unpriced" and don't count toward the budget.
 - `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
 - `hub:` in `harness.yaml` reports project progress to the Hub, so your repo agents can see what the harness is building.
+- **A real-money limit per run**: `limits.max_real_usd_per_run` (e.g. `1.0`) pauses a run once your
+  providers' real balances fell by that much since it started, checked between tasks and inside long
+  ones. A run also pauses at half its limit if nothing has passed yet, and when an account says it's
+  out of credit (the task goes back in the queue; a "money" card asks you to top up).
+- **Cheaper hours**: DeepSeek charges half outside its peak hours (reported as 01:00–04:00 and
+  06:00–10:00 UTC). Roundtable counts the right price at each hour, and when you approve a plan during
+  peak hours the card offers "Approve, start at HH:MM UTC"; the desktop app starts it then.
+- **Cheaper routes**: through OpenRouter, Roundtable asks for the cheapest company that runs the model
+  (`routing: throughput | latency | none` on the provider changes that); Claude through any gateway
+  uses its cache; files over 400 lines are read as an outline plus the parts needed, not whole.
+- **When a task goes wrong**: a task that keeps running out of steps is split into smaller ones by the
+  planner (once); after a rejection a stronger reviewer model gives the next verdict; reviewers are
+  told what later tasks will do; and you can **accept a task as it is** (`accept` on the failed-task
+  card, or the hub command) when the work is right but was rejected for the wrong reason.
+- **Learning after each run**: with `improve: {after_each_run: true, auto_apply: low}`, Roundtable
+  looks at the numbers after every run and switches the order of models when they clearly say so
+  (for example a cheap model that keeps failing while its backup finishes for less per task). Each
+  switch is written in the hub journal with the reason and the undo command.
+- **Pictures**: an image role (`kind: image`) can use picture models through OpenRouter
+  (`type: chat_images`: GPT Image 2, Nano Banana) with the exact cost of each picture, or Retro
+  Diffusion for pixel art.
+
+#### Token saver
+
+Every message a model reads costs money, and the biggest part is often what its tools
+print: long tables, big lists of data, test logs. The token saver slims those before the
+model reads them, for every model and maker:
+
+- a list of data with the same fields on every line is rewritten as a compact table –
+  shorter, but with nothing taken out;
+- a long table keeps its first and last rows and a sample of the middle with line numbers;
+- a long log keeps its start, its end and every line that looks like an error;
+- the same output twice within a minute and a half is shown once.
+
+Nothing is lost: the full text is saved first in the project's `.harness/spill/` folder,
+and the shortened version tells the model how to get it back (the `expand_output` tool).
+If the full text can't be saved, or the short version wouldn't really be cheaper, the
+model gets the full text as before. `roundtable status` shows roughly how many tokens it
+saved, and each task's line in `.harness/metrics.jsonl` has `saved_tokens_est`.
+
+To turn it off, put `token_saver: false` in `harness.yaml`. Its settings (when to step in
+and how much to keep) go under `token_saver:` – see `THIRD_PARTY_NOTICES.md` for where it
+comes from.
+
+#### Plugins
+
+Plugins add things to Roundtable without changing it: token saving, cost logs, extra tools
+for the workers, commands of their own. Two come built in: the **token saver** (above; on)
+and **cost log** (each model call's tokens and cost in a CSV file; off until you switch it
+on).
+
+```
+roundtable plugin list
+roundtable plugin add ./my-plugin          # or a git link, or a pip package
+roundtable plugin enable cost-log
+roundtable plugin settings token-saver min_bytes=2000
+roundtable plugin remove my-plugin
+```
+
+Choices are kept in `custom.yaml` under `plugins:`. **A plugin is someone's program and runs
+with Roundtable's full access**: Roundtable shows what it says it will do and asks before
+adding it, but can't hold it to that, so only add plugins from people you trust. A plugin
+that goes wrong is switched off for the rest of the run, and the run carries on. How to
+write one, the hooks and the permissions: [docs/plugins.md](docs/plugins.md).
 
 ---
 

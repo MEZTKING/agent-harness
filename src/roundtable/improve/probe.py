@@ -170,7 +170,7 @@ def _grade_median(path: Path) -> tuple[bool, str]:
 def probe_code_fix(cfg, ref, budget):
     with tempfile.TemporaryDirectory(prefix="harness-probe-") as d:
         ws = Workspace(d, allow_shell=False)
-        (Path(d) / "stats.py").write_text(BUGGY)
+        (Path(d) / "stats.py").write_text(BUGGY, encoding="utf-8")
         box = ws.toolbox(["read_file", "edit_file", "write_file", "list_files"])
         box.add(Tool(ToolSpec("finish_task", "Call when done.", _obj({"summary": {"type": "string"}}, ["summary"])),
                      lambda a: "ok", terminal=True))
@@ -219,7 +219,7 @@ def load_probes(cfg: HarnessConfig) -> dict[str, Callable]:
     pf = cfg.improve.get("probes_file")
     if pf:
         path = Path(pf) if Path(pf).is_absolute() else (cfg.path.parent if cfg.path else Path.cwd()) / pf
-        for spec in yaml.safe_load(path.read_text()) or []:
+        for spec in yaml.safe_load(path.read_text(encoding="utf-8")) or []:
             if "name" not in spec or "prompt" not in spec:
                 raise ValueError(f"{path}: each probe needs a name and a prompt")
             probes[spec["name"]] = _custom_probe(spec)
@@ -309,7 +309,7 @@ def run_probes(cfg: HarnessConfig, models: list[ModelRef], image_models: list[Mo
 
 def _history(lab_root: Path) -> list[dict[str, Any]]:
     p = lab_root / "probes.jsonl"
-    return [json.loads(x) for x in p.read_text().splitlines() if x.strip()] if p.is_file() else []
+    return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()] if p.is_file() else []
 
 
 def compare(results: list[ProbeResult], history: list[dict[str, Any]]) -> list[ModelReport]:

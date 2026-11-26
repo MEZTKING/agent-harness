@@ -18,7 +18,7 @@ from .test_harness import RAW as HARNESS_RAW, Brain, make as make_harness
 def app(tmp_path):
     hub_raw = json.loads(json.dumps(HUB_RAW))
     hub_raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
     a = UIApp(hub_config=str(tmp_path / "hub.yaml"), harness_config=str(tmp_path / "missing.yaml"),
               agent="backend", projects_dir=str(tmp_path / "projects"))
     # harness side: scripted providers, injected
@@ -83,7 +83,7 @@ def test_harness_project_lifecycle_via_ui(app, tmp_path):
     d = call(app, "GET", "/api/project", path=p["path"])
     assert {t["status"] for t in d["tasks"]} == {"done"} and d["summary"] and d["events"]
     call(app, "POST", "/api/project", {"path": p["path"], "action": "feedback", "task": "T1", "rating": "bad", "note": "meh"})
-    assert "owner_feedback" in (tmp_path / "projects/site/.harness/metrics.jsonl").read_text()
+    assert "owner_feedback" in (tmp_path / "projects/site/.harness/metrics.jsonl").read_text(encoding="utf-8")
     with pytest.raises(ApiError):  # only registered projects are addressable
         call(app, "GET", "/api/project", path="/etc")
     with pytest.raises(ApiError):
@@ -137,6 +137,16 @@ def test_http_serves_ui_and_guards_writes(server):
     status, body, headers = http(server + "/")
     assert status == 200 and b"Roundtable Hold" in body and "script-src 'self'" in headers["Content-Security-Policy"]
     assert http(server + "/app.js")[0] == 200
+
+    # the Candlelit Oak look: everything it needs is served from here (nothing outside), with the right types
+    for name, ctype in (("style.css", "text/css"), ("theme.js", "javascript"), ("fraunces.woff2", "font/woff2"),
+                        ("nunito-sans.woff2", "font/woff2"), ("hall.webp", "image/webp"), ("table.webp", "image/webp"),
+                        ("emblem.png", "image/png"), ("icon.png", "image/png")):
+        st, data, hd = http(server + "/" + name)
+        assert st == 200 and data and ctype in hd["Content-Type"], name
+    css = http(server + "/style.css")[1].decode()
+    assert "@media (prefers-color-scheme: dark)" in css and ':root[data-theme="dark"]' in css and "prefers-reduced-motion" in css
+    assert "http://" not in css and "https://" not in css
     assert http(server + "/../pyproject.toml")[0] == 404
     assert http(server + "/api/where")[0] == 200
     ok_headers = {"Content-Type": "application/json", "X-Agent-Hub": "1"}

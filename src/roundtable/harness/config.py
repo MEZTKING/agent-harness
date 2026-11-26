@@ -7,6 +7,7 @@ adding a provider or changing a role is a config edit, not a code change.
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timedelta, timezone
 import os
 from dataclasses import dataclass, field, replace
 from importlib import resources
@@ -16,16 +17,60 @@ from typing import Any
 import yaml
 
 from ..providers.base import ImageProvider, Provider, ProviderError
+from .saver import SaverConfig
 
 # Anthropic list prices (USD per 1M tokens). Anything else: set `pricing:` in harness.yaml.
-DEFAULT_PRICING: dict[str, dict[str, float]] = {
+# DeepSeek's peak hours (UTC) since August 2026, as reported; outside them prices are halved (verify)
+DEEPSEEK_PEAK = ["01:00-04:00", "06:00-10:00"]
+
+
+def in_peak(windows: list[str], now: datetime | None = None) -> bool:
+    """True when `now` (UTC) falls in one of the "HH:MM-HH:MM" windows."""
+    t = (now or datetime.now(timezone.utc)).strftime("%H:%M")
+    return any(a <= t < b for a, b in (w.split("-") for w in windows or []))
+
+
+def next_offpeak(windows: list[str], now: datetime | None = None) -> datetime:
+    """The next moment outside every peak window (now, if already off-peak)."""
+    t = (now or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
+    for _ in range(24 * 60):
+        if not in_peak(windows, t):
+            return t
+        t += timedelta(minutes=1)
+    return t
+
+
+def price_now(price: dict, now: datetime | None = None) -> dict:
+    """A price with off-peak rates applied when the provider has them and it's off-peak now."""
+    if price.get("offpeak") and price.get("peak_utc") and not in_peak(price["peak_utc"], now):
+        return {**price, **price["offpeak"]}
+    return price
+
+
+DEFAULT_PRICING: dict[str, dict] = {
     "claude-fable-5-2": {"input": 8.0, "output": 40.0, "cache_read": 0.20},
     "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
     "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
+    # DeepSeek direct (official page, checked 26 November 2026): half price outside its peak hours
+    "deepseek-flash": {"input": 0.44, "output": 1.32, "cache_read": 0.014,
+                       "offpeak": {"input": 0.22, "output": 0.66, "cache_read": 0.007}, "peak_utc": DEEPSEEK_PEAK},
+    "deepseek-v4-flash": {"input": 0.44, "output": 1.32, "cache_read": 0.014,
+                          "offpeak": {"input": 0.22, "output": 0.66, "cache_read": 0.007}, "peak_utc": DEEPSEEK_PEAK},
+    # Openference's names for some of its models (its prices, checked 26 November 2026)
+    "DeepSeek-V4.1-Flash-1017": {"input": 0.30, "output": 1.20, "cache_read": 0.01},
+    "DeepSeek-V4-Pro": {"input": 1.32, "output": 3.96, "cache_read": 0.13},
+    "GLM-5.3": {"input": 1.40, "output": 4.40, "cache_read": 0.26},
+    "GLM-5.3-Flash": {"input": 0.15, "output": 0.50, "cache_read": 0.03},
+    "Claude Opus 5.5": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
+    "Claude Sonnet 5.5": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
+    "Claude Haiku 5.5": {"input": 0.10, "output": 0.50, "cache_read": 0.01},
+    "GPT-6 Luna": {"input": 0.10, "output": 0.50, "cache_read": 0.01},
+    "GPT-6.1 Terra": {"input": 1.0, "output": 5.0, "cache_read": 0.05},
+    "GLM-5.2": {"input": 1.40, "output": 4.40, "cache_read": 0.26},
 }
 
-PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "plugin", "scripted",
+PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "chat_images", "retrodiffusion", "plugin", "scripted",
                   "scripted_images")
 CLIENT_OPTS = ("auth_header", "auth_prefix", "headers", "query")  # extra openai_compat settings
 
@@ -64,8 +109,11 @@ class Limits:
     max_cost_usd: float = 10.0
     max_steps_per_task: int = 40
     max_attempts_per_task: int = 3
+    max_real_usd_per_run: float = 0.0  # pause a run once providers' real balances fell this much (0 = off)
+    split_stuck_tasks: bool = True  # a task that keeps running out of steps is split by the planner, once
     command_timeout: int = 120
     max_parallel: int = 1
+    max_scout_steps: int = 30  # steps for reading one reference (scout.py)
 
 
 @dataclass
@@ -80,13 +128,57 @@ class HarnessConfig:
     planner_role: str = "orchestrator"
     reviewer_role: str | None = "reviewer"
     critic_role: str | None = None  # a second model that critiques each new plan (ideally another maker's)
+    design_role: str | None = None  # makes the app's looks (default: a chat role "designer", else the planner)
+    scout_role: str | None = None  # reads the owner's references (default: a chat role "scout", else the planner)
+    look_stage: str = "auto"  # auto: offer looks when the plan is for an app with screens; off: only on request
     prompts_dir: Path | None = None
     hub: dict[str, Any] | None = None
     lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
     improve: dict[str, Any] = field(default_factory=dict)
+    remote: dict[str, Any] = field(default_factory=dict)  # commands through the hub: {enabled, owners}
+    # named sets of models per role ("budget", "balanced", "quality"); a project picks one
+    profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
+    default_profile: str | None = None
+    learned: dict[str, Any] = field(default_factory=dict)  # the lab's learned overlay, as applied
     # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
     prompt_overrides: dict[str, str] = field(default_factory=dict)
+    token_saver: SaverConfig = field(default_factory=SaverConfig)  # slims big tool results (saver.py)
+    # plugins: {id: {enabled, settings, path, permissions, ...}} from harness.yaml and custom.yaml
+    plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
+    _shared: dict[str, Any] = field(default_factory=dict, repr=False)  # shared by variants (the plugin host)
+
+    def plugin_host(self):
+        """The plugins for this config (built once, shared with its profile variants)."""
+        if "plugin_host" not in self._shared:
+            from ..plugins.host import PluginHost
+
+            self._shared["plugin_host"] = PluginHost.from_config(self)
+        return self._shared["plugin_host"]
+
+    def _listed_price(self, ref: ModelRef) -> dict[str, float] | None:
+        """A price the provider publishes itself (OpenRouter's model list), when none is configured."""
+        spec = self.providers.get(ref.provider) or {}
+        if "openrouter.ai" not in str(spec.get("base_url") or ""):
+            return None
+        from ..providers.prices import openrouter_price
+
+        return openrouter_price(ref.model)
+
+    def for_profile(self, name: str | None) -> "HarnessConfig":
+        """This config with a profile's models laid over the roles (unknown or empty name: unchanged)."""
+        if not name or name not in self.profiles:
+            return self
+        c = self.variant()
+        apply_overlay(c, self.profiles[name])
+        # What was learned still counts inside a profile when it only reorders that profile's own
+        # models (e.g. "start on the fallback, it finishes more for less").
+        for role, spec in (self.learned.get("roles") or {}).items():
+            if role in c.roles and "model" in spec:
+                order = [spec["model"]] + list(spec.get("fallback") or [])
+                if sorted(order) == sorted(str(m) for m in c.roles[role].models):
+                    c.roles[role].models = [ModelRef.parse(m) for m in order]
+        return c
 
     def variant(self) -> "HarnessConfig":
         """Independent copy of roles/prompts/limits that shares provider clients."""
@@ -114,7 +206,14 @@ class HarnessConfig:
             from ..providers.openai_compat import OpenAICompatProvider
 
             inst = OpenAICompatProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"),
+                                        routing=spec.get("routing"),
                                         **{k: spec[k] for k in CLIENT_OPTS if spec.get(k)})
+        elif kind == "chat_images":  # image models answering through a chat endpoint (OpenRouter's)
+            from ..providers.chat_images import ChatImagesProvider
+
+            inst = ChatImagesProvider(name, api_key_env=spec.get("api_key_env", "OPENROUTER_API_KEY"),
+                                      base_url=spec.get("base_url") or "https://openrouter.ai/api/v1",
+                                      **{k: spec[k] for k in CLIENT_OPTS if spec.get(k)})
         elif kind == "openai_images":
             from ..providers.openai_compat import OpenAIImagesProvider
 
@@ -139,25 +238,15 @@ class HarnessConfig:
         Python path. The class must implement Provider.chat (and list_models) or
         ImageProvider.generate. Plugins are your own code and run with full access.
         """
-        import importlib
-        import importlib.util
-        import sys
+        from ..plugins.loader import load_object
 
         target = spec.get("class", "")
         if ":" not in target:
             raise ProviderError(f"provider {name!r}: plugin needs class: 'module_or_file.py:ClassName'")
-        modname, clsname = target.rsplit(":", 1)
+        clsname = target.rsplit(":", 1)[1]
         plugins_dir = (self.path.parent / "plugins") if self.path else Path.cwd() / "plugins"
         try:
-            candidate = plugins_dir / modname if modname.endswith(".py") else plugins_dir / f"{modname}.py"
-            if candidate.is_file():
-                mod_spec = importlib.util.spec_from_file_location(f"roundtable_plugin_{name}", candidate)
-                module = importlib.util.module_from_spec(mod_spec)
-                sys.modules[mod_spec.name] = module
-                mod_spec.loader.exec_module(module)
-            else:
-                module = importlib.import_module(modname.removesuffix(".py"))
-            cls = getattr(module, clsname)
+            cls = load_object(target, file_dirs=[plugins_dir], module_alias=f"roundtable_plugin_{name}")
         except Exception as e:
             raise ProviderError(f"provider {name!r}: could not load plugin {target!r} ({type(e).__name__}: {e})") from e
         if not (isinstance(cls, type) and issubclass(cls, (Provider, ImageProvider))):
@@ -197,13 +286,17 @@ class HarnessConfig:
     def cost(self, ref: ModelRef, usage) -> float | None:
         if getattr(usage, "cost_usd", None) is not None:
             return usage.cost_usd  # provider reported the exact charge
-        price = self.pricing.get(str(ref)) or self.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model)
+        price = (self.pricing.get(str(ref)) or self.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model)
+                 or self._listed_price(ref))
         if not price:
             return None
+        price = price_now(price)
         return (
             usage.input_tokens * price.get("input", 0)
             + usage.output_tokens * price.get("output", 0)
-            + usage.cache_read_tokens * price.get("cache_read", price.get("input", 0))
+            # text the model has seen already: most makers (Anthropic, DeepSeek, OpenAI) bill it at
+            # about a tenth of the input price; set cache_read in the pricing when it differs
+            + usage.cache_read_tokens * price.get("cache_read", price.get("input", 0) * 0.1)
             + usage.cache_write_tokens * price.get("cache_write", price.get("input", 0) * 1.25)
         ) / 1_000_000
 
@@ -265,7 +358,43 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
     out["roles"] = roles
     if custom.get("limits"):
         out["limits"] = {**(raw.get("limits") or {}), **custom["limits"]}
+    if custom.get("plugins"):
+        out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
     return out
+
+
+def merge_plugin_state(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """plugins: from harness.yaml with custom.yaml's choices on top (settings merged key by key)."""
+    out = {k: dict(v or {}) for k, v in base.items()}
+    for pid, spec in over.items():
+        entry = out.setdefault(pid, {})
+        settings = {**(entry.get("settings") or {}), **((spec or {}).get("settings") or {})}
+        entry.update(spec or {})
+        if settings:
+            entry["settings"] = settings
+    return out
+
+
+def _plugin_state(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    state = raw.get("plugins") or {}
+    if not isinstance(state, dict) or not all(isinstance(v, (dict, type(None))) for v in state.values()):
+        raise ValueError("plugins must be a mapping of plugin id to its settings, e.g. cost-log: {enabled: true}")
+    return {str(k): dict(v or {}) for k, v in state.items()}
+
+
+def _token_saver(raw: dict[str, Any], plugins: dict[str, dict[str, Any]]) -> SaverConfig:
+    """token_saver: in harness.yaml, then the token-saver plugin's own choices (custom.yaml) on top."""
+    base = raw.get("token_saver")
+    mine = plugins.get("token-saver") or {}
+    if not mine:
+        return SaverConfig.parse(base)
+    merged = {"enabled": base} if isinstance(base, bool) else dict(base or {}) if isinstance(base, dict) else base
+    if not isinstance(merged, dict):
+        return SaverConfig.parse(base)  # raises the usual message
+    merged.update(mine.get("settings") or {})
+    if "enabled" in mine:
+        merged["enabled"] = bool(mine["enabled"])
+    return SaverConfig.parse(merged)
 
 
 def find_config(explicit: str | None = None) -> Path:
@@ -314,7 +443,23 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     critic = raw.get("critic_role", "critic" if "critic" in roles else None)
     if critic and critic not in roles:
         critic = None
+    design = raw.get("design_role")
+    if not (design in roles and roles[design].kind == "chat"):
+        design = "designer" if "designer" in roles and roles["designer"].kind == "chat" else planner
+    scout = raw.get("scout_role")
+    if not (scout in roles and roles[scout].kind == "chat"):
+        scout = "scout" if "scout" in roles and roles["scout"].kind == "chat" else planner
+    look_stage = raw.get("look_stage", "auto")
+    look_stage = {False: "off", True: "auto"}.get(look_stage, str(look_stage).lower())  # YAML reads off as false
+    if look_stage not in ("auto", "off"):
+        raise ValueError("look_stage must be 'auto' or 'off'")
 
+    profiles = _profiles(raw, providers, roles)
+    default_profile = raw.get("default_profile")
+    if default_profile and default_profile not in profiles:
+        raise ValueError(f"default_profile {default_profile!r} isn't one of the profiles: {', '.join(profiles) or 'none'}")
+
+    plugins = _plugin_state(raw)
     lim = raw.get("limits") or {}
     base = path.parent if path else Path.cwd()
     prompts_dir = raw.get("prompts_dir")
@@ -328,18 +473,47 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             max_cost_usd=float(lim.get("max_cost_usd", 10.0)),
             max_steps_per_task=int(lim.get("max_steps_per_task", 40)),
             max_attempts_per_task=int(lim.get("max_attempts_per_task", 3)),
+            split_stuck_tasks=bool(lim.get("split_stuck_tasks", True)),
+            max_real_usd_per_run=float(lim.get("max_real_usd_per_run", 0) or 0),
             command_timeout=int(lim.get("command_timeout", 120)),
+            max_scout_steps=int(lim.get("max_scout_steps", 30)),
         ),
         allow_shell=bool(ws.get("allow_shell", True)),
         git=bool(ws.get("git", True)),
         planner_role=planner,
         reviewer_role=reviewer,
         critic_role=critic,
+        design_role=design,
+        scout_role=scout,
+        look_stage=look_stage,
         prompts_dir=(base / prompts_dir) if prompts_dir else None,
         hub=raw.get("hub"),
         lab_dir=_lab_dir(raw, base, path),
         improve=dict(raw.get("improve") or {}),
+        remote=dict(raw.get("remote") or {}),
+        profiles=profiles,
+        default_profile=default_profile,
+        token_saver=_token_saver(raw, plugins),
+        plugins=plugins,
     )
+
+
+def _profiles(raw: dict[str, Any], providers: dict[str, Any], roles: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """profiles: {name: {description, roles: {role: {model, fallback}}}}, checked against roles and providers."""
+    out = {}
+    for name, spec in (raw.get("profiles") or {}).items():
+        spec = spec or {}
+        for role, r in (spec.get("roles") or {}).items():
+            if role not in roles:
+                raise ValueError(f"profile {name!r}: no role {role!r} in roles")
+            for m in [r.get("model")] + list(r.get("fallback") or []):
+                if not m:
+                    raise ValueError(f"profile {name!r}: role {role!r} needs a model")
+                ref = ModelRef.parse(m)
+                if providers and ref.provider not in providers:
+                    raise ValueError(f"profile {name!r}: unknown provider {ref.provider!r} in {m!r}")
+        out[str(name)] = {"description": str(spec.get("description", "")), "roles": dict(spec.get("roles") or {})}
+    return out
 
 
 def _lab_dir(raw: dict[str, Any], base: Path, path: Path | None) -> Path | None:

@@ -82,7 +82,7 @@ def test_first_plan_is_a_document_with_estimate_and_critique(tmp_path):
     assert est["tasks"] == 3 and est["cost_usd"] > 0 and est["minutes"] > 0
     assert est["unpriced"] == ["img/pic"]  # the image model has no price: shown, not guessed
     assert {t.section for t in orch.project.tasks()} == {"S1", "S2"}
-    md = (orch.project.dir / "plan.md").read_text()
+    md = (orch.project.dir / "plan.md").read_text(encoding="utf-8")
     assert "## Decisions" in md and "Pixel art (recommended)" in md and "## Don't" in md
     # the critic isn't a role tasks can be given to
     assert "critic" not in orch._roles_text()
@@ -134,7 +134,7 @@ def test_owner_edits_wait_then_revise_changes_only_affected_tasks(tmp_path):
     assert doc["version"] == 2 and doc["pending"] == []
     assert doc["decisions"][0]["chosen"] == "b"  # the owner's choice survives the revision
     assert any(d["text"] == "use any paid fonts" and d["by"] == "owner" for d in doc["dont"])
-    assert doc["ideas"][0]["state"] == "accepted" and doc["questions"] == []
+    assert doc["ideas"][0]["state"] == "accepted" and [q["answer"] for q in doc["questions"]] == ["Crumbs & Co"]  # kept as a record
     by_id = {t.id: t for t in orch.project.tasks()}
     assert by_id["T1"].status == "done" and by_id["T2"].description == "a watercolour bakery logo"
     assert doc["estimate"]["tasks"] == 2  # only what's left
@@ -192,8 +192,169 @@ def test_estimate_uses_history_when_there_is_some(tmp_path):
     orch, *_ = make(tmp_path)
     f = tmp_path / "m.jsonl"
     f.write_text("\n".join(json.dumps({"task": f"T{i}", "role": "coder", "cost_usd": 0.5, "seconds": 120,
-                                       "at": "2026-11-20T10:00:00Z"}) for i in range(4)))
+                                       "at": "2026-11-20T10:00:00Z"}) for i in range(4)), encoding="utf-8")
     hist = plandoc.history_by_role([f])
     assert hist["coder"]["cost"] == 0.5 and hist["coder"]["minutes"] == 2.0
     est = plandoc.estimate(orch.cfg, [Task("X", "x", "coder", "d")], hist)
     assert est["by_role"]["coder"]["basis"] == "history" and est["cost_usd"] == 0.5
+
+
+def test_plan_published_to_the_projects_own_hub_page(tmp_path):
+    import yaml
+
+    from .test_hub import RAW as HUB_RAW
+
+    raw = json.loads(json.dumps(HUB_RAW))
+    raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
+    raw["agents"]["proj"] = {"description": "the project folder's own hub project"}
+    raw["agents"]["harness"] = {"description": "shared"}
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+    hraw = json.loads(json.dumps(RAW))
+    hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
+    orch, *_ = make(tmp_path, raw=hraw, brain=PlanBrain())
+    orch.start("bakery site", require_approval=True)
+    orch.run()
+    page = (tmp_path / "hubdata" / "plans" / "proj.md").read_text(encoding="utf-8")
+    assert page.startswith("_Plan status: waiting for the owner · plan ready: 1 choice, 1 question")
+    assert "## Decisions" in page and "[T1]" in page
+    hub = orch._hub()
+    todo = hub.journal.entries("proj", "proj")
+    assert any(e["kind"] == "plan" and e["text"].startswith("goal: bakery site") for e in todo)  # no name prefix
+    orch.plan_update("choose", decision="C1", option="b")
+    assert "Watercolour (chosen)" in (tmp_path / "hubdata" / "plans" / "proj.md").read_text(encoding="utf-8")
+
+
+def test_commands_through_the_hub(tmp_path):
+    import yaml
+
+    from roundtable.remote import process
+
+    from .test_hub import RAW as HUB_RAW
+
+    raw = json.loads(json.dumps(HUB_RAW))
+    raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
+    raw["agents"].update({"proj": {}, "harness": {}, "me": {}, "stranger": {}})
+    raw["rules"].append({"from": "*", "to": "*", "allow": ["message"]})
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+    hraw = json.loads(json.dumps(RAW))
+    hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
+    brain = PlanBrain()
+    orch, *_ = make(tmp_path, raw=hraw, brain=brain)
+    orch.cfg.lab_dir = tmp_path / "lab"
+    orch.start("bakery site", require_approval=True)
+    orch.run()
+    hub = orch._hub()
+    send = lambda who, body, subject="roundtable: command": hub.send(who, "proj", subject, body, kind="request")  # noqa: E731
+    send("me", json.dumps({"action": "choose", "decision": "C1", "option": "b"}))
+    send("stranger", json.dumps({"action": "approve"}))  # not the owner: ignored
+    send("me", "not json")
+    hub.send("me", "proj", "hello", "just a note")  # a normal message stays for the humans
+    assert process(orch.cfg, hub, log=lambda s: None) == 2
+    assert orch.project.plan_doc()["decisions"][0]["chosen"] == "b"
+    assert not orch.project.meta()["plan_approved"]
+    replies = hub.inbox("me", unread_only=True)
+    assert len(replies) == 2 and any("1 change(s) waiting" in r["body"] for r in replies)
+    assert any("isn't valid JSON" in r["body"] for r in replies)
+    left = {m["subject"] for m in hub.inbox("proj", unread_only=True)}
+    assert left == {"roundtable: command", "hello"}  # the stranger's command and the note
+    send("me", json.dumps({"action": "revise"}))
+    send("me", json.dumps({"action": "approve"}))
+    assert process(orch.cfg, hub, log=lambda s: None) == 2
+    assert orch.project.meta()["status"] == "done"
+    assert any("The run ended as: done" in r["body"] for r in hub.inbox("me", unread_only=True))
+    assert process(orch.cfg, hub, log=lambda s: None) == 0  # each command runs once
+
+
+def test_revisions_carry_answers_by_wording_not_id():
+    old = plandoc.doc_from_submission(DOC, "g", 0)
+    old["ideas"][0]["state"] = "accepted"
+    old["decisions"][0]["chosen"] = "b"
+    old["questions"][0]["answer"] = "Crumbs & Co"
+    sub = json.loads(json.dumps(DOC))
+    sub["ideas"] = [{"id": "I1", "text": "a loyalty card"}]  # same id, different idea
+    sub["decisions"][0]["options"] = [{"id": "x", "label": "Watercolour"}, {"id": "y", "label": "Pixel art"}]
+    new = plandoc.carry_over(plandoc.doc_from_submission(sub, "g", 0), old)
+    assert new["ideas"][0]["state"] == "open"
+    assert new["decisions"][0]["chosen"] == "x"  # the owner's Watercolour, under its new id
+    assert new["questions"][0]["answer"] == "Crumbs & Co"
+
+
+def test_settled_items_stay_and_turned_down_ideas_dont_come_back():
+    old = plandoc.doc_from_submission(DOC, "g", 0)
+    old["ideas"] = [{"id": "I1", "text": "Add a waveform or peak preview in the seek bar.", "state": "rejected"},
+                    {"id": "I2", "text": "Add a play queue with history.", "state": "accepted"}]
+    old["decisions"][0]["chosen"] = "b"
+    old["questions"][0]["answer"] = "Crumbs & Co"
+    sub = json.loads(json.dumps(DOC))
+    sub["decisions"], sub["questions"] = [], []  # the planner drops what's settled
+    sub["ideas"] = [{"id": "I1", "text": "Add a mini peak/waveform preview in the seek bar."},  # reworded
+                    {"id": "I2", "text": "Add crossfade between tracks."}]
+    new = plandoc.carry_over(plandoc.doc_from_submission(sub, "g", 0), old)
+    texts = {i["text"]: i["state"] for i in new["ideas"]}
+    assert "Add a mini peak/waveform preview in the seek bar." not in texts
+    assert texts["Add crossfade between tracks."] == "open"
+    assert texts["Add a waveform or peak preview in the seek bar."] == "rejected"
+    assert texts["Add a play queue with history."] == "accepted"
+    assert len({i["id"] for i in new["ideas"]}) == len(new["ideas"])
+    assert new["decisions"][0]["chosen"] == "b" and new["questions"][0]["answer"] == "Crumbs & Co"
+    ctx = plandoc.context_text(new)
+    assert "doesn't want: Add a waveform" in ctx and "owner's choice" in ctx
+
+
+def test_profiles_change_the_models_and_show_each_estimate(tmp_path):
+    from roundtable.harness.config import parse_config
+    from roundtable.harness.orchestrator import Orchestrator
+    from roundtable.providers.scripted import ScriptedProvider
+
+    raw = {
+        "providers": {"a": {"type": "scripted"}, "b": {"type": "scripted"}},
+        "roles": {"orchestrator": {"model": "a/planner"}, "coder": {"model": "a/cheap"}},
+        "pricing": {"a/planner": {"input": 1, "output": 1}, "a/cheap": {"input": 1, "output": 1},
+                    "b/strong": {"input": 20, "output": 20}},
+        "profiles": {"budget": {"roles": {"coder": {"model": "a/cheap"}}},
+                     "quality": {"description": "best", "roles": {"coder": {"model": "b/strong", "fallback": ["a/cheap"]}}}},
+        "default_profile": "budget",
+    }
+    cfg = parse_config(raw)
+    brain = Brain(plan=[PLAN[0]])
+    cfg.register("a", ScriptedProvider("a", brain))
+    cfg.register("b", ScriptedProvider("b", brain))
+    orch = Orchestrator(cfg, tmp_path / "p")
+    orch.start("goal")
+    orch.plan()
+    assert orch.profile() == "budget" and str(orch.cfg.roles["coder"].models[0]) == "a/cheap"
+    doc = orch.project.plan_doc()
+    assert doc["estimates"]["quality"]["cost_usd"] > doc["estimates"]["budget"]["cost_usd"] * 10
+    assert "Settings: budget (chosen)" in plandoc.render_markdown(doc)
+    orch.set_profile("quality")
+    again = Orchestrator(cfg, tmp_path / "p")
+    assert again.profile() == "quality" and [str(m) for m in again.cfg.roles["coder"].models] == ["b/strong", "a/cheap"]
+    assert str(cfg.roles["coder"].models[0]) == "a/cheap"  # the base config is untouched
+    with pytest.raises(HarnessError):
+        orch.set_profile("nope")
+    with pytest.raises(ValueError):
+        parse_config({**raw, "profiles": {"x": {"roles": {"coder": {"model": "zz/m"}}}}})
+
+
+def test_past_work_is_repriced_for_another_model():
+    from roundtable.harness.config import ModelRef, parse_config
+
+    cfg = parse_config({"providers": {"a": {"type": "scripted"}}, "roles": {"orchestrator": {"model": "a/x"}},
+                        "pricing": {"a/x": {"input": 1, "output": 1}, "a/y": {"input": 3, "output": 3}}})
+    h = {"model": "a/x", "input": 1000, "output": 1000, "cost": 0.5}
+    assert plandoc._reprice(cfg, 0.5, h, ModelRef.parse("a/y")) == pytest.approx(1.5)
+    assert plandoc._reprice(cfg, 0.5, h, ModelRef.parse("a/x")) == 0.5
+
+
+def test_learned_order_still_applies_inside_a_profile():
+    from roundtable.harness.config import parse_config
+
+    cfg = parse_config({
+        "providers": {"a": {"type": "scripted"}},
+        "roles": {"orchestrator": {"model": "a/p"}, "coder": {"model": "a/cheap"}},
+        "profiles": {"balanced": {"roles": {"coder": {"model": "a/cheap", "fallback": ["a/strong"]}}},
+                     "other": {"roles": {"coder": {"model": "a/third"}}}},
+    })
+    cfg.learned = {"roles": {"coder": {"model": "a/strong", "fallback": ["a/cheap"]}}}
+    assert [str(m) for m in cfg.for_profile("balanced").roles["coder"].models] == ["a/strong", "a/cheap"]
+    assert [str(m) for m in cfg.for_profile("other").roles["coder"].models] == ["a/third"]  # different models: the profile wins

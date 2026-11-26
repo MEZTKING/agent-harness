@@ -36,6 +36,12 @@ from ..core.models import utcnow
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 
+def _lines(raw) -> list[str]:
+    """References from the form: a list, or text with one per line."""
+    items = raw if isinstance(raw, list) else str(raw or "").splitlines()
+    return [str(x).strip() for x in items if str(x).strip()][:20]
+
+
 class ApiError(Exception):
     def __init__(self, message: str, status: int = 400):
         super().__init__(message)
@@ -118,6 +124,14 @@ def harness_event_line(kind: str, d: dict[str, Any]) -> str | None:
         return "Plan:\n" + "\n".join(f"   {t}" for t in d["tasks"])
     if kind == "planning":
         return f"Planning with {d['model']}..."
+    if kind == "look_start":
+        return f"Designing {d['count']} look(s) with {d['model']}..."
+    if kind == "looks":
+        return f"Looks: {d['error']}" if d.get("error") else "Looks ready: " + ", ".join(d["looks"])
+    if kind == "look_pictures":
+        return f"   {d['note']}"
+    if kind == "look_applied":
+        return f"Look applied: {d['name']}" + (f" (restyle task {d['task']} added)" if d.get("task") else "")
     if kind == "provider_error":
         return f"   provider error ({d['model']}): {d['error'][:240]}"
     if kind == "status":
@@ -318,8 +332,8 @@ class UIApp:
         cfg = self.need_cfg()
         out = []
         for p in self.lab(cfg).projects():
-            meta = json.loads((p / ".harness/project.json").read_text())
-            tasks = json.loads((p / ".harness/tasks.json").read_text() or "[]")
+            meta = json.loads((p / ".harness/project.json").read_text(encoding="utf-8"))
+            tasks = json.loads((p / ".harness/tasks.json").read_text(encoding="utf-8") or "[]")
             counts: dict[str, int] = {}
             for t in tasks:
                 counts[t["status"]] = counts.get(t["status"], 0) + 1
@@ -337,7 +351,7 @@ class UIApp:
         events = []
         ev = proj.dir / "events.jsonl"
         if ev.is_file():
-            for line in ev.read_text().splitlines()[-300:]:
+            for line in ev.read_text(encoding="utf-8").splitlines()[-300:]:
                 try:
                     d = json.loads(line)
                 except json.JSONDecodeError:
@@ -351,7 +365,7 @@ class UIApp:
         agg: dict[str, dict] = defaultdict(lambda: {"attempts": 0, "approved": 0, "cost": 0.0})
         mp = proj.dir / "metrics.jsonl"
         if mp.is_file():
-            for line in mp.read_text().splitlines():
+            for line in mp.read_text(encoding="utf-8").splitlines():
                 r = json.loads(line)
                 if r.get("outcome") == "owner_feedback":
                     continue
@@ -361,7 +375,7 @@ class UIApp:
                 a["cost"] += r.get("cost_usd") or 0
         return {"path": str(proj.root), "name": proj.root.name, "meta": proj.meta(),
                 "tasks": [asdict(t) for t in proj.tasks()], "events": events[-150:],
-                "summary": summary.read_text() if summary.is_file() else "",
+                "summary": summary.read_text(encoding="utf-8") if summary.is_file() else "",
                 "metrics": [{"key": k, **v} for k, v in sorted(agg.items())],
                 "files": self._files(proj.root)}
 
@@ -401,10 +415,11 @@ class UIApp:
         path = (path if path.is_absolute() else self.projects_dir / path).resolve()
         if (path / ".harness/project.json").exists():
             raise ApiError(f"{path} already has a project; use extend")
+        refs = _lines(body.get("references"))
 
         def run(job: Job):
             orch = self._orch(cfg, path, job)
-            orch.start(goal, require_approval=bool(body.get("approve")))
+            orch.start(goal, require_approval=bool(body.get("approve")), references=refs)
             return {"status": orch.run(max_tasks=body.get("max_tasks")), "path": str(path)}
 
         return self.jobs.start("run", f"new project {path.name}", run, target=str(path)).view()
@@ -479,6 +494,17 @@ class UIApp:
                 "tasks": [asdict(t) for t in tasks if t.goal_index == gi],
                 "open": plandoc.open_items(doc), "line": plandoc.summary_line(doc) if doc else ""}
 
+    def start_run_job(self, cfg, root, why: str = ""):
+        """Start a project's run as a background job (used when a waiting run's time comes)."""
+        root = Path(root)
+        if any(j.target == str(root) and j.status == "running" for j in self.jobs.jobs.values()):
+            return None
+
+        def run(job: Job):
+            return {"status": self._orch(cfg, root, job).run()}
+
+        return self.jobs.start("run", f"run {root.name}" + (f" ({why})" if why else ""), run, target=str(root))
+
     def plan_post(self, body):
         from ..harness.orchestrator import HarnessError, Orchestrator
 
@@ -493,6 +519,11 @@ class UIApp:
                 return orch.revise_plan(body.get("text", ""), critique_again=bool(body.get("critique")))
 
             return self.jobs.start("plan", f"update the plan of {proj.root.name}", run, target=str(proj.root)).view()
+        if action == "looks":
+            def run(job: Job):
+                return self._orch(cfg, proj.root, job).look(body.get("text", ""))
+
+            return self.jobs.start("plan", f"new looks for {proj.root.name}", run, target=str(proj.root)).view()
         if action == "approve":
             Orchestrator(cfg, proj.root).approve()
 
@@ -501,16 +532,115 @@ class UIApp:
 
             return self.jobs.start("run", f"run {proj.root.name}", run, target=str(proj.root)).view()
         try:
+            if action == "profile":
+                return Orchestrator(cfg, proj.root).set_profile(str(body.get("name", "")))
             kw = {k: v for k, v in body.items() if k not in ("path", "action")}
             return Orchestrator(cfg, proj.root).plan_update(action, **kw)
         except HarnessError as e:
             raise ApiError(str(e))
 
+    # -- questions to tap (asks.py) ------------------------------------------------------------
+    def _busy(self, path: Path) -> bool:
+        return any(j.target == str(path) and j.status == "running" for j in self.jobs.jobs.values())
+
+    def asks_get(self, q):
+        """What waits for the owner as cards: one project's (?path=), every project's, or the new-project
+        wizard's (?wizard=1)."""
+        from ..asks import open_asks, wizard_asks
+        from ..harness.orchestrator import Orchestrator
+
+        cfg = self.need_cfg()
+        if q.get("wizard"):
+            return {"asks": wizard_asks(cfg), "projects_dir": str(self.projects_dir)}
+        path = q.get("path", [""])[0]
+        roots = [self.project(cfg, path).root] if path else self.lab(cfg).projects()
+        out = []
+        for root in roots:
+            try:
+                asks = open_asks(Orchestrator(cfg, root), answered=bool(q.get("answered")))
+            except (OSError, ValueError):
+                continue
+            busy = self._busy(root)
+            out += [{**a, "busy": busy} for a in asks]
+        return {"asks": out}
+
+    def asks_post(self, body):
+        """Answer a card: {path, id, chosen, other, confirmed, stamp, skip}; or start a project from the
+        wizard's answers: {wizard: {kind, idea, like, profile, look}} (each {chosen, other})."""
+        from ..asks import answer_ask, finish
+        from ..harness.orchestrator import HarnessError, Orchestrator
+
+        cfg = self.need_cfg()
+        if isinstance(body.get("wizard"), dict):
+            return self._wizard_start(cfg, body["wizard"])
+        proj = self.project(cfg, body.get("path", ""))
+        if self._busy(proj.root):
+            raise ApiError("wait for the running job on this project to finish", 409)
+        try:
+            r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
+                           str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
+                           stamp=body.get("stamp") or None, skip=bool(body.get("skip")))
+        except HarnessError as e:
+            raise ApiError(str(e))
+        if not r.get("then"):
+            return {"reply": r["reply"]}
+        kind = "run" if r["then"] == "run" else "plan"
+        title = {"run": "run", "revise": "update the plan of", "looks": "new looks for"}[r["then"]]
+
+        def run(job: Job):
+            job.line(r["reply"])
+            return {"reply": finish(self._orch(cfg, proj.root, job), r)}
+
+        job = self.jobs.start(kind, f"{title} {proj.root.name}", run, target=str(proj.root)).view()
+        return {"reply": r["reply"], "job": job}
+
+    def _wizard_start(self, cfg, answers: dict[str, Any]):
+        from ..asks import wizard_project
+        from ..harness.orchestrator import HarnessError
+
+        try:
+            w = wizard_project(answers, self.projects_dir)
+            if w["profile"] and w["profile"] not in cfg.profiles:
+                raise HarnessError(f"there's no {w['profile']} setting; choose another")
+        except HarnessError as e:
+            raise ApiError(str(e))
+        path = Path(w["dir"]).resolve()
+
+        def run(job: Job):
+            orch = self._orch(cfg, path, job)
+            orch.start(w["goal"], require_approval=True, references=w["references"])
+            if w["profile"]:
+                orch.set_profile(w["profile"])
+            if w["look"] is not None:
+                meta = orch.project.meta()
+                meta.update(look_step=w["look"], look_brief=w["look_note"])
+                orch.project.save_meta(meta)
+            return {"status": orch.run(), "path": str(path)}
+
+        job = self.jobs.start("run", f"new project {path.name}", run, target=str(path)).view()
+        return {"reply": f"Started {path.name}: the planner is drawing up the plan.", "job": job, "path": str(path)}
+
+    def plan_looks(self, q):
+        """The look pictures of a project's plan as data addresses (the page's pictures may only be those)."""
+        import base64
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, q.get("path", [""])[0])
+        look = (proj.plan_doc() or {}).get("look") or {}
+        out: dict[str, dict[str, str]] = {}
+        for iid, names in (look.get("pictures") or {}).items():
+            for name in names:
+                p = proj.dir / "look" / name
+                if p.is_file():
+                    kind = "phone" if name.endswith("-phone.png") else "desktop"
+                    out.setdefault(iid, {})[kind] = "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
+        return {"pictures": out}
+
     # -- models & probes ------------------------------------------------------------------------
     def probes(self, q):
         cfg = self.need_cfg()
         path = cfg.lab_dir / "probes.jsonl" if cfg.lab_dir else None
-        rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()] if path and path.is_file() else []
+        rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()] if path and path.is_file() else []
         runs: dict[str, dict[str, Any]] = {}
         for r in rows:
             key = f"{r['run']}|{r['model']}"
@@ -733,7 +863,7 @@ class UIApp:
         path = self._config_paths().get(which)
         if not path:
             raise ApiError(f"no {which} config file", 404)
-        return {"which": which, "path": str(path), "text": path.read_text() if path.exists() else ""}
+        return {"which": which, "path": str(path), "text": path.read_text(encoding="utf-8") if path.exists() else ""}
 
     def config_save(self, body):
         import yaml
@@ -756,8 +886,8 @@ class UIApp:
             raise ApiError(f"not saved - {which}.yaml has a problem: {e}")
         backup = path.with_suffix(".yaml.bak")
         if path.exists():
-            backup.write_text(path.read_text())
-        path.write_text(text)
+            backup.write_text(path.read_text(encoding="utf-8"))
+        path.write_text(text, encoding="utf-8")
         if which == "hub":
             self.reload_hub()
         return {"saved": str(path), "backup": str(backup)}
@@ -854,6 +984,94 @@ class UIApp:
 
         return self.jobs.start("update", "update Roundtable Hold", run, target="update").view()
 
+    # -- backups (Settings → Backups) ------------------------------------------------------------------
+    def _backup_home(self) -> Path:
+        from ..desktop import app_home
+
+        return self.desktop["paths"].home if self.desktop else app_home()
+
+    def _backup_sources(self):
+        from ..backup import find_sources
+
+        return find_sources(self.harness_config_path, self.hub_config_path, self._backup_home())
+
+    def _project_job_running(self) -> bool:
+        return any(j.status == "running" and j.kind in ("run", "plan") for j in self.jobs.jobs.values())
+
+    def backup_status(self, q=None):
+        from .. import backup as bk
+
+        home = self._backup_home()
+        settings = bk.load_settings(home)
+        dest = bk.resolve_destination(settings, home=home)
+        state = bk.load_state(home)
+        return {"settings": settings, "found": [str(p) for p in bk.find_drive_folders()],
+                "destination": str(dest) if dest else "", "no_drive": bk.NO_DRIVE, "host": bk.host_name(),
+                "last": {k: state.get(k) for k in ("last_at", "last_file", "last_size", "last_error")},
+                "log": (state.get("log") or [])[:5], "backups": bk.list_backups(dest)[:20] if dest else [],
+                "passphrase_remembered": bool(bk.remembered_passphrase())}
+
+    def _backup_file(self, name: str) -> Path:
+        from .. import backup as bk
+
+        name = (name or "").strip()
+        if not name.endswith((".zip", ".zip.enc")):
+            raise ApiError("Choose a backup file (it ends .zip or .zip.enc).")
+        path = Path(name).expanduser()
+        if not path.is_absolute():
+            dest = bk.resolve_destination(home=self._backup_home())
+            path = (dest / name) if dest else path
+        if not path.is_file():
+            raise ApiError(f"Can't find {path}. Check the name, or that Google Drive has finished syncing it.", 404)
+        return path
+
+    def backup_action(self, body):
+        from .. import backup as bk
+
+        home, action = self._backup_home(), body.get("action")
+        phrase = (body.get("passphrase") or "").strip() or None
+        try:
+            if action == "settings":
+                bk.save_settings(home, **{k: body.get(k) for k in ("to", "keep", "daily", "encrypt")})
+                return self.backup_status()
+            if action == "passphrase":
+                bk.remember_passphrase(phrase if body.get("remember", True) else None)
+                return self.backup_status()
+            if action == "inspect":
+                opened = bk.open_backup(self._backup_file(body.get("file")), phrase)
+                return {"lines": bk.summary(opened, bk.restore_plan(opened, home)),
+                        "refused": opened.manifest.get("refused", []), "notes": opened.manifest.get("notes", [])}
+        except bk.BackupError as e:
+            raise ApiError(str(e)) from None
+        if action == "now":
+            if body.get("remember") and phrase:
+                bk.remember_passphrase(phrase)
+
+            def run(job: Job):
+                res = bk.backup_now(with_code=bool(body.get("with_code")), passphrase=phrase,
+                                    sources=self._backup_sources(), home=home)
+                job.line(res.message())
+                return {"file": str(res.path), "size": res.size, "refused": res.refused, "message": res.message()}
+
+            return self.jobs.start("backup", "back up settings and plans", run, target="backup").view()
+        if action == "restore":
+            if body.get("confirm") is not True:
+                raise ApiError("Confirm the restore first.")
+            if self._project_job_running():
+                raise ApiError("Wait for the running project job to finish, then restore.", 409)
+            path = self._backup_file(body.get("file"))
+
+            def run(job: Job):
+                done = bk.restore(path, phrase, yes=True, home=home, sources=self._backup_sources(), log=job.line)
+                job.line(f"Restored {done.written} files. What was here before is in {done.safety}.")
+                for n in done.notes:
+                    job.line(n)
+                self.reload_hub()
+                return {"written": done.written, "safety": str(done.safety), "notes": done.notes}
+
+            return self.jobs.start("backup", f"restore {path.name}", run, target="backup").view()
+        raise ApiError(f"unknown action {action!r}")
+
     # -- routing table ------------------------------------------------------------------------------
     def phone_status(self, q=None):
         st = self.phone.status()
@@ -910,8 +1128,13 @@ class UIApp:
             ("POST", "/api/update"): R.update_run,
             ("GET", "/api/plan"): R.plan_get,
             ("POST", "/api/plan"): R.plan_post,
+            ("GET", "/api/plan/looks"): R.plan_looks,
+            ("GET", "/api/asks"): R.asks_get,
+            ("POST", "/api/asks"): R.asks_post,
             ("GET", "/api/phone"): R.phone_status,
             ("POST", "/api/phone"): R.phone_action,
+            ("GET", "/api/backup"): R.backup_status,
+            ("POST", "/api/backup"): R.backup_action,
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:
@@ -934,10 +1157,21 @@ class UIApp:
             if not job:
                 raise ApiError("no such job", 404)
             return job.view(int((q.get("since") or ["0"])[0]))
+        if parts[:2] == ["api", "plugins"]:
+            from ..plugins.manage import api as plugins_api
+
+            status, data = plugins_api(method, "/".join(parts[2:]), q, body,
+                                       harness_path=self.harness_config_path, cfg=self.cfg())
+            if status >= 400:
+                raise ApiError(data.get("error", "plugin error"), status)
+            return data
         raise ApiError(f"no route {method} {path}", 404)
 
 
 # -- HTTP layer ------------------------------------------------------------------------------------
+# the look's fonts and pictures: some Pythons (and Windows' registry) don't know these types
+for _ext, _type in ((".woff2", "font/woff2"), (".webp", "image/webp")):
+    mimetypes.add_type(_type, _ext)
 def make_handler(app: UIApp, token: str | None, allow_remote: bool):
     static = resources.files("roundtable").joinpath("ui/static")
 

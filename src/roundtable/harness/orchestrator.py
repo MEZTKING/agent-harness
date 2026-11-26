@@ -6,13 +6,16 @@ failure, Ctrl-C) and resume exactly where it left off:
     project.json   goal(s), status, spend
     tasks.json     the task board
     events.jsonl   everything that happened (human-readable audit log)
-    metrics.jsonl  one row per task attempt: role, model, outcome, cost, tokens
-                   -> input for the Phase 3 self-improvement loop
+    metrics.jsonl  one row per task attempt: role, model, outcome, cost, tokens,
+                   saved_tokens_est -> input for the Phase 3 self-improvement loop
+    spill/         originals of tool results the token saver slimmed (saver.py)
 """
 
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
+import os
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
@@ -21,8 +24,12 @@ from typing import Any, Callable
 
 from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
-from .agent import AgentResult, Budget, BudgetExceeded, run_agent
+from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
+from .lookstage import LookStage
+from .refstage import ReferenceStage, new_reference
+from .saver import TokenSaver
+from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
@@ -47,6 +54,7 @@ class Task:
     goal_index: int = 0
     base_commit: str | None = None  # project state the task started from (for replays)
     section: str = ""  # the plan's spec section (or decision) this task belongs to
+    stronger: bool = False  # the owner asked to retry it with the Quality setting's model
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -104,6 +112,27 @@ class Project:
         with open(self.dir / name, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
+    def saved_tokens_est(self) -> int:
+        """Tokens the token saver kept out of the task conversations so far (an estimate)."""
+        p = self.dir / "metrics.jsonl"
+        if not p.is_file():
+            return 0
+        rows = (json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip())
+        return sum(int(r.get("saved_tokens_est") or 0) for r in rows)
+
+
+def due_cheap_runs(cfg) -> list[Path]:
+    """Lab projects that were approved to start when it's cheaper and whose time has come."""
+    from ..remote import project_dirs
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out = []
+    for root in project_dirs(cfg):
+        meta = Project(root).meta()
+        if meta.get("status") == "waiting_cheap" and (meta.get("start_after") or "") <= now:
+            out.append(root)
+    return out
+
 
 def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Task]) -> list[Task]:
     if not isinstance(raw_tasks, list) or not raw_tasks:
@@ -157,27 +186,32 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator:
+class Orchestrator(LookStage, ReferenceStage):
     def __init__(
         self,
         cfg: HarnessConfig,
         project_dir: str | Path,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ):
-        self.cfg = cfg
+        self.base_cfg = cfg
         self.project = Project(project_dir)
+        self.cfg = cfg.for_profile(self.profile())
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
         self._listener = on_event
         meta = self.project.meta()
-        self.budget = Budget(limit_usd=cfg.limits.max_cost_usd, spent_usd=meta.get("spent_usd", 0.0))
+        # the owner can let one project spend more than the limit ("Carry on with $X more")
+        limit = cfg.limits.max_cost_usd + float(meta.get("budget_extra_usd") or 0)
+        self.budget = Budget(limit_usd=limit, spent_usd=meta.get("spent_usd", 0.0))
         # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
-        self.budget.on_charge = lambda cost: self.project.append(
-            "spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
+        self.budget.on_charge = self._on_charge
+        self._broke: set[str] = set()  # providers that said "out of credit" during this run
+        self._last_real_check = 0.0
 
     # -- logging -------------------------------------------------------------
     def emit(self, kind: str, data: dict[str, Any]) -> None:
         row = {"at": utcnow(), "event": kind, **data}
         self.project.append("events.jsonl", row)
+        plugins_notify(self.cfg, kind, data, self.project.root, self.emit)
         if self._listener:
             self._listener(kind, data)
 
@@ -189,6 +223,8 @@ class Orchestrator:
 
     def _set_status(self, status: str, **extra: Any) -> None:
         meta = self.project.meta()
+        if not status.startswith("paused"):
+            meta.pop("pause", None)  # why it last paused: only while it is paused
         meta.update(status=status, updated_at=utcnow(), **extra)
         self.project.save_meta(meta)
         self.emit("status", {"status": status, **extra})
@@ -210,9 +246,9 @@ class Orchestrator:
         if not (self.project.root / ".git").exists():
             self._git("init", "-q")
         gi = self.project.root / ".gitignore"
-        lines = gi.read_text().splitlines() if gi.exists() else []
+        lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
         if ".harness/" not in lines:
-            gi.write_text("\n".join(lines + [".harness/"]) + "\n")
+            gi.write_text("\n".join(lines + [".harness/"]) + "\n", encoding="utf-8")
 
     def _git_commit(self, message: str) -> None:
         if not self.cfg.git:
@@ -252,11 +288,56 @@ class Orchestrator:
             self._hub_cache = Hub(load_hub_config(self.cfg.hub.get("config")))
         return self._hub_cache
 
+    def _hub_agent(self) -> str:
+        """The project's own hub project if there is one with its folder name, else the shared harness agent."""
+        hub = self._hub()
+        name = self.project.root.name
+        if hub and name in hub.config.agents:
+            return name
+        return self.cfg.hub["agent"]
+
+    def _publish_plan(self) -> None:
+        """Put the readable plan in the hub (plans/<project>.md), so the phone and other sessions see it."""
+        try:
+            hub = self._hub()
+            doc = self.project.plan_doc()
+            if not hub or not doc:
+                return
+            from ..core.store import BinaryFile, TextFile
+
+            agent = self._hub_agent()
+            name = agent if agent == self.project.root.name else f"{agent}--{self.project.root.name}"
+            meta = self.project.meta()
+            state = ("approved, building" if meta.get("plan_approved") and meta.get("status") != "done"
+                     else "done" if meta.get("status") == "done" else "waiting for the owner")
+            gi = doc.get("goal_index", 0)
+            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
+                  + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
+                                            image_base=f"looks/{name}/"))
+            files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n"),
+                                     f"plans/{name}.asks.json": TextFile(self._asks_json())}
+            files.update({f"plans/looks/{name}/{f}": BinaryFile(b) for f, b in self._look_pictures().items()})
+            hub.store.write_json(files, f"plan({name}): v{doc.get('version', 1)} {state}")
+        except Exception as e:  # the hub is optional; never fail a run over it
+            self.emit("hub_error", {"error": str(e)})
+
+    def _asks_json(self) -> str:
+        """What waits for the owner, as cards for the phone (Hub mode reads it next to the plan)."""
+        from ..asks import open_asks
+
+        try:
+            asks = open_asks(self)
+        except Exception as e:  # the cards are a help: never fail a publish over them
+            self.emit("hub_error", {"error": f"asks: {e}"})
+            asks = []
+        return json.dumps({"project": self.project.root.name, "at": utcnow(), "asks": asks}, indent=1,
+                          ensure_ascii=False) + "\n"
+
     def _hub_update(self, status: str, note: str | None = None) -> None:
         try:
             hub = self._hub()
             if hub:
-                hub.update_card(self.cfg.hub["agent"], change_note=note, status=status)
+                hub.update_card(self._hub_agent(), change_note=note, status=status)
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
 
@@ -266,8 +347,9 @@ class Orchestrator:
             hub = self._hub()
             if not hub:
                 return None
-            return hub.journal.add(self.cfg.hub["agent"], kind, f"{self.project.root.name}: {text}",
-                                   source="harness", **kw)["id"]
+            agent = self._hub_agent()
+            prefix = "" if agent == self.project.root.name else f"{self.project.root.name}: "
+            return hub.journal.add(agent, kind, f"{prefix}{text}", source="harness", **kw)["id"]
         except Exception as e:
             self.emit("hub_error", {"error": str(e)})
             return None
@@ -278,7 +360,7 @@ class Orchestrator:
         try:
             hub = self._hub()
             if hub:
-                hub.journal.close(self.cfg.hub["agent"], entry_id, note=note)
+                hub.journal.close(self._hub_agent(), entry_id, note=note)
         except Exception as e:
             self.emit("hub_error", {"error": str(e)})
 
@@ -292,6 +374,7 @@ class Orchestrator:
         if entry:
             open_[key] = entry
             self.project.save_meta(meta)
+        self._publish_plan()  # the phone's cards (plans/<project>.asks.json) show it too
 
     def _resolved(self, *keys: str, note: str = "") -> None:
         meta = self.project.meta()
@@ -308,12 +391,16 @@ class Orchestrator:
     def _roles_text(self) -> str:
         lines = []
         for r in self.cfg.roles.values():
-            if r.name in (self.cfg.planner_role, self.cfg.reviewer_role, self.cfg.critic_role):
+            if r.name in self._not_for_tasks() or r.name == self.cfg.reviewer_role:
                 continue
             kind = (" (image generation: description = the visual prompt; set output_path, and image_options "
                     "for style/size when the role description lists choices)") if r.kind == "image" else ""
             lines.append(f"- {r.name}{kind}: {r.description or 'general work'}")
         return "\n".join(lines)
+
+    def _not_for_tasks(self) -> set[str]:
+        """Roles that plan, critique or design looks: never given a task."""
+        return {r for r in (self.cfg.planner_role, self.cfg.critic_role, self.cfg.design_role, self.cfg.scout_role) if r}
 
     def _project_context(self, tasks: list[Task], upto: Task | None = None) -> str:
         meta = self.project.meta()
@@ -324,6 +411,9 @@ class Orchestrator:
         plan_text = plandoc.context_text(self.project.plan_doc())
         if plan_text:
             parts.append(plan_text)
+        design = self._design_context()
+        if design:
+            parts.append(design)
         parts.append(f"# Task board\n{board}")
         if done:
             parts.append("# Completed work\n" + "\n".join(done))
@@ -408,13 +498,19 @@ class Orchestrator:
         return {"reply": answer, "model": res.model, "cost_usd": res.cost_usd}
 
     # -- planning --------------------------------------------------------------
-    def start(self, goal: str, require_approval: bool = False) -> None:
+    def start(self, goal: str, require_approval: bool = False, references: list[str] | None = None) -> None:
+        """A new project. ``references``: links, GitHub repositories or descriptions to make it like."""
         if self.project.exists:
             raise HarnessError(f"{self.project.root} already has a project; use `roundtable extend` to add a goal")
+        refs: list[dict[str, Any]] = []
+        for text in references or []:
+            if str(text).strip():
+                refs.append(new_reference(text, refs))
         self._git_init()
         self.project.save_meta({
             "goals": [goal], "status": "planning", "created_at": utcnow(),
             "require_approval": require_approval, "plan_approved": not require_approval, "spent_usd": 0.0,
+            "references": refs,
         })
         self.project.save_tasks([])
         self.emit("goal", {"goal": goal})
@@ -442,7 +538,7 @@ class Orchestrator:
             {
                 "id": {"type": "string", "description": "short unique id like T1, T2"},
                 "title": {"type": "string"},
-                "role": {"type": "string", "enum": sorted(r for r in roles if r not in (self.cfg.planner_role, self.cfg.critic_role))},
+                "role": {"type": "string", "enum": sorted(r for r in roles if r not in self._not_for_tasks())},
                 "description": {"type": "string", "description": "complete, self-contained instructions"},
                 "acceptance": {"type": "string", "description": "how to verify it is done (tests to pass, files to exist...)"},
                 "depends_on": {"type": "array", "items": {"type": "string"}},
@@ -497,6 +593,73 @@ class Orchestrator:
             raise HarnessError(f"planner did not produce a valid plan ({'; '.join(last_error[-1:]) or result.stop})")
         return captured["tasks"], captured["args"]
 
+    # -- running when it's cheaper (providers with off-peak prices, e.g. DeepSeek) -------
+    def cheap_start_at(self) -> datetime | None:
+        """When the run would be cheaper: the next off-peak moment for the models doing the tasks,
+        or None when it's already off-peak or none of them has off-peak prices."""
+        from .config import DEFAULT_PRICING, next_offpeak
+
+        windows: list[str] = []
+        for t in self.project.tasks():
+            role = self.cfg.roles.get(t.role)
+            if t.status != "pending" or not role:
+                continue
+            for ref in role.models[:1] + ([self.cfg.roles[self.cfg.reviewer_role].models[0]]
+                                          if self.cfg.reviewer_role in self.cfg.roles else []):
+                price = self.cfg.pricing.get(str(ref)) or self.cfg.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model) or {}
+                windows += [w for w in price.get("peak_utc", []) if w not in windows]
+        if not windows:
+            return None
+        now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        at = next_offpeak(windows, now)
+        return at if at > now else None
+
+    def start_when_cheap(self) -> str | None:
+        """Approve the plan to start at the next off-peak moment; returns that time (UTC, HH:MM) or None."""
+        at = self.cheap_start_at()
+        meta = self.project.meta()
+        meta["start_after"] = at.strftime("%Y-%m-%dT%H:%M:%SZ") if at else None
+        self.project.save_meta(meta)
+        if at:
+            self._set_status("waiting_cheap")
+            self.emit("waiting_cheap", {"start_after": meta["start_after"]})
+        return at.strftime("%H:%M") if at else None
+
+    # -- profiles: budget / balanced / quality ---------------------------------------
+    def profile(self) -> str | None:
+        """The project's chosen set of models, else the config's default (None: the roles as written)."""
+        chosen = self.project.meta().get("profile") if self.project.exists else None
+        return chosen if chosen in self.base_cfg.profiles else self.base_cfg.default_profile
+
+    def set_profile(self, name: str) -> dict[str, Any]:
+        if name not in self.base_cfg.profiles:
+            raise HarnessError(f"no profile {name!r}; choose from {', '.join(self.base_cfg.profiles) or 'none set up'}")
+        meta = self.project.meta()
+        meta["profile"] = name
+        self.project.save_meta(meta)
+        self.cfg = self.base_cfg.for_profile(name)
+        doc = self.project.plan_doc()
+        if doc:
+            doc["profile"] = name
+            doc["estimate"] = self._estimate(self.project.tasks())
+            doc["estimates"] = self.profile_estimates()
+            self.project.save_plan_doc(doc)
+            self._publish_plan()
+        self.emit("profile", {"profile": name})
+        return {"profile": name, "estimates": self.profile_estimates()}
+
+    def profile_estimates(self) -> dict[str, dict[str, Any]]:
+        """The plan's estimate under every profile, so the owner sees what each would cost."""
+        out, keep = {}, self.cfg
+        try:
+            for name in self.base_cfg.profiles:
+                self.cfg = self.base_cfg.for_profile(name)
+                e = self._estimate(self.project.tasks())
+                out[name] = {"cost_usd": e.get("cost_usd"), "minutes": e.get("minutes"), "unpriced": e.get("unpriced", [])}
+        finally:
+            self.cfg = keep
+        return out
+
     def _estimate(self, tasks: list[Task]) -> dict[str, Any]:
         files = [self.project.dir / "metrics.jsonl"]
         if self.cfg.lab_dir:
@@ -518,12 +681,16 @@ class Orchestrator:
         existing = self.project.tasks()
         goal_index = len(meta["goals"]) - 1
         goal = meta["goals"][-1]
+        refs = self._scout_pending()
+        like = self._references_text()
         job = (
-            f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
+            (f"{like}\n\n" if like else "")
+            + f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
             + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
             + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
               "don't-do list, a short spec, the real decisions with your recommendation, questions only you can't "
-              "answer, worthwhile ideas) and the tasks, each linked to its spec section."
+              "answer, worthwhile ideas), has_ui (true when people will look at its screens) and the tasks, each "
+              "linked to its spec section."
         )
         new, args = self._plan_call(job, existing)
         for t in new:
@@ -531,15 +698,21 @@ class Orchestrator:
         tasks = existing + new
         self.project.save_tasks(tasks)
         doc = plandoc.doc_from_submission(args, goal, goal_index)
+        doc["references"] = refs
         doc["estimate"] = self._estimate(new)
+        if self.base_cfg.profiles:
+            doc["estimates"] = self.profile_estimates()
+            doc["profile"] = self.profile()
         self.project.save_plan_doc(doc, tasks)
         self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": doc["summary"][:500]})
         self._critique()
+        self._look_stage()
         doc = self.project.plan_doc() or doc
         new = [t for t in self.project.tasks() if t.goal_index == goal_index]
         meta = self.project.meta()
         status = "awaiting_approval" if not meta.get("plan_approved") else "running"
         self._set_status(status)
+        self._publish_plan()
         self._hub_update("planned", f"new plan: {len(new)} tasks for goal: {goal[:200]}")
         plan_id = self._journal("plan", f"goal: {goal[:300]}",
                                 details="\n".join(f"[{t.id}] ({t.role}) {t.title}" for t in new))
@@ -616,6 +789,10 @@ class Orchestrator:
         instruction = (instruction or "").strip()
         if not pending and not instruction:
             raise HarnessError("nothing to change: choose, answer, edit or write what you want changed first")
+        if any(r.get("status") == "new" for r in doc.get("references", [])):
+            self._scout_pending()  # a reference added since: read it before re-planning
+            doc = self.project.plan_doc()
+        like = self._references_text()
         meta = self.project.meta()
         gi = doc["goal_index"]
         tasks = self.project.tasks()
@@ -624,6 +801,7 @@ class Orchestrator:
         changes = "\n".join(f"- {c['text']}" for c in pending)
         job = (
             f"# Current plan (version {doc.get('version', 1)})\n{plandoc.render_markdown(doc, [t for t in tasks if t.goal_index == gi])}\n\n"
+            + (f"{like}\n\n" if like else "")
             + (f"# The owner's changes to apply\n{changes}\n\n" if changes else "")
             + (f"# {'The owner says' if by == 'owner' else 'Also'}\n{instruction}\n\n" if instruction else "")
             + f"# Your job\nRevise the plan for goal #{gi + 1}: {meta['goals'][gi]}\n"
@@ -655,15 +833,23 @@ class Orchestrator:
         all_tasks = keep + new
         self.project.save_tasks(all_tasks)
         new_doc["estimate"] = self._estimate(new)
+        if self.base_cfg.profiles:
+            new_doc["estimates"] = self.profile_estimates()
+            new_doc["profile"] = self.profile()
         self.project.save_plan_doc(new_doc, all_tasks)
         self.emit("plan_revised", {"version": new_doc["version"], "by": by, **diff})
+        if by != "critic":  # the first plan publishes after its critique
+            self._publish_plan()
+        if self._look_changed(new_doc):
+            self.apply_look()
         if by == "owner":
             self.project.append("chat.jsonl", {"at": utcnow(), "who": "orchestrator", "text": summary, "steer": False})
         if critique_again:
             self._critique()
         return {"version": new_doc["version"], "summary": summary, **diff}
 
-    PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note")
+    PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note",
+                    "look", "reference_add", "reference_remove")
 
     def plan_update(self, action: str, **kw: Any) -> dict[str, Any]:
         """The owner edits the plan. Edits wait in `pending` until revise_plan applies them (one model call)."""
@@ -690,6 +876,10 @@ class Orchestrator:
         elif action == "answer":
             q = find(doc["questions"], kw.get("question", ""))
             q["answer"] = str(kw.get("text", "")).strip()[:2000]
+            if not q["answer"]:
+                raise HarnessError("write an answer, or pick one")
+            ids = {o.get("id") for o in q.get("options") or []}
+            q["chosen"] = [c for c in kw.get("chosen") or [] if c in ids]  # which ready answers were tapped
             note(f"Answer to '{q['text']}': {q['answer']}", f"answer:{q['id']}")
         elif action == "dont_add":
             text = str(kw.get("text", "")).strip()[:500]
@@ -707,8 +897,8 @@ class Orchestrator:
             i["state"] = "accepted" if kw.get("accept") else "rejected"
             if i["state"] == "accepted":
                 note(f"The owner wants this idea too: {i['text']}", f"idea:{i['id']}")
-            else:
-                pend[:] = [p for p in pend if p.get("key") != f"idea:{i['id']}"]
+            else:  # tell the planner too, or it may suggest the same thing again
+                note(f"The owner doesn't want this idea, don't suggest it again: {i['text']}", f"idea:{i['id']}")
         elif action == "section":
             sec = find(doc["spec"], kw.get("id", ""))
             sec["text"] = str(kw.get("text", "")).strip()[:8000]
@@ -726,6 +916,12 @@ class Orchestrator:
                     raise HarnessError("no such scope item")
                 doc[key].remove(text)
                 note(f"No longer {'out of' if kw.get('out') else 'in'} scope: {text}", f"{key}:{text[:40]}")
+        elif action == "look":
+            self._choose_look(doc, kw, note)
+        elif action == "reference_add":
+            self._add_reference(doc, kw, note)
+        elif action == "reference_remove":
+            self._remove_reference(doc, kw, note)
         elif action == "note":
             text = str(kw.get("text", "")).strip()[:2000]
             if not text:
@@ -735,6 +931,7 @@ class Orchestrator:
             raise HarnessError(f"action must be one of {', '.join(self.PLAN_ACTIONS)}, revise or approve")
         self.project.save_plan_doc(doc)
         self.emit("plan_edit", {"action": action, "pending": len(pend)})
+        self._publish_plan()
         return {"pending": len(pend), "open": plandoc.open_items(doc)}
 
     def approve(self) -> None:
@@ -748,19 +945,21 @@ class Orchestrator:
             meta["status"] = "running"
         self.project.save_meta(meta)
         self.emit("approved", {})
+        self._publish_plan()
 
     # -- execution ---------------------------------------------------------------
     def _run_with_fallback(
         self, role: RoleSpec, system: str, prompt: str, box: Toolbox,
-        require: str | None = None, done: Callable[[], bool] | None = None,
+        require: str | None = None, done: Callable[[], bool] | None = None, max_steps: int | None = None,
     ) -> AgentResult:
         """Run a one-shot role job (planning / summary), trying fallback models on provider errors."""
         last: Exception | None = None
         for ref in role.models:
             try:
                 res = run_agent(self.cfg, ref, system, prompt, box, self.budget,
-                                max_steps=self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
-                                options=role.options, require_terminal=require, on_event=self.emit)
+                                max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
+                                options=role.options, require_terminal=require, on_event=self.emit,
+                                saver=self._saver(), role=role.name)
                 self._save_spend()
                 if done is None or done() or res.stop != "refusal":
                     return res
@@ -768,6 +967,10 @@ class Orchestrator:
                 last = e
                 self.emit("provider_error", {"model": str(ref), "error": str(e)})
         raise HarnessError(f"all models for role {role.name!r} failed: {last}")
+
+    def _saver(self) -> TokenSaver:
+        """A fresh token saver for one conversation; originals spill into .harness/spill."""
+        return TokenSaver(self.cfg.token_saver, self.project.root, on_event=self.emit)
 
     def _worker_prompt(self, task: Task, tasks: list[Task], feedback: list[str]) -> str:
         deps = [t for t in tasks if t.id in task.depends_on]
@@ -780,15 +983,21 @@ class Orchestrator:
             parts.append("# Results of tasks this depends on\n" + "\n".join(f"- [{d.id}] {d.summary}" for d in deps))
         if feedback:
             parts.append("# Feedback on your previous attempt(s) - address all of it\n" + "\n\n".join(feedback))
-        parts.append("Work in the project files using your tools. When finished, call finish_task with a concise summary "
-                     "of what you did and anything the next person must know.")
+        parts.append("Work in the project files using your tools. Throwaway scripts you write only to check your work "
+                     "go in .harness/scratch/ (never committed or reviewed), or delete them before you finish. When "
+                     "finished, call finish_task with a concise summary of what you did and anything the next person "
+                     "must know.")
         return "\n\n".join(parts)
 
-    def _review(self, task: Task, worker_summary: str) -> tuple[bool, str, AgentResult | None]:
+    def _review(self, task: Task, worker_summary: str, stronger: bool = False) -> tuple[bool, str, AgentResult | None]:
         reviewer = self.cfg.roles.get(self.cfg.reviewer_role or "")
         role = self.cfg.roles[task.role]
         if not reviewer or not role.review:
             return True, "(review skipped)", None
+        if stronger and len(reviewer.models) > 1:
+            from dataclasses import replace as _replace
+
+            reviewer = _replace(reviewer, models=reviewer.models[1:] + reviewer.models[:1])
         verdict: dict[str, Any] = {}
 
         def submit_review(args: dict) -> str:
@@ -808,9 +1017,13 @@ class Orchestrator:
             f"# Acceptance criteria\n{task.acceptance or '(use judgement)'}\n\n"
             f"# Worker's summary\n{worker_summary}\n\n"
             + (f"{self._guidance_text()}\n\n" if self._guidance_text() else "")
-            + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "") +
+            + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "")
+            + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
-            "Verify the work (read files, run tests if relevant), then call submit_review."
+            + self._later_tasks_text(task) +
+            "Verify the work (read files, run tests if relevant), then call submit_review. Judge THIS task "
+            "against its own acceptance criteria: the plan, the design file and later tasks are context, so don't "
+            "reject for work a later task will do, or for small harmless changes the criteria don't forbid."
         )
         res = self._run_with_fallback(reviewer, self.cfg.prompt_text(reviewer.prompt), prompt, box,
                                       require="submit_review", done=lambda: bool(verdict))
@@ -818,13 +1031,22 @@ class Orchestrator:
             return False, f"reviewer gave no verdict ({res.stop}): {res.text[:500]}", res
         return bool(verdict.get("approved")), str(verdict.get("feedback", "")), res
 
-    def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0) -> None:
+    def _later_tasks_text(self, task: Task) -> str:
+        """The tasks still to come, so a reviewer doesn't ask this one to do their work."""
+        later = [t for t in self.project.tasks() if t.id != task.id and t.status == "pending"]
+        if not later:
+            return ""
+        return "# Still to come (not this task's job)\n" + "".join(f"- [{t.id}] {t.title}\n" for t in later[:20]) + "\n"
+
+    def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0,
+                review_saved: int = 0) -> None:
         self.project.append("metrics.jsonl", {
             "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": outcome,
             "steps": res.steps if res else 0, "seconds": res.seconds if res else 0,
             "input_tokens": res.usage.input_tokens if res else 0,
             "output_tokens": res.usage.output_tokens if res else 0,
             "cost_usd": round((res.cost_usd if res else 0) + review_cost, 6),
+            "saved_tokens_est": (res.saved_tokens_est if res else 0) + review_saved,
         })
 
     def _run_image_task(self, task: Task, role: RoleSpec) -> bool:
@@ -876,10 +1098,16 @@ class Orchestrator:
         feedback: list[str] = []
         model_idx = 0
         rejections_on_model = 0
+        ran_out_once = False
+        models = (self.stronger_models(task) if task.stronger else []) or role.models
         for attempt in range(1, self.cfg.limits.max_attempts_per_task + 1):
-            if model_idx >= len(role.models):
+            while model_idx < len(models) and models[model_idx].provider in self._broke:
+                model_idx += 1  # that account is empty: no point trying it again this run
+            if model_idx >= len(models):
+                if all(m.provider in self._broke for m in models):
+                    raise OutOfCredit("no credit left with " + ", ".join(sorted({m.provider for m in models})))
                 break
-            ref = role.models[model_idx]
+            ref = models[model_idx]
             self.emit("attempt", {"task": task.id, "attempt": attempt, "model": str(ref)})
             summary: dict[str, Any] = {}
 
@@ -894,9 +1122,11 @@ class Orchestrator:
                 res = run_agent(self.cfg, ref, self.cfg.prompt_text(role.prompt), self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
-                                on_event=self.emit)
+                                on_event=self.emit, saver=self._saver(), role=task.role)
                 self._save_spend()
             except ProviderError as e:
+                if getattr(e, "out_of_credit", False):
+                    self._broke.add(ref.provider)
                 self.emit("provider_error", {"task": task.id, "model": str(ref), "error": str(e)})
                 task.attempts.append({"model": str(ref), "outcome": "error", "error": str(e)})
                 self._metric(task, ref, "error", None)
@@ -907,24 +1137,32 @@ class Orchestrator:
             if res.stop in ("refusal", "max_steps") and not summary:
                 task.attempts.append({"model": str(ref), "outcome": res.stop, "cost_usd": res.cost_usd})
                 self._metric(task, ref, res.stop, res)
+                if res.stop == "max_steps" and model_idx + 1 >= len(models) and not ran_out_once:
+                    # no fallback model: the files it wrote are still there, so let it carry on once
+                    ran_out_once = True
+                    feedback.append("Your previous attempt ran out of steps before finishing. Its changes are still "
+                                    "in the files: check what's there, finish the rest, and call finish_task.")
+                    continue
                 feedback.append(f"Previous attempt ended with {res.stop}. Work more efficiently and call finish_task.")
                 model_idx += 1
                 continue
 
             worker_summary = summary.get("summary") or res.text or "(no summary)"
-            approved, fb, rev = self._review(task, worker_summary)
+            # after a rejection, the next verdict comes from the next (stronger) reviewer model
+            approved, fb, rev = self._review(task, worker_summary,
+                                             stronger=any(a.get("outcome") == "rejected" for a in task.attempts))
             review_cost = rev.cost_usd if rev else 0.0
             outcome = "approved" if approved else "rejected"
             task.attempts.append({"model": str(ref), "outcome": outcome, "summary": worker_summary[:1000],
                                   "review": fb[:2000], "cost_usd": round(res.cost_usd + review_cost, 6)})
-            self._metric(task, ref, outcome, res, review_cost)
+            self._metric(task, ref, outcome, res, review_cost, rev.saved_tokens_est if rev else 0)
             self.emit("review", {"task": task.id, "approved": approved, "feedback": fb[:500]})
             if approved:
                 task.summary = worker_summary
                 return True
             feedback.append(f"Attempt {attempt} ({ref}) was rejected by the reviewer:\n{fb}")
             rejections_on_model += 1
-            if rejections_on_model >= 2 and model_idx + 1 < len(role.models):
+            if rejections_on_model >= 2 and model_idx + 1 < len(models):
                 model_idx += 1  # this model keeps missing; let the fallback try
                 rejections_on_model = 0
         task.summary = f"failed after {len(task.attempts)} attempt(s)"
@@ -932,9 +1170,134 @@ class Orchestrator:
 
     def run(self, max_tasks: int | None = None) -> str:
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
+        plugins_begin_run(self.cfg)
+        start = self._note_balance("start")
+        self._balance_start = start
+        self._last_real_check = time.time()
+        try:
+            status = self._run(max_tasks)
+        finally:
+            if start:
+                self._note_balance("end", start)
+        if status != "awaiting_approval":
+            self._learn_after_run()
+        return status
+
+    def _learn_after_run(self) -> None:
+        """improve.after_each_run: look at what the runs showed and apply what the policy allows.
+
+        Rules only (no model calls, no replay tests, no probes), so it costs nothing; what changed goes
+        into the journal as a decision, so the owner can read later what was switched and why.
+        """
+        if not self.base_cfg.improve.get("after_each_run") or not self.base_cfg.lab_dir:
+            return
+        try:
+            from ..improve.lab import Lab
+            from ..improve.loop import cycle
+
+            lab = Lab(self.base_cfg.lab_dir)
+            report = cycle(self.base_cfg.variant(), lab, use_llm=False, test=False, probe=False)
+        except Exception as e:  # learning is a bonus; never fail a run over it
+            self.emit("learn_failed", {"error": str(e)[:300]})
+            return
+        for a in report.get("applied", []):
+            p = next((x for x in lab.proposals() if x.id == a["id"]), None)
+            why = p.rationale if p else ""
+            self.emit("improved", {"id": a["id"], "version": a["version"], "summary": a["summary"]})
+            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why} "
+                                      f"(undo: roundtable improve rollback {a['version']})")
+
+    REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
+
+    def _on_charge(self, cost: float) -> None:
+        self.project.append("spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
+        # the real-money limit is also checked inside a long task, at most once a minute
+        limit = self.cfg.limits.max_real_usd_per_run
+        self._counted_since_check = getattr(self, "_counted_since_check", 0.0) + cost
+        # look at the real balance once a minute, or sooner when a dear model is spending fast
+        # (a tenth of the limit counted since the last look)
+        if limit and (time.time() - self._last_real_check >= self.REAL_CHECK_SECONDS
+                      or self._counted_since_check >= limit * 0.1):
+            self._last_real_check, self._counted_since_check = time.time(), 0.0
+            if self._real_spend_over_limit():
+                raise BudgetExceeded(f"this run reached its real-money limit of "
+                                     f"${self.cfg.limits.max_real_usd_per_run:.2f}")
+
+    def _real_spent(self) -> float | None:
+        """Real money spent since the run started, from the providers' balances (None: can't tell)."""
+        start = getattr(self, "_balance_start", None)
+        if not start:
+            return None
+        try:
+            from ..providers.balance import balances
+
+            now = balances(self.cfg, list(start["balances"]))
+        except Exception:
+            return None
+        return sum(start["balances"][p]["amount"] - b["amount"] for p, b in now.items() if p in start["balances"])
+
+    def _real_spend_over_limit(self, fraction: float = 1.0) -> bool:
+        """True when the run's real spend reached `fraction` of limits.max_real_usd_per_run."""
+        limit = self.cfg.limits.max_real_usd_per_run
+        spent = self._real_spent() if limit else None
+        return spent is not None and spent >= limit * fraction
+
+    def _note_balance(self, phase: str, start: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Note the providers' real balances, so the cost count can be checked against the bill."""
+        if not self.project.exists or os.environ.get("ROUNDTABLE_NO_BALANCE"):
+            return None
+        try:
+            from ..providers.balance import balances
+
+            used = sorted({m.provider for r in self.cfg.roles.values() for m in r.models})
+            now = balances(self.cfg, used)
+        except Exception:
+            return None
+        if not now:
+            return None
+        row: dict[str, Any] = {"at": utcnow(), "phase": phase, "balances": now,
+                               "counted_usd": round(self.project.meta().get("spent_usd", 0.0), 6)}
+        if start:
+            real = sum(start["balances"][p]["amount"] - b["amount"] for p, b in now.items() if p in start["balances"])
+            counted = row["counted_usd"] - start["counted_usd"]
+            row.update(real_usd=round(real, 4), counted_since_start_usd=round(counted, 4))
+            self.emit("real_cost", {"real_usd": row["real_usd"], "counted_usd": row["counted_since_start_usd"]})
+        with (self.project.root / ".harness" / "balance.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+        return row
+
+    def _split_if_too_big(self, task: Task) -> bool:
+        """A task that kept running out of steps is too big: ask the planner to split it, once."""
+        outcomes = [a.get("outcome") for a in task.attempts]
+        record = self.project.root / ".harness" / "split.json"
+        split = json.loads(record.read_text(encoding="utf-8")) if record.is_file() else []
+        if (not self.cfg.limits.split_stuck_tasks or not outcomes or task.id in split
+                or any(o != "max_steps" for o in outcomes) or not self.project.plan_doc()):
+            return False
+        record.write_text(json.dumps(split + [task.id]), encoding="utf-8")
+        try:
+            r = self.revise_plan(
+                f"Task {task.id} '{task.title}' ran out of steps {len(outcomes)} times: it is too big for one "
+                "attempt. Its partial work is already in the files. Replace it with 2 to 4 smaller tasks that "
+                "finish it, each small enough to do in about 30 steps, with clear 'done when' checks. Keep "
+                "every other task as it is.", by="harness")
+        except Exception as e:  # splitting is a help, not a must: the task stays failed for the owner
+            self.emit("split_failed", {"task": task.id, "error": str(e)[:300]})
+            return False
+        self.emit("task_split", {"task": task.id, "summary": r["summary"]})
+        self._journal("note", f"[{task.id}] was too big for one attempt; split: {r['summary']}")
+        return True
+
+    def _run(self, max_tasks: int | None = None) -> str:
         if not self.project.exists:
             raise HarnessError("no project here; use `roundtable new`")
         meta = self.project.meta()
+        after = meta.get("start_after")
+        if after and after > datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"):
+            return "waiting_cheap"  # approved to start when it's cheaper; the desktop app starts it then
+        if after:
+            meta["start_after"] = None
+            self.project.save_meta(meta)
         self._register_with_lab()
         try:
             if meta.get("status") == "planning":
@@ -948,7 +1311,7 @@ class Orchestrator:
             self._resolved("approval", "budget", note="run resumed")
             self._set_status("running")
 
-            executed = 0
+            executed = finished_this_run = 0
             while True:
                 tasks = self.project.tasks()
                 by_id = {t.id: t for t in tasks}
@@ -970,6 +1333,17 @@ class Orchestrator:
                         return "done"
                     self._set_status("blocked")
                     return "blocked"
+                if not finished_this_run and executed and self._real_spend_over_limit(0.5):
+                    # half the money gone and nothing passed: stop and let the owner look, don't spend the rest
+                    self._set_status("paused", pause="money_nothing_done")
+                    self._attention("money", "this run has spent half its real-money limit and finished nothing; "
+                                             "look at the failed attempts before running again")
+                    return "paused"
+                if self._real_spend_over_limit():
+                    self._set_status("paused", pause="money")
+                    self._attention("money", f"this run has spent ${self.cfg.limits.max_real_usd_per_run:.2f} of real "
+                                             "credit, the limit you set; run again to carry on")
+                    return "paused"
                 if max_tasks is not None and executed >= max_tasks:
                     self._set_status("paused")
                     return "paused"
@@ -986,18 +1360,27 @@ class Orchestrator:
                 self.project.save_tasks(tasks)
                 self.emit("task_end", {"task": task.id, "status": task.status, "summary": task.summary[:500]})
                 if ok:
+                    finished_this_run += 1
                     self._git_commit(f"[{task.id}] {task.title}")
                     self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
                     self._resolved(f"failed:{task.id}", note="task completed")
+                elif self._split_if_too_big(task):
+                    continue  # the planner replaced it with smaller tasks; carry on with those
                 executed += 1
         except BudgetExceeded as e:
             tasks = self.project.tasks()
             for t in tasks:
                 if t.status == "running":
                     t.status = "pending"
+                    if isinstance(e, OutOfCredit):  # the money ran out, the task didn't fail
+                        t.attempts = [a for a in t.attempts if a.get("outcome") != "error"]
             self.project.save_tasks(tasks)
             self._save_spend()
-            self._set_status("paused_budget", reason=str(e))
+            if isinstance(e, OutOfCredit):
+                self._set_status("paused", reason=str(e), pause="credit")
+                self._attention("money", f"{e}: top up that account, then run the project again")
+                return "paused"
+            self._set_status("paused_budget", reason=str(e), pause="budget")
             self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
                                       f"roundtable run {self.project.root}")
             return "paused_budget"
@@ -1018,6 +1401,7 @@ class Orchestrator:
             summary = f"(summary unavailable: {e})"
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
+        self._publish_plan()
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
         for plan_id in meta.get("journal_plans", []):
             self._journal_close(plan_id, "completed by the harness")
@@ -1031,17 +1415,61 @@ class Orchestrator:
                       next_steps=[f"review the result and report: {self.project.dir / 'summary.md'}",
                                   f"rate tasks: roundtable feedback {self.project.root} TASK --good/--bad"])
 
-    def retry(self, task_id: str) -> None:
+    def retry(self, task_id: str, stronger: bool = False) -> None:
+        """Try a task again; ``stronger``: with the Quality setting's model for its role."""
         tasks = self.project.tasks()
         for t in tasks:
             if t.id == task_id:
                 if t.status not in ("failed", "skipped", "done"):
                     raise HarnessError(f"task {task_id} is {t.status}; only failed/skipped/done tasks can be retried")
-                t.status = "pending"
+                if stronger and not self.stronger_models(t):
+                    raise HarnessError("there's no stronger model set up for this task (the Quality setting has the "
+                                       "same one)")
+                t.status, t.stronger = "pending", stronger
                 self.project.save_tasks(tasks)
-                self.emit("retry", {"task": task_id})
+                self.emit("retry", {"task": task_id, "stronger": stronger})
                 return
         raise HarnessError(f"no task {task_id!r}")
+
+    def stronger_models(self, task: Task) -> list[ModelRef]:
+        """The Quality setting's models for the task's role, when they differ from the ones in use."""
+        quality = next((n for n in self.base_cfg.profiles if n.lower() == "quality"), None)
+        role = self.cfg.roles.get(task.role)
+        if not quality or not role:
+            return []
+        strong = self.base_cfg.for_profile(quality).roles.get(task.role)
+        if not strong or [str(m) for m in strong.models] == [str(m) for m in role.models]:
+            return []
+        return list(strong.models)
+
+    def raise_budget(self, extra_usd: float) -> float:
+        """Let this project spend ``extra_usd`` more than its limit; returns the new limit."""
+        extra = round(float(extra_usd), 2)
+        if not 0 < extra <= 10_000:
+            raise HarnessError("the extra must be between $0.01 and $10,000")
+        meta = self.project.meta()
+        meta["budget_extra_usd"] = round(float(meta.get("budget_extra_usd") or 0) + extra, 2)
+        self.project.save_meta(meta)
+        self.budget.limit_usd = self.cfg.limits.max_cost_usd + meta["budget_extra_usd"]
+        self.emit("budget_raised", {"extra_usd": extra, "limit_usd": self.budget.limit_usd})
+        return self.budget.limit_usd
+
+    def accept(self, task_id: str, note: str = "") -> None:
+        """The owner accepts a task's work as it is in the files (e.g. a reviewer rejected it for the wrong
+        reason): it's committed and counts as done."""
+        tasks = self.project.tasks()
+        t = next((x for x in tasks if x.id == task_id), None)
+        if not t:
+            raise HarnessError(f"no task {task_id!r}")
+        if t.status in ("done", "running"):
+            raise HarnessError(f"task {task_id} is {t.status}; only a failed or waiting task can be accepted")
+        t.status = "done"
+        t.summary = f"Accepted by the owner{': ' + note if note else ''}. " + (t.summary or "")
+        self.project.save_tasks(tasks)
+        self._git_commit(f"[{t.id}] {t.title} (accepted by the owner)")
+        self._journal("done", f"[{t.id}] {t.title} – accepted by the owner", details=note)
+        self._resolved(f"failed:{t.id}", note="accepted by the owner")
+        self.emit("accept", {"task": task_id, "note": note})
 
     def skip(self, task_id: str) -> None:
         tasks = self.project.tasks()

@@ -24,6 +24,110 @@ function toast(text, err = false) {
   document.getElementById("toasts").append(t);
   setTimeout(() => t.remove(), err ? 7000 : 3500);
 }
+// Budget / balanced / quality: which set of models the project uses, with each one's estimate.
+function profilePicker(doc, edit) {
+  const ests = doc.estimates || {};
+  const names = Object.keys(ests);
+  if (!names.length) return null;
+  return h("div", { class: "row plan-profiles", title: "Which models do the work. You can change it any time; it applies to the tasks still to do." },
+    h("span", { class: "muted small" }, "Setting"),
+    names.map((n) => h("button", {
+      class: n === doc.profile ? "primary" : "",
+      onclick: () => n !== doc.profile && edit({ action: "profile", name: n }, `This project now uses the ${n} setting`),
+    }, `${n[0].toUpperCase()}${n.slice(1)} · about ${money(ests[n].cost_usd || 0)}`)));
+}
+
+// ---------- questions to tap (asks.py) ----------
+// One card for every question: a header chip, the question, big option buttons (the recommended one
+// first and marked), ticks and Done when several answers fit, and "Other…" opening a text box.
+// Keys: 1-9 pick an option, the next number opens Other…, Enter sends. An option with `confirm`
+// shows an "Are you sure?" card first. onAnswer({chosen, other, confirmed}) does the work and may
+// return a reply line; opts: {pictures: {id: src}, onSkip, compact, title}.
+function askCard(ask, onAnswer, opts = {}) {
+  const picked = new Set((ask.answer && ask.answer.chosen) || []);
+  const textOnly = !ask.options.length;
+  const card = h("div", { class: "ask" + (opts.compact ? " compact" : "") + (ask.answer ? " answered" : ""), tabindex: "0", "data-ask": ask.id });
+  const other = h("textarea", { class: "ask-text grow", rows: ask.id === "like" ? 3 : 2, placeholder: ask.other_hint || "Type your own answer",
+    "aria-label": ask.other_hint || "Your own answer" });
+  if (ask.answer && ask.answer.other) other.value = ask.answer.other;
+  const chosenNow = () => (ask.multi ? [...picked] : []);
+  const otherRow = h("div", { class: "ask-other row" }, other,
+    h("button", { class: "primary", type: "button", disabled: opts.disabled, onclick: () => send(chosenNow()) }, opts.sendLabel || "Send"));
+  let busy = false;
+  async function send(chosen, confirmed = false) {
+    if (busy) return;
+    const text = other.value.trim();
+    if (!chosen.length && !text) { toast(textOnly ? "Type your answer first." : "Pick an answer, or type one.", true); showOther(true); return; }
+    const sure = !confirmed && ask.options.find((o) => chosen.includes(o.id) && o.confirm);
+    if (sure) { card.replaceChildren(...confirmParts(sure, () => send(chosen, true), draw)); card.focus(); return; }
+    busy = true; card.classList.add("sending");
+    try { await onAnswer({ chosen, other: text, confirmed }); }
+    catch (e) { toast(e.message, true); }
+    busy = false; card.classList.remove("sending");
+  }
+  // the second card for anything that spends beyond the estimate or can't be undone
+  const confirmParts = (opt, yes, no) => [
+    h("div", { class: "ask-head" }, h("span", { class: "chip warn" }, "Check")),
+    h("b", { class: "ask-q" }, "Are you sure?"),
+    h("div", { class: "ask-detail" }, opt.confirm),
+    h("div", { class: "ask-opts" },
+      h("button", { class: "ask-opt rec", type: "button", onclick: yes }, h("b", {}, h("kbd", {}, 1), "Yes, go ahead"), h("span", {}, opt.label)),
+      h("button", { class: "ask-opt", type: "button", onclick: no }, h("b", {}, h("kbd", {}, 2), "No, go back"), h("span", {}, "Nothing is changed.")))];
+  const pick = (o) => {
+    if (!ask.multi) return send([o.id]);
+    picked.has(o.id) ? picked.delete(o.id) : picked.add(o.id);
+    draw(); card.focus();
+  };
+  function showOther(open) { otherRow.hidden = !open; if (open) setTimeout(() => other.focus(), 0); }
+  other.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(chosenNow()); }
+    if (ev.key === "Escape" && !textOnly) { other.value = ""; showOther(false); card.focus(); }
+  });
+  card.addEventListener("keydown", (ev) => {
+    if (ev.target !== card || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const btns = [...card.querySelectorAll(".ask-opt")], n = Number(ev.key);
+    if (n >= 1 && n <= btns.length) { ev.preventDefault(); btns[n - 1].click(); }
+    else if (ev.key === "Enter" && ask.multi) { ev.preventDefault(); send([...picked]); }
+  });
+  function draw() {
+    const rec = ask.recommended;
+    const optButtons = ask.options.map((o, i) => {
+      const on = picked.has(o.id);
+      return h("button", { class: "ask-opt" + (on ? " on" : "") + (o.id === rec ? " rec" : ""), type: "button", disabled: opts.disabled,
+        "aria-pressed": ask.multi || ask.answer ? String(on) : null, title: o.confirm ? "You'll be asked to make sure first" : `Press ${i + 1}`, onclick: () => pick(o) },
+      o.picture && opts.pictures && opts.pictures[o.picture] ? h("img", { class: "ask-pic", src: opts.pictures[o.picture], alt: o.label }) : null,
+      h("b", {}, ask.multi ? h("i", { class: "tick" + (on ? " on" : "") }) : h("kbd", {}, i + 1), o.label, o.id === rec ? h("span", { class: "rec-mark" }, "Recommended") : null),
+      o.description ? h("span", {}, o.description) : null);
+    });
+    const otherBtn = ask.allow_other !== false && !textOnly ? h("button", { class: "ask-opt other", type: "button", disabled: opts.disabled,
+      title: `Type your own answer (press ${ask.options.length + 1})`, onclick: () => showOther(otherRow.hidden) },
+    h("b", {}, h("kbd", {}, ask.options.length + 1), "Other…"), h("span", {}, ask.other_hint || "Type your own answer")) : null;
+    card.replaceChildren(...[
+      h("div", { class: "ask-head" }, h("span", { class: "chip", title: opts.title || "" }, ask.header),
+        opts.project ? h("span", { class: "muted small" }, opts.project) : null, ask.answer ? h("span", { class: "pill good" }, "answered") : null),
+      h("b", { class: "ask-q" }, ask.question),
+      ask.detail ? h("div", { class: "ask-detail" }, ask.detail) : null,
+      textOnly ? null : h("div", { class: "ask-opts" + (ask.pictures ? " pics" : "") }, optButtons, otherBtn),
+      ask.allow_other !== false ? otherRow : null,
+      h("div", { class: "ask-foot" },
+        ask.multi ? h("button", { class: "primary", type: "button", disabled: opts.disabled, onclick: () => send([...picked]) }, "Done") : null,
+        opts.onSkip ? h("button", { class: "link-btn", type: "button", title: "Leave this for later. It comes back if things change.", onclick: opts.onSkip }, "Not now") : null,
+        opts.extra || null,
+        h("span", { class: "muted small" }, ask.multi ? "Tick all that fit, then Done." : textOnly ? "Enter sends." : "Tap one, or type your own."))]
+      .filter(Boolean));  // replaceChildren would write "null" for a missing part
+    otherRow.hidden = !(textOnly || other.value);
+  }
+  draw();
+  return card;
+}
+
+// Answer a card of a project through /api/asks; a long step (a run, a plan update) comes back as a job.
+async function answerAsk(ask, a) {
+  const r = await api("POST", "/api/asks", { path: ask.path, id: ask.id, stamp: ask.stamp, ...a });
+  toast(r.reply || "Done");
+  return r;
+}
+
 async function api(method, path, body) {
   const opts = { method, headers: {} };
   if (method !== "GET") {
@@ -72,8 +176,11 @@ let setupChecked = false;
 function route() { const p = (location.hash || "#/roundtable").slice(2).split("?")[0].split("/"); return [p[0] === "where" || !p[0] ? "roundtable" : p[0], ...p.slice(1).map(decodeURIComponent)]; }
 function setActive(name) {
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === name ||
-    (name === "project" && a.dataset.nav === "projects") || (name === "run" && a.dataset.nav === "runs") ||
+    (name === "project" && a.dataset.nav === "projects") || ((name === "run" || name === "new") && a.dataset.nav === "runs") ||
     (name === "job" && a.dataset.nav === "jobs")));
+  // on a phone the rooms scroll sideways: keep the current one in view
+  const rooms = document.querySelector(".rooms"), on = rooms && rooms.querySelector("a.active");
+  if (rooms && on && rooms.scrollWidth > rooms.clientWidth) rooms.scrollLeft = Math.max(0, on.offsetLeft - rooms.offsetLeft - 24);
 }
 async function render(auto = false) {
   clearTimeout(timer);
@@ -90,7 +197,7 @@ async function render(auto = false) {
       try { const st = await api("GET", "/api/setup"); if (st.desktop && !st.setup_done && view !== "setup") { location.hash = "#/setup"; return; } } catch { /* ignore */ }
     }
     const views = { setup: viewSetup, settings: viewSettings, roundtable: viewRoundtable, projects: viewProjects, project: viewProject, messages: viewMessages,
-      runs: viewRuns, run: viewRun, plan: viewPlan, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
+      runs: viewRuns, run: viewRun, plan: viewPlan, new: viewNew, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
     const node = await (views[view] || viewRoundtable)(...args);
     const typing = document.activeElement && $main().contains(document.activeElement) && document.activeElement.value;
     if (auto && typing) { autoRefresh(3000); return; } // don't clobber what the user is typing
@@ -249,13 +356,14 @@ async function viewRoundtable() {
     } else { proj = null; chat = null; projPath = null; }
   }
 
-  function seatCard(s) {
+  function seatCard(s, i, n) {
     const p = s.progress, total = p ? p.total : 0, failed = s.failed_task ? 1 : 0;
-    const label = { running: "running", waiting: "needs you", idle: "idle", done: "done" }[s.status] || s.status;
+    const label = { running: "Running", waiting: "Needs you", idle: "Idle", done: "Done" }[s.status] || s.status;
     const cls = { running: "info", waiting: s.failed_task ? "bad" : "warn", idle: "", done: "good" }[s.status] || "";
     const count = total ? `${p.done}/${total} tasks` : s.open_todos ? `${s.open_todos} todo(s)` : "";
     const now = s.detail || (s.last_session ? s.last_session.text : "") || (s.last_activity ? `last activity ${ago(s.last_activity)}` : s.description || "no activity yet");
     return h("div", { class: `seat ${s.status}${s.id === rtSel ? " on" : ""}`, role: "button", tabindex: "0", "data-seat": s.id, title: `${s.id}: ${label}${s.detail ? " · " + s.detail : ""}`,
+      style: `--a:${Math.round((360 * i) / n)}deg`,
       onclick: () => choose(s.id), onkeydown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(s.id); } } },
     h("div", { class: "nm" }, tagDot(s.id), h("span", {}, s.id), s.high ? h("span", { class: "seat-high", title: `${s.high} high priority` }) : null,
       s.unread ? h("span", { class: "badge", title: `${s.unread} unread` }, s.unread) : null),
@@ -263,10 +371,24 @@ async function viewRoundtable() {
     h("div", { class: "bar" }, total ? [h("i", { style: `width:${(100 * p.done) / total}%` }),
       s.status === "running" && p.done < total ? h("i", { class: "run", style: `width:${100 / total}%` }) : null,
       failed ? h("i", { class: "fail", style: `width:${100 / total}%` }) : null] : null),
-    h("div", { class: "now" }, now));
+    h("div", { class: "now" }, now),
+    total || s.spent_usd ? h("div", { class: "st" }, h("span", {}, total ? `${Math.round((100 * p.done) / total)}% done` : ""), s.spent_usd ? h("b", {}, money(s.spent_usd)) : null) : null);
+  }
+  // the empty chair at the table: start a new project
+  const chair = (i, n) => h("a", { class: "seat chair", href: "#/new", style: `--a:${Math.round((360 * i) / n)}deg`,
+    title: "A few questions, then the planner makes a plan for you to check" }, h("b", {}, "+ Pull up a chair"), h("span", {}, "Write a new idea"));
+
+  // a waiting project's next card, answered right here; the rest wait on its plan page
+  function needAsk(n) {
+    const a = n.ask, more = n.asks > 1 ? h("a", { class: "btn icon", href: `#/plan/${encodeURIComponent(n.path)}`, title: "See every question on the plan page" }, `${n.asks - 1} more`) : null;
+    return h("div", { class: "need need-ask" }, askCard(a, async (ans) => { await answerAsk(a, ans); await refresh(true); }, {
+      compact: true, project: n.project, extra: more,
+      onSkip: a.kind === "approve" || a.kind === "money" ? null : () => run(null, () => api("POST", "/api/asks", { path: a.path, id: a.id, stamp: a.stamp, skip: true }), "Left for later"),
+    }));
   }
 
   function needItem(n) {
+    if (n.kind === "run" && n.ask) return needAsk(n);
     let acts = null;
     if (n.kind === "run") acts = (n.actions || []).includes("approve")
       ? h("a", { class: "btn icon primary", href: `#/plan/${encodeURIComponent(n.path)}` }, "Open plan")
@@ -347,11 +469,16 @@ async function viewRoundtable() {
         data.health.length ? [h("span", { class: "health" }, data.health.map((x) => h("i", { class: x.state }))),
           h("span", { class: "muted" }, ["ok", "warn", "bad"].map((k) => { const n = data.health.filter((x) => x.state === k).length; return n ? `${n} ${{ ok: "ok", warn: "off", bad: "down" }[k]}` : ""; }).filter(Boolean).join(" · "))]
           : h("span", { class: "muted" }, "not probed yet")),
-      h("span", { class: "stat" }, "Today ", h("b", {}, money(data.spend_today))),
       h("a", { class: "stat", href: "#/messages" }, "Unread ", h("b", {}, unread)),
-      h("a", { class: "btn primary", href: "#/runs" }, "+ New project")]);
+      h("a", { class: "btn primary", href: "#/new", title: "A few questions, then the planner makes a plan for you to check" }, "+ New project")]);
+    const today = document.getElementById("today-spend");
+    today.hidden = false; today.querySelector("b").textContent = money(data.spend_today);
+    const n = data.seats.length + 1, waiting = data.seats.filter((x) => x.status === "waiting").length;
+    strip.classList.toggle("ring", n <= 8);   // up to seven seats and the empty chair sit around the table; more make a list
     patch(strip, JSON.stringify([rtSel, data.seats.map((x) => ({ ...x, brief: null, last_activity: x.last_activity ? ago(x.last_activity) : "" }))]), () =>
-      [data.seats.length ? data.seats.map(seatCard) : h("div", { class: "empty" }, "Nobody at the table yet."), h("div", { class: "candles" }, h("i", { class: "cdl" }), h("i", { class: "cdl" }), h("i", { class: "cdl" }))]);
+      [h("div", { class: "hall-centre", "aria-hidden": "true" }, h("i", { class: "flame" }), h("b", {}, "The Hall"),
+        h("span", {}, `${data.seats.length} seat${data.seats.length === 1 ? "" : "s"}${waiting ? ` · ${waiting} need${waiting === 1 ? "s" : ""} you` : ""}`)),
+      data.seats.length ? data.seats.map((x, i) => seatCard(x, i, n)) : h("div", { class: "empty" }, "Nobody at the table yet."), chair(n - 1, n)]);
     patch(needs, JSON.stringify(data.needs_you.map((n) => ({ ...n, at: n.at ? ago(n.at) : "" }))), () => [
       h("div", { class: "card-head" }, h("h2", {}, "Needs you"), data.needs_you.length ? h("span", { class: "cnt" }, data.needs_you.length) : null),
       data.needs_you.length ? h("div", { class: "list" }, data.needs_you.map(needItem)) : h("div", { class: "empty" }, "Nothing is waiting on you.")]);
@@ -484,12 +611,15 @@ async function viewRuns() {
   if (projects.some((p) => p.job_running)) autoRefresh(4000);
   const form = h("form", { class: "stack", onsubmit: async (ev) => {
     ev.preventDefault(); const d = formData(form);
-    const job = await act(() => api("POST", "/api/projects", { dir: d.dir, goal: d.goal, approve: !!d.approve }), "Project started");
+    const job = await act(() => api("POST", "/api/projects", { dir: d.dir, goal: d.goal, approve: !!d.approve, references: d.references || "" }), "Project started");
     if (job) location.hash = `#/job/${job.id}`;
   } },
   h("div", { class: "row" }, field("dir", { placeholder: "Folder name (e.g. bakery-site)", required: true, class: "grow" }),
     h("label", { class: "check" }, h("input", { type: "checkbox", name: "approve", value: "1", checked: true }), "Let me approve the plan first")),
   h("textarea", { name: "goal", placeholder: "Describe the goal: what should be built, constraints, assets…", required: true }),
+  h("label", { class: "stack", title: "Roundtable reads each one first and makes something similar: the ideas, how it works and its style, never its name, art, music or text. Code only where its licence allows, with credit." },
+    h("span", { class: "small muted" }, "Make it like this (links, repos or a description, one per line)"),
+    h("textarea", { name: "references", rows: 2, placeholder: "e.g. https://example.com/a-game-you-like\nowner/repository\nthe queue from Spotify" })),
   h("div", { class: "row" }, h("button", { class: "primary" }, "Start project"), h("span", { class: "muted small" }, `relative folders go under ${OV.projects_dir}`)));
   return h("div", {}, h("h1", {}, "Runs"), h("p", { class: "sub" }, "Projects run by the harness: plan → route to the best model per role → review → commit."),
     h("div", { class: "card" }, projects.length ? h("table", {},
@@ -499,13 +629,60 @@ async function viewRuns() {
         h("td", {}, statusPill(p.job_running ? "running" : p.status)), h("td", { class: "small" }, taskCounts(p.tasks)),
         h("td", { class: "num" }, money(p.spent_usd), p.unpriced_calls ? h("div", { class: "muted small" }, `+${p.unpriced_calls} unpriced`) : null),
         h("td", { class: "small muted" }, ago(p.updated_at))))) : h("div", { class: "empty" }, "No harness projects yet.")),
-    section("New project", form));
+    section("New project", h("p", { class: "muted" }, "Answer a few questions by tapping; the planner then makes a plan for you to check."),
+      h("a", { class: "btn primary", href: "#/new" }, "+ New project"),
+      h("details", { style: "margin-top:12px" }, h("summary", { class: "small muted" }, "Or type the folder and the goal yourself"), form)));
+}
+
+// ---------- a new project: a few cards to tap ----------
+async function viewNew() {
+  const nh = needHarness(); if (nh) return nh;
+  const w = await api("GET", "/api/asks?wizard=1");
+  const answers = {};
+  let step = 0;
+  const root = h("div", { class: "wizard asks" });
+  const said = (a) => {
+    const ans = answers[a.id] || {};
+    return [...(ans.chosen || []).map((c) => (a.options.find((o) => o.id === c) || {}).label || c), ans.other].filter(Boolean).join(" · ");
+  };
+  const summary = (a, i) => h("div", { class: "ask answered compact wizard-row" },
+    h("div", { class: "ask-head" }, h("span", { class: "chip" }, a.header), h("span", { class: "grow" }, h("span", { class: "muted small" }, a.question), h("br"), h("b", {}, said(a))),
+      h("button", { class: "icon", title: "Change this answer", onclick: () => { step = i; draw(); } }, "Change")));
+  const next = () => { step = w.asks.findIndex((a) => !answers[a.id]); if (step < 0) step = w.asks.length; };
+  const start = () => h("div", { class: "ask ready" },
+    h("div", { class: "ask-head" }, h("span", { class: "chip" }, "Ready")),
+    h("b", { class: "ask-q" }, "Make the plan?"),
+    h("div", { class: "ask-detail" }, "The planner writes a plan with its own questions for you. Nothing is built until you approve it. Making the plan costs a little (usually a few cents)."),
+    h("div", { class: "ask-opts" },
+      h("button", { class: "ask-opt rec", type: "button", onclick: async (ev) => {
+        ev.currentTarget.disabled = true;
+        try { const r = await api("POST", "/api/asks", { wizard: answers }); toast(r.reply); location.hash = `#/job/${r.job.id}`; }
+        catch (e) { toast(e.message, true); ev.currentTarget.disabled = false; }
+      } }, h("b", {}, h("kbd", {}, 1), "Make the plan", h("span", { class: "rec-mark" }, "Recommended")), h("span", {}, "You'll see it, with its questions, in a minute or two.")),
+      h("button", { class: "ask-opt", type: "button", onclick: () => { step = 0; draw(); } }, h("b", {}, h("kbd", {}, 2), "Go back"), h("span", {}, "Look at your answers again."))));
+  function draw() {
+    const kids = w.asks.map((a, i) => {
+      if (i === step) return askCard(a, async (ans) => {
+        if (a.required && !ans.other) throw new Error("Write your idea in a few words first.");
+        answers[a.id] = ans; next(); draw();
+      }, { sendLabel: "Next" });
+      return answers[a.id] ? summary(a, i) : null;
+    });
+    if (step >= w.asks.length) kids.push(start());
+    root.replaceChildren(...kids.filter(Boolean));
+    const live = root.querySelector(".ask:not(.wizard-row)");
+    if (live) setTimeout(() => (live.querySelector("textarea:not([hidden])") && !live.querySelector(".ask-other").hidden ? live.querySelector("textarea") : live).focus(), 0);
+  }
+  draw();
+  return h("div", {}, h("a", { href: "#/roundtable", class: "muted small" }, "← Roundtable"), h("h1", {}, "New project"),
+    h("p", { class: "sub" }, "Tap an answer, or choose Other… to type your own. Number keys pick, Enter sends. ",
+      h("span", { class: "link", title: w.projects_dir }, "Where it's saved")), root);
 }
 
 // ---------- the living plan ----------
 async function viewPlan(path) {
   const q = encodeURIComponent(path);
-  const d = await api("GET", `/api/plan?path=${q}`);
+  const [d, aq] = await Promise.all([api("GET", `/api/plan?path=${q}`), api("GET", `/api/asks?path=${q}&answered=1`).catch(() => ({ asks: [] }))]);
   const doc = d.doc;
   const edit = async (body, ok) => { try { await api("POST", "/api/plan", { path, ...body }); if (ok) toast(ok); await render(); } catch (e) { toast(e.message, true); } };
   const startJob = async (body, ok) => { try { const j = await api("POST", "/api/plan", { path, ...body }); toast(ok); location.hash = `#/job/${j.id}`; } catch (e) { toast(e.message, true); } };
@@ -529,6 +706,7 @@ async function viewPlan(path) {
       h("span", { class: "pill" }, `about ${Math.round(est.minutes || 0)} min`),
       h("span", { class: "pill" }, `${est.tasks || 0} task(s) to do`),
       h("span", { class: "muted small", title: est.note || "" }, "estimate")),
+    profilePicker(doc, edit),
     busy,
     h("div", { class: "row", style: "margin-top:10px" }, instr),
     h("div", { class: "row" },
@@ -539,29 +717,30 @@ async function viewPlan(path) {
       o.choices ? h("span", { class: "muted small" }, `${o.choices} choice(s) left on the recommendation`) : null),
     pending.length ? h("details", { class: "small" }, h("summary", {}, `Your changes waiting to be applied (${pending.length})`), h("ul", {}, pending.map((p) => h("li", {}, p.text)))) : null);
 
-  const decisions = (doc.decisions || []).map((c) => h("div", { class: "decision" },
-    h("div", { class: "q" }, h("b", {}, c.question), c.why ? h("div", { class: "muted small" }, "Recommended because: ", c.why) : null),
-    h("div", { class: "opts" }, c.options.map((op) => {
-      const chosen = c.chosen === op.id, rec = c.recommended === op.id;
-      return h("button", { class: "opt" + (chosen ? " chosen" : !c.chosen && rec ? " rec" : ""), disabled: d.busy,
-        onclick: () => edit({ action: "choose", decision: c.id, option: op.id }, `Chosen: ${op.label}`) },
-      h("b", {}, op.label, rec ? h("span", { class: "pill good", style: "margin-left:6px" }, "recommended") : null, chosen ? h("span", { class: "pill info", style: "margin-left:6px" }, "your choice") : null),
-      op.detail ? h("span", { class: "small" }, op.detail) : null, op.cost ? h("span", { class: "muted small" }, op.cost) : null);
-    }))));
-  const questions = (doc.questions || []).map((qq) => {
-    const inp = h("input", { class: "grow", value: qq.answer || "", placeholder: "your answer" });
-    return h("div", { class: "decision" }, h("div", { class: "q" }, h("b", {}, qq.text), qq.why ? h("div", { class: "muted small" }, qq.why) : null),
-      h("div", { class: "row" }, inp, h("button", { class: "icon primary", disabled: d.busy, onclick: () => edit({ action: "answer", question: qq.id, text: inp.value }, "Answer saved") }, "Save")));
-  });
-  const ideas = (doc.ideas || []).map((i) => h("div", { class: "row idea" },
-    h("span", { class: "grow" }, i.text, i.why ? h("span", { class: "muted small" }, ` · ${i.why}`) : null),
-    i.state === "open" ? [h("button", { class: "icon primary", disabled: d.busy, onclick: () => edit({ action: "idea", id: i.id, accept: true }, "Idea added") }, "Yes, add it"),
-      h("button", { class: "icon", disabled: d.busy, onclick: () => edit({ action: "idea", id: i.id, accept: false }) }, "No thanks")]
-      : h("span", { class: "pill " + (i.state === "accepted" ? "good" : "") }, i.state)));
-  const input = (o.choices || o.questions || o.ideas || decisions.length) ? section("Your input",
-    decisions.length ? [h("h3", {}, "Choices"), decisions] : null,
-    questions.length ? [h("h3", {}, "Questions for you"), questions] : null,
-    ideas.length ? [h("h3", {}, "Recommended ideas"), ideas] : null) : null;
+  // the planner's choices, questions, ideas and the look, as cards to tap (asks.py)
+  const pictures = {};
+  if (Object.keys((doc.look || {}).pictures || {}).length) {
+    try { const r = await api("GET", `/api/plan/looks?path=${q}`); for (const [id, pp] of Object.entries(r.pictures || {})) pictures[id] = pp.desktop; } catch { /* the cards still show the words */ }
+  }
+  const cardFor = (a) => askCard(a, async (ans) => {
+    const r = await answerAsk(a, ans);
+    if (r.job) location.hash = `#/job/${r.job.id}`; else await render();
+  }, { pictures, disabled: d.busy });
+  const mine = (aq.asks || []).filter((a) => ["decision", "question", "look", "idea"].includes(a.kind));
+  const waiting = mine.filter((a) => !a.answer), answered = mine.filter((a) => a.answer);
+  const madeChoices = d.approved && (doc.decisions || []).length ? section("Choices", h("ul", {}, doc.decisions.map((c) => {
+    const pick = c.options.find((op) => op.id === (c.chosen || c.recommended));
+    return h("li", {}, h("b", {}, c.question), " ", pick ? pick.label : "", h("span", { class: "muted small" }, c.chosen ? " (your choice)" : " (recommended)"));
+  }))) : null;
+  const input = mine.length ? section("Your input",
+    h("p", { class: "muted small" }, waiting.length ? `${waiting.length} question${waiting.length > 1 ? "s" : ""} for you. Tap an answer: the recommended one is first. Or type your own with Other….`
+      : "All answered. Update the plan to apply your answers, then approve it."),
+    waiting.length ? h("div", { class: "asks" }, waiting.map(cardFor)) : null,
+    answered.length ? h("details", { class: "answered-list" }, h("summary", {}, `Answered (${answered.length}): change an answer`),
+      h("div", { class: "asks" }, answered.map(cardFor))) : null) : madeChoices;
+
+  const looks = lookSection(doc.look || {}, d.busy, q, edit, startJob);
+  const like = likeSection(doc.references || [], d.busy, edit);
 
   const cr = doc.critique;
   const critique = cr ? section(`Second opinion · ${cr.model}`,
@@ -601,8 +780,56 @@ async function viewPlan(path) {
     hh.diff ? h("span", { class: "muted" }, ` (${["added", "changed", "removed"].filter((k) => hh.diff[k] && hh.diff[k].length).map((k) => `${hh.diff[k].length} ${k}`).join(", ") || "tasks unchanged"})`) : null)))) : null;
 
   return h("div", { class: "plan-page" }, back, h("h1", {}, `Plan · ${d.name}`),
-    h("p", { class: "sub" }, "Read it, choose, answer, cut or add, then Update plan. Nothing is built until you approve."),
-    head, input, critique, scope, spec, history);
+    h("p", { class: "sub" }, "Tap your answers, cut or add, then Update plan. Nothing is built until you approve."),
+    head, input, like, looks, critique, scope, spec, history);
+}
+
+// "Make it like this": what the owner wants it to be like, as the scout read each one; add or remove.
+function likeSection(refs, busy, edit) {
+  const inp = h("input", { class: "grow", placeholder: "A link, a GitHub repository or a description, e.g. “the queue from Spotify”" });
+  const state = { new: "not read yet", failed: "couldn't read it" };
+  const card = (r) => {
+    const rep = r.report || {};
+    return h("div", { class: "decision" },
+      h("div", { class: "row" }, h("b", { class: "grow" }, `${r.id} · ${rep.title || r.input}`),
+        state[r.status] ? h("span", { class: "pill " + (r.status === "failed" ? "warn" : "") }, state[r.status]) : null,
+        h("button", { class: "icon danger", disabled: busy, title: "Stop making it like this one", onclick: () => edit({ action: "reference_remove", id: r.id }, "Removed. Update the plan to apply it.") }, "×")),
+      rep.what_it_is ? h("div", { class: "small" }, rep.what_it_is) : null,
+      r.status === "failed" ? h("div", { class: "muted small" }, r.error) : null,
+      (rep.borrow || []).length ? h("div", { class: "small" }, h("b", {}, "Borrow: "), rep.borrow.join("; ")) : null,
+      (rep.avoid || []).length ? h("div", { class: "small" }, h("b", {}, "Avoid: "), rep.avoid.join("; ")) : null,
+      r.report ? h("div", { class: "muted small", title: "Code is only used when the licence clearly allows it, and then it's credited" },
+        `Licence: ${rep.licence} · code: ${rep.code_reuse}`) : null,
+      (rep.unreadable || []).length ? h("div", { class: "muted small" }, "Couldn't read: ", rep.unreadable.join("; ")) : null);
+  };
+  return section("Like these",
+    h("p", { class: "muted small" }, "Things you want it to be like. Roundtable makes something similar, never a copy: no names, characters, art, music or text taken."),
+    refs.map(card),
+    h("div", { class: "row" }, inp, h("button", { disabled: busy, title: "It's read (a model call, so it costs a little) when you next update the plan",
+      onclick: () => edit({ action: "reference_add", text: inp.value }, "Added. Update the plan to read it and use it.") }, "Add")));
+}
+
+// The look: the designer's directions side by side, a "Choose this look" button each, and "Make new looks".
+function lookSection(lk, busy, q, edit, startJob) {
+  const dirs = lk.directions || [];
+  const brief = h("input", { class: "grow", placeholder: "A starting point for new looks (optional), e.g. “like an old record shop”" });
+  const swatch = (hex, title) => h("span", { class: "swatch", title: `${title} ${hex}`, style: `background:${hex}` });
+  const card = (x) => {
+    const chosen = lk.chosen === x.id, light = x.palette.light;
+    return h("div", { class: "look" + (chosen ? " chosen" : "") },
+      h("b", {}, `${x.id} · ${x.name}`, chosen ? h("span", { class: "pill info", style: "margin-left:6px" }, "your choice") : null),
+      h("div", { class: "small" }, x.mood),
+      h("div", { class: "muted small" }, "Signature: ", x.signature),
+      h("div", { class: "row swatches", title: "Its colours (light)" }, ["background", "surface", "text", "accent"].map((k) => swatch(light[k], k)),
+        h("span", { class: "muted small" }, `${x.fonts.display.family} · ${x.fonts.body.family}`)));
+  };
+  return section("Look",
+    h("p", { class: "muted small" }, dirs.length ? "The looks in detail. Choose one with the Look card under Your input; every task then follows its design file."
+      : "No looks yet. Roundtable can design three different looks for the app, with a picture of each, for you to choose from."),
+    dirs.length ? h("div", { class: "looks" }, dirs.map(card)) : null,
+    dirs.length && !Object.keys(lk.pictures || {}).length && lk.render_note ? h("p", { class: "muted small" }, lk.render_note) : null,
+    h("div", { class: "row" }, brief, h("button", { disabled: busy, title: "Asks the designer for new looks (a model call, so it costs a little)",
+      onclick: () => startJob({ action: "looks", text: brief.value }, "Designing new looks…") }, dirs.length ? "Make new looks" : "Make looks")));
 }
 
 async function viewRun(path) {
@@ -916,10 +1143,151 @@ async function phoneCard() {
   return section("Phone (Roundtable Mobile)", box);
 }
 
+// ---------- Settings → Backups ----------
+function fileSize(n) { const u = ["bytes", "KB", "MB", "GB"]; let i = 0; while (n >= 1024 && i < 3) { n /= 1024; i++; } return i ? `${n.toFixed(1)} ${u[i]}` : `${n} bytes`; }
+// Settings → Plugins: switch them on and off, change their settings, add one (after showing what it may do).
+async function pluginsCard() {
+  let st;
+  try { st = await api("GET", "/api/plugins"); } catch (e) { return section("Plugins", h("p", { class: "muted" }, e.message)); }
+  const trust = "A plugin is someone's program: it runs with the same access as Roundtable Hold. Roundtable can't hold it to what it says, so only add plugins from people you trust.";
+  const post = async (body, ok) => {
+    try {
+      const r = await api("POST", "/api/plugins", body);
+      if (r && r.needs_ok) {
+        const perms = (r.needs_ok.permissions || []).map((p) => `• ${p.words}`).join("\n");
+        if (!confirm(`${r.message || "This plugin asks for:"}\n\n${perms || "• nothing special"}\n\n${trust}\n\nAdd it?`)) return;
+        return post({ ...body, confirmed: (r.needs_ok.permissions || []).map((p) => p.id) }, ok);
+      }
+      if (ok) toast(ok);
+      render();
+    } catch (e) { toast(e.message, true); }
+  };
+  const rows = st.plugins.map((p) => {
+    const fields = (p.settings || []).map((f) => {
+      const input = f.type === "boolean"
+        ? h("input", { type: "checkbox", checked: !!f.value, title: f.description })
+        : h("input", { class: "grow", value: f.value ?? "", title: f.description, placeholder: String(f.default ?? "") });
+      input.dataset.key = f.key;
+      input.dataset.type = f.type;
+      return h("label", { class: "row small", title: f.description }, h("span", { class: "muted" }, f.key), input);
+    });
+    const saveSettings = () => {
+      const values = {};
+      for (const el of fields.map((l) => l.querySelector("input"))) values[el.dataset.key] = el.type === "checkbox" ? el.checked : el.value;
+      post({ action: "settings", id: p.id, values }, "Saved");
+    };
+    return h("div", { class: "card plugin" },
+      h("div", { class: "card-head" },
+        h("b", {}, p.name || p.id), h("span", { class: "muted small" }, ` ${p.version || ""}${p.builtin ? " · built in" : ""}`),
+        h("label", { class: "small", title: p.enabled ? "Switch it off" : "Switch it on" },
+          h("input", { type: "checkbox", checked: p.enabled, onchange: (ev) => post({ action: ev.target.checked ? "enable" : "disable", id: p.id }, ev.target.checked ? "Switched on" : "Switched off") }),
+          " on")),
+      h("p", { class: "small" }, p.description || ""),
+      p.problem ? h("p", { class: "small warn" }, p.problem) : null,
+      (p.permissions || []).length ? h("p", { class: "small muted", title: trust }, "May: " + p.permissions.map((x) => x.words).join("; ")) : null,
+      fields.length ? h("details", { class: "small" }, h("summary", {}, "Settings"), ...fields, h("button", { onclick: saveSettings }, "Save settings")) : null,
+      p.builtin ? null : h("button", { class: "small", onclick: () => confirm(`Remove ${p.name || p.id}?`) && post({ action: "remove", id: p.id }, "Removed") }, "Remove"));
+  });
+  const source = h("input", { class: "grow", placeholder: "a folder, a GitHub link or a Python package name", title: "Where the plugin comes from. You'll see what it may do before anything is installed." });
+  return section("Plugins",
+    h("p", { class: "muted small" }, "Extra abilities for Roundtable, like the token saver. ", h("span", { title: trust }, "Only add plugins from people you trust.")),
+    ...rows,
+    h("div", { class: "row" }, source, h("button", { onclick: () => source.value.trim() && post({ action: "add", source: source.value.trim() }, "Plugin added") }, "Add a plugin")));
+}
+
+async function backupsCard() {
+  let st;
+  try { st = await api("GET", "/api/backup"); } catch (e) { return section("Backups", h("p", { class: "muted" }, e.message)); }
+  const box = h("div");
+  const save = async (body, ok) => { try { const r = await api("POST", "/api/backup", { action: "settings", ...body }); if (ok) toast(ok); draw(r); } catch (e) { toast(e.message, true); } };
+  function draw(s) {
+    const set = s.settings;
+    const folder = h("input", { class: "grow", value: set.to === "auto" ? "" : set.to, placeholder: "a folder, e.g. D:\\Backups or your OneDrive folder",
+      title: "Leave empty to use Google Drive. Any folder works: OneDrive, a USB stick, another disk." });
+    const phrase = h("input", { type: "password", class: "grow", autocomplete: "off",
+      placeholder: s.passphrase_remembered ? "•••••••• (remembered until you close the app)" : "passphrase (optional, recommended)",
+      title: "Locks the backup so only someone with the passphrase can open it. It's never saved: if you forget it, the backup can't be opened." });
+    const remember = h("input", { type: "checkbox", checked: s.passphrase_remembered, onchange: async (ev) => {
+      if (ev.target.checked && !phrase.value) { ev.target.checked = false; return toast("Type the passphrase first", true); }
+      try { draw(await api("POST", "/api/backup", { action: "passphrase", passphrase: phrase.value, remember: ev.target.checked })); toast(ev.target.checked ? "Remembered until you close the app" : "Forgotten"); }
+      catch (e) { toast(e.message, true); }
+    } });
+    const pick = h("select", { class: "grow" }, s.backups.map((b) => h("option", { value: b.path }, `${b.name} · ${fileSize(b.size)}${b.locked ? " · locked" : ""}`)));
+    const other = h("input", { class: "grow", placeholder: "or the full path of a backup file" });
+    const now = async () => {
+      if (set.encrypt && !phrase.value && !s.passphrase_remembered) return toast("Type the passphrase first: backups are set to be locked.", true);
+      const j = await act(() => api("POST", "/api/backup", { action: "now", passphrase: phrase.value, remember: remember.checked }), "Backing up…");
+      if (j && j.id) location.hash = `#/job/${j.id}`;
+    };
+    const restore = async () => {
+      const file = other.value.trim() || pick.value;
+      if (!file) return toast("Choose a backup to restore", true);
+      try {
+        const info = await api("POST", "/api/backup", { action: "inspect", file, passphrase: phrase.value });
+        const text = info.lines.join("\n") + "\n\nA safety backup of what's here now is made first. Afterwards, type your API keys again and pair your phones again.\n\nRestore now?";
+        if (!confirm(text)) return;
+        const j = await api("POST", "/api/backup", { action: "restore", file, passphrase: phrase.value, confirm: true });
+        toast("Restoring…");
+        location.hash = `#/job/${j.id}`;
+      } catch (e) { toast(e.message, true); }
+    };
+    const last = s.last.last_at ? `${ago(s.last.last_at)} · ${fileSize(s.last.last_size || 0)}` : "none yet";
+    box.replaceChildren(
+      h("p", { class: "muted small" }, "A backup holds your settings, what Roundtable has learned, and every project's plan and history. It never holds your API keys."),
+      s.destination ? h("p", {}, "Backups go to: ", h("strong", { title: s.destination }, s.destination))
+        : h("p", { class: "small", style: "color:var(--bad)" }, s.no_drive),
+      h("div", { class: "row" }, folder,
+        h("button", { onclick: () => save({ to: folder.value.trim() || "auto" }, "Saved") }, "Use this folder"),
+        set.to !== "auto" ? h("button", { title: s.found.length ? s.found[0] : "Google Drive for desktop isn't installed", onclick: () => save({ to: "auto" }, "Backups go to Google Drive") }, "Use Google Drive") : null),
+      h("p", {}, "Last backup: ", last, s.last.last_error ? h("span", { class: "pill warn", title: s.last.last_error }, "problem") : null),
+      s.last.last_error ? h("p", { class: "small", style: "color:var(--bad)" }, s.last.last_error) : null,
+      h("div", { class: "row" },
+        h("label", { class: "check", title: "Once a day while Roundtable Hold is open, never while a project is running" },
+          h("input", { type: "checkbox", checked: set.daily, onchange: (ev) => save({ daily: ev.target.checked }, ev.target.checked ? "Daily backups on" : "Daily backups off") }), "Back up every day"),
+        h("label", { class: "check", title: "Older backups from this PC are deleted; nothing else in the folder is touched" }, "Keep the newest ",
+          h("input", { type: "number", min: 1, max: 100, value: set.keep, style: "width:60px", onchange: (ev) => save({ keep: Number(ev.target.value) }, "Saved") }), " backups"),
+        h("label", { class: "check", title: "Recommended: a backup holds your plans. The daily backup needs the passphrase typed once each time the app opens." },
+          h("input", { type: "checkbox", checked: set.encrypt, onchange: (ev) => save({ encrypt: ev.target.checked }, "Saved") }), "Lock with a passphrase")),
+      h("div", { class: "row" }, phrase,
+        h("label", { class: "check", title: "Kept in memory only, until you close the app, so the daily backup can be locked" }, remember, "Remember until I close the app"),
+        h("button", { class: "primary", onclick: now }, "Back up now")),
+      h("h3", {}, "Restore"),
+      h("p", { class: "muted small" }, "Puts a backup's settings, plans and history back. Projects whose folders are gone are made again."),
+      h("div", { class: "row" }, s.backups.length ? pick : h("span", { class: "muted small" }, "No backups in that folder yet."), other,
+        h("button", { class: "danger", onclick: restore, title: "Shows what it would replace and asks first" }, "Restore…")));
+  }
+  draw(st);
+  return section("Backups", box);
+}
+
+// Settings > Look: light, dark, or the computer's choice (theme.js applies it before the page draws).
+function lookCard() {
+  let now = "system";
+  try { now = localStorage.getItem("rt-theme") || "system"; } catch { /* storage unavailable */ }
+  const pick = (v) => {
+    try { if (v === "system") localStorage.removeItem("rt-theme"); else localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
+    if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+    card.replaceWith(lookCard());
+  };
+  const choices = [["light", "Light", "Warm parchment and oak"], ["dark", "Dark", "The hall by candlelight"], ["system", "Same as this computer", "Follows the computer's light or dark setting"]];
+  const card = section("Look",
+    h("p", { class: "muted small" }, "How Roundtable looks on this computer."),
+    h("div", { class: "look-pick", role: "group", "aria-label": "Light or dark" }, choices.map(([v, label, tip]) =>
+      h("button", { class: v === now ? "on" : "", type: "button", title: tip, "aria-pressed": String(v === now), onclick: () => pick(v) }, label))));
+  return card;
+}
+
 async function viewSettings() {
   const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
   const editor = async (which) => {
-    const c = await api("GET", `/api/config?which=${which}`);
+    let c;
+    try { c = await api("GET", `/api/config?which=${which}`); }
+    catch (e) {  // e.g. no hub set up yet: say so, don't break the whole Settings page
+      return h("details", {}, h("summary", {}, `${which}.yaml`, h("span", { class: "muted small" }, " · not set up yet")),
+        h("p", { class: "muted small" }, which === "hub"
+          ? "There's no hub file yet. Set up the hub in the Hub card above (or run the setup again)."
+          : `There's no ${which}.yaml yet. Run the setup again to make one.`));
+    }
     const ta = h("textarea", { style: "min-height:320px;font-family:ui-monospace,monospace;font-size:12px" }, c.text);
     return h("details", {}, h("summary", {}, `${which}.yaml`, h("span", { class: "muted small" }, ` · ${c.path}`)),
       h("p", { class: "muted small" }, which === "harness" ? "Providers, which model does which role, prices, limits." : "Projects (agents) and who may read or message whom."),
@@ -929,7 +1297,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), await providersCard(), hubCard(st), SHOW_PHONE ? await phoneCard() : null,
+    lookCard(), keysCard(st), await providersCard(), hubCard(st), await backupsCard(), await pluginsCard(), SHOW_PHONE ? await phoneCard() : null,
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),

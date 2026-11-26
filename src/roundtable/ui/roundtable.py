@@ -45,8 +45,8 @@ def _age_s(ts: str) -> float:
 def run_seat(app, path: Path) -> dict[str, Any]:
     """Status of one harness project as a seat at the table."""
     hdir = path / ".harness"
-    meta = json.loads((hdir / "project.json").read_text())
-    tasks = json.loads((hdir / "tasks.json").read_text() or "[]")
+    meta = json.loads((hdir / "project.json").read_text(encoding="utf-8"))
+    tasks = json.loads((hdir / "tasks.json").read_text(encoding="utf-8") or "[]")
     events = _read_jsonl(hdir / "events.jsonl", tail=60)
     done = sum(t["status"] == "done" for t in tasks)
     failed = [t for t in tasks if t["status"] == "failed"]
@@ -69,7 +69,7 @@ def run_seat(app, path: Path) -> dict[str, Any]:
 
         doc = None
         try:
-            doc = json.loads((hdir / "plan.json").read_text())
+            doc = json.loads((hdir / "plan.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             pass
         line = summary_line(doc) if doc else "plan ready"
@@ -89,6 +89,23 @@ def run_seat(app, path: Path) -> dict[str, Any]:
         "progress": {"done": done, "total": len(tasks)}, "goal": (meta.get("goals") or [""])[-1],
         "spent_usd": meta.get("spent_usd", 0), "last_activity": last_at,
     }
+
+
+ASK_STATES = ("awaiting_approval", "blocked", "paused", "paused_budget")
+
+
+def _asks(cfg, path: Path) -> list[dict[str, Any]]:
+    """The project's open cards (asks.py), only when it is waiting for the owner; never breaks the table."""
+    try:
+        meta = json.loads((path / ".harness" / "project.json").read_text(encoding="utf-8"))
+        if meta.get("status") not in ASK_STATES:
+            return []
+        from ..asks import open_asks
+        from ..harness.orchestrator import Orchestrator
+
+        return open_asks(Orchestrator(cfg, path))
+    except Exception:
+        return []
 
 
 def build(app) -> dict[str, Any]:
@@ -138,9 +155,12 @@ def build(app) -> dict[str, Any]:
                 seat["last_activity"] = max(seat.get("last_activity") or "", run["last_activity"] or "")
             else:
                 seats[run["id"]] = {**run, "open_todos": 0, "high": 0, "unread": 0, "repo": "", "description": ""}
-            if run["status"] == "waiting":
+            asks = _asks(cfg, path) if run["status"] != "running" else []
+            if run["status"] == "waiting" or asks:
                 needs.insert(0, {"kind": "run", "project": run["id"], "path": run["path"], "text": run["detail"],
-                                 "actions": run["actions"], "task": run["failed_task"], "at": run["last_activity"]})
+                                 "actions": run["actions"], "task": run["failed_task"], "at": run["last_activity"],
+                                 # the next card to tap, and how many more wait on the plan page
+                                 "ask": asks[0] if asks else None, "asks": len(asks)})
         # model health: latest probe run per model
         latest: dict[str, dict[str, Any]] = {}
         for r in _read_jsonl(cfg.lab_dir / "probes.jsonl"):
@@ -225,6 +245,10 @@ def activity(app, limit: int = 120) -> list[dict[str, Any]]:
                     items.append({"at": e["created_at"], "seq": e.get("ts", 0), "project": agent,
                                   "kind": f"journal:{e['kind']}",
                                   "text": f"{e['kind']}: {e['text']}"[:220]})
+    if getattr(app, "desktop", None):
+        from ..backup import feed_items
+
+        items += feed_items(app.desktop["paths"].home)[:3]
     # newest first; "seq" keeps steps logged within the same second in their real order
     items.sort(key=lambda i: (i["at"], i["seq"]), reverse=True)
     return items[:limit]
@@ -252,6 +276,8 @@ class AutoSync:
             self.tick()
 
     def tick(self) -> None:
+        self.daily_backup()
+        self.start_cheap_runs()
         if not self.app.hub:
             return
         try:
@@ -259,6 +285,39 @@ class AutoSync:
                 self.app.hub.store.sync(force=True)
             self.app.last_auto_sync = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.app.auto_sync_error = ""
+            cfg = self.app.cfg()
+            if cfg and cfg.lab_dir and (cfg.remote or {}).get("enabled", True):
+                from ..remote import process
+
+                process(cfg, self.app.hub, background=True, log=lambda s: None)  # commands from the phone
         except Exception as e:  # offline etc.: keep the app working on its local copy
             self.app.auto_sync_error = str(e)[:300]
         time.sleep(0)
+
+    def start_cheap_runs(self) -> None:
+        """Projects approved to start when it's cheaper (off-peak) are started once their time comes."""
+        try:
+            cfg = self.app.cfg()
+            if not cfg or not cfg.lab_dir:
+                return
+            from ..harness.orchestrator import due_cheap_runs
+
+            for root in due_cheap_runs(cfg):
+                self.app.start_run_job(cfg, root, why="its off-peak time came")
+        except Exception as e:  # never let the tick fail
+            self.app.auto_sync_error = f"couldn't start a waiting run: {e}"[:300]
+
+    def daily_backup(self) -> None:
+        """Once a day while the desktop app is open, never while a project job runs."""
+        if not getattr(self.app, "desktop", None):
+            return
+        from ..backup import find_sources, run_daily
+
+        app = self.app
+        busy = any(j.status == "running" and j.kind in ("run", "plan", "backup")
+                   for j in app.jobs.jobs.values())
+        msg = run_daily(app.desktop["paths"].home, busy=busy,
+                        sources=lambda: find_sources(app.harness_config_path, app.hub_config_path,
+                                                     app.desktop["paths"].home))
+        if msg:
+            app.backup_message = msg

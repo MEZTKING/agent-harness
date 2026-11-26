@@ -75,9 +75,10 @@ class ChatResponse:
 class ProviderError(RuntimeError):
     """A provider call failed (auth, network, rate limit after retries, bad request)."""
 
-    def __init__(self, message: str, retryable: bool = False):
+    def __init__(self, message: str, retryable: bool = False, out_of_credit: bool = False):
         super().__init__(message)
         self.retryable = retryable
+        self.out_of_credit = out_of_credit  # the account has no money left: pause, don't fail the task
 
 
 class Provider:

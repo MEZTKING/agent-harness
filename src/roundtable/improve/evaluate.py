@@ -24,6 +24,7 @@ from ..harness.agent import Budget, BudgetExceeded
 from ..harness.config import HarnessConfig
 from ..harness.orchestrator import Orchestrator, Project, Task
 from .lab import Lab, Proposal
+from ..core.files import remove_tree
 
 
 class EvalError(RuntimeError):
@@ -54,8 +55,8 @@ def benchmark_tasks(lab: Lab, role: str, limit: int) -> list[tuple[Path, dict[st
     """Recent past tasks for ``role`` that can be replayed: (project, meta, task, all tasks)."""
     found = []
     for proj in lab.projects():
-        meta = json.loads((proj / ".harness/project.json").read_text())
-        tasks = json.loads((proj / ".harness/tasks.json").read_text())
+        meta = json.loads((proj / ".harness/project.json").read_text(encoding="utf-8"))
+        tasks = json.loads((proj / ".harness/tasks.json").read_text(encoding="utf-8"))
         for t in tasks:
             if t["role"] != role or t["status"] not in ("done", "failed") or not t.get("attempts"):
                 continue
@@ -117,7 +118,7 @@ def _replay_once(cfg: HarnessConfig, project: Path, meta: dict, task: dict, all_
                 "seconds": round(time.monotonic() - t0, 1), "outcome": last.get("outcome"),
                 "model": last.get("model"), "review": (last.get("review") or "")[:400]}
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        remove_tree(tmp)
 
 
 def evaluate(cfg: HarnessConfig, lab: Lab, proposal: Proposal, samples: int = 3, max_cost: float = 2.0,

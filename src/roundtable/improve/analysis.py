@@ -57,6 +57,13 @@ class ModelStats:
     def avg_cost(self) -> float | None:
         return self.cost / self.priced_attempts if self.priced_attempts else None
 
+    @property
+    def cost_per_success(self) -> float | None:
+        """What one approved result really cost, failed attempts included (priced attempts only)."""
+        if not self.priced_attempts or not self.approved:
+            return None
+        return self.cost / self.priced_attempts * self.attempts / self.approved
+
 
 @dataclass
 class Dataset:
@@ -87,7 +94,7 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
             continue
         seen.add(proj)
         ds.projects.append(proj)
-        tasks = {t["id"]: t for t in json.loads((proj / ".harness/tasks.json").read_text() or "[]")}
+        tasks = {t["id"]: t for t in json.loads((proj / ".harness/tasks.json").read_text(encoding="utf-8") or "[]")}
         ds.tasks += len(tasks)
         firsts: set[str] = set()
         for row in _read_jsonl(proj / ".harness/metrics.jsonl"):
@@ -139,6 +146,35 @@ def stats_table(ds: Dataset) -> str:
 
 
 # -- rule-based proposals ------------------------------------------------------------
+def _rescue_proposal(role: str, chain: list[str], primary: ModelStats, ds: Dataset) -> Proposal | None:
+    """The fallback keeps finishing what the primary can't, and each finished task costs less that way.
+
+    Needs fewer of the fallback's tries than the other rules (3): it only takes over after the primary
+    failed, so it gets few chances, and a cheap primary that mostly fails is the costly case.
+    """
+    if primary.quality > 0.5:
+        return None
+    for alt_ref in chain[1:]:
+        alt = ds.stats.get((role, alt_ref))
+        if not alt or alt.judged < 3 or alt.quality is None or alt.quality < 0.9:
+            continue
+        mine, theirs = primary.cost_per_success, alt.cost_per_success
+        if mine is not None and theirs is not None and theirs >= mine:
+            continue
+        new_chain = [alt_ref] + [m for m in chain if m != alt_ref]
+        cost = (f" Each finished task cost about ${theirs:.2f} with {alt_ref} against ${mine:.2f} with {chain[0]}, "
+                "counting the failed attempts." if mine is not None and theirs is not None else "")
+        return Proposal(
+            id="", kind="routing", role=role, change={"models": new_chain}, risk="low",
+            rationale=f"{chain[0]} finished only {primary.quality:.0%} of its {primary.judged} attempts; {alt_ref} "
+                      f"finished {alt.quality:.0%} of {alt.judged} when it took over.{cost}",
+            evidence={"primary": {"model": chain[0], "quality": round(primary.quality, 3), "n": primary.judged,
+                                  "cost_per_success": mine},
+                      "candidate": {"model": alt_ref, "quality": round(alt.quality, 3), "n": alt.judged,
+                                    "cost_per_success": theirs}})
+    return None
+
+
 def rule_proposals(cfg: HarnessConfig, ds: Dataset) -> list[Proposal]:
     min_n = int(cfg.improve.get("min_samples", 5))
     out: list[Proposal] = []
@@ -156,6 +192,10 @@ def rule_proposals(cfg: HarnessConfig, ds: Dataset) -> list[Proposal]:
             ))
             continue
         if not primary or primary.judged < min_n or primary.quality is None:
+            continue
+        rescue = _rescue_proposal(role.name, chain, primary, ds)
+        if rescue:
+            out.append(rescue)
             continue
         for alt_ref in chain[1:]:
             alt = ds.stats.get((role.name, alt_ref))

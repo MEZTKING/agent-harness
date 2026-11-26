@@ -135,7 +135,7 @@ class Lab:
         d = self.root / "proposals"
         if not d.is_dir():
             return []
-        out = [Proposal.from_dict(json.loads(f.read_text())) for f in sorted(d.glob("*.json"))]
+        out = [Proposal.from_dict(json.loads(f.read_text(encoding="utf-8"))) for f in sorted(d.glob("*.json"))]
         out.sort(key=lambda p: p.created_at)
         return [p for p in out if status is None or p.status == status]
 
@@ -149,7 +149,7 @@ class Lab:
     # -- learned state -------------------------------------------------------------
     def learned(self) -> tuple[dict[str, Any], dict[str, str]]:
         overlay_path = self.root / "learned.yaml"
-        overlay = yaml.safe_load(overlay_path.read_text()) if overlay_path.is_file() else {}
+        overlay = yaml.safe_load(overlay_path.read_text(encoding="utf-8")) if overlay_path.is_file() else {}
         prompts = {}
         pdir = self.root / "prompts"
         if pdir.is_dir():
@@ -159,6 +159,7 @@ class Lab:
     def apply_learned(self, cfg: HarnessConfig) -> None:
         overlay, prompts = self.learned()
         apply_overlay(cfg, overlay, prompts)
+        cfg.learned = overlay  # kept, so a profile chosen later can still use the learned order
 
     @staticmethod
     def change_overlay(overlay: dict[str, Any], prompts: dict[str, str], p: Proposal, cfg: HarnessConfig) -> None:
@@ -194,7 +195,7 @@ class Lab:
             shutil.copy2(self.root / "learned.yaml", vdir / "learned.yaml")
         if (self.root / "prompts").is_dir():
             shutil.copytree(self.root / "prompts", vdir / "prompts", dirs_exist_ok=True)
-        (vdir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+        (vdir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
     def apply(self, p: Proposal, cfg: HarnessConfig, reason: str = "manual") -> int:
         p.validate(cfg)
@@ -206,7 +207,7 @@ class Lab:
         (self.root / "learned.yaml").write_text(
             "# Learned by `roundtable improve`. Layered on top of harness.yaml. Roll back with `roundtable improve rollback`.\n"
             + yaml.safe_dump(overlay, sort_keys=True)
-        )
+        , encoding="utf-8")
         if prompts:
             (self.root / "prompts").mkdir(exist_ok=True)
             for name, text in prompts.items():
@@ -248,4 +249,4 @@ class Lab:
 
     def history(self) -> list[dict[str, Any]]:
         p = self.root / "history.jsonl"
-        return [json.loads(x) for x in p.read_text().splitlines()] if p.is_file() else []
+        return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()] if p.is_file() else []

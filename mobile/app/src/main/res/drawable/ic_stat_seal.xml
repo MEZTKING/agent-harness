@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- notification icon: the round table ring with the candle flame (white, as Android asks) -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="2"
+        android:pathData="M12,4a8,8 0,1 1,0 16a8,8 0,1 1,0 -16z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,7.5c1.6,2 2.4,3.2 2.4,4.4a2.4,2.4 0,0 1,-4.8 0c0,-1.2 0.8,-2.4 2.4,-4.4z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M11,14.5h2v2.5h-2z" />
+</vector>

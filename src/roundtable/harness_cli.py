@@ -77,6 +77,8 @@ def _printer(verbose: bool):
             print(f"  provider error ({d['model']}): {d['error'][:300]}", flush=True)
         elif kind == "status":
             print(f"[status: {d['status']}]", flush=True)
+        elif kind == "plugin_error":
+            print(f"  ! {d['message']}", flush=True)
 
     return on_event
 
@@ -86,6 +88,9 @@ def _status(project: Project) -> None:
     print(f"Project: {project.root}")
     print(f"Status:  {meta.get('status')}    Spent: ${meta.get('spent_usd', 0):.4f}"
           + (f" (+{meta['unpriced_calls']} unpriced calls)" if meta.get("unpriced_calls") else ""))
+    saved = project.saved_tokens_est()
+    if saved:
+        print(f"Token saver: about {saved:,} tokens kept out of the models' conversations")
     for i, g in enumerate(meta.get("goals", []), 1):
         print(f"Goal {i}:  {g}")
     print()
@@ -105,7 +110,7 @@ def _metrics(project: Project) -> None:
         print("no metrics yet")
         return
     agg: dict[tuple[str, str], dict] = defaultdict(lambda: defaultdict(float))
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         r = json.loads(line)
         a = agg[(r["role"], r["model"])]
         a["attempts"] += 1
@@ -129,6 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("path", nargs="?", default="harness.yaml")
     s.add_argument("--force", action="store_true")
     sub.add_parser("roles")
+    sub.add_parser("balance", help="the money left with providers that report it (DeepSeek)")
     s = sub.add_parser("ask")
     s.add_argument("role")
     s.add_argument("prompt")
@@ -173,6 +179,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("dir")
     s.add_argument("goal")
     s.add_argument("--approve", action="store_true", help="stop after planning until you run `roundtable approve`")
+    s.add_argument("--like", action="append", default=[], metavar="URL_OR_TEXT",
+                   help="make it like this: a web link, a GitHub repository or a description (repeat for more)")
     s.add_argument("--max-tasks", type=int)
     s = sub.add_parser("extend")
     s.add_argument("dir")
@@ -518,7 +526,7 @@ def main(argv: list[str] | None = None) -> None:
         target = Path(args.path)
         if target.exists() and not args.force:
             sys.exit(f"error: {target} exists (use --force)")
-        target.write_text(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
+        target.write_text(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8"))
         print(f"wrote {target}. Set your API keys as environment variables, then: roundtable roles")
         return
     if args.cmd == "feedback":
@@ -546,6 +554,15 @@ def main(argv: list[str] | None = None) -> None:
                 if r.description:
                     print(f"{'':18} {r.description}")
             return
+        if args.cmd == "balance":
+            from .providers.balance import balances
+
+            found = balances(cfg)
+            for name, b in found.items():
+                print(f"{name:12} {b['amount']:.2f} {b['currency']}")
+            if not found:
+                print("None of your providers reports a balance (DeepSeek does, once its key is set).")
+            return
         if args.cmd == "improve":
             return _improve(args, cfg)
         if args.cmd == "providers":
@@ -567,7 +584,8 @@ def main(argv: list[str] | None = None) -> None:
             if role.kind != "chat":
                 sys.exit("error: `ask` only works for chat roles")
             res = run_agent(cfg, role.models[0], cfg.prompt_text(role.prompt), args.prompt, Toolbox(),
-                            Budget(cfg.limits.max_cost_usd), max_steps=1, max_tokens=role.max_tokens, options=role.options)
+                            Budget(cfg.limits.max_cost_usd), max_steps=1, max_tokens=role.max_tokens, options=role.options,
+                            role=role.name)
             print(res.text)
             cost = f"${res.cost_usd:.5f}" if cfg.cost(role.models[0], res.usage) is not None else "unpriced"
             print(f"\n[{res.model} · {res.usage.input_tokens} in / {res.usage.output_tokens} out · {cost}]", file=sys.stderr)
@@ -575,7 +593,7 @@ def main(argv: list[str] | None = None) -> None:
 
         orch = Orchestrator(cfg, args.dir, on_event=_printer(args.verbose))
         if args.cmd == "new":
-            orch.start(args.goal, require_approval=args.approve)
+            orch.start(args.goal, require_approval=args.approve, references=args.like)
         elif args.cmd == "extend":
             orch.extend(args.goal)
         elif args.cmd == "approve":

@@ -90,10 +90,12 @@ def make(tmp_path, raw=RAW, brain=None, b_brain=None):
 
 
 def test_template_config_is_valid():
-    raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
+    raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8"))
     cfg = parse_config(raw)
     assert cfg.roles["coder"].models == [ModelRef("deepseek", "deepseek-v4-pro"), ModelRef("anthropic", "claude-sonnet-5-5")]
-    assert cfg.roles["designer"].kind == "image" and cfg.roles["designer"].review is False
+    assert cfg.roles["artist"].kind == "image" and cfg.roles["artist"].review is False
+    assert cfg.design_role == "designer" and cfg.roles["designer"].kind == "chat" and cfg.look_stage == "auto"
+    assert cfg.scout_role == "scout" and cfg.roles["scout"].kind == "chat" and cfg.limits.max_scout_steps == 30
     assert cfg.cost(ModelRef("anthropic", "claude-opus-5-5"), Usage(1_000_000, 0)) == 4.0
     assert cfg.cost(ModelRef("deepseek", "deepseek-v4-pro"), Usage(10, 10)) is None
 
@@ -115,21 +117,21 @@ def test_full_project_run(tmp_path):
     tasks = {t.id: t for t in orch.project.tasks()}
     assert all(t.status == "done" for t in tasks.values())
     root = orch.project.root
-    assert (root / "hello.py").read_text().startswith("print('hi')")
+    assert (root / "hello.py").read_text(encoding="utf-8").startswith("print('hi')")
     assert (root / "assets/logo.png").read_bytes().startswith(b"\x89PNG")
     assert img.prompts == ["a bakery logo"]
-    assert "Final report" in (root / ".harness/summary.md").read_text()
+    assert "Final report" in (root / ".harness/summary.md").read_text(encoding="utf-8")
     # T3 ran after T1 and saw T1's summary
     t3_prompt = next(c["messages"][0]["content"] for c in a.calls if "# Your task [T3]" in c["messages"][0]["content"])
     assert "T1 done by coder" in t3_prompt
     # one commit per task, .harness ignored
     log = subprocess.run(["git", "log", "--oneline"], cwd=root, capture_output=True, text=True).stdout
     assert "[T1] hello module" in log and "[T3] tests" in log
-    assert ".harness/" in (root / ".gitignore").read_text()
+    assert ".harness/" in (root / ".gitignore").read_text(encoding="utf-8")
     # spend tracked and metrics written
     meta = orch.project.meta()
     assert meta["status"] == "done" and meta["spent_usd"] > 0
-    metrics = [json.loads(line) for line in (root / ".harness/metrics.jsonl").read_text().splitlines()]
+    metrics = [json.loads(line) for line in (root / ".harness/metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {m["task"] for m in metrics} == {"T1", "T2", "T3"}
 
 
@@ -255,7 +257,7 @@ def test_workspace_sandboxing(tmp_path):
     out, err = box.call("write_file", {"path": "a/b.txt", "content": "x\ny\n"})
     assert not err
     out, err = box.call("edit_file", {"path": "a/b.txt", "old_text": "y", "new_text": "z"})
-    assert not err and (tmp_path / "a/b.txt").read_text() == "x\nz\n"
+    assert not err and (tmp_path / "a/b.txt").read_text(encoding="utf-8") == "x\nz\n"
     out, err = box.call("read_file", {"path": "../../etc/passwd"})
     assert err
     out, err = box.call("nope", {})
@@ -376,3 +378,220 @@ def test_missing_claude_key_gives_a_clear_error(monkeypatch):
     p = AnthropicProvider(api_key_env="RT_TEST_NO_SUCH_KEY")
     with pytest.raises(ProviderError, match="ANTHROPIC_API_KEY"):
         p.chat("claude-opus-5-5", "sys", [{"role": "user", "content": "hi"}], max_tokens=10)
+
+
+def test_out_of_steps_without_fallback_carries_on_once(tmp_path):
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["coder"].pop("fallback")
+    raw["limits"]["max_steps_per_task"] = 3
+
+    class Slow(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools):
+                prompt = messages[0]["content"]
+                if "# Your task [T1]" in prompt and "ran out of steps" not in prompt:
+                    return reply(calls=[("write_file", {"path": "hello.py", "content": "print('hi')\n"})])
+            return super().__call__(model, system, messages, tools)
+
+    orch, *_ = make(tmp_path, raw=raw, brain=Slow(plan=PLAN[:1]))
+    orch.start("goal")
+    assert orch.run() == "done"
+    t1 = orch.project.tasks()[0]
+    assert [x["outcome"] for x in t1.attempts] == ["max_steps", "approved"]
+
+
+def test_cache_hits_cost_a_tenth_unless_priced():
+    cfg = parse_config(json.loads(json.dumps(RAW)))
+    assert cfg.cost(ModelRef("a", "coder"), Usage(0, 0, cache_read_tokens=1_000_000)) == pytest.approx(0.1)
+    cfg.pricing["a/coder"]["cache_read"] = 0.5
+    assert cfg.cost(ModelRef("a", "coder"), Usage(0, 0, cache_read_tokens=1_000_000)) == pytest.approx(0.5)
+
+
+def test_real_balance_noted_at_start_and_end(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    assert balance.balance_url({"base_url": "https://api.deepseek.com/v1"}) == "https://api.deepseek.com/user/balance"
+    assert balance.balance_url({"base_url": "https://example.com"}) is None
+    assert balance.parse({"balance_infos": [{"currency": "USD", "total_balance": "2.96"}]}) == {
+        "amount": 2.96, "currency": "USD"}
+    left = iter([3.00, 2.95])
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left), "currency": "USD"}})
+    orch, *_ = make(tmp_path)
+    orch.start("goal")
+    events = []
+    orch._listener = lambda k, d: events.append((k, d))
+    assert orch.run() == "done"
+    rows = [json.loads(x) for x in (orch.project.root / ".harness/balance.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [r["phase"] for r in rows] == ["start", "end"] and rows[1]["real_usd"] == pytest.approx(0.05)
+    assert any(k == "real_cost" for k, _ in events)
+
+
+def test_task_that_keeps_running_out_of_steps_is_split_once(tmp_path):
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["coder"].pop("fallback")
+    raw["limits"]["max_steps_per_task"] = 2
+
+    class Big(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools) and "# Your task [T1]" in messages[0]["content"]:
+                return reply(calls=[("write_file", {"path": "big.py", "content": "x = 1\n"})])  # never finishes
+            return super().__call__(model, system, messages, tools)
+
+    brain = Big(plan=PLAN[:1])
+    orch, a, *_ = make(tmp_path, raw=raw, brain=brain)
+    orch.start("goal")
+    orch.plan()  # T1 is planned before the planner's answer changes
+    brain.plan = [{"id": "T2", "title": "first half", "role": "coder", "description": "finish big.py",
+                   "acceptance": "done", "depends_on": []}]
+    assert orch.run() == "done"
+    tasks = {t.id: t for t in orch.project.tasks()}
+    assert "T1" not in tasks and tasks["T2"].status == "done"
+    assert json.loads((orch.project.root / ".harness/split.json").read_text(encoding="utf-8")) == ["T1"]
+    revise = next(c for c in a.calls if "submit_plan" in tool_names(c["tools"] or [])
+                  and "ran out of steps" in c["messages"][0]["content"])
+    assert "Replace it with 2 to 4 smaller tasks" in revise["messages"][0]["content"]
+
+
+def test_run_pauses_when_real_spend_reaches_its_limit(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00, 1.90, 1.90])
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left, 1.9), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["limits"]["max_real_usd_per_run"] = 1.0
+    orch, *_ = make(tmp_path, raw=raw)
+    orch.start("goal")
+    assert orch.run() == "paused"
+    assert sum(t.status == "done" for t in orch.project.tasks()) == 1
+
+
+def test_out_of_credit_pauses_the_run_instead_of_failing_the_task(tmp_path):
+    class Broke(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools):
+                raise ProviderError("a: out of credit for coder - top up your balance with a", out_of_credit=True)
+            return super().__call__(model, system, messages, tools)
+
+    brain = Broke(plan=PLAN[:1])
+    orch, *_ = make(tmp_path, brain=brain, b_brain=brain)
+    orch.start("goal")
+    assert orch.run() == "paused"
+    t1 = orch.project.tasks()[0]
+    assert t1.status == "pending" and t1.attempts == []
+    assert orch.project.meta()["status"] == "paused"
+
+
+def test_real_money_limit_is_checked_inside_a_long_task(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00] + [1.50] * 50)  # start, the check before the task, then inside it
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["limits"]["max_real_usd_per_run"] = 1.0
+    orch, *_ = make(tmp_path, raw=raw, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal")
+    orch.plan()
+    orch.approve()
+    orch.REAL_CHECK_SECONDS = 0  # look at the balance on every charge
+    assert orch.run() == "paused_budget"
+    assert orch.project.tasks()[0].status == "pending"
+
+
+def test_reviewer_is_told_what_later_tasks_will_do(tmp_path):
+    orch, a, *_ = make(tmp_path)
+    orch.start("goal")
+    orch.plan()
+    tasks = orch.project.tasks()
+    text = orch._later_tasks_text(tasks[0])
+    assert "Still to come" in text and "[T3] tests" in text and "[T1]" not in text
+
+
+def test_after_a_rejection_the_next_reviewer_model_judges(tmp_path):
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["reviewer"]["fallback"] = ["b/strong-reviewer"]
+    raw["pricing"]["b/strong-reviewer"] = {"input": 1, "output": 1}
+    orch, a, b, *_ = make(tmp_path, raw=raw, brain=Brain(reject_first=True, plan=PLAN[:1]))
+    orch.start("goal")
+    assert orch.run() == "done"
+    judged_by = [c["model"] for c in a.calls + b.calls if "submit_review" in tool_names(c["tools"] or [])
+                 and c["messages"][-1]["role"] == "user"]
+    assert judged_by == ["reviewer", "strong-reviewer"]
+
+
+def test_run_stops_at_half_its_money_with_nothing_finished(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00, 2.40])  # start, before T1, after T1 failed
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left, 2.4), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["coder"].pop("fallback")
+    raw["limits"].update({"max_real_usd_per_run": 1.0, "max_steps_per_task": 1, "split_stuck_tasks": False})
+
+    class Stuck(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools):
+                return reply(calls=[("write_file", {"path": "x.py", "content": "x\n"})])
+            return super().__call__(model, system, messages, tools)
+
+    two = [PLAN[0], {**PLAN[0], "id": "T9", "title": "other", "depends_on": []}]
+    orch, *_ = make(tmp_path, raw=raw, brain=Stuck(plan=two))
+    orch.start("goal")
+    orch.plan()
+    orch.approve()
+    assert orch.run() == "paused"
+    assert [t.status for t in orch.project.tasks()] == ["failed", "pending"]
+
+
+def test_workers_may_write_throwaway_scripts_in_harness_scratch(tmp_path):
+    ws = Workspace(tmp_path)
+    assert ws.path(".harness/scratch/smoke.mjs") == (tmp_path / ".harness/scratch/smoke.mjs").resolve()
+    with pytest.raises(ToolError):
+        ws.path(".harness/project.json")
+
+
+def test_owner_can_accept_a_rejected_task_as_it_is(tmp_path):
+    from roundtable.harness.orchestrator import HarnessError
+
+    orch, *_ = make(tmp_path, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal")
+    orch.plan()
+    (orch.project.root / "hello.py").write_text("print('hi')\n", encoding="utf-8")
+    tasks = orch.project.tasks()
+    tasks[0].status = "failed"
+    orch.project.save_tasks(tasks)
+    orch.accept("T1", "the checker said the work was fine")
+    t = orch.project.tasks()[0]
+    assert t.status == "done" and t.summary.startswith("Accepted by the owner: the checker")
+    log = subprocess.run(["git", "log", "--oneline"], cwd=orch.project.root, capture_output=True, text=True).stdout
+    assert "accepted by the owner" in log
+    with pytest.raises(HarnessError):
+        orch.accept("T1")
+
+
+def test_real_money_is_checked_sooner_when_spending_fast(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00] + [1.50] * 50)
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["limits"]["max_real_usd_per_run"] = 0.000001  # a tenth of it is counted on the first charge
+    orch, *_ = make(tmp_path, raw=raw, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal")
+    orch.plan()
+    orch.approve()
+    orch.REAL_CHECK_SECONDS = 10 ** 6  # the minute rule alone would never look
+    assert orch.run() == "paused_budget"
+
+
+def test_big_files_come_back_as_an_outline_and_a_start(tmp_path):
+    ws = Workspace(tmp_path)
+    body = "\n".join(f"function f{i}() {{ return {i}; }}" if i % 50 == 0 else f"  // line {i}" for i in range(1, 2001))
+    (tmp_path / "big.js").write_text(body, encoding="utf-8")
+    out = ws.read_file({"path": "big.js"})
+    assert "has 2000 lines" in out and "50\tfunction f50()" in out and "# Lines 1-120" in out and len(out) < len(body) / 3
+    part = ws.read_file({"path": "big.js", "start_line": 1000, "end_line": 1005})
+    assert part.startswith("1000\t") and "1005\t" in part
+    capped = ws.read_file({"path": "big.js", "start_line": 1, "end_line": 2000})
+    assert "stopped at line 600 of 2000" in capped
+    (tmp_path / "small.js").write_text("a\nb\n", encoding="utf-8")
+    assert ws.read_file({"path": "small.js"}) == "1\ta\n2\tb"

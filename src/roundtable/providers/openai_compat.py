@@ -44,6 +44,28 @@ def _to_openai_messages(system: str, messages: list[dict[str, Any]], provider_id
     return out
 
 
+def _needs_cache_marks(model: str) -> bool:
+    """Claude only re-uses what it has already read when the request marks it (cache_control); OpenAI and
+    DeepSeek do it by themselves. Through a gateway (OpenRouter, Openference) the marks must be sent."""
+    m = model.lower()
+    return "claude" in m or m.startswith("anthropic/")
+
+
+def _mark_cache(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mark the system prompt and the newest user or tool message as cacheable (2 of Claude's 4 marks):
+    each step then reads everything up to the previous step's mark at the cache price."""
+    out = [dict(m) for m in messages]
+    targets = [i for i, m in enumerate(out) if m["role"] == "system"][:1]
+    last = next((i for i in range(len(out) - 1, -1, -1) if out[i]["role"] in ("user", "tool")), None)
+    if last is not None and last not in targets:
+        targets.append(last)
+    for i in targets:
+        c = out[i].get("content")
+        if isinstance(c, str) and c:
+            out[i]["content"] = [{"type": "text", "text": c, "cache_control": {"type": "ephemeral"}}]
+    return out
+
+
 def _expand(value: str) -> str:
     """Expand ${ENV_VAR} references in configured header/query values."""
     return os.path.expandvars(str(value))
@@ -74,6 +96,32 @@ def list_openai_models(openai, client, provider_id: str) -> list[str]:
     return _wrap_errors(openai, provider_id, "-", None, lambda: sorted(m.id for m in client.models.list()))
 
 
+def _reported_cost(u) -> float | None:
+    """The charge a service put in its usage block (OpenRouter's usage.cost), if any."""
+    if u is None:
+        return None
+    cost = getattr(u, "cost", None)
+    if cost is None:
+        cost = (getattr(u, "model_extra", None) or {}).get("cost")
+    try:
+        return float(cost) if cost is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _said(e) -> str:
+    """What the service itself said: its error message when the body has one, else the client's summary."""
+    body = getattr(e, "body", None)
+    if isinstance(body, str) and body.strip():
+        return body.strip()[:300]
+    if isinstance(body, dict):
+        err = body.get("error", body)
+        msg = err.get("message") if isinstance(err, dict) else err
+        if isinstance(msg, str) and msg.strip():
+            return msg.strip()[:300]
+    return str(getattr(e, "message", e))[:300]
+
+
 def _wrap_errors(openai, provider_id: str, model: str, api_key_env: str | None, fn):
     try:
         return fn()
@@ -86,7 +134,10 @@ def _wrap_errors(openai, provider_id: str, model: str, api_key_env: str | None, 
     except openai.RateLimitError as e:
         raise ProviderError(f"{provider_id}: rate limited after retries ({e.message})", retryable=True) from e
     except openai.APIStatusError as e:
-        raise ProviderError(f"{provider_id}: API error {e.status_code} ({e.message})", retryable=e.status_code >= 500) from e
+        if e.status_code == 402:
+            raise ProviderError(f"{provider_id}: out of credit for {model} - top up your balance with "
+                                f"{provider_id} ({_said(e)})", out_of_credit=True) from e
+        raise ProviderError(f"{provider_id}: API error {e.status_code} ({_said(e)})", retryable=e.status_code >= 500) from e
     except openai.APIConnectionError as e:
         raise ProviderError(f"{provider_id}: connection error ({e})", retryable=True) from e
 
@@ -98,10 +149,18 @@ class OpenAICompatProvider(Provider):
         api_key_env: str | None = "OPENAI_API_KEY",
         base_url: str | None = None,
         timeout: float = 600.0,
+        routing: str | None = None,
         **client_opts,
     ):
         self.name = provider_id
         self.api_key_env = api_key_env
+        # OpenRouter tells the exact charge of each call when asked (usage.include)
+        self.reports_cost = "openrouter.ai" in (base_url or "")
+        # OpenRouter sends a model to one of many companies, at prices up to 30x apart for the same model:
+        # by default ask for the cheapest that supports what the request needs ("price"); "throughput"
+        # or "latency" for speed; "none" to leave it to OpenRouter.
+        self.routing = (routing or "price") if self.reports_cost else None
+        self.last_route: str | None = None  # which company answered the last call
         self._openai, self.client = _client(api_key_env, base_url, timeout, **client_opts)
 
     def list_models(self) -> list[str]:
@@ -124,10 +183,18 @@ class OpenAICompatProvider(Provider):
                 params[key] = options[key]
         if options.get("extra_body"):
             params["extra_body"] = options["extra_body"]
+        if self.reports_cost:
+            extra = {**params.get("extra_body", {}), "usage": {"include": True}}
+            if self.routing and self.routing != "none":
+                extra["provider"] = {"sort": self.routing, "require_parameters": True, **extra.get("provider", {})}
+            params["extra_body"] = extra
 
+        if _needs_cache_marks(model):
+            params["messages"] = _mark_cache(params["messages"])
         resp = _wrap_errors(
             self._openai, self.name, model, self.api_key_env, lambda: self.client.chat.completions.create(**params)
         )
+        self.last_route = getattr(resp, "provider", None) or (getattr(resp, "model_extra", None) or {}).get("provider")
         if not resp.choices:
             raise ProviderError(f"{self.name}: empty response", retryable=True)
         choice = resp.choices[0]
@@ -153,6 +220,7 @@ class OpenAICompatProvider(Provider):
             input_tokens=(u.prompt_tokens or 0) - cached if u else 0,
             output_tokens=(u.completion_tokens or 0) if u else 0,
             cache_read_tokens=cached,
+            cost_usd=_reported_cost(u) if self.reports_cost else None,
         )
         native = msg.model_dump(exclude_none=True)
         native.pop("refusal", None)

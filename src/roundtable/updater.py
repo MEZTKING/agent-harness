@@ -175,6 +175,7 @@ def update(ref: str | None = None, force: bool = False, runner: Runner = _run,
     if not st.available and not force:
         log(st.message)
         return st
+    backup_first(log)
     if info.kind == "app":
         return _update_app(st, log)
     pip = [sys.executable, "-m", "pip", "install", "--quiet"]
@@ -216,6 +217,16 @@ def update(ref: str | None = None, force: bool = False, runner: Runner = _run,
     return st
 
 
+def backup_first(log: Callable[[str], None]) -> None:
+    """Back up settings and plans before installing; a failed backup never stops the update."""
+    try:
+        from .backup import before_update
+
+        log(before_update())
+    except Exception as e:  # noqa: BLE001
+        log(f"Couldn't make a backup before updating ({e}); updating anyway.")
+
+
 def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
     """Download the new installer and run it; it closes this app and reopens the new version."""
     import tempfile
@@ -248,7 +259,7 @@ def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
 # -- passive daily check ------------------------------------------------------------
 def _load_state() -> dict:
     try:
-        return json.loads(STATE_FILE.read_text())
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -256,7 +267,7 @@ def _load_state() -> dict:
 def _save_state(state: dict) -> None:
     try:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(json.dumps(state))
+        STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
     except OSError:
         pass
 

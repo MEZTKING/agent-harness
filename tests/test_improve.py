@@ -55,7 +55,7 @@ def test_projects_register_and_base_commits_recorded(tmp_path):
     cfg, lab = make_cfg(tmp_path)
     run_projects(cfg, tmp_path, 1)
     assert lab.projects() == [(tmp_path / "p0").resolve()]
-    tasks = json.loads((tmp_path / "p0/.harness/tasks.json").read_text())
+    tasks = json.loads((tmp_path / "p0/.harness/tasks.json").read_text(encoding="utf-8"))
     t1 = next(t for t in tasks if t["id"] == "T1")
     assert t1["base_commit"]
     # fallback lookup for older runs without base_commit
@@ -117,7 +117,7 @@ def test_apply_overlay_and_rollback(tmp_path):
 
 def test_learned_overlay_loads_with_config_file(tmp_path):
     raw = json.loads(json.dumps(RAW))
-    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     cfg = load_config(str(tmp_path / "harness.yaml"))
     assert cfg.lab_dir == tmp_path / ".harness-lab"
     lab = Lab(cfg.lab_dir)
@@ -125,7 +125,7 @@ def test_learned_overlay_loads_with_config_file(tmp_path):
                        rationale="r", risk="low"), cfg)
     again = load_config(str(tmp_path / "harness.yaml"))
     assert [str(m) for m in again.roles["coder"].models] == ["b/coder2", "a/coder"]
-    assert yaml.safe_load((tmp_path / "harness.yaml").read_text()) == raw  # harness.yaml untouched
+    assert yaml.safe_load((tmp_path / "harness.yaml").read_text(encoding="utf-8")) == raw  # harness.yaml untouched
 
 
 def test_candidate_config_does_not_touch_base(tmp_path):
@@ -162,7 +162,7 @@ def test_replay_evaluation_prefers_better_model(tmp_path):
     assert res["verdict"] == "better" and res["passed"]
     assert lab.proposal(good.id).status == "tested"
     # replays never touch the real project
-    assert len(json.loads((tmp_path / "p0/.harness/tasks.json").read_text())) == 3
+    assert len(json.loads((tmp_path / "p0/.harness/tasks.json").read_text(encoding="utf-8"))) == 3
 
     bad = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["a/coder"]},
                                     rationale="r", risk="low"))
@@ -237,7 +237,7 @@ def test_owner_propose_cli(tmp_path, capsys):
     from roundtable.harness_cli import main
 
     raw = json.loads(json.dumps(RAW))
-    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     cfg_path = str(tmp_path / "harness.yaml")
     main(["--config", cfg_path, "improve", "propose", "coder", "--models", "b/coder2,a/coder", "--risk", "low"])
     main(["--config", cfg_path, "improve", "propose", "coder", "--options", '{"temperature": 0.2}'])
@@ -250,3 +250,28 @@ def test_owner_propose_cli(tmp_path, capsys):
         main(["--config", cfg_path, "improve", "apply", routing, "--skip-probe"])
     main(["--config", cfg_path, "improve", "apply", routing, "--force", "--skip-probe"])
     assert [str(m) for m in load_config(cfg_path).roles["coder"].models] == ["b/coder2", "a/coder"]
+
+
+def test_rule_spots_a_fallback_that_keeps_rescuing_a_cheap_primary(tmp_path):
+    from roundtable.improve.analysis import Dataset, ModelStats
+
+    cfg, _ = make_cfg(tmp_path)
+    ds = Dataset()
+    # the music player's numbers: the cheap model finished 7 of 17, the fallback 4 of 4
+    ds.stats[("coder", "a/coder")] = ModelStats("coder", "a/coder", attempts=17, approved=7, other_fail=10,
+                                                cost=17 * 0.117, priced_attempts=17)
+    ds.stats[("coder", "b/coder2")] = ModelStats("coder", "b/coder2", attempts=4, approved=4,
+                                                 cost=4 * 0.19, priced_attempts=4)
+    props = rule_proposals(cfg, ds)
+    assert len(props) == 1 and props[0].change == {"models": ["b/coder2", "a/coder"]}
+    assert "41%" in props[0].rationale and "$0.19" in props[0].rationale and "$0.28" in props[0].rationale
+    ds.stats[("coder", "b/coder2")].cost = 4 * 2.0  # rescuing, but dearer per finished task: not this rule
+    assert all("finished only" not in p.rationale for p in rule_proposals(cfg, ds))
+
+
+def test_learning_after_each_run_applies_rule_backed_switches(tmp_path):
+    cfg, lab = make_cfg(tmp_path)
+    cfg.improve.update({"after_each_run": True, "auto_apply": "low"})
+    run_projects(cfg, tmp_path, 2)  # coder rejected every time, coder2 approved: a routing rule fires
+    overlay, _ = lab.learned()
+    assert overlay["roles"]["coder"]["model"] == "b/coder2"
