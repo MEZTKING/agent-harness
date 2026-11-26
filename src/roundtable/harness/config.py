@@ -31,6 +31,9 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
     "Claude Opus 5.5": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
     "Claude Sonnet 5.5": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     "Claude Haiku 5.5": {"input": 0.10, "output": 0.50, "cache_read": 0.01},
+    "GPT-6 Luna": {"input": 0.10, "output": 0.50, "cache_read": 0.01},
+    "GPT-6.1 Terra": {"input": 1.0, "output": 5.0, "cache_read": 0.05},
+    "GLM-5.2": {"input": 1.40, "output": 4.40, "cache_read": 0.26},
 }
 
 PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "plugin", "scripted",

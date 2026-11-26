@@ -13,10 +13,10 @@ Newest first. Each item says what to do and where.
 
 ## When you're at your PC
 
-- **Openference key:** it only allows one model (DeepSeek V4.1 Flash). To let Roundtable
-  use Claude, GPT, GLM, Kimi and the rest through it, open Openference's dashboard → API
-  keys, and allow more models on that key (or all).
-
+- **Openference:** top the balance up to over $1 (Billing), so Claude works through it; turn
+  on **ZDR mode** for the key (its Configuration) so makers don't keep your prompts. On your
+  PC, the split goes in with the five `roundtable assign` lines in the README ("The
+  recommended split").
 - **Two cloud environments** need the setup lines pasted by hand (Settings → the
   environment → Setup script): "Magnum" and "mse studio". `roundtable connect --cloud-script`
   prints them (README, "Connect Claude Code sessions"). Far Worlds is left out for now.

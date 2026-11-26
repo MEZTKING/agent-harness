@@ -22,6 +22,10 @@ providers:
     type: openai_compat
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GEMINI_API_KEY
+  openference:                      # one key for 55 models from 15 makers (Claude, GPT, Gemini, GLM, Kimi...)
+    type: openai_compat
+    base_url: https://api.openference.com/v1
+    api_key_env: OPENFERENCE_API_KEY
   # openrouter: {type: openai_compat, base_url: https://openrouter.ai/api/v1, api_key_env: OPENROUTER_API_KEY}
   # local:      {type: openai_compat, base_url: http://localhost:11434/v1}   # Ollama
 
@@ -64,6 +68,14 @@ roles:
   #   model: gemini/<current-gemini-model>
   #   description: marketing copy and long-form content
   #   prompt: worker                # any file in prompts_dir, or a built-in prompt name
+
+  # The split recommended with Openference plus a direct DeepSeek key (bulk coding stays on
+  # DeepSeek, which is cheaper direct; each check is done by a different maker):
+  #   orchestrator: {model: "openference/Claude Opus 5.5", fallback: [deepseek/deepseek-v4-pro]}
+  #   critic:       {model: "openference/GPT-6.1 Terra", fallback: [openference/GLM-5.3]}
+  #   designer:     {model: "openference/Claude Sonnet 5.5", fallback: [openference/GLM-5.3], max_tokens: 32000}
+  #   coder:        {model: deepseek/deepseek-v4-flash, fallback: [deepseek/deepseek-v4-pro]}
+  #   reviewer:     {model: "openference/GPT-6 Luna", fallback: ["openference/Claude Haiku 5.5"]}
 
 planner_role: orchestrator
 reviewer_role: reviewer             # remove to skip reviews

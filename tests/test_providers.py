@@ -154,3 +154,18 @@ def test_ui_endpoints(harness, tmp_path):
     with pytest.raises(ValueError):
         app.dispatch("POST", "/api/providers", {}, {"action": "remove", "id": "local"})  # in use
     assert json.dumps(data)  # serialisable
+
+
+def test_service_error_message_is_kept():
+    from roundtable.providers.openai_compat import _said
+
+    class E:
+        body = {"error": {"message": "This model is billed from your credit balance."}}
+        message = "Error code: 402"
+
+    class F:
+        body = None
+        message = "Error code: 500"
+
+    assert _said(E()) == "This model is billed from your credit balance."
+    assert _said(F()) == "Error code: 500"

@@ -366,6 +366,35 @@ roundtable image artist "a knight with a blue cape" --style rd_lite__platformer 
 roundtable image artist "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
 ```
 
+### The recommended split: Openference plus DeepSeek
+
+One [Openference](https://openference.com) key reaches Claude, GPT, Gemini, GLM, Kimi, Qwen and
+more, so each check can be done by a different maker. Bulk coding stays on a direct DeepSeek key,
+which is much cheaper than DeepSeek through Openference.
+
+| Job | Model | Why |
+|---|---|---|
+| Planner | Claude Opus 5.5 (Openference), DeepSeek V4 Pro if that fails | the best plans |
+| Critic | GPT-6.1 Terra (Openference), GLM-5.3 if that fails | a second opinion from another maker |
+| Designer | Claude Sonnet 5.5 (Openference), GLM-5.3 if that fails | designs the looks and can see pictures |
+| Coder | DeepSeek V4 Flash (direct), V4 Pro when it gets stuck | cheap for the bulk of the work |
+| Reviewer | GPT-6 Luna (Openference), Claude Haiku 5.5 if that fails | cheap, and a different maker from the coder |
+
+```bash
+roundtable providers add openference          # then set OPENFERENCE_API_KEY
+roundtable assign orchestrator "openference/Claude Opus 5.5" deepseek/deepseek-v4-pro
+roundtable assign critic "openference/GPT-6.1 Terra" openference/GLM-5.3
+roundtable assign designer "openference/Claude Sonnet 5.5" openference/GLM-5.3
+roundtable assign coder deepseek/deepseek-v4-flash deepseek/deepseek-v4-pro
+roundtable assign reviewer "openference/GPT-6 Luna" "openference/Claude Haiku 5.5"
+```
+
+Good to know: Claude through Openference is paid from your credit there and needs at least $1
+kept on the account; don't use its "bring your own key" mode for agents (it adds $0.01 to every
+request, and an agent makes one per step); turn on ZDR mode for the key if you want makers not to
+keep your prompts. Openference shows no balance through its API, so `roundtable balance` can't
+check its real cost yet.
+
 ### Adding any provider
 
 **In the app:** Settings → **AI providers** → pick one → paste the key → **Add provider**. It's tested right away, and **Models** lists everything that provider offers. Then use **Which model does what** to give any role any model, with fallbacks.

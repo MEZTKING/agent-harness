@@ -74,6 +74,19 @@ def list_openai_models(openai, client, provider_id: str) -> list[str]:
     return _wrap_errors(openai, provider_id, "-", None, lambda: sorted(m.id for m in client.models.list()))
 
 
+def _said(e) -> str:
+    """What the service itself said: its error message when the body has one, else the client's summary."""
+    body = getattr(e, "body", None)
+    if isinstance(body, str) and body.strip():
+        return body.strip()[:300]
+    if isinstance(body, dict):
+        err = body.get("error", body)
+        msg = err.get("message") if isinstance(err, dict) else err
+        if isinstance(msg, str) and msg.strip():
+            return msg.strip()[:300]
+    return str(getattr(e, "message", e))[:300]
+
+
 def _wrap_errors(openai, provider_id: str, model: str, api_key_env: str | None, fn):
     try:
         return fn()
@@ -86,7 +99,10 @@ def _wrap_errors(openai, provider_id: str, model: str, api_key_env: str | None, 
     except openai.RateLimitError as e:
         raise ProviderError(f"{provider_id}: rate limited after retries ({e.message})", retryable=True) from e
     except openai.APIStatusError as e:
-        raise ProviderError(f"{provider_id}: API error {e.status_code} ({e.message})", retryable=e.status_code >= 500) from e
+        if e.status_code == 402:
+            raise ProviderError(f"{provider_id}: out of credit for {model} - top up your balance with "
+                                f"{provider_id} ({_said(e)})") from e
+        raise ProviderError(f"{provider_id}: API error {e.status_code} ({_said(e)})", retryable=e.status_code >= 500) from e
     except openai.APIConnectionError as e:
         raise ProviderError(f"{provider_id}: connection error ({e})", retryable=True) from e
 

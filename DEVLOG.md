@@ -4,6 +4,27 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The recommended split: Openference plus DeepSeek
+
+The owner's second Openference key reaches 51 models; they asked for the split: Claude
+for planning and design, another maker for the critique and the reviews, DeepSeek direct
+for the coding.
+
+- The yardstick lab's `harness.yaml`: planner Claude Opus 5.5 (fallback DeepSeek V4 Pro),
+  critic GPT-6.1 Terra (fallback GLM-5.3), designer Claude Sonnet 5.5 (fallback GLM-5.3),
+  coder DeepSeek V4 Flash direct (fallback V4 Pro), reviewer GPT-6 Luna (fallbacks Claude
+  Haiku 5.5, DeepSeek Flash). Terra and Luna answered through Roundtable; Claude is
+  refused until the Openference balance is at least $1 (fallbacks take over meanwhile).
+- `templates/harness.example.yaml`: the `openference` provider and the split as a
+  commented block; README "The recommended split" with the `roundtable assign` commands
+  for the owner's PC.
+- `providers/openai_compat._said`: errors carry the service's own words; a 402 says
+  "out of credit for <model> – top up your balance". `DEFAULT_PRICING`: GPT-6 Luna,
+  GPT-6.1 Terra, GLM-5.2.
+- Test: `test_service_error_message_is_kept`; 144 pass.
+- Open: Openference has no balance endpoint, so its real cost isn't checked yet (its
+  `X-Quota-*` headers are plan units).
+
 ## 2026-11-26 – Openference as a provider
 
 The owner has an API key for Openference (openference.com): one OpenAI- and
