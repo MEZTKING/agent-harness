@@ -384,13 +384,16 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         except Exception as e:
             self.emit("hub_error", {"error": str(e)})
 
-    def _attention(self, key: str, text: str) -> None:
-        """Open a high-priority todo for the owner once per issue (no duplicates across reruns)."""
+    def _attention(self, key: str, text: str, details: str = "") -> None:
+        """Open a high-priority todo for the owner once per issue (no duplicates across reruns).
+
+        ``text`` is what the owner reads (the app, the phone): a plain sentence, no file paths or commands;
+        those go in ``details``."""
         meta = self.project.meta()
         open_ = meta.setdefault("journal_todos", {})
         if key in open_:
             return
-        entry = self._journal("todo", text, priority="high")
+        entry = self._journal("todo", text, priority="high", **({"details": details} if details else {}))
         if entry:
             open_[key] = entry
             self.project.save_meta(meta)
@@ -1236,8 +1239,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             p = next((x for x in lab.proposals() if x.id == a["id"]), None)
             why = p.rationale if p else ""
             self.emit("improved", {"id": a["id"], "version": a["version"], "summary": a["summary"]})
-            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why} "
-                                      f"(undo: roundtable improve rollback {a['version']})")
+            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why}",
+                          details=f"undo: roundtable improve rollback {a['version']}")
 
     REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
 
@@ -1337,8 +1340,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 meta = self.project.meta()
             if not meta.get("plan_approved"):
                 self._set_status("awaiting_approval")
-                self._attention("approval", f"review the plan, then: roundtable approve {self.project.root} "
-                                            f"&& roundtable run {self.project.root}")
+                self._attention("approval", "The plan is ready: look at it, then approve it to start building",
+                                details=f"roundtable approve {self.project.root} && roundtable run {self.project.root}")
                 return "awaiting_approval"
             self._resolved("approval", "budget", "money", note="run resumed")
             self._set_status("running")
@@ -1357,8 +1360,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                         self._set_status("blocked")
                         for t in tasks:
                             if t.status == "failed":
-                                self._attention(f"failed:{t.id}", f"task {t.id} '{t.title}' failed; check "
-                                                f"`roundtable status {self.project.root}`, then retry or skip it")
+                                self._attention(f"failed:{t.id}", f"Task {t.id} “{t.title}” didn't pass: try it "
+                                                "again or skip it", details=f"roundtable status {self.project.root}")
                         return "blocked"
                     if all(t.status == "done" for t in tasks):
                         self._finish(tasks)
@@ -1414,8 +1417,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 self._attention("money", f"{e}: top up that account, then run the project again")
                 return "paused"
             self._set_status("paused_budget", reason=str(e), pause="budget")
-            self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
-                                      f"roundtable run {self.project.root}")
+            self._attention("budget", "Paused at this project's spending limit: choose Carry on to give it more",
+                            details=f"{e}; raise limits.max_cost_usd, then roundtable run {self.project.root}")
             return "paused_budget"
 
     def _finish(self, tasks: list[Task]) -> None:
@@ -1437,17 +1440,66 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         self._resolved("approval", "budget", "money", note="the run finished")
         self._publish_plan()
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
-        for plan_id in meta.get("journal_plans", []):
-            self._journal_close(plan_id, "completed by the harness")
-        if meta.get("journal_plans"):
-            meta = self.project.meta()
-            meta["journal_plans"] = []
-            self.project.save_meta(meta)
+        self._close_goal_plans(meta["goals"])
+        meta = self.project.meta()
         first = next((ln.strip("# ").strip() for ln in summary.splitlines() if ln.strip()), "")
+        # the owner reads the next steps on the phone and in the app: plain sentences; the paths and
+        # commands go in the details
         self._journal("session", f"harness finished goal '{meta['goals'][-1][:150]}' ({len(tasks)} tasks, "
                                  f"${self.budget.spent_usd:.2f}). {first[:200]}",
-                      next_steps=[f"review the result and report: {self.project.dir / 'summary.md'}",
-                                  f"rate tasks: roundtable feedback {self.project.root} TASK --good/--bad"])
+                      next_steps=["Look at what was built and say what you think",
+                                  "Rate the tasks in the app (good or bad), so Roundtable learns"],
+                      details=f"Report: {self.project.dir / 'summary.md'}\n"
+                              f"Rate tasks: roundtable feedback {self.project.root} TASK --good/--bad")
+
+    def _close_goal_plans(self, goals: list[str]) -> None:
+        """Close the journal's "Future plans" entries of finished goals.
+
+        The ids kept in ``journal_plans`` are closed in the journal they were written to: the project's own
+        hub project, or the shared harness agent before the project had one (``_hub_agent`` can change
+        between planning and finishing, and closing in the wrong journal used to leave the entry open for
+        good). Open plan entries that read "goal: <a finished goal>" are closed too, so one whose id was lost
+        (or written by another session) doesn't stay under Future plans."""
+        hub = self._hub()
+        if not hub:
+            return
+        agents = list(dict.fromkeys(a for a in (self._hub_agent(), (self.cfg.hub or {}).get("agent")) if a
+                                    and a in hub.config.agents))
+        name = self.project.root.name
+        wanted = {" ".join(f"goal: {g[:300]}".split()) for g in goals}
+        left: list[str] = []
+        try:
+            for plan_id in self.project.meta().get("journal_plans", []):
+                if not any(self._close_in(hub, agent, plan_id) for agent in agents):
+                    left.append(plan_id)
+            for agent in agents:
+                prefix = "" if agent == name else f"{name}: "
+                for e in hub.journal.entries(agent, agent, kinds=["plan"], status="open"):
+                    text = e["text"]
+                    if prefix and not text.startswith(prefix):
+                        continue
+                    if " ".join(text[len(prefix):].split()) in wanted:
+                        self._close_in(hub, agent, e["id"])
+        except Exception as e:  # the hub is optional; never fail a run over it
+            self.emit("hub_error", {"error": str(e)})
+        meta = self.project.meta()
+        if meta.get("journal_plans") or left:
+            meta["journal_plans"] = []  # one that can't be found anywhere is gone already
+            self.project.save_meta(meta)
+
+    def _close_in(self, hub, agent: str, entry_id: str) -> bool:
+        """Close one plan entry in one agent's journal; False when it isn't there (or is closed already)."""
+        from ..hub.journal import JournalError
+
+        try:
+            data = hub.store.read_json(f"journal/{agent}/{entry_id}.json")
+            if not data:
+                return False
+            if data.get("status") == "open":
+                hub.journal.close(agent, entry_id, note="completed by the harness")
+            return True
+        except JournalError:
+            return False
 
     def retry(self, task_id: str, stronger: bool = False) -> None:
         """Try a task again; ``stronger``: with the Quality setting's model for its role."""

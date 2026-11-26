@@ -253,7 +253,7 @@ def test_commands_through_the_hub(tmp_path):
     assert orch.project.plan_doc()["decisions"][0]["chosen"] == "b"
     assert not orch.project.meta()["plan_approved"]
     replies = hub.inbox("me", unread_only=True)
-    assert len(replies) == 2 and any("1 change(s) waiting" in r["body"] for r in replies)
+    assert len(replies) == 2 and any("1 change waits for you to press Update plan" in r["body"] for r in replies)
     assert any("isn't valid JSON" in r["body"] for r in replies)
     left = {m["subject"] for m in hub.inbox("proj", unread_only=True)}
     assert left == {"roundtable: command", "hello"}  # the stranger's command and the note
@@ -358,3 +358,16 @@ def test_learned_order_still_applies_inside_a_profile():
     cfg.learned = {"roles": {"coder": {"model": "a/strong", "fallback": ["a/cheap"]}}}
     assert [str(m) for m in cfg.for_profile("balanced").roles["coder"].models] == ["a/strong", "a/cheap"]
     assert [str(m) for m in cfg.for_profile("other").roles["coder"].models] == ["a/third"]  # different models: the profile wins
+
+
+def test_questions_for_the_owner_are_asked_in_plain_words():
+    """The planner is told, in its prompt and in submit_plan itself, to write for someone who isn't a programmer."""
+    from pathlib import Path
+
+    import roundtable
+
+    schema = plandoc.submission_schema({"type": "object"})["properties"]
+    for part, field in (("decisions", "question"), ("questions", "text"), ("ideas", "text")):
+        assert "isn't a programmer" in schema[part]["items"]["properties"][field]["description"]
+    prompt = (Path(roundtable.__file__).parent / "prompts" / "orchestrator.md").read_text(encoding="utf-8")
+    assert "isn't a programmer" in prompt and "no tool names or jargon" in prompt

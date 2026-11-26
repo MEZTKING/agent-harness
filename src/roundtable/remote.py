@@ -60,6 +60,9 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     kw = {k: v for k, v in cmd.items() if k != "action"}
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
+    if action == "answer" and "id" not in kw and "question" in kw:  # the plan's own answer: {question, text}
+        r = orch.plan_update("answer", **kw)
+        return f"Answer saved. {_waiting(r['pending'])}"
     if action == "answer":
         return _answer(orch, kw)
     if action == "autopilot":
@@ -67,13 +70,13 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
-        return f"New looks to choose from: {names}. They're in the plan in the hub; send 'look' with your pick."
+        return f"New looks to choose from: {names}. Pick the one you like in the plan."
     if action in orch.PLAN_ACTIONS:
         r = orch.plan_update(action, **kw)
-        return f"Done. {r['pending']} change(s) waiting: send 'revise' (Update plan) to apply them."
+        return f"Done. {_waiting(r['pending'])}"
     if action == "revise":
         r = orch.revise_plan(kw.get("text", ""))
-        return r["summary"] + ". The new plan is in plans/ in the hub."
+        return r["summary"] + ". The new plan is ready to look at."
     if action == "approve":
         orch.approve()
         status = orch.run()
@@ -95,6 +98,12 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "ask":
         return orch.ask(kw.get("text", ""))["reply"]
     return f"Unknown action {action!r}."
+
+
+def _waiting(pending: int) -> str:
+    """What the owner reads after a plan change: how many wait, and the one button that applies them."""
+    return (f"{pending} change{'s' if pending != 1 else ''} wait{'s' if pending == 1 else ''} for you to press "
+            "Update plan.")
 
 
 def autopilot_command(cfg, kw: dict[str, Any]) -> str:
