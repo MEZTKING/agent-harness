@@ -6,6 +6,18 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Backups can't upload to Google Drive by themselves** (26 November): backups go into
+  Google Drive for desktop's folder, which then syncs them; with no Drive app, a folder of
+  the owner's choosing. Sending them straight to Drive through its API needs a Google Cloud
+  OAuth client the owner creates once (folder mode needs nothing). → release 3 or later,
+  only if the folder isn't enough.
+- **Backups: a project's code bundle isn't checked for keys** (26 November): `--with-code`
+  adds a `git bundle`, which is compressed, so the key check can't read it. Only what's
+  committed goes in (not `.env` files that git ignores). Unpacking the bundle to check it
+  would close this.
+- **Backups: no folder picker in the app** (26 November): the folder is typed (or Google
+  Drive is found by itself). A Browse button needs the desktop window's file dialog.
+
 - **Roundtable doesn't know what this machine can build** (26 November): for the music
   player's APK and EXE, the build facts (where the Android SDK is, that there's no system
   Gradle, versions that work, no Wine for Windows builds) had to be written into the goal

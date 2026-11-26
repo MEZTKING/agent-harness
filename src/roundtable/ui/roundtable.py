@@ -225,6 +225,10 @@ def activity(app, limit: int = 120) -> list[dict[str, Any]]:
                     items.append({"at": e["created_at"], "seq": e.get("ts", 0), "project": agent,
                                   "kind": f"journal:{e['kind']}",
                                   "text": f"{e['kind']}: {e['text']}"[:220]})
+    if getattr(app, "desktop", None):
+        from ..backup import feed_items
+
+        items += feed_items(app.desktop["paths"].home)[:3]
     # newest first; "seq" keeps steps logged within the same second in their real order
     items.sort(key=lambda i: (i["at"], i["seq"]), reverse=True)
     return items[:limit]
@@ -252,6 +256,7 @@ class AutoSync:
             self.tick()
 
     def tick(self) -> None:
+        self.daily_backup()
         if not self.app.hub:
             return
         try:
@@ -267,3 +272,18 @@ class AutoSync:
         except Exception as e:  # offline etc.: keep the app working on its local copy
             self.app.auto_sync_error = str(e)[:300]
         time.sleep(0)
+
+    def daily_backup(self) -> None:
+        """Once a day while the desktop app is open, never while a project job runs."""
+        if not getattr(self.app, "desktop", None):
+            return
+        from ..backup import find_sources, run_daily
+
+        app = self.app
+        busy = any(j.status == "running" and j.kind in ("run", "plan", "backup")
+                   for j in app.jobs.jobs.values())
+        msg = run_daily(app.desktop["paths"].home, busy=busy,
+                        sources=lambda: find_sources(app.harness_config_path, app.hub_config_path,
+                                                     app.desktop["paths"].home))
+        if msg:
+            app.backup_message = msg

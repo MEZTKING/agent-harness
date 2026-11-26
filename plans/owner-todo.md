@@ -13,6 +13,11 @@ Newest first. Each item says what to do and where.
 
 ## When you're at your PC
 
+- **Backups:** install [Google Drive for desktop](https://www.google.com/drive/download/) if
+  it isn't on your PC, and sign in. Then in Roundtable Hold, **Settings → Backups**: check it
+  shows your Google Drive folder, tick **Back up every day**, and (if you like) **Lock with a
+  passphrase**, then **Back up now** once. Keep the passphrase somewhere safe: a locked backup
+  can't be opened without it.
 - **Openference:** top the balance up to over $1 (Billing), so Claude works through it; turn
   on **ZDR mode** for the key (its Configuration) so makers don't keep your prompts. On your
   PC, the split goes in with the five `roundtable assign` lines in the README ("The

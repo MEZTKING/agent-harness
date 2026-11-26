@@ -34,6 +34,8 @@ Everything else:
     roundtable init                       write starter hub.yaml and harness.yaml
     roundtable update [--check] [--ref BRANCH] [--force]   built-in updater
     roundtable version
+    roundtable backup now|list|where|restore FILE   back up settings, learned settings and plans
+                                          (to Google Drive's folder or --to PATH; never API keys)
     roundtable app                        open the desktop app (window) from a source install
 
 Options: --config FILE (hub.yaml for hub commands, harness.yaml for project commands;
@@ -79,6 +81,12 @@ def main(argv: list[str] | None = None) -> None:
         return _update(argv, cmd)
     if cmd == "remote":
         return _remote(argv)
+    if cmd == "backup":
+        from .backup import main as backup_main
+
+        rest = list(argv)
+        rest.remove(cmd)
+        return backup_main(rest)
     if cmd in ("connect", "hook"):
         from .connect import main as connect_main
 

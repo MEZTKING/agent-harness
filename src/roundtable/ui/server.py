@@ -892,6 +892,94 @@ class UIApp:
 
         return self.jobs.start("update", "update Roundtable Hold", run, target="update").view()
 
+    # -- backups (Settings → Backups) ------------------------------------------------------------------
+    def _backup_home(self) -> Path:
+        from ..desktop import app_home
+
+        return self.desktop["paths"].home if self.desktop else app_home()
+
+    def _backup_sources(self):
+        from ..backup import find_sources
+
+        return find_sources(self.harness_config_path, self.hub_config_path, self._backup_home())
+
+    def _project_job_running(self) -> bool:
+        return any(j.status == "running" and j.kind in ("run", "plan") for j in self.jobs.jobs.values())
+
+    def backup_status(self, q=None):
+        from .. import backup as bk
+
+        home = self._backup_home()
+        settings = bk.load_settings(home)
+        dest = bk.resolve_destination(settings, home=home)
+        state = bk.load_state(home)
+        return {"settings": settings, "found": [str(p) for p in bk.find_drive_folders()],
+                "destination": str(dest) if dest else "", "no_drive": bk.NO_DRIVE, "host": bk.host_name(),
+                "last": {k: state.get(k) for k in ("last_at", "last_file", "last_size", "last_error")},
+                "log": (state.get("log") or [])[:5], "backups": bk.list_backups(dest)[:20] if dest else [],
+                "passphrase_remembered": bool(bk.remembered_passphrase())}
+
+    def _backup_file(self, name: str) -> Path:
+        from .. import backup as bk
+
+        name = (name or "").strip()
+        if not name.endswith((".zip", ".zip.enc")):
+            raise ApiError("Choose a backup file (it ends .zip or .zip.enc).")
+        path = Path(name).expanduser()
+        if not path.is_absolute():
+            dest = bk.resolve_destination(home=self._backup_home())
+            path = (dest / name) if dest else path
+        if not path.is_file():
+            raise ApiError(f"Can't find {path}. Check the name, or that Google Drive has finished syncing it.", 404)
+        return path
+
+    def backup_action(self, body):
+        from .. import backup as bk
+
+        home, action = self._backup_home(), body.get("action")
+        phrase = (body.get("passphrase") or "").strip() or None
+        try:
+            if action == "settings":
+                bk.save_settings(home, **{k: body.get(k) for k in ("to", "keep", "daily", "encrypt")})
+                return self.backup_status()
+            if action == "passphrase":
+                bk.remember_passphrase(phrase if body.get("remember", True) else None)
+                return self.backup_status()
+            if action == "inspect":
+                opened = bk.open_backup(self._backup_file(body.get("file")), phrase)
+                return {"lines": bk.summary(opened, bk.restore_plan(opened, home)),
+                        "refused": opened.manifest.get("refused", []), "notes": opened.manifest.get("notes", [])}
+        except bk.BackupError as e:
+            raise ApiError(str(e)) from None
+        if action == "now":
+            if body.get("remember") and phrase:
+                bk.remember_passphrase(phrase)
+
+            def run(job: Job):
+                res = bk.backup_now(with_code=bool(body.get("with_code")), passphrase=phrase,
+                                    sources=self._backup_sources(), home=home)
+                job.line(res.message())
+                return {"file": str(res.path), "size": res.size, "refused": res.refused, "message": res.message()}
+
+            return self.jobs.start("backup", "back up settings and plans", run, target="backup").view()
+        if action == "restore":
+            if body.get("confirm") is not True:
+                raise ApiError("Confirm the restore first.")
+            if self._project_job_running():
+                raise ApiError("Wait for the running project job to finish, then restore.", 409)
+            path = self._backup_file(body.get("file"))
+
+            def run(job: Job):
+                done = bk.restore(path, phrase, yes=True, home=home, sources=self._backup_sources(), log=job.line)
+                job.line(f"Restored {done.written} files. What was here before is in {done.safety}.")
+                for n in done.notes:
+                    job.line(n)
+                self.reload_hub()
+                return {"written": done.written, "safety": str(done.safety), "notes": done.notes}
+
+            return self.jobs.start("backup", f"restore {path.name}", run, target="backup").view()
+        raise ApiError(f"unknown action {action!r}")
+
     # -- routing table ------------------------------------------------------------------------------
     def phone_status(self, q=None):
         st = self.phone.status()
@@ -951,6 +1039,8 @@ class UIApp:
             ("GET", "/api/plan/looks"): R.plan_looks,
             ("GET", "/api/phone"): R.phone_status,
             ("POST", "/api/phone"): R.phone_action,
+            ("GET", "/api/backup"): R.backup_status,
+            ("POST", "/api/backup"): R.backup_action,
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:

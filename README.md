@@ -69,6 +69,31 @@ The updater works with both kinds of install:
 
 Any `roundtable` command checks for updates at most once a day (2-second timeout) and prints a one-line notice. Turn this off with `ROUNDTABLE_NO_UPDATE_CHECK=1`. The web UI shows an **Update now** banner. After an update, restart any running `roundtable ui` or `mcp` servers.
 
+### Backups
+
+Roundtable Hold can back up everything that would be hard to make again, in one file:
+
+- **your settings**: which model does what, providers, prices and limits (`harness.yaml`, `custom.yaml`), the hub's settings (not a GitHub hub's data: that's on GitHub already; a hub kept only on this computer is included) and the app's own settings;
+- **what Roundtable has learned**: learned settings, suggestions, versions and model check history (files over 20 MB are left out and listed);
+- **every project's plan and history**: the plan, tasks, costs, events and pictures in its `.harness` folder (not the rebuildable `spill`, `scratch` and `references` folders). Add **with code** to include the project's own files too (off by default: projects can be big);
+- **the list of paired phones**.
+
+**Never in a backup:** API keys and passwords. Every file is checked first; one that looks like it holds a key is left out, and the backup says which. The phone connection's private key isn't included either.
+
+**Where backups go:** if you have [Google Drive for desktop](https://www.google.com/drive/download/), Roundtable finds its **My Drive** folder (on Windows usually `G:\My Drive`) and puts backups in `My Drive\Roundtable backups`, so they're in your Google Drive with no extra setup. Any other folder works too: OneDrive, a USB stick, another disk.
+
+In the app: **Settings → Backups**. Back up now, see the last backup, back up every day (once a day while the app is open, never while a project is running), keep the newest 10, and lock backups with a **passphrase** (recommended: a backup holds your plans; the passphrase is never saved, and a backup can't be opened without it). A backup is also made just before the app installs an update.
+
+```bash
+roundtable backup where                     # which Google Drive folder it found
+roundtable backup now [--to FOLDER] [--with-code] [--passphrase]
+roundtable backup list
+roundtable backup restore FILE [--yes]      # asks for the passphrase if the backup is locked
+roundtable backup settings --daily on --keep 10 --encrypt on
+```
+
+**Restoring** (Settings → Backups → Restore…, or `roundtable backup restore`) shows what's in the backup and what it would replace, and asks first. It saves what's there now as a safety backup next to it, then puts everything back; projects whose folders are gone are made again. Afterwards **type your API keys again** (Settings → API keys) and **pair your phones again**.
+
 | Part | What it does |
 |---|---|
 | **1. Hub & journal** | Lets agents working in different repos share what they're building and talk to each other, within the permissions you set. Each project keeps a journal: done, todo, plans, decisions, session handoffs. |

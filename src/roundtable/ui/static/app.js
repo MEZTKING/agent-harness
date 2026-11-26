@@ -996,6 +996,73 @@ async function phoneCard() {
   return section("Phone (Roundtable Mobile)", box);
 }
 
+// ---------- Settings → Backups ----------
+function fileSize(n) { const u = ["bytes", "KB", "MB", "GB"]; let i = 0; while (n >= 1024 && i < 3) { n /= 1024; i++; } return i ? `${n.toFixed(1)} ${u[i]}` : `${n} bytes`; }
+async function backupsCard() {
+  let st;
+  try { st = await api("GET", "/api/backup"); } catch (e) { return section("Backups", h("p", { class: "muted" }, e.message)); }
+  const box = h("div");
+  const save = async (body, ok) => { try { const r = await api("POST", "/api/backup", { action: "settings", ...body }); if (ok) toast(ok); draw(r); } catch (e) { toast(e.message, true); } };
+  function draw(s) {
+    const set = s.settings;
+    const folder = h("input", { class: "grow", value: set.to === "auto" ? "" : set.to, placeholder: "a folder, e.g. D:\\Backups or your OneDrive folder",
+      title: "Leave empty to use Google Drive. Any folder works: OneDrive, a USB stick, another disk." });
+    const phrase = h("input", { type: "password", class: "grow", autocomplete: "off",
+      placeholder: s.passphrase_remembered ? "•••••••• (remembered until you close the app)" : "passphrase (optional, recommended)",
+      title: "Locks the backup so only someone with the passphrase can open it. It's never saved: if you forget it, the backup can't be opened." });
+    const remember = h("input", { type: "checkbox", checked: s.passphrase_remembered, onchange: async (ev) => {
+      if (ev.target.checked && !phrase.value) { ev.target.checked = false; return toast("Type the passphrase first", true); }
+      try { draw(await api("POST", "/api/backup", { action: "passphrase", passphrase: phrase.value, remember: ev.target.checked })); toast(ev.target.checked ? "Remembered until you close the app" : "Forgotten"); }
+      catch (e) { toast(e.message, true); }
+    } });
+    const pick = h("select", { class: "grow" }, s.backups.map((b) => h("option", { value: b.path }, `${b.name} · ${fileSize(b.size)}${b.locked ? " · locked" : ""}`)));
+    const other = h("input", { class: "grow", placeholder: "or the full path of a backup file" });
+    const now = async () => {
+      if (set.encrypt && !phrase.value && !s.passphrase_remembered) return toast("Type the passphrase first: backups are set to be locked.", true);
+      const j = await act(() => api("POST", "/api/backup", { action: "now", passphrase: phrase.value, remember: remember.checked }), "Backing up…");
+      if (j && j.id) location.hash = `#/job/${j.id}`;
+    };
+    const restore = async () => {
+      const file = other.value.trim() || pick.value;
+      if (!file) return toast("Choose a backup to restore", true);
+      try {
+        const info = await api("POST", "/api/backup", { action: "inspect", file, passphrase: phrase.value });
+        const text = info.lines.join("\n") + "\n\nA safety backup of what's here now is made first. Afterwards, type your API keys again and pair your phones again.\n\nRestore now?";
+        if (!confirm(text)) return;
+        const j = await api("POST", "/api/backup", { action: "restore", file, passphrase: phrase.value, confirm: true });
+        toast("Restoring…");
+        location.hash = `#/job/${j.id}`;
+      } catch (e) { toast(e.message, true); }
+    };
+    const last = s.last.last_at ? `${ago(s.last.last_at)} · ${fileSize(s.last.last_size || 0)}` : "none yet";
+    box.replaceChildren(
+      h("p", { class: "muted small" }, "A backup holds your settings, what Roundtable has learned, and every project's plan and history. It never holds your API keys."),
+      s.destination ? h("p", {}, "Backups go to: ", h("strong", { title: s.destination }, s.destination))
+        : h("p", { class: "small", style: "color:var(--bad)" }, s.no_drive),
+      h("div", { class: "row" }, folder,
+        h("button", { onclick: () => save({ to: folder.value.trim() || "auto" }, "Saved") }, "Use this folder"),
+        set.to !== "auto" ? h("button", { title: s.found.length ? s.found[0] : "Google Drive for desktop isn't installed", onclick: () => save({ to: "auto" }, "Backups go to Google Drive") }, "Use Google Drive") : null),
+      h("p", {}, "Last backup: ", last, s.last.last_error ? h("span", { class: "pill warn", title: s.last.last_error }, "problem") : null),
+      s.last.last_error ? h("p", { class: "small", style: "color:var(--bad)" }, s.last.last_error) : null,
+      h("div", { class: "row" },
+        h("label", { class: "check", title: "Once a day while Roundtable Hold is open, never while a project is running" },
+          h("input", { type: "checkbox", checked: set.daily, onchange: (ev) => save({ daily: ev.target.checked }, ev.target.checked ? "Daily backups on" : "Daily backups off") }), "Back up every day"),
+        h("label", { class: "check", title: "Older backups from this PC are deleted; nothing else in the folder is touched" }, "Keep the newest ",
+          h("input", { type: "number", min: 1, max: 100, value: set.keep, style: "width:60px", onchange: (ev) => save({ keep: Number(ev.target.value) }, "Saved") }), " backups"),
+        h("label", { class: "check", title: "Recommended: a backup holds your plans. The daily backup needs the passphrase typed once each time the app opens." },
+          h("input", { type: "checkbox", checked: set.encrypt, onchange: (ev) => save({ encrypt: ev.target.checked }, "Saved") }), "Lock with a passphrase")),
+      h("div", { class: "row" }, phrase,
+        h("label", { class: "check", title: "Kept in memory only, until you close the app, so the daily backup can be locked" }, remember, "Remember until I close the app"),
+        h("button", { class: "primary", onclick: now }, "Back up now")),
+      h("h3", {}, "Restore"),
+      h("p", { class: "muted small" }, "Puts a backup's settings, plans and history back. Projects whose folders are gone are made again."),
+      h("div", { class: "row" }, s.backups.length ? pick : h("span", { class: "muted small" }, "No backups in that folder yet."), other,
+        h("button", { class: "danger", onclick: restore, title: "Shows what it would replace and asks first" }, "Restore…")));
+  }
+  draw(st);
+  return section("Backups", box);
+}
+
 async function viewSettings() {
   const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
   const editor = async (which) => {
@@ -1009,7 +1076,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), await providersCard(), hubCard(st), SHOW_PHONE ? await phoneCard() : null,
+    keysCard(st), await providersCard(), hubCard(st), await backupsCard(), SHOW_PHONE ? await phoneCard() : null,
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),

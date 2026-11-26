@@ -4,6 +4,55 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Backups (to Google Drive's folder)
+
+The owner asked: "Also add support to back up settings to Google Drive, and anything else
+important." For Roundtable.
+
+- New `src/roundtable/backup.py`. One `.zip` (`roundtable-backup-<host>-<YYYY-MM-DD-HHMM>.zip`)
+  with `manifest.json` (format, time, host, version, roots, every file's size and SHA-256,
+  what was skipped or refused). `find_sources` finds harness.yaml, custom.yaml, hub.yaml, the
+  lab, a local-only hub's data and the lab's projects; `collect` lists the files (app
+  settings, `hub-path`, `phone.json`, the lab, each project's `.harness/` without spill,
+  scratch and references); `make_backup` writes it, `--with-code` adds a `git bundle` per
+  project (`_bundle`).
+- Never keys: `secret_reason` refuses `keys.json`, the phone key, `.env` files and anything
+  that looks like a key (sk-…, sk-or-v1-…, sk-ant-…, AKIA…, ghp_/github_pat_…, xox…, PEM
+  private keys, a key written into a setting in a YAML/JSON file); refused files are named in
+  the result and the manifest.
+- Locking: `encrypt`/`decrypt`, AES-256-GCM with a scrypt key, header `RTBK` + version +
+  salt + nonce (as associated data), `.zip.enc`. The passphrase is never stored
+  (`remember_passphrase` keeps it in memory for the app's session).
+- Where: `find_drive_folders` (drive letters D–Z with `My Drive` on Windows,
+  `~/Library/CloudStorage/GoogleDrive-*/My Drive` on a Mac, `~/Google Drive`),
+  `resolve_destination` (`auto` → `My Drive/Roundtable backups`, or any folder); `prune`
+  keeps the newest N of this computer's regular backups and touches nothing else. Settings
+  `backup: {to, keep, daily, encrypt}` live in the app's own `config/app.json`
+  (`load_settings`/`save_settings`); the last backup and a short log in `backup-state.json`.
+- Restore: `open_backup` (checks every file's hash), `restore_plan` and `summary` (new,
+  replaces, same), `restore` asks, makes a `-before-restore` safety backup next to the file,
+  clones missing projects' code from their bundle, writes the files, and points the lab's
+  `projects.json` at where the projects are now. Folders are stored relative to the app
+  folder or the user's home where they can be, so a restore on a new PC lands right.
+- Automatic: `run_daily` (at most once a day, never during a run or plan job, never raises),
+  called from `AutoSync.daily_backup` in the app's minute tick; `before_update` from
+  `updater.backup_first`, just before an update installs (into the app folder's `backups/`
+  when no Drive is found). Messages show in Settings → Backups and the activity feed
+  (`feed_items`).
+- CLI `roundtable backup now|list|restore|where|settings` (`main.py`); app routes
+  `GET/POST /api/backup` (`UIApp.backup_status`, `backup_action`); the Backups card in
+  Settings (`backupsCard` in `app.js`).
+- Decided: a hub on GitHub isn't backed up (it's on GitHub); a hub kept only on this computer
+  is. Paired phones' names and hashed tokens go in, the phone certificate and key don't, so
+  phones pair again. A file with a key-looking string is left out rather than stopping the
+  whole backup. Daily backups are on by default; they only run once a folder is found.
+- Tests: `tests/test_backup.py` (30): round trip with two projects, code bundle, refused key
+  files, the key patterns, locking and a wrong passphrase, keep-N pruning, Drive detection,
+  restore asks and saves a safety backup, damaged backups, daily once a day and not during a
+  job, the app tick, the updater hook, the settings routes, the command line. 218 pass.
+- Open (plans/gaps.md): uploading straight to Drive (needs an OAuth client the owner makes
+  once), checking code bundles for keys, a folder picker.
+
 ## 2026-11-26 – The restyle finished; the player becomes an APK and an EXE
 
 - T16 (styling, Claude Sonnet) accepted by the owner from screenshots; T17 (tests, README,

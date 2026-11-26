@@ -175,6 +175,7 @@ def update(ref: str | None = None, force: bool = False, runner: Runner = _run,
     if not st.available and not force:
         log(st.message)
         return st
+    backup_first(log)
     if info.kind == "app":
         return _update_app(st, log)
     pip = [sys.executable, "-m", "pip", "install", "--quiet"]
@@ -214,6 +215,16 @@ def update(ref: str | None = None, force: bool = False, runner: Runner = _run,
     for c in st.changes[:30]:
         log(f"  {c}")
     return st
+
+
+def backup_first(log: Callable[[str], None]) -> None:
+    """Back up settings and plans before installing; a failed backup never stops the update."""
+    try:
+        from .backup import before_update
+
+        log(before_update())
+    except Exception as e:  # noqa: BLE001
+        log(f"Couldn't make a backup before updating ({e}); updating anyway.")
 
 
 def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
