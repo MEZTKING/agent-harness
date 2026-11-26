@@ -528,6 +528,87 @@ class UIApp:
         except HarnessError as e:
             raise ApiError(str(e))
 
+    # -- questions to tap (asks.py) ------------------------------------------------------------
+    def _busy(self, path: Path) -> bool:
+        return any(j.target == str(path) and j.status == "running" for j in self.jobs.jobs.values())
+
+    def asks_get(self, q):
+        """What waits for the owner as cards: one project's (?path=), every project's, or the new-project
+        wizard's (?wizard=1)."""
+        from ..asks import open_asks, wizard_asks
+        from ..harness.orchestrator import Orchestrator
+
+        cfg = self.need_cfg()
+        if q.get("wizard"):
+            return {"asks": wizard_asks(cfg), "projects_dir": str(self.projects_dir)}
+        path = q.get("path", [""])[0]
+        roots = [self.project(cfg, path).root] if path else self.lab(cfg).projects()
+        out = []
+        for root in roots:
+            try:
+                asks = open_asks(Orchestrator(cfg, root))
+            except (OSError, ValueError):
+                continue
+            busy = self._busy(root)
+            out += [{**a, "busy": busy} for a in asks]
+        return {"asks": out}
+
+    def asks_post(self, body):
+        """Answer a card: {path, id, chosen, other, confirmed, stamp, skip}; or start a project from the
+        wizard's answers: {wizard: {kind, idea, like, profile, look}} (each {chosen, other})."""
+        from ..asks import answer_ask, finish
+        from ..harness.orchestrator import HarnessError, Orchestrator
+
+        cfg = self.need_cfg()
+        if isinstance(body.get("wizard"), dict):
+            return self._wizard_start(cfg, body["wizard"])
+        proj = self.project(cfg, body.get("path", ""))
+        if self._busy(proj.root):
+            raise ApiError("wait for the running job on this project to finish", 409)
+        try:
+            r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
+                           str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
+                           stamp=body.get("stamp") or None, skip=bool(body.get("skip")))
+        except HarnessError as e:
+            raise ApiError(str(e))
+        if not r.get("then"):
+            return {"reply": r["reply"]}
+        kind = "run" if r["then"] == "run" else "plan"
+        title = {"run": "run", "revise": "update the plan of", "looks": "new looks for"}[r["then"]]
+
+        def run(job: Job):
+            job.line(r["reply"])
+            return {"reply": finish(self._orch(cfg, proj.root, job), r)}
+
+        job = self.jobs.start(kind, f"{title} {proj.root.name}", run, target=str(proj.root)).view()
+        return {"reply": r["reply"], "job": job}
+
+    def _wizard_start(self, cfg, answers: dict[str, Any]):
+        from ..asks import wizard_project
+        from ..harness.orchestrator import HarnessError
+
+        try:
+            w = wizard_project(answers, self.projects_dir)
+            if w["profile"] and w["profile"] not in cfg.profiles:
+                raise HarnessError(f"there's no {w['profile']} setting; choose another")
+        except HarnessError as e:
+            raise ApiError(str(e))
+        path = Path(w["dir"]).resolve()
+
+        def run(job: Job):
+            orch = self._orch(cfg, path, job)
+            orch.start(w["goal"], require_approval=True, references=w["references"])
+            if w["profile"]:
+                orch.set_profile(w["profile"])
+            if w["look"] is not None:
+                meta = orch.project.meta()
+                meta.update(look_step=w["look"], look_brief=w["look_note"])
+                orch.project.save_meta(meta)
+            return {"status": orch.run(), "path": str(path)}
+
+        job = self.jobs.start("run", f"new project {path.name}", run, target=str(path)).view()
+        return {"reply": f"Started {path.name}: the planner is drawing up the plan.", "job": job, "path": str(path)}
+
     def plan_looks(self, q):
         """The look pictures of a project's plan as data addresses (the page's pictures may only be those)."""
         import base64
@@ -1037,6 +1118,8 @@ class UIApp:
             ("GET", "/api/plan"): R.plan_get,
             ("POST", "/api/plan"): R.plan_post,
             ("GET", "/api/plan/looks"): R.plan_looks,
+            ("GET", "/api/asks"): R.asks_get,
+            ("POST", "/api/asks"): R.asks_post,
             ("GET", "/api/phone"): R.phone_status,
             ("POST", "/api/phone"): R.phone_action,
             ("GET", "/api/backup"): R.backup_status,
