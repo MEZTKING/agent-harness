@@ -6,6 +6,22 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **The phone and the PC as one Roundtable** (owner, 26 November: "This mobile roundtable should be
+  able to connect with the PC, and all sessions should be synced, etc., and everything else that is
+  necessary"). Slice 2 of "This phone", right after slice 1:
+  - the on-phone hub is a git copy of `agent-hub-data`, synced in the background (on start, after each
+    task, every few minutes, and at once when the app opens), so projects, plans, to-dos, letters,
+    journal, pictures and session logs match on both;
+  - **My PC** on the phone: the PC connection (the paired phone server, hidden so far) finished,
+    switched on and tested on the owner's PC, so the phone can drive the PC's Roundtable directly on
+    the same Wi-Fi, no GitHub;
+  - one Table showing every seat (this phone, the PC, other sessions), with who is building what; a
+    project is built on one machine at a time (a claim in the hub), and either can pick up the other's
+    paused run;
+  - the Session and Live views of a run on either machine readable on the other;
+  - settings that matter on both (limits, autopilot, profiles, keys stay per machine) synced.
+  → next, after slice 1.
+
 - **Godot: the checker hasn't met a real Godot yet** (26 November): built and tested against a stand-in;
   the first run on the owner's PC (or a session allowed to run Godot) should confirm `--import`, the Movie
   Maker frames and the error lines. No GUT/gdUnit test runner yet, and no Android/HTML5 export. → release 2.
