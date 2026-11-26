@@ -71,7 +71,7 @@ fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit) {
                 v == null -> {}
                 else -> {
                     item { Pictures(v) { label, img -> big = label to img } }
-                    item { Session(v.session, mode) }
+                    item { Session(v, mode) }
                 }
             }
         }
@@ -117,10 +117,16 @@ private fun Shot(label: String, bytes: ByteArray, modifier: Modifier, open: (Str
 
 /** The latest task's steps, like the lines of a terminal. */
 @Composable
-private fun Session(s: SessionSummary?, mode: Mode?) {
+private fun Session(v: LiveView, mode: Mode?) {
+    val s: SessionSummary? = v.session
     val t = s?.task
     Panel(Modifier.fillMaxWidth()) {
-        Text("WHAT IT'S DOING", style = Label, color = Hall.muted)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("WHAT IT'S DOING", style = Label, color = Hall.muted, modifier = Modifier.weight(1f))
+            if (v.running) Text("● Live" + if (v.progress.isNotBlank()) " · ${v.progress}" else "", color = Hall.good, style = MaterialTheme.typography.labelMedium)
+        }
+        if (v.from.isNotBlank()) Text(v.from + (s?.at?.ifBlank { null }?.let { " · ${ago(it)}" } ?: "") + if (v.running) " · updates by itself" else "",
+            color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         if (t == null) {
             Text("The steps show here once a task has run.", color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
             return@Panel
@@ -143,7 +149,7 @@ private fun Session(s: SessionSummary?, mode: Mode?) {
                 Text(step.line, color = colour, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
-        if (mode == Mode.HUB) Text("Only the latest task's last steps come through the hub; the PC app shows every step and change.",
+        if (mode == Mode.HUB && v.from.isBlank()) Text("Only the latest task's last steps come through the hub; the PC app shows every step and change.",
             Modifier.padding(top = 8.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     }
 }

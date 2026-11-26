@@ -1,4 +1,4 @@
-# agent-harness configuration: who does what.
+# Roundtable configuration: who does what.
 # Model references are "<provider>/<model>". Swap any of them freely.
 
 providers:
@@ -35,45 +35,56 @@ providers:
     api_key_env: OPENROUTER_API_KEY
   # local:      {type: openai_compat, base_url: http://localhost:11434/v1}   # Ollama
 
+# Who does what: the recommended split (Openference plus a DeepSeek key). Claude plans and
+# designs, DeepSeek writes the code (cheapest bought direct), and each check is done by a
+# different maker's model. Every chat role ends on DeepSeek, so a DeepSeek key alone is enough
+# to start; add the Openference and OpenRouter keys in Settings for the full split.
+# Change any of it in the app (Models), or press "Use the recommended setup" in Settings to
+# come back to this.
 roles:
   orchestrator:                     # plans the project and writes the final report
-    model: anthropic/claude-fable-5-2
-    fallback: [anthropic/claude-opus-5-5]
-    options: {effort: high}
+    model: "openference/Claude Opus 5.5"
+    fallback: [openrouter/z-ai/glm-5.3, deepseek/deepseek-v4-flash]
   manager:
-    model: anthropic/claude-opus-5-5
+    model: "openference/Claude Sonnet 5.5"
+    fallback: [deepseek/deepseek-v4-flash]
     description: specs, architecture and API documents, READMEs, project coordination
-  coder:
-    model: deepseek/deepseek-v4-pro
-    fallback: [anthropic/claude-sonnet-5-5]
-    description: writes and tests code
   critic:                           # a second opinion on every new plan, from another maker's model
-    model: deepseek/deepseek-v4-pro
-    fallback: [anthropic/claude-opus-5-5]
+    model: "openference/GPT-6.1 Terra"
+    fallback: [openference/GLM-5.3, deepseek/deepseek-v4-flash]
+  designer:                         # designs the app's looks to choose from (a model that can see pictures)
+    model: "openference/Claude Sonnet 5.5"
+    fallback: [openference/GLM-5.3, deepseek/deepseek-v4-flash]
+    max_tokens: 32000                 # three mockup pages in one answer
+  coder:                            # the owner's choice (26 November 2026): Claude Opus 5.5 codes, DeepSeek Flash backs it up
+    model: anthropic/claude-opus-5-5
+    fallback: [deepseek/deepseek-v4-flash]
+    options: {effort: medium}
+    description: writes and tests code
   scout:                            # reads the pages and repositories you want it to be like ("Make it like this")
     model: deepseek/deepseek-v4-flash
-    fallback: [deepseek/deepseek-v4-pro]
+    fallback: [openference/GLM-5.3]
+  stylist:
+    model: openrouter/anthropic/claude-sonnet-5.5
+    fallback: [openrouter/z-ai/glm-5.3, deepseek/deepseek-v4-flash]
+    description: visual styling of screens
   reviewer:                         # checks every task against its acceptance criteria
-    model: anthropic/claude-opus-5-5
-    options: {effort: medium}
-  designer:                         # designs the app's looks to choose from (a model that can see pictures)
-    model: anthropic/claude-opus-5-5
-    fallback: [deepseek/deepseek-v4-pro]
-    max_tokens: 32000                 # three mockup pages in one answer
-  artist:                           # pixel-art game assets; model = default style
+    model: "openference/GPT-6 Luna"
+    fallback: ["openference/Claude Haiku 5.5", deepseek/deepseek-v4-flash]
+  illustrator:                      # pictures: art, backgrounds, icons
     kind: image
-    model: retrodiffusion/rd_lite__default
-    options: {width: 64, height: 64}
-    description: >-
-      pixel-art game assets. Set image_options.style per task, e.g. rd_core__platformer (side-view
-      sprites), rd_core__topdown, rd_core__isometric, rd_plus__item_sheet, rd_plus__ui_element,
-      rd_tile__single_tile (16-64px tiles), rd_plus__skill_icon, rd_core__fantasy; width/height in
-      pixels (usually 32-128); remove_bg true for sprites, tile_x/tile_y for seamless backgrounds.
-  illustrator:                      # pictures: art, backgrounds, icons (best ranked in November 2026: GPT Image 2)
-    kind: image
-    model: openrouter_images/openai/gpt-5.4-image-2
-    fallback: [openrouter_images/google/gemini-3.1-flash-image]
+    model: openrouter_images/google/gemini-3.1-flash-image
     options: {aspect_ratio: "16:9"}
+    description: pictures - art, backgrounds, icons
+  # artist:                         # pixel-art game assets (needs a Retro Diffusion key); model = default style
+  #   kind: image
+  #   model: retrodiffusion/rd_lite__default
+  #   options: {width: 64, height: 64}
+  #   description: >-
+  #     pixel-art game assets. Set image_options.style per task, e.g. rd_core__platformer (side-view
+  #     sprites), rd_core__topdown, rd_core__isometric, rd_plus__item_sheet, rd_plus__ui_element,
+  #     rd_tile__single_tile (16-64px tiles), rd_plus__skill_icon, rd_core__fantasy; width/height in
+  #     pixels (usually 32-128); remove_bg true for sprites, tile_x/tile_y for seamless backgrounds.
   # illustrator (OpenAI direct):    # non-pixel images
   #   kind: image
   #   model: openai_images/gpt-image-1
@@ -83,22 +94,35 @@ roles:
   #   description: marketing copy and long-form content
   #   prompt: worker                # any file in prompts_dir, or a built-in prompt name
 
-  # The split recommended with Openference plus a direct DeepSeek key (bulk coding stays on
-  # DeepSeek, which is cheaper direct; each check is done by a different maker):
-  #   orchestrator: {model: "openference/Claude Opus 5.5", fallback: [deepseek/deepseek-v4-pro]}
-  #   critic:       {model: "openference/GPT-6.1 Terra", fallback: [openference/GLM-5.3]}
-  #   designer:     {model: "openference/Claude Sonnet 5.5", fallback: [openference/GLM-5.3], max_tokens: 32000}
-  #   coder:        {model: deepseek/deepseek-v4-flash, fallback: [deepseek/deepseek-v4-pro]}
-  #   reviewer:     {model: "openference/GPT-6 Luna", fallback: ["openference/Claude Haiku 5.5"]}
-
-# Settings: named sets of models a project can switch between (Budget / Balanced / Quality),
-# each laid over the roles above. The plan shows what each would cost; switch from the app or
-# the phone. Uncomment and fill in the models you have keys for:
-# profiles:
-#   budget:   {description: cheapest that still works, roles: {coder: {model: deepseek/deepseek-v4-flash, fallback: [deepseek/deepseek-v4-pro]}}}
-#   balanced: {description: Claude plans, others check, DeepSeek codes, roles: {}}
-#   quality:  {description: the strongest model for every job, roles: {coder: {model: openrouter/anthropic/claude-sonnet-5.5}}}
-# default_profile: balanced
+# Settings a project can switch between (Budget / Balanced / Quality), each laid over the roles
+# above. The plan shows what each would cost; switch from the app or the phone.
+profiles:
+  budget:
+    description: cheapest that still works; open models
+    roles:
+      orchestrator: {model: openrouter/z-ai/glm-5.3, fallback: [deepseek/deepseek-v4-flash]}
+      critic: {model: openference/GLM-5.3, fallback: [deepseek/deepseek-v4-flash]}
+      designer: {model: openference/GLM-5.3, fallback: [openrouter/z-ai/glm-5.3, deepseek/deepseek-v4-flash]}
+      coder: {model: deepseek/deepseek-v4-flash, fallback: [openrouter/z-ai/glm-5.3]}
+      reviewer: {model: "openference/GPT-6 Luna", fallback: [deepseek/deepseek-v4-flash]}
+  balanced:
+    description: Claude plans, designs and codes, other makers check, DeepSeek backs up
+    roles:
+      orchestrator: {model: "openference/Claude Opus 5.5", fallback: [openrouter/z-ai/glm-5.3, deepseek/deepseek-v4-flash]}
+      critic: {model: "openference/GPT-6.1 Terra", fallback: [openference/GLM-5.3, deepseek/deepseek-v4-flash]}
+      designer: {model: openrouter/anthropic/claude-sonnet-5.5, fallback: ["openference/Claude Sonnet 5.5", deepseek/deepseek-v4-flash]}
+      coder: {model: anthropic/claude-opus-5-5, fallback: [deepseek/deepseek-v4-flash], options: {effort: medium}}
+      reviewer: {model: openrouter/openai/gpt-6.1-terra, fallback: [openrouter/anthropic/claude-sonnet-5.5, deepseek/deepseek-v4-flash]}
+  quality:
+    description: the strongest model for every job
+    roles:
+      illustrator: {model: openrouter_images/openai/gpt-5.4-image-2, fallback: [openrouter_images/google/gemini-3.1-flash-image]}
+      orchestrator: {model: openrouter/anthropic/claude-opus-5.5, fallback: ["openference/Claude Opus 5.5", deepseek/deepseek-v4-flash]}
+      critic: {model: openrouter/openai/gpt-6.1-terra, fallback: [openrouter/google/gemini-3.8-flash, deepseek/deepseek-v4-flash]}
+      designer: {model: openrouter/anthropic/claude-opus-5.5, fallback: [openrouter/anthropic/claude-sonnet-5.5, deepseek/deepseek-v4-flash]}
+      coder: {model: anthropic/claude-opus-5-5, fallback: [deepseek/deepseek-v4-flash], options: {effort: medium}}
+      reviewer: {model: openrouter/openai/gpt-6.1-terra, fallback: [openrouter/anthropic/claude-haiku-5.5, deepseek/deepseek-v4-flash]}
+default_profile: balanced
 
 planner_role: orchestrator
 reviewer_role: reviewer             # remove to skip reviews
@@ -109,11 +133,12 @@ look_stage: auto                    # auto: offer three looks when the plan is a
 show_it: auto                       # auto: pictures of the app's own screens after every approved task; off: none
 # prompts_dir: ./prompts            # override built-in prompts (orchestrator.md, coder.md, ...)
 
-# USD per 1M tokens. Claude prices are built in; add the rest from each
+# USD per 1M tokens. Claude, DeepSeek and Openference prices are built in and OpenRouter's are
+# read from OpenRouter; add the rest from each
 # provider's pricing page so the budget covers them. Calls with no price are
 # counted as "unpriced" and do NOT count toward max_cost_usd.
 pricing:
-  # deepseek/deepseek-v4-pro: {input: 0.0, output: 0.0, cache_read: 0.0}
+  # myprovider/my-model: {input: 0.0, output: 0.0, cache_read: 0.0}
   # openai_images/gpt-image-1: {input: 0.0, output: 0.0}
   # Retro Diffusion reports the exact charge per image, so it needs no entry here.
 

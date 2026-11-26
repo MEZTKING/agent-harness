@@ -122,7 +122,8 @@ def test_plugin_provider(harness):
     cfg = load_config(str(harness))
     p = cfg.provider("echo")
     assert isinstance(p, Provider) and p.chat("v1", "", [{"role": "user", "content": "hi"}]).text == "> hi"
-    assert manage.test_provider(cfg, "echo") == {"ok": True, "models": 1, "sample": ["v1"]}
+    assert manage.test_provider(cfg, "echo") == {"ok": True, "models": 1, "sample": ["v1"],
+                                                 "message": "OK: echo answers (1 model)"}
     (harness.parent / "plugins" / "bad.py").write_text("class Nope: pass\n", encoding="utf-8")
     manage.add_provider(harness, "plugin", pid="bad", **{"class": "bad.py:Nope"})
     with pytest.raises(ProviderError, match="must subclass"):
@@ -132,6 +133,7 @@ def test_plugin_provider(harness):
 
 def test_live_style_test_reports_failures_cleanly(harness, monkeypatch):
     manage.add_provider(harness, "custom", pid="offline", base_url="http://127.0.0.1:9/v1")
+    monkeypatch.setenv("OFFLINE_API_KEY", "proxy-injected")
     r = manage.test_provider(load_config(str(harness)), "offline")
     assert r["ok"] is False and "connection" in r["error"].lower()
 

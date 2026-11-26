@@ -43,6 +43,12 @@ data class LiveView(
     val shots: LiveShots? = null,
     val images: Map<String, ByteArray> = emptyMap(),
     val session: SessionSummary? = null,
+    /** Where the steps came from, in words ("From your PC", "Through the hub"). */
+    val from: String = "",
+    /** The run is still going (the screen keeps refreshing). */
+    val running: Boolean = false,
+    /** "T3 of 7", when the run's events say. */
+    val progress: String = "",
 ) {
     val kinds: List<String> get() = KINDS.filter { it in images }
 

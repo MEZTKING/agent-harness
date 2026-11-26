@@ -92,12 +92,20 @@ def make(tmp_path, raw=RAW, brain=None, b_brain=None):
 def test_template_config_is_valid():
     raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8"))
     cfg = parse_config(raw)
-    assert cfg.roles["coder"].models == [ModelRef("deepseek", "deepseek-v4-pro"), ModelRef("anthropic", "claude-sonnet-5-5")]
-    assert cfg.roles["artist"].kind == "image" and cfg.roles["artist"].review is False
+    assert cfg.roles["coder"].models == [ModelRef("anthropic", "claude-opus-5-5"), ModelRef("deepseek", "deepseek-v4-flash")]
+    assert cfg.roles["illustrator"].kind == "image" and cfg.roles["illustrator"].review is False
+    assert "deepseek-v4-pro" not in resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(
+        encoding="utf-8")  # the owner's rule: no DeepSeek V4 Pro for now
+    assert set(cfg.profiles) == {"budget", "balanced", "quality"} and cfg.default_profile == "balanced"
+    for name in [None, *cfg.profiles]:  # a DeepSeek key alone is enough: every chat role can end on DeepSeek
+        c = cfg.for_profile(name)
+        for role in c.roles.values():
+            if role.kind == "chat":
+                assert any(m.provider == "deepseek" for m in role.models), (name, role.name)
     assert cfg.design_role == "designer" and cfg.roles["designer"].kind == "chat" and cfg.look_stage == "auto"
     assert cfg.scout_role == "scout" and cfg.roles["scout"].kind == "chat" and cfg.limits.max_scout_steps == 30
     assert cfg.cost(ModelRef("anthropic", "claude-opus-5-5"), Usage(1_000_000, 0)) == 4.0
-    assert cfg.cost(ModelRef("deepseek", "deepseek-v4-pro"), Usage(10, 10)) is None
+    assert cfg.cost(ModelRef("deepseek", "deepseek-v4-flash"), Usage(1_000_000, 0)) > 0
 
 
 def test_config_errors():

@@ -27,6 +27,20 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.9.0
+
+- **A new desktop app**, rebuilt from scratch: the Hall shows every project as a seat with its own name
+  and what it's doing in words; **Needs you** comes first and is answered with one tap; each project
+  has Overview, Plan, Watch, App, Journal and Settings; **Models** lets you choose who does every job
+  from a list; Settings covers keys (with a Test that really checks them), the recommended setup,
+  spending, the hub, your phone, backups, plugins and updates – nothing sends you out of the app.
+- **The phone and the PC as one Roundtable**: the phone is a seat of its own; one machine builds a
+  project at a time; watch a build on either; spending limits, autopilot and who does which job are
+  shared; "carry on" goes to the machine that has the project; pair the phone with the PC by QR code.
+- **Claude Opus 5.5 codes by default** (medium effort), with DeepSeek V4 Flash as its backup.
+- **Fixes**: keys for OpenRouter and Openference load at start; DeepSeek V4 Pro is switched to Flash;
+  the hub's project list stays up to date on every computer.
+
 ### What's new in 0.8.0
 
 - **Your existing apps** (first part of "your repositories"): point Roundtable at one of your apps'
@@ -527,7 +541,7 @@ roundtable probe                    # check every model works, and record its ba
 ```yaml
 roles:
   orchestrator: {model: anthropic/claude-fable-5-2, fallback: [anthropic/claude-opus-5-5], options: {effort: high}}
-  coder:        {model: deepseek/deepseek-v4-pro, fallback: [anthropic/claude-sonnet-5-5], description: writes and tests code}
+  coder:        {model: deepseek/deepseek-v4-flash, fallback: [anthropic/claude-sonnet-5-5], description: writes and tests code}
   reviewer:     {model: anthropic/claude-opus-5-5}
   artist:       {kind: image, model: openai_images/gpt-image-1, description: logos and illustrations}
 ```
@@ -552,21 +566,32 @@ One [Openference](https://openference.com) key reaches Claude, GPT, Gemini, GLM,
 more, so each check can be done by a different maker. Bulk coding stays on a direct DeepSeek key,
 which is much cheaper than DeepSeek through Openference.
 
+On the desktop app it's one click: **Settings → Recommended setup → Use the recommended setup**.
+It shows each job's model now and after, keeps your old `harness.yaml` as
+`harness.yaml.before-<date>`, and leaves your hub, limits, plugins and your own choices in Models
+as they are. New installs start with it, with the Budget, Balanced and Quality settings below
+(Balanced unless you pick another). DeepSeek V4 Pro isn't used for now (the owner's rule); a
+`harness.yaml` that still names it is switched to V4 Flash when the app starts, with a copy kept
+and a line in the journal.
+
 | Job | Model | Why |
 |---|---|---|
-| Planner | Claude Opus 5.5 (Openference), DeepSeek V4 Pro if that fails | the best plans |
+| Planner | Claude Opus 5.5 (Openference), GLM-5.3, then DeepSeek V4 Flash if that fails | the best plans |
 | Critic | GPT-6.1 Terra (Openference), GLM-5.3 if that fails | a second opinion from another maker |
-| Designer | Claude Sonnet 5.5 (Openference), GLM-5.3 if that fails | designs the looks and can see pictures |
-| Coder | DeepSeek V4 Flash (direct), V4 Pro when it gets stuck | cheap for the bulk of the work |
+| Designer | Claude Sonnet 5.5, GLM-5.3 if that fails | designs the looks and can see pictures |
+| Coder | DeepSeek V4 Flash (direct), GLM-5.3 when it gets stuck | cheap for the bulk of the work |
 | Reviewer | GPT-6 Luna (Openference), Claude Haiku 5.5 if that fails | cheap, and a different maker from the coder |
+
+Every job ends on DeepSeek V4 Flash, so a DeepSeek key alone is enough to start. From the
+terminal, the same by hand:
 
 ```bash
 roundtable providers add openference          # then set OPENFERENCE_API_KEY
-roundtable assign orchestrator "openference/Claude Opus 5.5" deepseek/deepseek-v4-pro
-roundtable assign critic "openference/GPT-6.1 Terra" openference/GLM-5.3
-roundtable assign designer "openference/Claude Sonnet 5.5" openference/GLM-5.3
-roundtable assign coder deepseek/deepseek-v4-flash deepseek/deepseek-v4-pro
-roundtable assign reviewer "openference/GPT-6 Luna" "openference/Claude Haiku 5.5"
+roundtable assign orchestrator "openference/Claude Opus 5.5" openrouter/z-ai/glm-5.3 deepseek/deepseek-v4-flash
+roundtable assign critic "openference/GPT-6.1 Terra" openference/GLM-5.3 deepseek/deepseek-v4-flash
+roundtable assign designer "openference/Claude Sonnet 5.5" openference/GLM-5.3 deepseek/deepseek-v4-flash
+roundtable assign coder deepseek/deepseek-v4-flash openrouter/z-ai/glm-5.3
+roundtable assign reviewer "openference/GPT-6 Luna" "openference/Claude Haiku 5.5" deepseek/deepseek-v4-flash
 ```
 
 Good to know: Claude through Openference is paid from your credit there and needs at least $1
@@ -602,7 +627,7 @@ roundtable providers presets                  # ~20 built in: OpenAI, Gemini, xA
 roundtable providers add groq                 # then set GROQ_API_KEY (or paste it in the app)
 roundtable providers test groq                # checks the key and lists the provider's models
 roundtable providers models openrouter        # every model a provider offers
-roundtable assign coder groq/<model> deepseek/deepseek-v4-pro   # primary, then fallbacks
+roundtable assign coder groq/<model> deepseek/deepseek-v4-flash   # primary, then fallbacks
 ```
 
 **Anything else:**
@@ -798,7 +823,7 @@ roundtable probe --images                # also generate one real test image per
 roundtable feedback myproject T3 --bad "UI ignores the brand colours"   # your ratings are training signal
 roundtable improve analyze            # stats + data-backed proposals (no model call, no cost)
 roundtable improve analyze --llm      # also ask the analyst model to study failures and propose changes
-roundtable improve propose coder --models anthropic/claude-sonnet-5-5,deepseek/deepseek-v4-pro
+roundtable improve propose coder --models anthropic/claude-sonnet-5-5,deepseek/deepseek-v4-flash
 roundtable improve propose coder --prompt-file my-coder-prompt.md
 roundtable improve list / show P1a2b3c
 roundtable improve test P1a2b3c --samples 3 --max-cost 2   # replay; spends real tokens, capped

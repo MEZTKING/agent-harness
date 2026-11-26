@@ -29,6 +29,7 @@ class AgentSpec:
     description: str = ""
     role: str = ""
     tags: list[str] = field(default_factory=list)
+    title: str = ""  # the friendly name the owner reads (hub.yaml ``title:``); the id when empty
 
 
 @dataclass
@@ -98,12 +99,50 @@ def parse_config(raw: dict[str, Any], path: Path) -> HubConfig:
             description=spec.get("description", ""),
             role=spec.get("role", ""),
             tags=list(spec.get("tags", [])),
+            title=str(spec.get("title") or ""),
         )
     policy = Policy.from_config(raw.get("rules"), raw.get("default_policy", "deny"))
     return HubConfig(path=path, storage=raw.get("storage") or {}, agents=agents, policy=policy)
 
 
-def load_config(explicit: str | None = None, nearby: bool = False) -> HubConfig:
-    path = find_config(explicit, nearby=nearby)
+SHARED_KEYS = ("agents", "rules", "default_policy")
+
+
+def storage_root(raw: dict[str, Any], path: Path) -> Path | None:
+    """The hub data folder a config points at (relative paths against the config's folder)."""
+    storage = raw.get("storage") or {}
+    if not storage.get("path"):
+        return None
+    root = Path(str(storage["path"])).expanduser()
+    return root if root.is_absolute() else path.parent / root
+
+
+def with_repository_agents(raw: dict[str, Any], path: Path) -> dict[str, Any]:
+    """The hub repository's own hub.yaml is the source of truth for the projects and the rules.
+
+    The desktop app keeps a hub.yaml of its own (where the clone is on this computer); it used to copy the
+    agents across once, when the hub was connected, so projects added to the hub later never showed. Now
+    the agents, rules and default policy are read from the repository's hub.yaml every time, and the app's
+    file only says where the data is."""
+    root = storage_root(raw, path)
+    repo_yaml = root / "hub.yaml" if root else None
+    if not repo_yaml or not repo_yaml.is_file():
+        return raw
+    try:
+        if repo_yaml.resolve() == path.resolve():
+            return raw
+        repo = yaml.safe_load(repo_yaml.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return raw  # a half-written or broken file: keep what this computer had
+    if not isinstance(repo, dict) or not isinstance(repo.get("agents"), dict) or not repo["agents"]:
+        return raw
+    return {**raw, **{k: repo[k] for k in SHARED_KEYS if k in repo}}
+
+
+def read_config(path: Path) -> HubConfig:
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return parse_config(raw, path)
+    return parse_config(with_repository_agents(raw, path), path)
+
+
+def load_config(explicit: str | None = None, nearby: bool = False) -> HubConfig:
+    return read_config(find_config(explicit, nearby=nearby))

@@ -134,6 +134,45 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     /** The latest task's steps as short lines. */
     suspend fun session(path: String): String = call("GET", "/api/project/session?compact=1&path=${q(path)}")
 
+    // -- keeping the phone and the PC in step (slice 2) ---------------------------------------------------------
+
+    /** This phone: which hub Roundtable here uses. */
+    suspend fun hub(): HubLink = ApiJson.decodeFromString(call("GET", "/api/hub"))
+
+    /** This phone: join the hub repository (its git address and a token that can write it). */
+    suspend fun joinHub(url: String, token: String): HubLink =
+        ApiJson.decodeFromString(call("POST", "/api/hub", obj { put("url", url); put("token", token) }))
+
+    /** The machines in the hub and who builds what (raw: Sync.parseMachines reads it). */
+    suspend fun machines(): String = call("GET", "/api/machines")
+
+    /** A live session published to the hub, read by this machine (raw: SessionLog reads it). */
+    suspend fun hubSession(name: String, run: String = ""): String =
+        call("GET", "/api/hub/session?name=${q(name)}" + if (run.isNotBlank()) "&run=${q(run)}" else "")
+
+    /** A command for a project another machine runs, sent on through the hub by this machine. */
+    suspend fun hubCommand(agent: String, folder: String, action: String, fields: Map<String, Any?>, machine: String = ""): String {
+        val text = call("POST", "/api/hub/command", obj {
+            put("agent", agent); if (folder.isNotBlank()) put("folder", folder); put("action", action)
+            if (machine.isNotBlank()) put("machine", machine)
+            put("fields", jsonOf(fields))
+        })
+        return runCatching { ((ApiJson.parseToJsonElement(text) as JsonObject)["reply"] as JsonPrimitive).content }.getOrNull() ?: "Sent."
+    }
+
+    /** The settings every machine shares (settings/shared.yaml in the hub), raw: SharedSettings reads it. */
+    suspend fun sharedSettings(): String = call("GET", "/api/settings/shared")
+    suspend fun saveSharedSettings(changes: JsonObject): String =
+        call("POST", "/api/settings/shared", buildJsonObject { put("changes", changes) }.toString())
+
+    /** Who does which job: each role with its models (raw). */
+    suspend fun roles(): String = call("GET", "/api/roles")
+
+    /** One project's own settings, each with what it does, its type and choices (raw: ProjectSettings reads it). */
+    suspend fun projectSettings(path: String): String = call("GET", "/api/project/settings?project=${q(path)}")
+    suspend fun saveProjectSettings(path: String, changes: JsonObject): String =
+        call("POST", "/api/project/settings", buildJsonObject { put("project", path); put("changes", changes) }.toString())
+
     suspend fun autopilot(): com.meztking.roundtable.data.AutopilotState =
         ApiJson.decodeFromString(call("GET", "/api/autopilot?limit=30"))
 
@@ -167,6 +206,17 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     companion object {
         private val JSON = "application/json".toMediaType()
         private fun obj(build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject(build).toString()
+
+        /** A command's fields as JSON: text, numbers, yes/no, lists and maps (nested). */
+        fun jsonOf(v: Any?): kotlinx.serialization.json.JsonElement = when (v) {
+            null -> kotlinx.serialization.json.JsonNull
+            is kotlinx.serialization.json.JsonElement -> v
+            is Boolean -> JsonPrimitive(v)
+            is Number -> JsonPrimitive(v)
+            is Map<*, *> -> JsonObject(v.entries.filter { it.key != null }.associate { it.key.toString() to jsonOf(it.value) })
+            is List<*> -> kotlinx.serialization.json.JsonArray(v.map { jsonOf(it) })
+            else -> JsonPrimitive(v.toString())
+        }
 
         fun friendly(e: IOException?): String = when {
             e == null -> "couldn't reach your PC"

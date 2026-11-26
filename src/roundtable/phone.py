@@ -46,6 +46,10 @@ PHONE_ROUTES = {
     ("GET", "/api/autopilot"), ("POST", "/api/autopilot"),
     ("GET", "/api/project/live"), ("GET", "/api/project/session"),
     ("GET", "/api/project/settings"), ("POST", "/api/project/settings"),
+    ("GET", "/api/setup/recommended"), ("POST", "/api/setup/recommended"),  # the recommended setup, one tap
+    # projects that run elsewhere, and the phone and the PC as one Roundtable (sync.py, ui/syncapi.py)
+    ("GET", "/api/hub/plan"), ("POST", "/api/hub/command"), ("GET", "/api/hub/session"), ("POST", "/api/hub/carry_on"),
+    ("GET", "/api/machines"), ("GET", "/api/settings/shared"), ("POST", "/api/settings/shared"),
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))
@@ -200,7 +204,7 @@ class PhoneAccess:
             httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
             httpd.daemon_threads = True
         except OSError as e:
-            self.error = f"couldn't open port {s['port']}: {e}"
+            self.error = f"Couldn't open port {s['port']} for the phone ({e}): choose another port in Settings, or close what uses it."
             return
         self.error = ""
         self.httpd, self.port = httpd, httpd.server_address[1]
@@ -215,7 +219,7 @@ class PhoneAccess:
     # -- pairing -----------------------------------------------------------------------------
     def start_pairing(self) -> dict[str, Any]:
         if not self.httpd:
-            raise RuntimeError("turn phone access on first")
+            raise RuntimeError("Turn on phone access first, then press Pair a phone.")
         alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I: easy to type
         code = "".join(secrets.choice(alphabet) for _ in range(8))
         self._pairing = {"code": code, "expires": time.time() + PAIR_TTL_S, "tries": 0}
@@ -231,13 +235,13 @@ class PhoneAccess:
         with self._lock:
             p = self._pairing
             if not p or p["expires"] < time.time():
-                raise PermissionError("no pairing in progress: press Pair a phone on the PC")
+                raise PermissionError("The PC isn't waiting for a phone (the code lasts 5 minutes): press Pair a phone on the PC and try again.")
             p["tries"] += 1
             if p["tries"] > PAIR_TRIES:
                 self._pairing = None
-                raise PermissionError("too many wrong codes: press Pair a phone on the PC again")
+                raise PermissionError("Too many wrong codes: press Pair a phone on the PC for a new one.")
             if not secrets.compare_digest(str(code).strip().upper(), p["code"]):
-                raise PermissionError("wrong code")
+                raise PermissionError("That code isn't right: check the code on the PC and type it again.")
             self._pairing = None
             token = secrets.token_urlsafe(32)
             dev = {"id": secrets.token_hex(4), "name": (device_name or "phone").strip()[:60], "paired_at": _now(),
@@ -253,7 +257,7 @@ class PhoneAccess:
             before = len(d.get("devices", []))
             d["devices"] = [x for x in d.get("devices", []) if x.get("id") != device_id]
             if len(d["devices"]) == before:
-                raise ValueError("no such device")
+                raise ValueError("That phone isn't paired any more: refresh the list.")
             self._save(d)
         return self.status()
 
@@ -283,7 +287,7 @@ class PhoneAccess:
             return self.status()
         if action == "revoke":
             return self.revoke(str(body.get("device_id", "")))
-        raise ValueError("action: enable, disable, pair or revoke")
+        raise ValueError("Unknown phone action: use enable, disable, pair or revoke.")
 
 
 # -- live changes ------------------------------------------------------------------------------
@@ -375,7 +379,7 @@ def make_phone_handler(phone: PhoneAccess):
                     return self._json(403, {"error": str(e)})
             dev = dev or self._device()
             if not dev:
-                return self._json(401, {"error": "this phone isn't paired (or was removed): pair it again"})
+                return self._json(401, {"error": "This phone isn't paired with the PC (or was removed): pair it again from the PC's Settings."})
             try:
                 if local:
                     done, data = phone.local_api(method, path, q, body)
@@ -391,7 +395,7 @@ def make_phone_handler(phone: PhoneAccess):
                     wait = float((q.get("wait") or ["25"])[0])
                     return self._json(200, wait_for_change(app, since, wait))
                 if not phone_allowed(method, path):
-                    return self._json(403, {"error": "not available from the phone; use the PC"})
+                    return self._json(403, {"error": "That can only be done on the PC itself."})
                 self._json(200, app.dispatch(method, path, q, body))
             except Exception as e:  # same error shapes as the desktop API
                 from .ui.server import ApiError

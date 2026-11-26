@@ -54,7 +54,7 @@ private suspend fun <T> MutableStateFlow<Load<T>>.fetch(block: suspend () -> T) 
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val rt get() = getApplication<RoundtableApp>()
-    val backend: Backend? get() = rt.backend()
+    val backend: com.meztking.roundtable.data.MultiBackend? get() = rt.backend()
 
     /** What the app saved when it last crashed; while set, nothing loads by itself (safe mode). */
     private val _crash = MutableStateFlow(com.meztking.roundtable.data.Crash.last(app))
@@ -286,7 +286,29 @@ class ProjectViewModel(app: Application, saved: SavedStateHandle) : AndroidViewM
         viewModelScope.launch { _inbox.fetch { b.inbox(id) } }
         viewModelScope.launch { _live.fetch { b.live(_seat.value ?: SeatView(id)) } }
         loadPlan()
+        watchLive()
     }
+
+    private var watching: kotlinx.coroutines.Job? = null
+
+    /** While the project builds, the Live tab reads the session again by itself: often from a machine, gently through the hub. */
+    private fun watchLive() {
+        if (watching?.isActive == true) return
+        watching = viewModelScope.launch {
+            while (true) {
+                val s = _seat.value
+                val building = s?.status == "running" || _live.value.data?.running == true
+                if (!building) break
+                val direct = s?.holder?.isNotBlank() == true && rt.backend()?.connected?.contains(com.meztking.roundtable.data.Source.of(s.holder)) == true
+                kotlinx.coroutines.delay(if (direct) 6_000 else 20_000)
+                val b = rt.backend() ?: break
+                runCatching { b.live(_seat.value ?: SeatView(id)) }.onSuccess { _live.value = Load(it) }
+            }
+        }
+    }
+
+    /** Where this project's commands and settings go (for the screen's wording). */
+    val mode: com.meztking.roundtable.data.Mode? get() = rt.backend()?.modeFor(_seat.value)
 
     fun loadPlan() {
         val b = rt.backend() ?: return

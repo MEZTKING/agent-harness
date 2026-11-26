@@ -7,6 +7,10 @@
 
 The layout is designed so concurrent writers rarely touch the same file
 (one file per message, one card per agent), which keeps git merges trivial.
+When two machines did change the same file, the pull never stops half-way:
+``GitStore`` settles each clash itself (``resolve_side``): a claim keeps the
+copy that reached the hub first (first come, first served), anything else
+keeps this machine's newer copy (the last change wins).
 """
 
 from __future__ import annotations
@@ -103,6 +107,14 @@ class GitError(RuntimeError):
     pass
 
 
+FIRST_COMES_FIRST = ("claims/",)  # who builds a project: the claim that reached the hub first stays
+
+
+def resolve_side(rel: str) -> str:
+    """Which copy a clashing file keeps during a pull: "upstream" (the hub's) or "local" (this machine's)."""
+    return "upstream" if rel.startswith(FIRST_COMES_FIRST) else "local"
+
+
 _GIT_LOCKS: dict[str, threading.RLock] = {}
 _GIT_LOCKS_GUARD = threading.Lock()
 
@@ -149,6 +161,7 @@ class GitStore(FileStore):
                 self._run(["git", "init", "-b", branch], cwd=root)
         super().__init__(root)
         self._has_remote = bool(self._git("remote").strip())
+        self._abort_stuck_rebase()  # an older version could leave a pull stopped half-way
         if self._has_remote and self._remote_branch_exists():
             current = self._run(["git", "branch", "--show-current"], cwd=self.root).strip()
             if current != branch:
@@ -165,8 +178,55 @@ class GitStore(FileStore):
         return res.stdout
 
     def _git(self, *args: str) -> str:
-        env_args = ["-c", f"user.name={self.author}", "-c", "user.email=agent-hub@localhost"]
+        env_args = ["-c", f"user.name={self.author}", "-c", "user.email=agent-hub@localhost",
+                    "-c", "core.editor=true", "-c", "commit.gpgsign=false"]
         return self._run(["git", *env_args, *args], cwd=self.root)
+
+    def _rebasing(self) -> bool:
+        git_dir = self.root / ".git"
+        return (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists()
+
+    def _abort_stuck_rebase(self) -> None:
+        if self._rebasing():
+            try:
+                self._git("rebase", "--abort")
+            except GitError:
+                pass
+
+    def _pull(self) -> None:
+        """Bring in the hub's changes under this machine's own commits, settling any clash file by file."""
+        try:
+            self._git("pull", "--rebase", "origin", self.branch)
+            return
+        except GitError as first:
+            if not self._rebasing():
+                raise
+            err = first
+        for _ in range(200):  # one round per local commit being replayed
+            unmerged = [p for p in self._git("diff", "--name-only", "--diff-filter=U").splitlines() if p]
+            for rel in unmerged:
+                # during a rebase "--ours" is the hub's copy and "--theirs" this machine's commit
+                side = "--ours" if resolve_side(rel) == "upstream" else "--theirs"
+                try:
+                    self._git("checkout", side, "--", rel)
+                    self._git("add", "--", rel)
+                except GitError:  # that side deleted it: deleted it stays
+                    self._git("rm", "-q", "--cached", "--ignore-unmatch", "--", rel)
+                    (self.root / rel).unlink(missing_ok=True)
+            try:
+                self._git("rebase", "--continue")
+            except GitError as e:
+                err = e
+                if self._rebasing() and not [p for p in self._git("diff", "--name-only", "--diff-filter=U").splitlines()
+                                             if p]:
+                    try:  # nothing of this commit was left after settling the clash
+                        self._git("rebase", "--skip")
+                    except GitError as e2:
+                        err = e2
+            if not self._rebasing():
+                return
+        self._abort_stuck_rebase()
+        raise GitError(f"couldn't bring in the hub's changes: {err}")
 
     def _remote_branch_exists(self) -> bool:
         try:
@@ -190,7 +250,7 @@ class GitStore(FileStore):
                         raise  # unreachable remote, auth, ... (not just "branch not created yet")
                     remote_has_branch = False
                 if remote_has_branch:
-                    self._git("pull", "--rebase", "origin", self.branch)
+                    self._pull()
                 self._last_sync = time.monotonic()
                 self.last_sync_error = ""
             except GitError as e:
@@ -229,7 +289,7 @@ class GitStore(FileStore):
                     raise
                 time.sleep(delay)
                 delay *= 2
-                self._git("pull", "--rebase", "origin", self.branch)
+                self._pull()
 
 
 def make_store(cfg: dict[str, Any], base_dir: Path) -> Store:

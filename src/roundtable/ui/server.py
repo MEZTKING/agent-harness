@@ -78,7 +78,7 @@ class Jobs:
     def start(self, kind: str, title: str, fn: Callable[[Job], Any], target: str = "") -> Job:
         with self.lock:
             if target and target in self.busy:
-                raise ApiError(f"a job is already running for {target}", 409)
+                raise ApiError("Something is already running for this project. Wait for it to finish (Activity → Background work), then try again.", 409)
             job = Job(secrets.token_hex(4), kind, title, target)
             self.jobs[job.id] = job
             if target:
@@ -217,20 +217,24 @@ class UIApp:
 
     def need_hub(self):
         if not self.hub:
-            raise ApiError(f"hub not configured: {self.hub_error}", 503)
+            raise ApiError("The hub isn't set up on this computer yet. Connect it in Settings, then try again."
+                           + (f" (What went wrong: {self.hub_error})" if self.hub_error else ""), 503)
         return self.hub
 
     def need_cfg(self):
         cfg = self.cfg()
         if not cfg:
-            raise ApiError(f"harness not configured: {self.harness_error}", 503)
+            raise ApiError("Roundtable can't build projects on this computer yet: its settings file is missing or has a "
+                           "problem. Open Settings to fix it."
+                           + (f" (What went wrong: {self.harness_error})" if self.harness_error else ""), 503)
         return cfg
 
     def lab(self, cfg):
         from ..improve.lab import Lab
 
         if not cfg.lab_dir:
-            raise ApiError("no lab directory configured", 503)
+            raise ApiError("There's no folder for Roundtable's own records yet. Run the set-up again from Settings → "
+                           "Advanced.", 503)
         return Lab(cfg.lab_dir)
 
     def _lab_projects(self) -> list[Path]:
@@ -246,7 +250,8 @@ class UIApp:
 
         p = Path(path or "").expanduser().resolve()
         if p not in [x.resolve() for x in self.lab(cfg).projects()]:
-            raise ApiError(f"unknown project {path!r}", 404)
+            raise ApiError("That project isn't on this computer (it may run on another one). Go back to the Hall and "
+                           "refresh.", 404)
         return Project(p)
 
     # -- overview -------------------------------------------------------------------------
@@ -260,7 +265,10 @@ class UIApp:
         }
         if self.hub:
             out["hub_path"] = str(self.hub.config.path)
-            out["agents"] = [{"id": a, "repo": s.repo, "description": s.description, "role": s.role}
+            from .hall import NOTES_NAME, friendly
+
+            out["agents"] = [{"id": a, "repo": s.repo, "description": s.description, "role": s.role,
+                              "name": NOTES_NAME if a == self.agent and not s.repo else friendly(a, s)}
                              for a, s in self.hub.config.agents.items()]
         if cfg:
             out["harness_path"] = str(cfg.path) if cfg.path else ""
@@ -452,6 +460,15 @@ class UIApp:
         """A project's picture or made file, for the page (/raw/shot, /raw/file)."""
         from .live import raw
 
+        if kind == "hubshot":  # a picture a project on another computer published to the hub
+            from . import hall
+
+            try:
+                p = hall.hub_shot_file(self.need_hub(), (q.get("name") or [""])[0], (q.get("file") or [""])[0])
+            except ValueError as e:
+                raise ApiError(str(e), 404) from None
+            ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+            return p.read_bytes(), ctype, {"Cache-Control": "no-cache"}
         proj = self.project(self.need_cfg(), q.get("path", [""])[0])
         return raw(proj.root, kind, (q.get("name") or [""])[0], (q.get("task") or [""])[0])
 
@@ -486,11 +503,11 @@ class UIApp:
         goal = (body.get("goal") or "").strip()
         name = (body.get("dir") or "").strip()
         if not goal or not name:
-            raise ApiError("a project folder and a goal are required")
+            raise ApiError("Give the project a folder name and say what to build, then start it.")
         path = Path(name).expanduser()
         path = (path if path.is_absolute() else self.projects_dir / path).resolve()
         if (path / ".harness/project.json").exists():
-            raise ApiError(f"{path} already has a project; use extend")
+            raise ApiError(f"{path} already has a project. Open it and add a new goal there instead.")
         refs = _lines(body.get("references"))
 
         def run(job: Job):
@@ -522,7 +539,7 @@ class UIApp:
                                    target=str(proj.root)).view()
         if action in ("run", "extend"):
             if action == "extend" and not (body.get("goal") or "").strip():
-                raise ApiError("a goal is required")
+                raise ApiError("Say what to build next first.")
 
             def run(job: Job):
                 orch = self._orch(cfg, proj.root, job)
@@ -532,7 +549,7 @@ class UIApp:
 
             return self.jobs.start("run", f"{action} {proj.root.name}", run, target=str(proj.root)).view()
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
-            raise ApiError("wait for the running job on this project to finish", 409)
+            raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         from ..harness.orchestrator import Orchestrator
 
         orch = Orchestrator(cfg, proj.root)
@@ -544,7 +561,7 @@ class UIApp:
             tasks = {t.id: t for t in proj.tasks()}
             t = tasks.get(body.get("task", ""))
             if not t:
-                raise ApiError("no such task", 404)
+                raise ApiError("That task isn't in the plan any more. Refresh and try again.", 404)
             model = next((a["model"] for a in reversed(t.attempts) if a.get("outcome") == "approved"),
                          t.attempts[-1]["model"] if t.attempts else "?")
             proj.append("metrics.jsonl", {"at": utcnow(), "task": t.id, "role": t.role, "model": model,
@@ -588,7 +605,7 @@ class UIApp:
         proj = self.project(cfg, body.get("path", ""))
         action = body.get("action", "")
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
-            raise ApiError("wait for the running job on this project to finish", 409)
+            raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         if action == "revise":
             def run(job: Job):
                 orch = self._orch(cfg, proj.root, job)
@@ -651,7 +668,7 @@ class UIApp:
             return self._wizard_start(cfg, body["wizard"])
         proj = self.project(cfg, body.get("path", ""))
         if self._busy(proj.root):
-            raise ApiError("wait for the running job on this project to finish", 409)
+            raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         try:
             r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
                            str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
@@ -907,32 +924,41 @@ class UIApp:
             "desktop": bool(d), "version": __version__, "frozen": bool(getattr(sys, "frozen", False)),
             "hub": {"mode": hub_mode, "where": hub_detail, "error": self.hub_error},
             "config_paths": {k: str(v) if v else "" for k, v in paths.items()},
+            "config_exists": {k: bool(v and v.exists()) for k, v in paths.items()},
             "projects_dir": str(self.projects_dir), "agent": self.agent,
             "agents": list(self.hub.config.agents) if self.hub else [],
         }
         if d:
-            from ..desktop import KNOWN_KEYS, git_version
+            from ..desktop import git_version, key_label, provider_specs
 
             ks = d["keys"]
+            specs = provider_specs(d["paths"].harness_yaml)
             cfg = self.cfg()
-            extra = [v.get("api_key_env") for v in (cfg.providers.values() if cfg else []) if v.get("api_key_env")]
-            out["keys"] = [{"name": n, "label": KNOWN_KEYS.get(n, n), "set": bool(os.environ.get(n) or ks.get(n))}
+            if cfg:
+                specs = {**cfg.providers, **specs}
+            extra = [v.get("api_key_env") for v in specs.values() if v.get("api_key_env")]
+            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(os.environ.get(n) or ks.get(n)),
+                            "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
                            for n in ks.names(extra)]
             out["secure_keys"] = ks.secure
             out["git"] = git_version()
             out["home"] = str(d["paths"].home)
             out["setup_done"] = bool(d["paths"].load_settings().get("setup_done"))
         else:
-            out["keys"] = [{"name": n, "label": n, "set": bool(os.environ.get(n))}
-                           for n in ("ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "RETRODIFFUSION_API_KEY",
-                                     "OPENAI_API_KEY", "GEMINI_API_KEY")]
+            from ..desktop import KNOWN_KEYS
+
+            cfg = self.cfg()
+            specs = dict(cfg.providers) if cfg else {}
+            out["keys"] = [{"name": n, "label": label, "set": bool(os.environ.get(n)),
+                            "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
+                           for n, label in KNOWN_KEYS.items()]
             out["secure_keys"] = False
             out["setup_done"] = True
         return out
 
     def setup_keys(self, body):
         if not self.desktop:
-            raise ApiError("API keys are read from environment variables when running from the terminal")
+            raise ApiError("This copy reads keys from the computer's own settings. Open the Roundtable Hold app to save keys here.")
         ks = self.desktop["keys"]
         for name, value in (body.get("keys") or {}).items():
             if not isinstance(name, str) or not name.replace("_", "").isalnum() or not name.isupper():
@@ -941,9 +967,30 @@ class UIApp:
                 ks.set(name, str(value))
         return self.setup()
 
+    def recommended(self, q=None):
+        from ..recommended import preview
+
+        path = self._config_paths().get("harness")
+        if not path or not path.exists():
+            raise ApiError("Roundtable's settings are missing. Run the set-up again from Settings → Advanced.", 404)
+        return preview(path)
+
+    def recommended_apply(self, body):
+        from ..recommended import apply
+
+        path = self._config_paths().get("harness")
+        if not path or not path.exists():
+            raise ApiError("Roundtable's settings are missing. Run the set-up again from Settings → Advanced.", 404)
+        try:
+            done = apply(path)
+        except ValueError as e:
+            raise ApiError(f"Nothing was changed: the recommended setup didn't fit your settings ({e}). "
+                           "Choose the jobs yourself in Models, or ask for help.")
+        return {**done, **self.recommended()}
+
     def setup_hub(self, body):
         if not self.desktop:
-            raise ApiError("connect a hub from the terminal: edit hub.yaml")
+            raise ApiError("This copy was started with its own hub settings. Open the Roundtable Hold app to connect a hub here.")
         from ..desktop import connect_github_hub, write_local_hub
 
         paths = self.desktop["paths"]
@@ -980,7 +1027,7 @@ class UIApp:
         which = (q.get("which") or ["harness"])[0]
         path = self._config_paths().get(which)
         if not path:
-            raise ApiError(f"no {which} config file", 404)
+            raise ApiError("That settings file isn't there yet. Run the set-up again from Settings → Advanced.", 404)
         return {"which": which, "path": str(path), "text": path.read_text(encoding="utf-8") if path.exists() else ""}
 
     def config_save(self, body):
@@ -1057,6 +1104,38 @@ class UIApp:
         return set_role_models(cfg.path, body.get("role", ""), models, kind=body.get("kind"),
                                description=body.get("description"))
 
+    def features(self, q):
+        """Which routes this copy has, so the page asks only for what's there (no failed requests)."""
+        return {"routes": sorted({path for _, path in self.routes()} | {"/api/plugins", "/api/journal",
+                                                                         "/api/inbox", "/api/jobs"})}
+
+    # -- who does which job (Models): plain names, every set of models, changed from the app -----------
+    def routing_get(self, q):
+        from ..routing import view
+
+        cfg = self.need_cfg()
+        return {**view(cfg), "can_change": bool(cfg.path)}
+
+    def routing_post(self, body):
+        """{role, models: [ref, ...], set?: profile, effort?} or {default_set: profile}."""
+        from .. import routing
+
+        cfg = self.need_cfg()
+        if not cfg.path:
+            raise ApiError("Roundtable has no settings file to save this in. Run the setup again from Settings.")
+        try:
+            if "default_set" in body:
+                routing.set_default(cfg.path, str(body.get("default_set") or ""))
+            else:
+                role = str(body.get("role") or "")
+                if role not in cfg.roles:
+                    raise ApiError("That job isn't there any more. Refresh the page and try again.", 404)
+                routing.set_job(cfg.path, role, list(body.get("models") or []), str(body.get("set") or "") or None,
+                                effort=body.get("effort"))
+        except ValueError as e:
+            raise ApiError(f"Nothing was changed: {e}") from None
+        return self.routing_get({})
+
     # -- Roundtable main screen ----------------------------------------------------------------------
     def roundtable(self, q):
         from .roundtable import build
@@ -1064,6 +1143,54 @@ class UIApp:
         data = build(self)
         data["sync_error"] = self.auto_sync_error
         return data
+
+    # -- projects that run elsewhere: their plan and questions in the hub, answered through the hub ----------
+    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip", "todo_done", "shared_settings", "carry_on")
+
+    def hub_plan(self, q):
+        """A plan another computer published (plans/<name>.md) with its open questions."""
+        from . import hall
+
+        hub = self.need_hub()
+        name = (q.get("name") or [""])[0]
+        with self.hub_lock:
+            plans = hall.hub_plans(hub)
+        p = plans.get(name)
+        if not p:
+            raise ApiError("That plan isn't in the hub any more. Go back to the Hall and refresh.", 404)
+        root = hall.hub_root(hub)
+        md = (root / "plans" / f"{name}.md").read_text(encoding="utf-8")
+        spec = hub.config.agents.get(p["folder"])
+        return {**p, "title": hall.friendly(p["folder"], spec), "markdown": md,
+                "here": p["folder"] in {x.name for x in self._lab_projects()}}
+
+    def hub_command(self, body):
+        """Send a command to a project another computer runs: {agent, folder, action, ...fields}.
+
+        It goes to the project's hub inbox as the owner's request (remote.py); the computer that runs the
+        project does it the next time it checks the hub, and replies in the owner's letters."""
+        from ..remote import FOLDER, PREFIX
+
+        hub = self.need_hub()
+        agent, action = str(body.get("agent") or ""), str(body.get("action") or "")
+        if agent not in hub.config.agents:
+            raise ApiError("That project isn't in the hub. Refresh the Hall and try again.", 404)
+        if action not in self.HUB_ACTIONS:
+            raise ApiError(f"Can't send {action!r} through the hub.")
+        if not self.agent:
+            raise ApiError("This computer has no name in the hub yet. Connect the hub in Settings first.")
+        cmd = {"action": action, **{k: v for k, v in (body.get("fields") or {}).items() if k not in ("action", FOLDER)}}
+        if body.get("folder") and body["folder"] != agent:
+            cmd[FOLDER] = str(body["folder"])
+        if body.get("machine"):  # only that machine does it (sync.py)
+            cmd["machine"] = str(body["machine"])
+        try:
+            with self.hub_lock:
+                hub.send(self.agent, [agent], f"{PREFIX} {action}", json.dumps(cmd), kind="request")
+        except (PermissionError, ValueError) as e:
+            raise ApiError(f"The hub didn't take it: {e}. Check the hub's rules let you message this project.") from None
+        return {"reply": "Sent: it starts when that computer next checks the hub. Its answer comes back in "
+                         "Letters."}
 
     def activity(self, q):
         from .roundtable import activity
@@ -1211,6 +1338,8 @@ class UIApp:
         return self.phone_status()
 
     def routes(self):
+        from . import syncapi
+
         R = self
         return {
             ("GET", "/api/overview"): R.overview,
@@ -1236,16 +1365,23 @@ class UIApp:
             ("GET", "/api/update"): R.update_status,
             ("GET", "/api/roundtable"): R.roundtable,
             ("GET", "/api/activity"): R.activity,
+            ("GET", "/api/hub/plan"): R.hub_plan,
+            ("POST", "/api/hub/command"): R.hub_command,
             ("GET", "/api/chat"): R.chat_get,
             ("POST", "/api/chat"): R.chat_post,
             ("GET", "/api/setup"): R.setup,
             ("POST", "/api/setup/keys"): R.setup_keys,
             ("POST", "/api/setup/hub"): R.setup_hub,
             ("POST", "/api/setup/done"): R.setup_done,
+            ("GET", "/api/setup/recommended"): R.recommended,
+            ("POST", "/api/setup/recommended"): R.recommended_apply,
             ("GET", "/api/config"): R.config_get,
             ("GET", "/api/providers"): R.providers,
             ("POST", "/api/providers"): R.providers_action,
             ("POST", "/api/assign"): R.assign,
+            ("GET", "/api/routing"): R.routing_get,
+            ("GET", "/api/features"): R.features,
+            ("POST", "/api/routing"): R.routing_post,
             ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
             ("GET", "/api/plan"): R.plan_get,
@@ -1259,6 +1395,7 @@ class UIApp:
             ("POST", "/api/phone"): R.phone_action,
             ("GET", "/api/backup"): R.backup_status,
             ("POST", "/api/backup"): R.backup_action,
+            **syncapi.routes(R),  # the phone and the PC as one Roundtable (sync.py)
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:
@@ -1279,7 +1416,7 @@ class UIApp:
         if parts[:2] == ["api", "jobs"] and len(parts) == 3 and method == "GET":
             job = self.jobs.jobs.get(parts[2])
             if not job:
-                raise ApiError("no such job", 404)
+                raise ApiError("That job has gone (the app was restarted). Look in Activity → Background work for the current ones.", 404)
             return job.view(int((q.get("since") or ["0"])[0]))
         if parts[:2] == ["api", "plugins"]:
             from ..plugins.manage import api as plugins_api
@@ -1294,7 +1431,8 @@ class UIApp:
 
 # -- HTTP layer ------------------------------------------------------------------------------------
 # the look's fonts and pictures: some Pythons (and Windows' registry) don't know these types
-for _ext, _type in ((".woff2", "font/woff2"), (".webp", "image/webp")):
+# (and .js: the page's scripts are modules, which browsers only run with a JavaScript type)
+for _ext, _type in ((".woff2", "font/woff2"), (".webp", "image/webp"), (".js", "text/javascript")):
     mimetypes.add_type(_type, _ext)
 def make_handler(app: UIApp, token: str | None, allow_remote: bool):
     static = resources.files("roundtable").joinpath("ui/static")
@@ -1349,7 +1487,7 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                 return
             if url.path.startswith("/api/"):
                 return self._api("GET", url.path, q, {})
-            if url.path in ("/raw/shot", "/raw/file"):
+            if url.path in ("/raw/shot", "/raw/file", "/raw/hubshot"):
                 return self._raw(url.path[5:], q)
             name = "index.html" if url.path in ("/", "/index.html") else url.path.lstrip("/")
             if "/" in name or name.startswith("."):

@@ -32,7 +32,41 @@ KNOWN_KEYS = {
     "RETRODIFFUSION_API_KEY": "Retro Diffusion (pixel art)",
     "OPENAI_API_KEY": "OpenAI",
     "GEMINI_API_KEY": "Google Gemini",
+    "OPENROUTER_API_KEY": "OpenRouter",
+    "OPENFERENCE_API_KEY": "Openference",
 }
+
+
+def key_label(name: str, providers: dict | None = None) -> str:
+    """What the owner reads for a key: its maker's name, never the raw variable name."""
+    if name in KNOWN_KEYS:
+        return KNOWN_KEYS[name]
+    users = [pid for pid, spec in (providers or {}).items() if (spec or {}).get("api_key_env") == name]
+    if users:
+        return " / ".join(users)
+    return name.removesuffix("_API_KEY").replace("_", " ").lower() or name
+
+
+def provider_specs(harness_yaml: Path) -> dict:
+    """The providers in harness.yaml and custom.yaml (harness.yaml wins on a name clash)."""
+    import yaml
+
+    out: dict = {}
+    for f in (harness_yaml.parent / "custom.yaml", harness_yaml):
+        try:
+            raw = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError):
+            continue
+        provs = raw.get("providers") if isinstance(raw, dict) else None
+        if isinstance(provs, dict):
+            out.update({str(k): v for k, v in provs.items() if isinstance(v, dict)})
+    return out
+
+
+def provider_key_names(paths: "Paths") -> list[str]:
+    """The key variables of every provider in harness.yaml and custom.yaml, to load at start-up."""
+    names = [spec.get("api_key_env") for spec in provider_specs(paths.harness_yaml).values()]
+    return list(dict.fromkeys(n for n in names if isinstance(n, str) and n))
 
 
 # -- locations --------------------------------------------------------------------------
@@ -174,6 +208,96 @@ def ensure_configs(paths: Paths) -> None:
         write_local_hub(paths)
 
 
+# sha256 of every harness.yaml template shipped before the recommended split (line endings as "\n"):
+# a file still exactly like one of them was never edited, so it is replaced by the new template.
+OLD_TEMPLATES = {
+    "ea37aae3b2f180de7e712f0b1ffca8e252a39c51ec361c51d762f6e87259cafb",
+    "fc97a521104b88e82e9f70c047fa640a3a53fbf033fcb66269d7395d1e1b779e",
+    "d2a92f68b8601c12cd2c082f394ea38e9bad9d796b659a1a486d4a289816fec4",
+    "63d2ce95ccb62f492d205db80e532e8cfdb9fe202715e513daa7546df958c1d9",
+    "51a1337fd55865e544d7a024d4d9e98799f95a53546d4ecf2b0f1ce8cf67a81a",
+    "e240d7cd5a157eeaa3541cd2f54de5bc30457094be18f5ef195c8670f71af8a5",
+    "6b51d5564c24d2f132b4ac1061d6eecc0459c251bee901c9ab5dd53fc015ee03",
+    "3d0b2f7679f0c5d272c755c2d240869696d71771e3a572061c6552c9e101be3e",
+    "a3c857f7c1e356f75dae4e018393282ad8f3356ebf2ed086051d265c7591128d",
+    "42aa05bf17f80cd831a0187bea3cc47dcdf4da0c5201a8b5f189cbab82328067",
+    "127d7b108839bd2121de45ba16aa25523c259875ca335ac7b5b7024c17477dd2",
+    "6a09857d0d99bc6b3f0ca71b8175ede7b827d84518742270acd97b9a1b5e2600",
+    "91bf48195004fa9978cd95b4b70a7fc0a543eb6692252295836c20c0115039c6",
+    "15be1a1687588c8afb95dba1d68785d4a618b3e1adf90a490a9b8953ebd93da0",
+}
+FLASH = "deepseek/deepseek-v4-flash"
+NO_PRO = {"deepseek/deepseek-v4-pro": FLASH, "openference/DeepSeek-V4-Pro": "openference/DeepSeek-V4.1-Flash-1017"}
+
+
+def _template_hash(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.replace("\r", "").encode("utf-8")).hexdigest()  # line endings ignored (Windows may add \r\r)
+
+
+def migrate_configs(paths: Paths, today=None) -> list[str]:
+    """Bring an older harness.yaml up to date at start-up; returns what was done, in plain words.
+
+    * still exactly an older shipped template: replaced by the new one (the recommended split);
+    * uses DeepSeek V4 Pro anywhere: switched to DeepSeek V4 Flash (the owner's rule);
+    * otherwise nothing is touched. A backup is kept and the change goes in the hub's journal.
+    """
+    from datetime import date
+
+    f = paths.harness_yaml
+    try:
+        text = f.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    done: list[str] = []
+    new = text
+    if _template_hash(text) in OLD_TEMPLATES:
+        new = resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8")
+        done.append("Switched by Roundtable: the first-run model choices became the recommended setup "
+                    "(Claude plans, DeepSeek V4 Flash codes, other makers check). Why: the old settings "
+                    "had never been changed, and the owner chose the recommended split.")
+    elif any(old in text for old in NO_PRO):
+        for old, flash in NO_PRO.items():
+            new = new.replace(old, flash)
+        done.append("Switched by Roundtable: DeepSeek V4 Pro was replaced with DeepSeek V4 Flash in harness.yaml. "
+                    "Why: the owner said no DeepSeek V4 Pro for now.")
+    if not done or new == text:
+        return []
+    stamp = (today or date.today()).isoformat()
+    backup = f.with_name(f"{f.name}.before-{stamp}")
+    n = 2
+    while backup.exists():
+        backup = f.with_name(f"{f.name}.before-{stamp}-{n}")
+        n += 1
+    backup.write_text(text, encoding="utf-8")
+    f.write_text(new, encoding="utf-8")
+    for line in done:
+        _journal_decision(paths, line, f"old file kept as {backup.name}")
+    return done
+
+
+def _journal_decision(paths: Paths, text: str, details: str = "") -> None:
+    """A decision line in the hub's journal, like improve.after_each_run writes; skipped without a hub."""
+    try:
+        import yaml
+
+        from .core.config import load_config
+        from .hub.service import Hub
+
+        if not paths.hub_yaml.exists():
+            return
+        hub = Hub(load_config(str(paths.hub_yaml)))
+        harness = yaml.safe_load(paths.harness_yaml.read_text(encoding="utf-8")) or {}
+        agents = hub.config.agents
+        for agent in ((harness.get("hub") or {}).get("agent"), paths.load_settings().get("agent"), "me"):
+            if agent and agent in agents:
+                hub.journal.add(agent, "decision", text, details=details, source="harness")
+                return
+    except Exception:  # the hub is optional; never stop the app starting over it
+        pass
+
+
 def write_local_hub(paths: Paths, agents: dict | None = None) -> None:
     import yaml
 
@@ -299,7 +423,8 @@ def self_test(paths: Paths) -> int:
 
     keystore = KeyStore(paths)
     ensure_configs(paths)
-    keystore.load_into_env()
+    migrate_configs(paths)
+    keystore.load_into_env(provider_key_names(paths))
     httpd, app = start_server(paths, keystore)
     base = f"http://127.0.0.1:{httpd.server_address[1]}"
     try:
@@ -335,8 +460,9 @@ def main(argv: list[str] | None = None) -> int:
     redirect_output(paths)
     hide_console_windows()
     ensure_configs(paths)
+    migrate_configs(paths)
     keystore = KeyStore(paths)
-    keystore.load_into_env()
+    keystore.load_into_env(provider_key_names(paths))
     httpd, app = start_server(paths, keystore, args.port)
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
     print(f"Roundtable Hold running at {url} (data: {paths.home})", flush=True)

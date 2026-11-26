@@ -6,6 +6,28 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **"Ask me first" for commands on the phone isn't wired** (26 November): the phone stores the choice and
+  passes `ROUNDTABLE_ASK_FIRST=1`, but `run_command` can't yet stop mid-task for an allow/deny card.
+  → next phone slice.
+- **The phone and PC sync hasn't met real machines** (26 November): seats, claims, live sessions, shared
+  settings, carry-on and pairing are built and tested with made-up hubs; a real PC + phone run (through
+  Remote Control and USB) is the next check.
+
+- **Owner to-dos that send them out of the app** (26 November, the owner: "I'm not supposed to ever
+  leave the app; you're meant to set up everything so all my agents do it"): Roundtable still writes
+  to-dos like "paste these lines into Settings > Environments", "pip install on each PC", "set the default
+  branch on GitHub". Each must become an action Roundtable does itself (GitHub tools, the cloud
+  environment tools, Remote Control on the PC) or a one-tap card in the app. Three such to-dos were
+  dropped by hand today. → with the rebuilt desktop app.
+
+- **A project run elsewhere is half-visible on the desktop** (26 November, the owner's screenshot): MSE
+  Studio's plan, made in a cloud session, shows only as a "harness" to-do "the plan is ready: approve it"
+  with a **done** button (which just ticks the to-do, it doesn't approve), no seat of its own, and Chat
+  says "no harness run". The desktop should show every hub project as its own seat with its plan and cards
+  (as the phone does in Hub mode), and an approval to-do should offer **Open the plan** / **Approve**
+  (sent through the hub to wherever the project lives). Approving through the hub needs a Roundtable
+  listening there (`roundtable remote --watch`); the desktop should say whether one is. → slice 2.
+
 - **The phone has no screen for a project's settings yet** (26 November): the desktop's project page has
   it and the phone's routes serve `/api/project/settings`; the phone screen comes with slice 2.
 - **This phone: only x86_64 was built and smoke-tested** (26 November); arm64 (the owner's phone) is built

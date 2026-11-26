@@ -64,6 +64,16 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
   `plans/inspiration.md`) keeps its licence and copyright line in
   `THIRD_PARTY_NOTICES.md`, and the devlog names the source file. Never copy art or
   anything not under an open licence.
+- **The owner never leaves the app** (owner, 26 November 2026: "for the to-do list I'm not supposed to
+  ever leave the app; you're meant to set up everything so all my agents do it – that's the whole
+  point"). A to-do for the owner is a last resort: anything an agent or Roundtable can do (set-up,
+  settings, keys through the app's own forms, GitHub settings through the GitHub tools, cloud
+  environments through the environment tools, installs on the PC through Remote Control) is done by
+  them, and what truly needs the owner is a one-tap card inside the app (desktop or phone), never
+  "go to GitHub / type this command".
+- **Who builds Roundtable** (owner, 26 November 2026: "rebuild the application from scratch using
+  Claude Opus 5.5 medium"): helpers building Roundtable's own apps run on Opus at medium effort
+  unless the owner says otherwise.
 - **Test on the owner's PC what the cloud can't** (owner, 26 November 2026: "For whatever you
   can't test on the cloud, you should be controlling the person's computer and testing through
   that, as I have the hardware"). Unreal, Godot, Blender, the Windows app and a phone by USB are
@@ -82,9 +92,11 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
 | `src/roundtable/improve/` | The lab: proposals, replay tests, the learned overlay, model health probes |
 | `src/roundtable/providers/` | Anthropic, OpenAI-compatible (DeepSeek and others), images, Retro Diffusion, scripted (tests), the catalog |
 | `src/roundtable/remote.py` | Commands through the hub: the owner's `roundtable:` requests (from the phone) done by the desktop app's auto-sync or `roundtable remote --watch` |
-| `src/roundtable/phone.py` | The paired, pinned-TLS phone server (`PHONE_ROUTES`); hidden in the app (`SHOW_PHONE = false`) until the phone release |
+| `src/roundtable/phone.py` | The paired, pinned-TLS phone server (`PHONE_ROUTES`); pairing in the desktop's Settings → Your phone |
+| `src/roundtable/onphone.py`, `runtime/` | Roundtable running on the phone itself ("This phone"): `roundtable phone serve --local`, the signed Linux download |
+| `src/roundtable/sync.py`, `ui/syncapi.py` | The phone and the PC as one Roundtable: machine seats, claims, live sessions, shared settings, carry on |
 | `src/roundtable/connect.py` | `roundtable connect`: Claude Code sessions in other repositories join the hub (MCP + SessionStart/Stop/SessionEnd hooks) |
-| `src/roundtable/ui/` | The desktop command centre: `server.py` (JSON API, jobs), `roundtable.py` (seats, feed, auto-sync), `static/` (vanilla JS, no build step) |
+| `src/roundtable/ui/` | The desktop command centre: `server.py` (JSON API, jobs), `roundtable.py` + `hall.py` (seats, Needs you, feed, auto-sync), `static/` (vanilla JS modules, no build step; design in `docs/desktop-design.md`) |
 | `mobile/` | Roundtable Mobile (Kotlin, Compose): Hub mode through the GitHub API with a fine-grained token; PC mode over the phone server (not yet tried on a real PC) |
 | `packaging/` | The Windows build (PyInstaller spec, installer); `.github/workflows/app.yml` builds and, with a `release_tag`, publishes |
 | `tests/` | `python -m pytest tests` – no network, no keys (scripted providers) |
