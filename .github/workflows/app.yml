@@ -39,9 +39,33 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+  android-apk:
+    name: Build phone APK (test build)
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build the test APK (signed with mobile/test-key, so it installs over the last one)
+        working-directory: mobile
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' ../pyproject.toml)
+          mkdir -p ../dist && cp app/build/outputs/apk/debug/app-debug.apk "../dist/RoundtableMobile-$version-test.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RoundtableMobile-test-apk
+          path: dist/RoundtableMobile-*-test.apk
+
   windows-app:
     name: Build Windows installer
-    needs: tests
+    needs: [tests, android-apk]
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -98,6 +122,11 @@ jobs:
           if [ "${{ inputs.release_tag }}" != "v${{ steps.version.outputs.value }}" ]; then
             echo "release_tag ${{ inputs.release_tag }} does not match app version v${{ steps.version.outputs.value }}"; exit 1
           fi
+      - name: Fetch the phone APK
+        uses: actions/download-artifact@v4
+        with:
+          name: RoundtableMobile-test-apk
+          path: dist
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
@@ -105,5 +134,7 @@ jobs:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           name: Roundtable Hold ${{ steps.version.outputs.value }}
-          files: dist/RoundtableHold-Setup-*.exe
+          files: |
+            dist/RoundtableHold-Setup-*.exe
+            dist/RoundtableMobile-*-test.apk
           generate_release_notes: true

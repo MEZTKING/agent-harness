@@ -34,6 +34,8 @@ The app tells you when a new version is out (**Settings → Updates**, or the ba
   **Session** tab that reads like a Claude Code session (every step, with the changes in colour and
   the outputs, pictures and files shown as they are); the Hall's seats show the app's picture; the
   phone has a Live tab too.
+- **The phone app on every release**: the releases page now has `RoundtableMobile-<version>-test.apk`
+  next to the Windows installer (a test build; it installs over the previous one).
 - **Phone fix**: Roundtable Mobile no longer closes on start (Android's text-pattern engine); if it
   ever crashes again it opens in safe mode with "Send the details to my PC".
 

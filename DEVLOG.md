@@ -4,6 +4,16 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The phone APK on every release
+
+The owner asked where the APKs are kept (only in the session's scratch folder and in chat) and chose
+to attach them to every release from 0.7.1. `.github/workflows/app.yml`: a new `android-apk` job builds
+the test APK (Java 17, the runner's Android SDK) and the Windows job attaches it as
+`RoundtableMobile-<version>-test.apk`. `mobile/test-key/debug.keystore` (Android's standard debug key,
+password `android`; README there) signs every test build the same way, so a new test APK installs over
+the last one; it's the key that signed the APKs already sent, so no uninstall. The release key stays
+separate and out of git.
+
 ## 2026-11-26 – Pictures taken in the same second keep their order (Windows)
 
 CI on Windows listed two tasks' pictures oldest first: `shots.json` times are to the second, and ties

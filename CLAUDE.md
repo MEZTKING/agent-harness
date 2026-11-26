@@ -110,7 +110,9 @@ The owner has given standing permission to merge and release the desktop app.
    installer and makes the release `RoundtableHold-Setup-<version>.exe`.
 4. Check the run succeeded and the release exists; tell the owner what's new, plainly.
 
-The phone app isn't released yet: it needs a real signing key as a repository secret
+Each release also carries the phone **test** APK (`RoundtableMobile-<version>-test.apk`), built by
+the workflow's `android-apk` job and signed with `mobile/test-key/` (a public test key, so test builds
+install over each other). The official phone release needs a real signing key as a repository secret
 first (plans/owner-todo.md).
 
 ## Working with sub-agents
