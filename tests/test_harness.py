@@ -422,3 +422,29 @@ def test_real_balance_noted_at_start_and_end(tmp_path, monkeypatch):
     rows = [json.loads(x) for x in (orch.project.root / ".harness/balance.jsonl").read_text().splitlines()]
     assert [r["phase"] for r in rows] == ["start", "end"] and rows[1]["real_usd"] == pytest.approx(0.05)
     assert any(k == "real_cost" for k, _ in events)
+
+
+def test_task_that_keeps_running_out_of_steps_is_split_once(tmp_path):
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["coder"].pop("fallback")
+    raw["limits"]["max_steps_per_task"] = 2
+
+    class Big(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools) and "# Your task [T1]" in messages[0]["content"]:
+                return reply(calls=[("write_file", {"path": "big.py", "content": "x = 1\n"})])  # never finishes
+            return super().__call__(model, system, messages, tools)
+
+    brain = Big(plan=PLAN[:1])
+    orch, a, *_ = make(tmp_path, raw=raw, brain=brain)
+    orch.start("goal")
+    orch.plan()  # T1 is planned before the planner's answer changes
+    brain.plan = [{"id": "T2", "title": "first half", "role": "coder", "description": "finish big.py",
+                   "acceptance": "done", "depends_on": []}]
+    assert orch.run() == "done"
+    tasks = {t.id: t for t in orch.project.tasks()}
+    assert "T1" not in tasks and tasks["T2"].status == "done"
+    assert json.loads((orch.project.root / ".harness/split.json").read_text()) == ["T1"]
+    revise = next(c for c in a.calls if "submit_plan" in tool_names(c["tools"] or [])
+                  and "ran out of steps" in c["messages"][0]["content"])
+    assert "Replace it with 2 to 4 smaller tasks" in revise["messages"][0]["content"]

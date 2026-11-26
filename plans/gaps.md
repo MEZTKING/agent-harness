@@ -21,9 +21,8 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   files, so a task's "done when" (open the page, import three songs) is never checked;
   the critic said so on every version of the music player plan. → release 2 (build,
   test, start, screenshot, a model that can see).
-- **Tasks can be too big for one attempt.** The music player's core-logic task (over
-  1,300 lines) ran out of 40 steps. The planner should size tasks (a rough line or step
-  budget each) and split big ones. → release 2.
+- **Tasks are planned too big.** Splitting after the fact now works (below), but the
+  planner should size tasks up front (a rough step budget each). → release 2.
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
   stops after two hours; with the desktop app closed, nothing answers. → release 3 (say
   on the phone when no Roundtable is listening, and when it last was).
@@ -34,6 +33,11 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **A task too big for one attempt failed the run** (26 November): the music player's
+  tasks 9 and 10 ran out of 60 steps twice each. A task whose every attempt ran out of
+  steps is now split by the planner into 2–4 smaller tasks, once
+  (`Orchestrator._split_if_too_big`, `limits.split_stuck_tasks`).
 
 - **The cost count was about ten times too high** (26 November): text a model had
   already seen was charged at the full input price. Task 2 of the music player was

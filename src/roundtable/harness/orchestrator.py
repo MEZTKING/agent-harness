@@ -1007,6 +1007,28 @@ class Orchestrator:
             f.write(json.dumps(row) + "\n")
         return row
 
+    def _split_if_too_big(self, task: Task) -> bool:
+        """A task that kept running out of steps is too big: ask the planner to split it, once."""
+        outcomes = [a.get("outcome") for a in task.attempts]
+        record = self.project.root / ".harness" / "split.json"
+        split = json.loads(record.read_text()) if record.is_file() else []
+        if (not self.cfg.limits.split_stuck_tasks or not outcomes or task.id in split
+                or any(o != "max_steps" for o in outcomes) or not self.project.plan_doc()):
+            return False
+        record.write_text(json.dumps(split + [task.id]))
+        try:
+            r = self.revise_plan(
+                f"Task {task.id} '{task.title}' ran out of steps {len(outcomes)} times: it is too big for one "
+                "attempt. Its partial work is already in the files. Replace it with 2 to 4 smaller tasks that "
+                "finish it, each small enough to do in about 30 steps, with clear 'done when' checks. Keep "
+                "every other task as it is.", by="harness")
+        except Exception as e:  # splitting is a help, not a must: the task stays failed for the owner
+            self.emit("split_failed", {"task": task.id, "error": str(e)[:300]})
+            return False
+        self.emit("task_split", {"task": task.id, "summary": r["summary"]})
+        self._journal("note", f"[{task.id}] was too big for one attempt; split: {r['summary']}")
+        return True
+
     def _run(self, max_tasks: int | None = None) -> str:
         if not self.project.exists:
             raise HarnessError("no project here; use `roundtable new`")
@@ -1065,6 +1087,8 @@ class Orchestrator:
                     self._git_commit(f"[{task.id}] {task.title}")
                     self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
                     self._resolved(f"failed:{task.id}", note="task completed")
+                elif self._split_if_too_big(task):
+                    continue  # the planner replaced it with smaller tasks; carry on with those
                 executed += 1
         except BudgetExceeded as e:
             tasks = self.project.tasks()

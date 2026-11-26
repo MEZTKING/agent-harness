@@ -4,6 +4,21 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The music player's run stopped; tasks too big are now split
+
+The owner said to build the rest of the music player.
+
+- Tasks 3–6 were done and approved; tasks 9 (remember the library) and 10 (cover art and
+  the visualiser) ran out of 60 steps on both attempts, so the run stopped as blocked.
+- Real cost of that run: the DeepSeek balance went from 2.93 to 2.47 USD ($0.46, of which
+  about $0.32 went on the four failed attempts); Roundtable counted $0.74. The earlier
+  "about 3 cents a task" was read from a balance that hadn't caught up yet.
+- `orchestrator._split_if_too_big` (new): when every attempt at a task ran out of steps,
+  the planner replaces it with 2–4 smaller tasks (`revise_plan(by="harness")`), once per
+  task (`.harness/split.json`); `limits.split_stuck_tasks` (default on).
+- Test: `test_task_that_keeps_running_out_of_steps_is_split_once`; 127 pass.
+- Open: the planner should size tasks up front; ask the owner before carrying on.
+
 ## 2026-11-26 – Ideas from Munder Difflin and DeepSeek Harness Mobile
 
 The owner asked to take inspiration from a Reddit post ("My view when my opencode agents
