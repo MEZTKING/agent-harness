@@ -80,6 +80,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         return autopilot_command(cfg, kw)
     if action == "todo_done":
         return todo_done(orch, kw)
+    if action == "shared_settings":
+        return shared_settings(orch, cfg, kw)
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
@@ -144,6 +146,22 @@ def autopilot_command(cfg, kw: dict[str, Any]) -> str:
         return "Autopilot off."
     st = autopilot.status()
     return f"Autopilot: {st['label']}."
+
+
+def shared_settings(orch, cfg, kw: dict[str, Any]) -> str:
+    """{"changes": {limits, autopilot, default_profile, roles}}: the settings every machine shares (sync.py)."""
+    from .autopilot import app_home
+    from .sync import change_shared
+
+    hub = orch._hub()
+    if hub is None:
+        return "Couldn't change the shared settings: this machine isn't on the hub."
+    changes = kw.get("changes")
+    if not isinstance(changes, dict) or not changes:
+        return "Couldn't change the shared settings: nothing to change was sent."
+    out = change_shared(hub, changes, cfg.path, app_home(), cfg)
+    what = ", ".join(out["changed"]) or "nothing new here"
+    return f"Shared settings saved for every machine ({what})."
 
 
 def todo_done(orch, kw: dict[str, Any]) -> str:

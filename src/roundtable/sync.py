@@ -243,7 +243,7 @@ class Claim:
 
     def record(self, state: str = "building", **extra: Any) -> dict[str, Any]:
         return {"machine": self.machine["id"], "machine_name": self.machine["name"], "kind": self.machine["kind"],
-                "since": self.since, "heartbeat": utcnow(), "run_id": self.run_id, "state": state, "key": self.key,
+                "project": self.about.get("hub_name") or self.about.get("folder") or self.key, "since": self.since, "heartbeat": utcnow(), "run_id": self.run_id, "state": state, "key": self.key,
                 **self.about, **extra}
 
     def _mine(self, c: dict[str, Any] | None) -> bool:
@@ -300,44 +300,69 @@ def read_claims(hub) -> dict[str, dict[str, Any]]:
 
 
 # -- the live session: one line per event, written while the run goes on --------------------------------
-def session_line(kind: str, d: dict[str, Any]) -> dict[str, Any] | None:
-    """One event as a line for watching from the other machine: no prompts, no file contents."""
+def session_lines(kind: str, d: dict[str, Any]) -> list[dict[str, Any]]:
+    """One event as lines for watching from the other machine: no prompts, no file contents.
+
+    Every line has ``at``, ``kind`` and ``line`` (the text to show). Kinds: run_started, task_started (task,
+    title, role, index, total), turn (model, role), tool (tool, error), change (path, a tool line with its
+    +added −removed), review (approved, verdict), cost (usd), task_done (task, status, summary), shots,
+    error, status, note, run_done (status)."""
     from .harness import session as sessionlib
 
     at = d.get("at") or utcnow()
+    out: list[dict[str, Any]] = []
     if kind == "task_start":
-        line = {"kind": "task", "task": d.get("task"), "title": d.get("title", ""), "role": d.get("role", "")}
+        n, total = d.get("index"), d.get("total")
+        where = f" ({n} of {total})" if n and total else ""
+        out.append({"kind": "task_started", "task": d.get("task"), "title": d.get("title", ""),
+                    "role": d.get("role", ""), "index": n, "total": total,
+                    "line": f"Started {d.get('task')} {d.get('title', '')}{where}".strip()})
     elif kind == "attempt":
-        line = {"kind": "attempt", "task": d.get("task"), "model": d.get("model", ""), "attempt": d.get("attempt")}
+        out.append({"kind": "turn", "task": d.get("task"), "model": d.get("model", ""),
+                    "line": f"Attempt {d.get('attempt')} on {d.get('model', '')}"})
     elif kind == "model_turn":
         text = " ".join(str(d.get("text") or "").split())[:200]
-        line = {"kind": "turn", "model": d.get("model", ""), "role": d.get("role", ""), "text": text,
-                "tools": list(d.get("tools") or [])[:8], "cost": round(float(d.get("cost") or 0), 6)}
+        if text:
+            out.append({"kind": "turn", "model": d.get("model", ""), "role": d.get("role", ""),
+                        "line": ("Reviewer: " if d.get("role") == "reviewer" else "") + text})
+        usd = round(float(d.get("cost") or 0), 6)
+        if usd:
+            out.append({"kind": "cost", "usd": usd, "model": d.get("model", ""), "line": f"${usd:.4f}"})
     elif kind == "tool_call":
         step = sessionlib.tool_step(d)
         if step["kind"] == "hidden" or str(d.get("tool", "")).startswith("submit_"):  # the plan's own plumbing
-            return None
-        line = {"kind": "tool", "tool": d.get("tool", ""), "line": sessionlib.step_line(step)[:240],
-                "error": bool(step.get("error"))}
+            return []
+        line = {"kind": "change" if step.get("path") and d.get("tool") in ("write_file", "edit_file") else "tool",
+                "tool": d.get("tool", ""), "line": sessionlib.step_line(step)[:240], "error": bool(step.get("error"))}
         if step.get("path"):
             line["path"] = step["path"]
+        out.append(line)
     elif kind == "review":
-        line = {"kind": "review", "task": d.get("task"), "approved": bool(d.get("approved")),
-                "text": str(d.get("feedback") or "")[:300]}
+        ok = bool(d.get("approved"))
+        out.append({"kind": "review", "task": d.get("task"), "approved": ok,
+                    "verdict": "approved" if ok else "sent back",
+                    "line": ("✓ Approved: " if ok else "✗ Sent back: ") + str(d.get("feedback") or "")[:300]})
     elif kind == "task_end":
-        line = {"kind": "task_end", "task": d.get("task"), "status": d.get("status", ""),
-                "summary": str(d.get("summary") or "")[:300]}
+        out.append({"kind": "task_done", "task": d.get("task"), "status": d.get("status", ""),
+                    "summary": str(d.get("summary") or "")[:300],
+                    "line": f"{d.get('task')} {d.get('status', '')}: {str(d.get('summary') or '')[:200]}"})
     elif kind == "shots":
-        line = {"kind": "shots", "task": d.get("task"), "dir": d.get("dir", ""), "pictures": d.get("pictures", [])}
+        pics = d.get("pictures", [])
+        out.append({"kind": "shots", "task": d.get("task"), "dir": d.get("dir", ""), "pictures": pics,
+                    "line": f"Pictures taken ({len(pics)})" if pics else "No pictures"})
     elif kind == "provider_error":
-        line = {"kind": "error", "text": f"{d.get('model')}: {d.get('error', '')}"[:300]}
+        out.append({"kind": "error", "line": f"{d.get('model')}: {d.get('error', '')}"[:300]})
     elif kind == "status":
-        line = {"kind": "status", "status": d.get("status", "")}
-    elif kind in ("planning", "plan"):
-        line = {"kind": kind, "text": str(d.get("summary") or d.get("model") or "")[:200]}
-    else:
-        return None
-    return sessionlib._redact_all({"at": at, **line})
+        out.append({"kind": "status", "status": d.get("status", ""), "line": f"Now {d.get('status', '')}"})
+    elif kind == "planning":
+        out.append({"kind": "status", "status": "planning", "line": "Making the plan…"})
+    return [sessionlib._redact_all({"at": at, **ln}) for ln in out]
+
+
+def session_line(kind: str, d: dict[str, Any]) -> dict[str, Any] | None:
+    """The first line of an event (see session_lines)."""
+    lines = session_lines(kind, d)
+    return lines[0] if lines else None
 
 
 def new_run_id(machine: dict[str, str]) -> str:
@@ -355,8 +380,9 @@ class LiveRun:
         self.hub, self.claim = hub, claim
         self.key, self.run_id = claim.key, claim.run_id
         self.rel = f"{session_dir(self.key)}/{self.run_id}.jsonl"
-        self.lines: list[dict[str, Any]] = [{"at": utcnow(), "kind": "start", "run_id": self.run_id,
+        self.lines: list[dict[str, Any]] = [{"at": utcnow(), "kind": "run_started", "run_id": self.run_id,
                                              "machine": claim.machine["id"], "machine_name": claim.machine["name"],
+                                             "line": f"Started on {claim.machine['name']}",
                                              **claim.about, **(start or {})}]
         self._lock = threading.Lock()
         self._dirty = True
@@ -375,13 +401,13 @@ class LiveRun:
 
     def add(self, kind: str, data: dict[str, Any]) -> None:
         try:
-            line = session_line(kind, data)
+            lines = session_lines(kind, data)
         except Exception:  # watching is a help: never fail a run over it
             return
-        if not line:
+        if not lines:
             return
         with self._lock:
-            self.lines.append(line)
+            self.lines.extend(lines)
             if len(self.lines) > MAX_LINES:
                 self.lines[1:] = self.lines[-(MAX_LINES - 1):]
             self._dirty = True
@@ -449,7 +475,7 @@ class LiveRun:
         if self._thread:
             self._thread.join(timeout=30)
         with self._lock:
-            self.lines.append({"at": utcnow(), "kind": "end", "status": status})
+            self.lines.append({"at": utcnow(), "kind": "run_done", "status": status, "line": f"Run ended: {status}"})
             self._dirty = True
         self.flush(end=status)
 
@@ -462,7 +488,7 @@ def hold(hub, root: Path, hub_name: str, folder: str, start: dict[str, Any] | No
     note = claim.take()
     live = LiveRun(hub, claim, start)
     if note:
-        live.lines.append({"at": utcnow(), "kind": "note", "text": note})
+        live.lines.append({"at": utcnow(), "kind": "note", "line": note})
     return live.start(), note
 
 
@@ -504,9 +530,9 @@ def find_key(hub, name: str) -> str | None:
 
 def run_summary(lines: list[dict[str, Any]]) -> dict[str, Any]:
     head = lines[0] if lines else {}
-    end = next((ln for ln in reversed(lines) if ln.get("kind") == "end"), None)
-    cost = round(sum(float(ln.get("cost") or 0) for ln in lines), 6)
-    task = next((ln for ln in reversed(lines) if ln.get("kind") == "task"), None)
+    end = next((ln for ln in reversed(lines) if ln.get("kind") == "run_done"), None)
+    cost = round(sum(float(ln.get("usd") or 0) for ln in lines if ln.get("kind") == "cost"), 6)
+    task = next((ln for ln in reversed(lines) if ln.get("kind") == "task_started"), None)
     return {"run_id": head.get("run_id", ""), "machine": head.get("machine", ""),
             "machine_name": head.get("machine_name", ""), "started": head.get("at", ""),
             "ended": (end or {}).get("at", ""), "status": (end or {}).get("status", "running"),
@@ -519,7 +545,7 @@ def sessions(hub, name: str, run: str = "", since: int = 0) -> dict[str, Any]:
 
     ``since``: the number of lines the caller already has, so only the new ones come back."""
     key = find_key(hub, name)
-    out: dict[str, Any] = {"name": name, "key": key, "runs": [], "run": None, "live": False}
+    out: dict[str, Any] = {"name": name, "key": key, "runs": [], "run": None, "live": False, "events": []}
     root = hub_root(hub)
     if not key or not root:
         return out
@@ -540,6 +566,7 @@ def sessions(hub, name: str, run: str = "", since: int = 0) -> dict[str, Any]:
         s, lines = chosen
         out["live"] = bool(claim_fresh(claim) and (claim or {}).get("run_id") == s["run_id"])
         out["run"] = {**s, "since": max(0, int(since or 0)), "events": lines[max(0, int(since or 0)):]}
+        out["events"] = out["run"]["events"]
     if claim:
         out["claim"] = {k: claim.get(k) for k in ("machine", "machine_name", "state", "since", "heartbeat", "run_id")}
         out["claim"]["fresh"] = claim_fresh(claim)
@@ -557,7 +584,8 @@ def write_heartbeat(hub, machine: dict[str, str] | None = None, listening: bool 
 
     machine = machine or this_machine()
     rel = f"machines/{machine['id']}.json"
-    state = {"id": machine["id"], "name": machine["name"], "kind": machine["kind"], "version": __version__,
+    state = {"id": machine["id"], "seat": machine["id"], "name": machine["name"], "kind": machine["kind"],
+             "version": __version__,
              "listening": bool(listening), **extra}
     digest = json.dumps(state, sort_keys=True)
     slot = (str(hub_root(hub) or ""), rel)
@@ -592,6 +620,7 @@ def machines(hub, me: dict[str, str] | None = None) -> list[dict[str, Any]]:
         m.setdefault("last_seen", "")
         m.setdefault("version", "")
         m.setdefault("listening", False)
+        m["seat"] = mid
         m["this"] = mid == me["id"]
         m["online"] = m["this"] or age_s(m["last_seen"]) < MACHINE_OFF_S
         m["building"] = [{"key": k, "hub_name": c.get("hub_name", ""), "folder": c.get("folder", ""),
@@ -600,6 +629,20 @@ def machines(hub, me: dict[str, str] | None = None) -> list[dict[str, Any]]:
         m["state"] = machine_words(m)
         out.append(m)
     return sorted(out, key=lambda m: (not m["this"], m["kind"] != "pc", m["name"].lower()))
+
+
+def claims_list(hub, fresh_only: bool = True) -> list[dict[str, Any]]:
+    """The claims as the apps read them: {project, key, folder, machine, machine_name, since, heartbeat, state,
+    fresh}."""
+    out = []
+    for key, c in sorted(read_claims(hub).items()):
+        if fresh_only and not claim_fresh(c):
+            continue
+        out.append({"project": c.get("project") or c.get("hub_name") or c.get("folder") or key, "key": key,
+                    "hub_name": c.get("hub_name", ""), "folder": c.get("folder", ""),
+                    **{k: c.get(k) for k in ("machine", "machine_name", "since", "heartbeat", "state", "run_id")},
+                    "fresh": claim_fresh(c)})
+    return out
 
 
 def machine_words(m: dict[str, Any]) -> str:
@@ -698,6 +741,10 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
     if isinstance(roles, dict):
         out["roles"] = {}
         for r, spec in roles.items():
+            if isinstance(spec, str):  # {job: model}
+                spec = {"model": spec}
+            elif isinstance(spec, list) and spec:  # {job: [model, backup, ...]}
+                spec = {"model": spec[0], "fallback": list(spec[1:])}
             spec = spec or {}
             if not isinstance(spec, dict):
                 raise ValueError(f"role {r}: give it a model, like {{model: deepseek/deepseek-v4-flash}}")
@@ -705,6 +752,22 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
             if keep:
                 out["roles"][str(r)] = keep
     return out
+
+
+def for_apps(shared: dict[str, Any] | None, profiles: list[str]) -> dict[str, Any]:
+    """The shared settings as the desktop and the phone read them: roles as {job: model or [models]}."""
+    shared = shared or {}
+    roles = {}
+    for r, spec in (shared.get("roles") or {}).items():
+        models = [spec.get("model")] + list(spec.get("fallback") or []) if isinstance(spec, dict) else [spec]
+        models = [m for m in models if m]
+        roles[r] = models[0] if len(models) == 1 else models
+    ap = shared.get("autopilot") or {}
+    return {"limits": dict(shared.get("limits") or {}),
+            "autopilot": {"on": bool(ap.get("on")), "cap": ap.get("cap"), "until": ap.get("until")},
+            "default_profile": shared.get("default_profile"), "profiles": profiles, "roles": roles,
+            "updated_at": shared.get("changed_at", ""), "updated_by": shared.get("changed_by_name")
+            or shared.get("changed_by", ""), "updated_by_seat": shared.get("changed_by", "")}
 
 
 def publish_shared(hub, values: dict[str, Any], machine: dict[str, str] | None = None) -> dict[str, Any]:

@@ -353,21 +353,46 @@ def build(app) -> dict[str, Any]:
     # running first, then waiting, idle, done; most recently active first within each group
     seat_list = sorted(seats.values(), key=lambda s: (order.get(s["status"], 9), _age_s(s.get("last_activity") or "")))
     machines, claims = _machines(app)
-    from ..sync import claim_fresh
+    from ..sync import claim_fresh, this_machine
 
-    for s in seat_list:  # which machine builds it now (one at a time)
-        c = next((c for c in claims.values() if claim_fresh(c) and (
-            (s.get("hub_name") and c.get("hub_name") == s["hub_name"]) or c.get("folder") == s["id"])), None)
+    me = this_machine()
+    for s in seat_list:  # which machine has it, and which builds it now (one at a time)
+        mine = [c for c in claims.values() if (s.get("hub_name") and c.get("hub_name") == s["hub_name"])
+                or c.get("folder") == s["id"]]
+        c = next((c for c in mine if claim_fresh(c)), None)
         if c:
             s["building_on"] = {"machine": c.get("machine"), "name": c.get("machine_name"), "since": c.get("since")}
+        held = c or (mine[0] if mine else None)
+        if s.get("where") == "here":
+            s["machine"], s["machine_name"] = me["id"], me["name"]
+        elif held:
+            s["machine"], s["machine_name"] = held.get("machine"), held.get("machine_name")
+        elif s.get("hub_name"):
+            m = _published_by(app, s["hub_name"])
+            if m:
+                s["machine"], s["machine_name"] = m
     return {
         "machines": machines,
         "seats": seat_list, "needs_you": needs, "health": sorted(health, key=lambda h: h["model"]),
         "notes": notes,
-        "spend_today": round(spend_today, 6), "synced_at": app.last_auto_sync, "agent": app.agent,
+        # agent: this machine's seat (sync.py); hub_agent: who this app is in the hub's letters ("me")
+        "spend_today": round(spend_today, 6), "synced_at": app.last_auto_sync, "agent": me["id"],
+        "hub_agent": app.agent, "machine": me,
         "running_jobs": sum(j.status == "running" for j in app.jobs.jobs.values()),
         "autopilot": pilot,
     }
+
+
+def _published_by(app, hub_name: str) -> tuple[str, str] | None:
+    """The machine that published a plan (plans/<name>.asks.json), for a project no machine has claimed yet."""
+    from .hall import hub_root
+
+    root = hub_root(app.hub) if app.hub else None
+    try:
+        data = json.loads((root / "plans" / f"{hub_name}.asks.json").read_text(encoding="utf-8")) if root else {}
+    except (OSError, ValueError):
+        return None
+    return (data["machine"], data.get("machine_name") or data["machine"]) if data.get("machine") else None
 
 
 def _machines(app) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:

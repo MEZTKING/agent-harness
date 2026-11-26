@@ -6,13 +6,14 @@ This-phone modes. Registered in server.py's routes with one line.
           lines}], run: {...one of runs, since, events: [lines]}, claim: {machine, machine_name, state, since,
           heartbeat, run_id, fresh}}
     GET  /api/machines
-         {this: {id, name, kind}, machines: [{id, name, kind, this, online, listening, last_seen, version,
-          building: [{key, hub_name, folder, since, run_id}], state}]}
-    GET  /api/settings/shared    {settings: {limits, autopilot, default_profile, roles, changed_by,
-                                  changed_by_name, changed_at} | null, this: {...}}
-    POST /api/settings/shared    {changes: {limits: {max_cost_usd, max_real_usd_per_run, max_usd_per_day},
-                                  autopilot: {on, until, cap}, default_profile, roles: {role: {model,
-                                  fallback}}}} -> {settings, changed}
+         {this: {id, name, kind}, machines: [{seat, id, name, kind, this, online, listening, last_seen, version,
+          building: [{key, hub_name, folder, since, run_id}], state}], claims: [{project, key, hub_name, folder,
+          machine, machine_name, since, heartbeat, state, run_id, fresh}]}
+    GET  /api/settings/shared    {limits: {max_cost_usd, max_real_usd_per_run, max_usd_per_day}, autopilot: {on,
+                                  cap, until}, default_profile, profiles, roles: {job: model or [models]},
+                                  updated_at, updated_by, updated_by_seat, machine, shared}
+    POST /api/settings/shared    {changes: {limits?, autopilot?: {on, cap, until}, default_profile?, roles?:
+                                  {job: model or [models]}}} -> the same as GET, plus changed
     POST /api/hub/carry_on       {name: hub name} -> {reply, machine, sent, here}
 """
 
@@ -67,7 +68,7 @@ def machines(app, q=None) -> dict[str, Any]:
     with app.hub_lock:
         app.hub.store.sync()
         app.hub.refresh_config()
-        return {"this": me, "machines": sync.machines(app.hub, me)}
+        return {"this": me, "machines": sync.machines(app.hub, me), "claims": sync.claims_list(app.hub)}
 
 
 def _paths(app) -> tuple[Path | None, Path]:
@@ -83,7 +84,14 @@ def shared_get(app, q=None) -> dict[str, Any]:
     with app.hub_lock:
         hub.store.sync()
         settings = sync.read_shared(hub)
-    return {"settings": settings, "this": sync.local_snapshot(harness, home), "machine": sync.this_machine()}
+    local = sync.local_snapshot(harness, home)
+    return {**sync.for_apps(settings or local, _profiles(app)), "machine": sync.this_machine(),
+            "shared": settings is not None}
+
+
+def _profiles(app) -> list[str]:
+    cfg = app.cfg()
+    return list(cfg.profiles) if cfg else []
 
 
 def shared_post(app, body) -> dict[str, Any]:
@@ -97,7 +105,9 @@ def shared_post(app, body) -> dict[str, Any]:
     harness, home = _paths(app)
     try:
         with app.hub_lock:
-            return sync.change_shared(hub, changes, harness, home, app.cfg())
+            out = sync.change_shared(hub, changes, harness, home, app.cfg())
+        return {**sync.for_apps(out["settings"], _profiles(app)), "changed": out["changed"],
+                "machine": sync.this_machine(), "shared": True}
     except (TypeError, ValueError) as e:
         raise ApiError(f"Nothing was changed: {e}.") from None
 

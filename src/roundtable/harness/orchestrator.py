@@ -1491,7 +1491,9 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
                     self._git_commit("harness: snapshot before task")  # capture any manual edits
                     task.base_commit = self._head() or ""
                 self.project.save_tasks(tasks)
-                self.emit("task_start", {"task": task.id, "title": task.title, "role": task.role})
+                self.emit("task_start", {"task": task.id, "title": task.title, "role": task.role,
+                                         "index": next(i for i, t in enumerate(tasks, 1) if t is task),
+                                         "total": len(tasks)})
                 ok = self._run_task(task, tasks)
                 task.status = "done" if ok else "failed"
                 self.project.save_tasks(tasks)

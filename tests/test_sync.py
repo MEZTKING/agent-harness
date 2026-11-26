@@ -230,12 +230,18 @@ def test_a_run_holds_the_project_and_publishes_its_session(tmp_path, remote, mon
     run = out["run"]
     assert run["machine_name"] == "PC (DESK)" and run["status"] == "done" and run["cost_usd"] > 0
     kinds = [ln["kind"] for ln in run["events"]]
-    assert kinds[0] == "start" and kinds[-1] == "end"
-    assert {"task", "tool", "review", "task_end", "turn"} <= set(kinds)
-    tool = next(ln for ln in run["events"] if ln["kind"] == "tool")
-    assert tool["line"].startswith("● Write hello.py") and tool["line"].endswith("+1 −0") and "print(" not in json.dumps(run["events"])  # no contents
+    assert kinds[0] == "run_started" and kinds[-1] == "run_done"
+    assert {"task_started", "change", "review", "task_done", "cost"} <= set(kinds)
+    assert all(ln.get("line") for ln in run["events"])  # every line has its text
+    started = next(ln for ln in run["events"] if ln["kind"] == "task_started")
+    assert started["task"] == "T1" and started["index"] == 1 and started["total"] == 3
+    review = next(ln for ln in run["events"] if ln["kind"] == "review")
+    assert review["approved"] and review["verdict"] == "approved"
+    assert run["cost_usd"] == round(sum(ln["usd"] for ln in run["events"] if ln["kind"] == "cost"), 6)
+    tool = next(ln for ln in run["events"] if ln["kind"] == "change")
+    assert tool["path"] == "hello.py" and tool["line"].startswith("● Write hello.py") and tool["line"].endswith("+1 −0") and "print(" not in json.dumps(run["events"])  # no contents
     later = sync.sessions(phone, orch._hub_name(), since=len(run["events"]) - 1)
-    assert [ln["kind"] for ln in later["run"]["events"]] == ["end"]
+    assert [ln["kind"] for ln in later["events"]] == ["run_done"]
 
 
 def test_a_run_refuses_while_another_machine_builds_it(tmp_path, remote, monkeypatch):
@@ -323,6 +329,9 @@ def test_machines_say_who_is_on_and_what_it_builds(tmp_path, remote, monkeypatch
     phone.refresh_config()
     ms = {m["id"]: m for m in sync.machines(phone, PHONE)}
     assert ms[PC["id"]]["online"] and ms[PC["id"]]["listening"]
+    assert ms[PC["id"]]["seat"] == PC["id"]
+    [c] = sync.claims_list(phone)
+    assert c["project"] == "harness--bakery" and c["machine_name"] == "PC (DESK)" and c["heartbeat"]
     assert ms[PC["id"]]["building"][0]["folder"] == "bakery"
     assert ms[PC["id"]]["state"] == "Your PC is building bakery."
     assert ms[PHONE["id"]]["this"] and ms[PHONE["id"]]["state"] == "This phone is on."
@@ -349,6 +358,7 @@ def test_auto_sync_adds_the_seat_and_the_heartbeat(tmp_path, remote, monkeypatch
     table = build(app)
     assert all(s["id"] != PC["id"] for s in table["seats"])  # a machine isn't a project
     assert [m["id"] for m in table["machines"]] == [PC["id"]]
+    assert table["agent"] == PC["id"] and table["hub_agent"] == "me" and table["machine"]["name"] == "PC (DESK)"
     out = app.dispatch("GET", "/api/machines", {}, {})
     assert out["this"]["id"] == PC["id"] and out["machines"][0]["this"]
 
@@ -388,6 +398,10 @@ def test_carry_on_goes_to_the_machine_that_has_the_files(tmp_path, remote, monke
     r = app.dispatch("POST", "/api/hub/carry_on", {}, {"name": name})
     assert r["sent"] and r["reply"].startswith("It's on your phone: asked it to carry on.")
     assert "off – it'll pick this up when it's on" in r["reply"]  # no heartbeat from the phone yet
+    from roundtable.ui.roundtable import build
+
+    seat = next(x for x in build(app)["seats"] if x["id"] == "proj")
+    assert seat["machine"] == PHONE["id"] and seat["machine_name"] == "Phone (OPPO)"
     [msg] = app.hub.inbox("harness")
     assert parse(msg) == {"action": "carry_on", "machine": PHONE["id"], "project_folder": "proj"}
 
@@ -417,6 +431,9 @@ def test_shared_settings_match_on_every_machine(tmp_path, remote, monkeypatch):
                                   "roles": {"coder": {"model": "b/coder2", "fallback": ["a/coder"]}}},
                              pc_h, pc_home, machine=PC)
     assert out["settings"]["changed_by_name"] == "PC (DESK)" and "autopilot on" in out["changed"]
+    apps = sync.for_apps(out["settings"], ["balanced", "budget"])
+    assert apps["roles"] == {"coder": ["b/coder2", "a/coder"]} and apps["updated_by"] == "PC (DESK)"
+    assert apps["autopilot"]["on"] and apps["autopilot"]["cap"] == 1.25 and apps["limits"]["max_usd_per_day"] == 3
     # the phone joins: it takes the hub's
     phone.store.sync(force=True)
     took = sync.sync_shared(phone, ph_h, ph_home, machine=PHONE)
@@ -455,3 +472,40 @@ def test_the_daily_limit_pauses_a_run(tmp_path):
     assert orch.run() == "paused"
     assert orch.project.meta()["pause"] == "money_day"
     assert not any(t.status == "done" for t in orch.project.tasks())  # the plan alone spent today's money
+
+
+def test_shared_settings_through_the_hub_and_the_api(tmp_path, remote, monkeypatch):
+    from roundtable.remote import process
+    from roundtable.ui.server import UIApp
+
+    be(monkeypatch, PC["id"], PC["name"])
+    monkeypatch.setenv("ROUNDTABLE_NO_BALANCE", "1")
+    monkeypatch.setenv("ROUNDTABLE_HOME", str(tmp_path / "apphome"))
+    h, _home = harness_files(tmp_path, "files")
+    hub_yaml = machine_hub(tmp_path, remote, "pc")
+    raw = yaml.safe_load(h.read_text(encoding="utf-8"))
+    raw["hub"] = {"config": str(hub_yaml), "agent": "harness"}
+    raw["improve"] = {"lab_dir": str(tmp_path / "lab")}
+    h.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    from roundtable.harness.config import load_config
+    from roundtable.harness.orchestrator import Orchestrator
+
+    cfg = load_config(str(h))
+    Orchestrator(cfg, tmp_path / "shop").start("a made-up shop", require_approval=True)
+    hub = hub_for(hub_yaml)
+    hub.send("me", "harness", "roundtable: shared_settings",
+             json.dumps({"action": "shared_settings", "project_folder": "shop",
+                         "changes": {"roles": {"coder": "b/coder2"}, "limits": {"max_usd_per_day": 4}}}), kind="request")
+    assert process(load_config(str(h)), hub, log=lambda s: None) == 1
+    reply = hub.inbox("me", unread_only=False)[-1]["body"]
+    assert reply.startswith("Shared settings saved for every machine")
+    assert load_config(str(h)).limits.max_usd_per_day == 4
+    # the API reads them the way the phone wants them
+    app = UIApp(str(machine_hub(tmp_path, remote, "phone")), str(h), agent="me")
+    got = app.dispatch("GET", "/api/settings/shared", {}, {})
+    assert got["roles"]["coder"] == "b/coder2" and got["limits"]["max_usd_per_day"] == 4
+    assert got["updated_by"] == "PC (DESK)" and set(got["profiles"]) == {"budget", "balanced"} and got["shared"]
+    changed = app.dispatch("POST", "/api/settings/shared", {}, {"changes": {"autopilot": {"on": True, "cap": 1}}})
+    assert changed["autopilot"]["on"] and changed["roles"]["coder"] == "b/coder2"
+    machines = app.dispatch("GET", "/api/machines", {}, {})
+    assert machines["claims"] == [] and machines["this"]["id"] == PC["id"]

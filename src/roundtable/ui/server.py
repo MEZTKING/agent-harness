@@ -1107,7 +1107,7 @@ class UIApp:
         return data
 
     # -- projects that run elsewhere: their plan and questions in the hub, answered through the hub ----------
-    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip")
+    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip", "todo_done", "shared_settings", "carry_on")
 
     def hub_plan(self, q):
         """A plan another computer published (plans/<name>.md) with its open questions."""
@@ -1144,6 +1144,8 @@ class UIApp:
         cmd = {"action": action, **{k: v for k, v in (body.get("fields") or {}).items() if k not in ("action", FOLDER)}}
         if body.get("folder") and body["folder"] != agent:
             cmd[FOLDER] = str(body["folder"])
+        if body.get("machine"):  # only that machine does it (sync.py)
+            cmd["machine"] = str(body["machine"])
         try:
             with self.hub_lock:
                 hub.send(self.agent, [agent], f"{PREFIX} {action}", json.dumps(cmd), kind="request")
