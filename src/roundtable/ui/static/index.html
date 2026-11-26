@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,35 +12,30 @@
   <script src="theme.js"></script>
 </head>
 <body>
-  <div class="shell">
-    <nav class="sidebar" id="nav">
-      <a class="brand" href="#/roundtable" title="Back to the Hall">
-        <img class="brand-mark" src="emblem.png" width="38" height="38" alt="">
-        <span class="brand-name">Roundtable Hold</span>
-      </a>
-      <div class="rooms">
-        <a href="#/roundtable" data-nav="roundtable">Roundtable</a>
-        <a href="#/projects" data-nav="projects">Projects</a>
-        <a href="#/messages" data-nav="messages">Messages</a>
-        <span class="nav-sep" data-harness title="Harness: runs, models and the lab">Harness</span>
-        <a href="#/runs" data-nav="runs" data-harness>Runs</a>
-        <a href="#/models" data-nav="models" data-harness>Models &amp; health</a>
-        <a href="#/improve" data-nav="improve" data-harness>Improve</a>
-        <a href="#/jobs" data-nav="jobs">Jobs <span class="badge" id="jobs-badge" hidden></span></a>
-        <a href="#/settings" data-nav="settings">Settings</a>
-      </div>
-      <div class="hdr-end">
-        <a class="today" id="today-spend" href="#/runs" title="What the AI work has cost today, on every project" hidden>Today <b></b></a>
-        <div class="autopilot" id="autopilot"></div>
-      </div>
-      <div class="nav-foot" id="nav-foot"></div>
+  <a class="skip" href="#main">Skip to the page</a>
+  <header class="top" id="top">
+    <a class="brand" href="#/" title="Back to the Hall">
+      <img class="brand-mark" src="emblem.png" width="36" height="36" alt="">
+      <span class="brand-name">Roundtable Hold</span>
+    </a>
+    <nav class="rooms" aria-label="Rooms">
+      <a href="#/" data-room="hall" title="Every project at the round table">Hall</a>
+      <a href="#/needs" data-room="needs" title="Everything waiting for your answer">Needs you <span class="badge" id="needs-badge" hidden></span></a>
+      <a href="#/projects" data-room="projects" title="Every project in one list, and new ones">Projects</a>
+      <a href="#/letters" data-room="letters" title="Letters from your projects and agents">Letters <span class="badge soft" id="letters-badge" hidden></span></a>
+      <a href="#/activity" data-room="activity" title="What has happened, and what the app is doing now">Activity</a>
+      <a href="#/models" data-room="models" title="Which model does each job, their health, and what Roundtable has learned">Models</a>
+      <a href="#/settings" data-room="settings" title="Keys, the hub, backups, updates and more">Settings</a>
     </nav>
-    <div class="content">
-      <div id="update-banner" class="banner" hidden></div>
-      <main id="main"><p class="muted">Loading…</p></main>
+    <div class="top-end">
+      <a class="working" id="working" href="#/activity/work" title="Work the app is doing now" hidden><i class="cdl" aria-hidden="true"></i><span></span></a>
+      <a class="today" id="today" href="#/activity" title="What the AI work has cost today, on every project">Today <b>$0.00</b></a>
+      <div class="autopilot" id="autopilot"></div>
     </div>
-  </div>
-  <div id="toasts"></div>
-  <script src="app.js"></script>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <main id="main" tabindex="-1"><p class="loading">Lighting the candles…</p></main>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

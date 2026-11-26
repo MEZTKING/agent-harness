@@ -924,6 +924,7 @@ class UIApp:
             "desktop": bool(d), "version": __version__, "frozen": bool(getattr(sys, "frozen", False)),
             "hub": {"mode": hub_mode, "where": hub_detail, "error": self.hub_error},
             "config_paths": {k: str(v) if v else "" for k, v in paths.items()},
+            "config_exists": {k: bool(v and v.exists()) for k, v in paths.items()},
             "projects_dir": str(self.projects_dir), "agent": self.agent,
             "agents": list(self.hub.config.agents) if self.hub else [],
         }
@@ -936,16 +937,21 @@ class UIApp:
             if cfg:
                 specs = {**cfg.providers, **specs}
             extra = [v.get("api_key_env") for v in specs.values() if v.get("api_key_env")]
-            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(os.environ.get(n) or ks.get(n))}
+            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(os.environ.get(n) or ks.get(n)),
+                            "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
                            for n in ks.names(extra)]
             out["secure_keys"] = ks.secure
             out["git"] = git_version()
             out["home"] = str(d["paths"].home)
             out["setup_done"] = bool(d["paths"].load_settings().get("setup_done"))
         else:
-            out["keys"] = [{"name": n, "label": n, "set": bool(os.environ.get(n))}
-                           for n in ("ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "RETRODIFFUSION_API_KEY",
-                                     "OPENAI_API_KEY", "GEMINI_API_KEY")]
+            from ..desktop import KNOWN_KEYS
+
+            cfg = self.cfg()
+            specs = dict(cfg.providers) if cfg else {}
+            out["keys"] = [{"name": n, "label": label, "set": bool(os.environ.get(n)),
+                            "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
+                           for n, label in KNOWN_KEYS.items()]
             out["secure_keys"] = False
             out["setup_done"] = True
         return out
@@ -1097,6 +1103,38 @@ class UIApp:
             models = [m.strip() for m in models.replace("\n", ",").split(",")]
         return set_role_models(cfg.path, body.get("role", ""), models, kind=body.get("kind"),
                                description=body.get("description"))
+
+    def features(self, q):
+        """Which routes this copy has, so the page asks only for what's there (no failed requests)."""
+        return {"routes": sorted({path for _, path in self.routes()} | {"/api/plugins", "/api/journal",
+                                                                         "/api/inbox", "/api/jobs"})}
+
+    # -- who does which job (Models): plain names, every set of models, changed from the app -----------
+    def routing_get(self, q):
+        from ..routing import view
+
+        cfg = self.need_cfg()
+        return {**view(cfg), "can_change": bool(cfg.path)}
+
+    def routing_post(self, body):
+        """{role, models: [ref, ...], set?: profile, effort?} or {default_set: profile}."""
+        from .. import routing
+
+        cfg = self.need_cfg()
+        if not cfg.path:
+            raise ApiError("Roundtable has no settings file to save this in. Run the setup again from Settings.")
+        try:
+            if "default_set" in body:
+                routing.set_default(cfg.path, str(body.get("default_set") or ""))
+            else:
+                role = str(body.get("role") or "")
+                if role not in cfg.roles:
+                    raise ApiError("That job isn't there any more. Refresh the page and try again.", 404)
+                routing.set_job(cfg.path, role, list(body.get("models") or []), str(body.get("set") or "") or None,
+                                effort=body.get("effort"))
+        except ValueError as e:
+            raise ApiError(f"Nothing was changed: {e}") from None
+        return self.routing_get({})
 
     # -- Roundtable main screen ----------------------------------------------------------------------
     def roundtable(self, q):
@@ -1337,6 +1375,9 @@ class UIApp:
             ("GET", "/api/providers"): R.providers,
             ("POST", "/api/providers"): R.providers_action,
             ("POST", "/api/assign"): R.assign,
+            ("GET", "/api/routing"): R.routing_get,
+            ("GET", "/api/features"): R.features,
+            ("POST", "/api/routing"): R.routing_post,
             ("POST", "/api/config"): R.config_save,
             ("POST", "/api/update"): R.update_run,
             ("GET", "/api/plan"): R.plan_get,
@@ -1385,7 +1426,8 @@ class UIApp:
 
 # -- HTTP layer ------------------------------------------------------------------------------------
 # the look's fonts and pictures: some Pythons (and Windows' registry) don't know these types
-for _ext, _type in ((".woff2", "font/woff2"), (".webp", "image/webp")):
+# (and .js: the page's scripts are modules, which browsers only run with a JavaScript type)
+for _ext, _type in ((".woff2", "font/woff2"), (".webp", "image/webp"), (".js", "text/javascript")):
     mimetypes.add_type(_type, _ext)
 def make_handler(app: UIApp, token: str | None, allow_remote: bool):
     static = resources.files("roundtable").joinpath("ui/static")
