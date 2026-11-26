@@ -547,3 +547,22 @@ def test_workers_may_write_throwaway_scripts_in_harness_scratch(tmp_path):
     assert ws.path(".harness/scratch/smoke.mjs") == (tmp_path / ".harness/scratch/smoke.mjs").resolve()
     with pytest.raises(ToolError):
         ws.path(".harness/project.json")
+
+
+def test_owner_can_accept_a_rejected_task_as_it_is(tmp_path):
+    from roundtable.harness.orchestrator import HarnessError
+
+    orch, *_ = make(tmp_path, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal")
+    orch.plan()
+    (orch.project.root / "hello.py").write_text("print('hi')\n")
+    tasks = orch.project.tasks()
+    tasks[0].status = "failed"
+    orch.project.save_tasks(tasks)
+    orch.accept("T1", "the checker said the work was fine")
+    t = orch.project.tasks()[0]
+    assert t.status == "done" and t.summary.startswith("Accepted by the owner: the checker")
+    log = subprocess.run(["git", "log", "--oneline"], cwd=orch.project.root, capture_output=True, text=True).stdout
+    assert "accepted by the owner" in log
+    with pytest.raises(HarnessError):
+        orch.accept("T1")

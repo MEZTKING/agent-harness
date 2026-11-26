@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 PREFIX = "roundtable:"
-LONG = {"revise", "approve", "run", "retry", "skip", "ask", "looks"}
+LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -71,6 +71,9 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         orch.approve()
         status = orch.run()
         return f"Approved and started. The run ended as: {status}."
+    if action == "accept":
+        orch.accept(kw.get("task", ""), kw.get("text", ""))
+        return f"{kw.get('task')} accepted as it is. The run ended as: {orch.run()}."
     if action in ("retry", "skip"):
         getattr(orch, action)(kw.get("task", ""))
         return f"{action} {kw.get('task')}: done. The run ended as: {orch.run()}."

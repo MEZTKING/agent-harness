@@ -1343,6 +1343,23 @@ class Orchestrator(LookStage, ReferenceStage):
                 return
         raise HarnessError(f"no task {task_id!r}")
 
+    def accept(self, task_id: str, note: str = "") -> None:
+        """The owner accepts a task's work as it is in the files (e.g. a reviewer rejected it for the wrong
+        reason): it's committed and counts as done."""
+        tasks = self.project.tasks()
+        t = next((x for x in tasks if x.id == task_id), None)
+        if not t:
+            raise HarnessError(f"no task {task_id!r}")
+        if t.status in ("done", "running"):
+            raise HarnessError(f"task {task_id} is {t.status}; only a failed or waiting task can be accepted")
+        t.status = "done"
+        t.summary = f"Accepted by the owner{': ' + note if note else ''}. " + (t.summary or "")
+        self.project.save_tasks(tasks)
+        self._git_commit(f"[{t.id}] {t.title} (accepted by the owner)")
+        self._journal("done", f"[{t.id}] {t.title} – accepted by the owner", details=note)
+        self._resolved(f"failed:{t.id}", note="accepted by the owner")
+        self.emit("accept", {"task": task_id, "note": note})
+
     def skip(self, task_id: str) -> None:
         tasks = self.project.tasks()
         for t in tasks:
