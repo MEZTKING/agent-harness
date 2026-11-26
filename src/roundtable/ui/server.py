@@ -514,6 +514,8 @@ class UIApp:
 
             return self.jobs.start("run", f"run {proj.root.name}", run, target=str(proj.root)).view()
         try:
+            if action == "profile":
+                return Orchestrator(cfg, proj.root).set_profile(str(body.get("name", "")))
             kw = {k: v for k, v in body.items() if k not in ("path", "action")}
             return Orchestrator(cfg, proj.root).plan_update(action, **kw)
         except HarnessError as e:

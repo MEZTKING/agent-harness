@@ -24,6 +24,19 @@ function toast(text, err = false) {
   document.getElementById("toasts").append(t);
   setTimeout(() => t.remove(), err ? 7000 : 3500);
 }
+// Budget / balanced / quality: which set of models the project uses, with each one's estimate.
+function profilePicker(doc, edit) {
+  const ests = doc.estimates || {};
+  const names = Object.keys(ests);
+  if (!names.length) return null;
+  return h("div", { class: "row plan-profiles", title: "Which models do the work. You can change it any time; it applies to the tasks still to do." },
+    h("span", { class: "muted small" }, "Setting"),
+    names.map((n) => h("button", {
+      class: n === doc.profile ? "primary" : "",
+      onclick: () => n !== doc.profile && edit({ action: "profile", name: n }, `This project now uses the ${n} setting`),
+    }, `${n[0].toUpperCase()}${n.slice(1)} · about ${money(ests[n].cost_usd || 0)}`)));
+}
+
 async function api(method, path, body) {
   const opts = { method, headers: {} };
   if (method !== "GET") {
@@ -529,6 +542,7 @@ async function viewPlan(path) {
       h("span", { class: "pill" }, `about ${Math.round(est.minutes || 0)} min`),
       h("span", { class: "pill" }, `${est.tasks || 0} task(s) to do`),
       h("span", { class: "muted small", title: est.note || "" }, "estimate")),
+    profilePicker(doc, edit),
     busy,
     h("div", { class: "row", style: "margin-top:10px" }, instr),
     h("div", { class: "row" },

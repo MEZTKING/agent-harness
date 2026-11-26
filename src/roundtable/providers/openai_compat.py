@@ -74,6 +74,19 @@ def list_openai_models(openai, client, provider_id: str) -> list[str]:
     return _wrap_errors(openai, provider_id, "-", None, lambda: sorted(m.id for m in client.models.list()))
 
 
+def _reported_cost(u) -> float | None:
+    """The charge a service put in its usage block (OpenRouter's usage.cost), if any."""
+    if u is None:
+        return None
+    cost = getattr(u, "cost", None)
+    if cost is None:
+        cost = (getattr(u, "model_extra", None) or {}).get("cost")
+    try:
+        return float(cost) if cost is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _said(e) -> str:
     """What the service itself said: its error message when the body has one, else the client's summary."""
     body = getattr(e, "body", None)
@@ -118,6 +131,8 @@ class OpenAICompatProvider(Provider):
     ):
         self.name = provider_id
         self.api_key_env = api_key_env
+        # OpenRouter tells the exact charge of each call when asked (usage.include)
+        self.reports_cost = "openrouter.ai" in (base_url or "")
         self._openai, self.client = _client(api_key_env, base_url, timeout, **client_opts)
 
     def list_models(self) -> list[str]:
@@ -140,6 +155,8 @@ class OpenAICompatProvider(Provider):
                 params[key] = options[key]
         if options.get("extra_body"):
             params["extra_body"] = options["extra_body"]
+        if self.reports_cost:
+            params["extra_body"] = {**params.get("extra_body", {}), "usage": {"include": True}}
 
         resp = _wrap_errors(
             self._openai, self.name, model, self.api_key_env, lambda: self.client.chat.completions.create(**params)
@@ -169,6 +186,7 @@ class OpenAICompatProvider(Provider):
             input_tokens=(u.prompt_tokens or 0) - cached if u else 0,
             output_tokens=(u.completion_tokens or 0) if u else 0,
             cache_read_tokens=cached,
+            cost_usd=_reported_cost(u) if self.reports_cost else None,
         )
         native = msg.model_dump(exclude_none=True)
         native.pop("refusal", None)

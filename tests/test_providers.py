@@ -169,3 +169,20 @@ def test_service_error_message_is_kept():
 
     assert _said(E()) == "This model is billed from your credit balance."
     assert _said(F()) == "Error code: 500"
+
+
+def test_openrouter_balance_and_reported_cost():
+    from roundtable.providers.balance import balance_url, parse
+    from roundtable.providers.openai_compat import _reported_cost
+
+    assert balance_url({"base_url": "https://openrouter.ai/api/v1"}) == "https://openrouter.ai/api/v1/credits"
+    assert parse({"data": {"total_credits": 10, "total_usage": 2.5}}) == {"amount": 7.5, "currency": "USD"}
+
+    class U:
+        cost = 0.00026
+        model_extra = {}
+
+    class V:
+        model_extra = {"cost": "0.01"}
+
+    assert _reported_cost(U()) == 0.00026 and _reported_cost(V()) == 0.01 and _reported_cost(None) is None

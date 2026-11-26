@@ -190,13 +190,35 @@ def history_by_role(metric_files: list[Path]) -> dict[str, dict[str, float]]:
         tasks = {(r.get("task"), str(r.get("at", ""))[:10]) for r in rs}
         n = max(1, len(tasks))
         priced = [r for r in rs if r.get("cost_usd")]
+        models = [r.get("model") for r in rs if r.get("model")]
         out[role] = {
             "cost": sum(r.get("cost_usd") or 0 for r in priced) / n if priced else None,
             "minutes": sum(r.get("seconds") or 0 for r in rs) / 60 / n,
             "attempts": len(rs) / n,
             "samples": len(rs),
+            # what that cost bought, so another model's price can be put on the same work
+            "model": max(set(models), key=models.count) if models else None,
+            "input": sum(r.get("input_tokens") or 0 for r in rs) / n,
+            "output": sum(r.get("output_tokens") or 0 for r in rs) / n,
         }
     return out
+
+
+def _reprice(cfg, cost, h: dict[str, Any], model) -> float | None:
+    """Past cost of a role's work, at today's model's price (the same work: the same tokens)."""
+    from .config import ModelRef
+    from ..providers.base import Usage
+
+    if cost is None or not h.get("model") or h["model"] == str(model):
+        return cost
+    try:
+        then = cfg.cost(ModelRef.parse(h["model"]), Usage(int(h["input"]), int(h["output"])))
+        now = cfg.cost(model, Usage(int(h["input"]), int(h["output"])))
+    except ValueError:
+        return cost
+    if not then or now is None:
+        return cost
+    return cost * now / then
 
 
 def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:
@@ -215,6 +237,7 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None) -> 
         h = history.get(t.role)
         if h and h.get("samples", 0) >= 3:
             cost, mins, basis = h["cost"], h["minutes"] + (REVIEW_MINUTES if role.review and reviewer else 0), "history"
+            cost = _reprice(cfg, cost, h, role.models[0])
         else:
             basis = "default"
             mins = DEFAULT_MINUTES.get(role.kind, 4.0)
@@ -281,6 +304,12 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
     if est:
         L += [f"Estimate: about ${est.get('cost_usd', 0):.2f}, about {round(est.get('minutes', 0))} minutes"
               + (f" (not counting {', '.join(est['unpriced'])})" if est.get("unpriced") else ""), ""]
+    if doc.get("estimates"):
+        current = doc.get("profile")
+        L += ["Settings: " + "; ".join(
+            f"{name}{' (chosen)' if name == current else ''} about ${e.get('cost_usd') or 0:.2f}"
+            + (f", not counting {len(e['unpriced'])} unpriced" if e.get("unpriced") else "")
+            for name, e in doc["estimates"].items()), ""]
     for title, key in (("In scope", "in_scope"), ("Out of scope", "out_of_scope")):
         if doc.get(key):
             L += [f"## {title}"] + [f"- {x}" for x in doc[key]] + [""]

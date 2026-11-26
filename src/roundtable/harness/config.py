@@ -100,9 +100,29 @@ class HarnessConfig:
     lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
     improve: dict[str, Any] = field(default_factory=dict)
     remote: dict[str, Any] = field(default_factory=dict)  # commands through the hub: {enabled, owners}
+    # named sets of models per role ("budget", "balanced", "quality"); a project picks one
+    profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
+    default_profile: str | None = None
     # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
     prompt_overrides: dict[str, str] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    def _listed_price(self, ref: ModelRef) -> dict[str, float] | None:
+        """A price the provider publishes itself (OpenRouter's model list), when none is configured."""
+        spec = self.providers.get(ref.provider) or {}
+        if "openrouter.ai" not in str(spec.get("base_url") or ""):
+            return None
+        from ..providers.prices import openrouter_price
+
+        return openrouter_price(ref.model)
+
+    def for_profile(self, name: str | None) -> "HarnessConfig":
+        """This config with a profile's models laid over the roles (unknown or empty name: unchanged)."""
+        if not name or name not in self.profiles:
+            return self
+        c = self.variant()
+        apply_overlay(c, self.profiles[name])
+        return c
 
     def variant(self) -> "HarnessConfig":
         """Independent copy of roles/prompts/limits that shares provider clients."""
@@ -213,7 +233,8 @@ class HarnessConfig:
     def cost(self, ref: ModelRef, usage) -> float | None:
         if getattr(usage, "cost_usd", None) is not None:
             return usage.cost_usd  # provider reported the exact charge
-        price = self.pricing.get(str(ref)) or self.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model)
+        price = (self.pricing.get(str(ref)) or self.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model)
+                 or self._listed_price(ref))
         if not price:
             return None
         return (
@@ -340,6 +361,11 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     if look_stage not in ("auto", "off"):
         raise ValueError("look_stage must be 'auto' or 'off'")
 
+    profiles = _profiles(raw, providers, roles)
+    default_profile = raw.get("default_profile")
+    if default_profile and default_profile not in profiles:
+        raise ValueError(f"default_profile {default_profile!r} isn't one of the profiles: {', '.join(profiles) or 'none'}")
+
     lim = raw.get("limits") or {}
     base = path.parent if path else Path.cwd()
     prompts_dir = raw.get("prompts_dir")
@@ -369,7 +395,27 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         lab_dir=_lab_dir(raw, base, path),
         improve=dict(raw.get("improve") or {}),
         remote=dict(raw.get("remote") or {}),
+        profiles=profiles,
+        default_profile=default_profile,
     )
+
+
+def _profiles(raw: dict[str, Any], providers: dict[str, Any], roles: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """profiles: {name: {description, roles: {role: {model, fallback}}}}, checked against roles and providers."""
+    out = {}
+    for name, spec in (raw.get("profiles") or {}).items():
+        spec = spec or {}
+        for role, r in (spec.get("roles") or {}).items():
+            if role not in roles:
+                raise ValueError(f"profile {name!r}: no role {role!r} in roles")
+            for m in [r.get("model")] + list(r.get("fallback") or []):
+                if not m:
+                    raise ValueError(f"profile {name!r}: role {role!r} needs a model")
+                ref = ModelRef.parse(m)
+                if providers and ref.provider not in providers:
+                    raise ValueError(f"profile {name!r}: unknown provider {ref.provider!r} in {m!r}")
+        out[str(name)] = {"description": str(spec.get("description", "")), "roles": dict(spec.get("roles") or {})}
+    return out
 
 
 def _lab_dir(raw: dict[str, Any], base: Path, path: Path | None) -> Path | None:

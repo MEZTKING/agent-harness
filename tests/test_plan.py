@@ -299,3 +299,48 @@ def test_settled_items_stay_and_turned_down_ideas_dont_come_back():
     assert new["decisions"][0]["chosen"] == "b" and new["questions"][0]["answer"] == "Crumbs & Co"
     ctx = plandoc.context_text(new)
     assert "doesn't want: Add a waveform" in ctx and "owner's choice" in ctx
+
+
+def test_profiles_change_the_models_and_show_each_estimate(tmp_path):
+    from roundtable.harness.config import parse_config
+    from roundtable.harness.orchestrator import Orchestrator
+    from roundtable.providers.scripted import ScriptedProvider
+
+    raw = {
+        "providers": {"a": {"type": "scripted"}, "b": {"type": "scripted"}},
+        "roles": {"orchestrator": {"model": "a/planner"}, "coder": {"model": "a/cheap"}},
+        "pricing": {"a/planner": {"input": 1, "output": 1}, "a/cheap": {"input": 1, "output": 1},
+                    "b/strong": {"input": 20, "output": 20}},
+        "profiles": {"budget": {"roles": {"coder": {"model": "a/cheap"}}},
+                     "quality": {"description": "best", "roles": {"coder": {"model": "b/strong", "fallback": ["a/cheap"]}}}},
+        "default_profile": "budget",
+    }
+    cfg = parse_config(raw)
+    brain = Brain(plan=[PLAN[0]])
+    cfg.register("a", ScriptedProvider("a", brain))
+    cfg.register("b", ScriptedProvider("b", brain))
+    orch = Orchestrator(cfg, tmp_path / "p")
+    orch.start("goal")
+    orch.plan()
+    assert orch.profile() == "budget" and str(orch.cfg.roles["coder"].models[0]) == "a/cheap"
+    doc = orch.project.plan_doc()
+    assert doc["estimates"]["quality"]["cost_usd"] > doc["estimates"]["budget"]["cost_usd"] * 10
+    assert "Settings: budget (chosen)" in plandoc.render_markdown(doc)
+    orch.set_profile("quality")
+    again = Orchestrator(cfg, tmp_path / "p")
+    assert again.profile() == "quality" and [str(m) for m in again.cfg.roles["coder"].models] == ["b/strong", "a/cheap"]
+    assert str(cfg.roles["coder"].models[0]) == "a/cheap"  # the base config is untouched
+    with pytest.raises(HarnessError):
+        orch.set_profile("nope")
+    with pytest.raises(ValueError):
+        parse_config({**raw, "profiles": {"x": {"roles": {"coder": {"model": "zz/m"}}}}})
+
+
+def test_past_work_is_repriced_for_another_model():
+    from roundtable.harness.config import ModelRef, parse_config
+
+    cfg = parse_config({"providers": {"a": {"type": "scripted"}}, "roles": {"orchestrator": {"model": "a/x"}},
+                        "pricing": {"a/x": {"input": 1, "output": 1}, "a/y": {"input": 3, "output": 3}}})
+    h = {"model": "a/x", "input": 1000, "output": 1000, "cost": 0.5}
+    assert plandoc._reprice(cfg, 0.5, h, ModelRef.parse("a/y")) == pytest.approx(1.5)
+    assert plandoc._reprice(cfg, 0.5, h, ModelRef.parse("a/x")) == 0.5

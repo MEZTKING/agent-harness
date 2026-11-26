@@ -395,6 +395,20 @@ request, and an agent makes one per step); turn on ZDR mode for the key if you w
 keep your prompts. Openference shows no balance through its API, so `roundtable balance` can't
 check its real cost yet.
 
+### Budget, Balanced, Quality
+
+A project can switch between named sets of models (`profiles:` in `harness.yaml`). The plan shows
+what each would cost, and you switch on the plan page, from the phone (`profile` command) or with
+`roundtable` in a script. Only the tasks still to do use the new setting.
+
+- **Budget:** open models (DeepSeek, GLM, GPT-6 Luna) for everything.
+- **Balanced** (the default): Claude plans and designs, other makers check, DeepSeek codes.
+- **Quality:** Claude Opus plans and designs, Claude Sonnet codes, GPT checks, all through
+  OpenRouter. It costs roughly ten to twenty times as much as Balanced for the coding.
+
+OpenRouter models need no `pricing:` lines: Roundtable reads OpenRouter's published prices, the exact
+cost of every call, and the account balance (`roundtable balance`).
+
 ### Adding any provider
 
 **In the app:** Settings → **AI providers** → pick one → paste the key → **Add provider**. It's tested right away, and **Models** lists everything that provider offers. Then use **Which model does what** to give any role any model, with fallbacks.

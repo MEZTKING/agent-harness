@@ -75,6 +75,10 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         return f"{action} {kw.get('task')}: done. The run ended as: {orch.run()}."
     if action == "run":
         return f"The run ended as: {orch.run()}."
+    if action == "profile":
+        r = orch.set_profile(str(kw.get("name", "")))
+        costs = ", ".join(f"{n} about ${e.get('cost_usd') or 0:.2f}" for n, e in r["estimates"].items())
+        return f"This project now uses the {r['profile']} setting. Estimates: {costs}."
     if action == "steer":
         return orch.steer(kw.get("text", ""))["reply"]
     if action == "ask":

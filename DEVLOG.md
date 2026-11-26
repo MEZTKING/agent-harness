@@ -4,6 +4,30 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – OpenRouter, and the Budget / Balanced / Quality settings
+
+The owner plans games from bought Fab assets and asked: OpenRouter or Openference, and
+"maybe both: one for budget and one for non-budget". They added an OpenRouter key (saved
+through the credential form; a $100 limit on the key).
+
+- `harness/config.py`: `profiles:` (named role overlays, checked against roles and
+  providers) and `default_profile`; `HarnessConfig.for_profile`; `_listed_price` reads
+  OpenRouter's published prices (`providers/prices.py`, kept a day) for models with no
+  `pricing:` line.
+- `orchestrator.py`: `profile()`, `set_profile()`, `profile_estimates()`; the plan document
+  keeps `estimates` per setting and `profile`; `remote.py` action `profile`; the desktop
+  plan page's setting buttons (`profilePicker` in `app.js`, `plan_post`).
+- `plandoc._reprice`: past work is priced at today's model (same tokens, another price), so
+  each setting's estimate differs; `history_by_role` keeps the model and the tokens.
+- `providers/openai_compat.py`: OpenRouter's exact cost per call (`usage.include`,
+  `_reported_cost`); `providers/balance.py`: OpenRouter's credits as a balance.
+- The lab: Budget, Balanced (default) and Quality; the music player's remaining 8 tasks
+  are estimated at about $1.21 on Budget or Balanced and about $33 on Quality (rough:
+  Sonnet would likely need fewer steps).
+- Tests: profiles, repricing, OpenRouter balance and cost; 147 pass.
+- Open: the phone's setting picker; routing by how hard a task is (simple parts on
+  DeepSeek even in Quality).
+
 ## 2026-11-26 – The recommended split: Openference plus DeepSeek
 
 The owner's second Openference key reaches 51 models; they asked for the split: Claude

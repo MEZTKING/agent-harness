@@ -166,8 +166,9 @@ class Orchestrator(LookStage):
         project_dir: str | Path,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ):
-        self.cfg = cfg
+        self.base_cfg = cfg
         self.project = Project(project_dir)
+        self.cfg = cfg.for_profile(self.profile())
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
         self._listener = on_event
         meta = self.project.meta()
@@ -539,6 +540,41 @@ class Orchestrator(LookStage):
             raise HarnessError(f"planner did not produce a valid plan ({'; '.join(last_error[-1:]) or result.stop})")
         return captured["tasks"], captured["args"]
 
+    # -- profiles: budget / balanced / quality ---------------------------------------
+    def profile(self) -> str | None:
+        """The project's chosen set of models, else the config's default (None: the roles as written)."""
+        chosen = self.project.meta().get("profile") if self.project.exists else None
+        return chosen if chosen in self.base_cfg.profiles else self.base_cfg.default_profile
+
+    def set_profile(self, name: str) -> dict[str, Any]:
+        if name not in self.base_cfg.profiles:
+            raise HarnessError(f"no profile {name!r}; choose from {', '.join(self.base_cfg.profiles) or 'none set up'}")
+        meta = self.project.meta()
+        meta["profile"] = name
+        self.project.save_meta(meta)
+        self.cfg = self.base_cfg.for_profile(name)
+        doc = self.project.plan_doc()
+        if doc:
+            doc["profile"] = name
+            doc["estimate"] = self._estimate(self.project.tasks())
+            doc["estimates"] = self.profile_estimates()
+            self.project.save_plan_doc(doc)
+            self._publish_plan()
+        self.emit("profile", {"profile": name})
+        return {"profile": name, "estimates": self.profile_estimates()}
+
+    def profile_estimates(self) -> dict[str, dict[str, Any]]:
+        """The plan's estimate under every profile, so the owner sees what each would cost."""
+        out, keep = {}, self.cfg
+        try:
+            for name in self.base_cfg.profiles:
+                self.cfg = self.base_cfg.for_profile(name)
+                e = self._estimate(self.project.tasks())
+                out[name] = {"cost_usd": e.get("cost_usd"), "minutes": e.get("minutes"), "unpriced": e.get("unpriced", [])}
+        finally:
+            self.cfg = keep
+        return out
+
     def _estimate(self, tasks: list[Task]) -> dict[str, Any]:
         files = [self.project.dir / "metrics.jsonl"]
         if self.cfg.lab_dir:
@@ -575,6 +611,9 @@ class Orchestrator(LookStage):
         self.project.save_tasks(tasks)
         doc = plandoc.doc_from_submission(args, goal, goal_index)
         doc["estimate"] = self._estimate(new)
+        if self.base_cfg.profiles:
+            doc["estimates"] = self.profile_estimates()
+            doc["profile"] = self.profile()
         self.project.save_plan_doc(doc, tasks)
         self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": doc["summary"][:500]})
         self._critique()
@@ -700,6 +739,9 @@ class Orchestrator(LookStage):
         all_tasks = keep + new
         self.project.save_tasks(all_tasks)
         new_doc["estimate"] = self._estimate(new)
+        if self.base_cfg.profiles:
+            new_doc["estimates"] = self.profile_estimates()
+            new_doc["profile"] = self.profile()
         self.project.save_plan_doc(new_doc, all_tasks)
         self.emit("plan_revised", {"version": new_doc["version"], "by": by, **diff})
         if by != "critic":  # the first plan publishes after its critique

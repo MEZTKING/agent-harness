@@ -13,7 +13,7 @@ import urllib.request
 from typing import Any
 
 # provider base URL host -> path of its balance endpoint and how to read it
-_KNOWN = {"api.deepseek.com": "/user/balance"}
+_KNOWN = {"api.deepseek.com": "/user/balance", "openrouter.ai": "/api/v1/credits"}
 
 
 def balance_url(spec: dict[str, Any]) -> str | None:
@@ -42,6 +42,12 @@ def read_balance(spec: dict[str, Any], timeout: float = 10.0) -> dict[str, Any] 
 
 
 def parse(data: dict[str, Any]) -> dict[str, Any] | None:
+    d = data.get("data") if isinstance(data.get("data"), dict) else None
+    if d and "total_credits" in d:  # OpenRouter: credits bought minus credits used
+        try:
+            return {"amount": float(d["total_credits"]) - float(d.get("total_usage") or 0), "currency": "USD"}
+        except (TypeError, ValueError):
+            return None
     infos = data.get("balance_infos") or []
     usd = next((b for b in infos if b.get("currency") == "USD"), infos[0] if infos else None)
     if not usd:
