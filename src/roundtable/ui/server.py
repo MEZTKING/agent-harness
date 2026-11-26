@@ -494,6 +494,17 @@ class UIApp:
                 "tasks": [asdict(t) for t in tasks if t.goal_index == gi],
                 "open": plandoc.open_items(doc), "line": plandoc.summary_line(doc) if doc else ""}
 
+    def start_run_job(self, cfg, root, why: str = ""):
+        """Start a project's run as a background job (used when a waiting run's time comes)."""
+        root = Path(root)
+        if any(j.target == str(root) and j.status == "running" for j in self.jobs.jobs.values()):
+            return None
+
+        def run(job: Job):
+            return {"status": self._orch(cfg, root, job).run()}
+
+        return self.jobs.start("run", f"run {root.name}" + (f" ({why})" if why else ""), run, target=str(root))
+
     def plan_post(self, body):
         from ..harness.orchestrator import HarnessError, Orchestrator
 

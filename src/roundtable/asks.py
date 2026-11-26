@@ -93,7 +93,11 @@ def _plan_asks(orch, doc: dict[str, Any], meta: dict[str, Any]) -> list[dict[str
         asks.append(_answered(profile_ask(orch.base_cfg, doc), [meta["profile"]] if meta.get("profile") else None))
     asks += [_idea_ask(i) for i in doc.get("ideas", []) if i.get("state") in ("open", "accepted", "rejected")]
     if meta.get("status") == "awaiting_approval":
-        asks.append(_approve_ask(doc))
+        try:
+            at = orch.cheap_start_at()
+        except Exception:  # a price question must never hide the approve card
+            at = None
+        asks.append(_approve_ask(doc, at.strftime("%H:%M") if at else None))
     return asks
 
 
@@ -166,7 +170,7 @@ def profile_ask(cfg, doc: dict[str, Any] | None = None) -> dict[str, Any]:
                 source={"profiles": list(cfg.profiles)})
 
 
-def _approve_ask(doc: dict[str, Any]) -> dict[str, Any]:
+def _approve_ask(doc: dict[str, Any], cheap_at: str | None = None) -> dict[str, Any]:
     pending = len(doc.get("pending") or [])
     est = doc.get("estimate") or {}
     cost = f"About {_money(est.get('cost_usd'))}, about {round(est.get('minutes') or 0)} minutes."
@@ -177,8 +181,11 @@ def _approve_ask(doc: dict[str, Any]) -> dict[str, Any]:
         return _ask("approve", "approve", "Plan", f"Update the plan with your {pending} change{'s' * (pending > 1)}?",
                     opts, recommended="revise", other_hint="Anything else to change? Say it here",
                     source={"pending": pending, "version": doc.get("version")})
-    opts = [{"id": "approve", "label": "Approve and start", "description": f"Builds it now. {cost}"},
-            {"id": "not_now", "label": "Not now", "description": "Keep the plan; nothing is built yet."}]
+    opts = [{"id": "approve", "label": "Approve and start", "description": f"Builds it now. {cost}"}]
+    if cheap_at:  # a provider doing the work is half price later today
+        opts.append({"id": "approve_cheap", "label": f"Approve, start at {cheap_at} UTC",
+                     "description": "Waits for off-peak hours, when DeepSeek charges half. The desktop app starts it then."})
+    opts.append({"id": "not_now", "label": "Not now", "description": "Keep the plan; nothing is built yet."})
     return _ask("approve", "approve", "Plan", "Is the plan right? Start building?", opts, recommended="approve",
                 other_hint="Change something… (say what)", source={"version": doc.get("version")})
 
@@ -352,6 +359,10 @@ def _apply_approve(orch, ask, picked, other):
             orch.plan_update("note", text=other)
         return {"reply": "Updating the plan with your changes…", "then": "revise"}
     orch.approve()
+    if picked == ["approve_cheap"]:
+        at = orch.start_when_cheap()
+        if at:
+            return {"reply": f"Approved: it starts at {at} UTC, when it's half price.", "then": None}
     return {"reply": "Approved: building has started.", "then": "run"}
 
 

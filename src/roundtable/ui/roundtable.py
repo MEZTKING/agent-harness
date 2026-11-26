@@ -277,6 +277,7 @@ class AutoSync:
 
     def tick(self) -> None:
         self.daily_backup()
+        self.start_cheap_runs()
         if not self.app.hub:
             return
         try:
@@ -292,6 +293,19 @@ class AutoSync:
         except Exception as e:  # offline etc.: keep the app working on its local copy
             self.app.auto_sync_error = str(e)[:300]
         time.sleep(0)
+
+    def start_cheap_runs(self) -> None:
+        """Projects approved to start when it's cheaper (off-peak) are started once their time comes."""
+        try:
+            cfg = self.app.cfg()
+            if not cfg or not cfg.lab_dir:
+                return
+            from ..harness.orchestrator import due_cheap_runs
+
+            for root in due_cheap_runs(cfg):
+                self.app.start_run_job(cfg, root, why="its off-peak time came")
+        except Exception as e:  # never let the tick fail
+            self.app.auto_sync_error = f"couldn't start a waiting run: {e}"[:300]
 
     def daily_backup(self) -> None:
         """Once a day while the desktop app is open, never while a project job runs."""

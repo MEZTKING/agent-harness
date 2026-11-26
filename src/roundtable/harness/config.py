@@ -7,6 +7,7 @@ adding a provider or changing a role is a config edit, not a code change.
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timedelta, timezone
 import os
 from dataclasses import dataclass, field, replace
 from importlib import resources
@@ -19,11 +20,43 @@ from ..providers.base import ImageProvider, Provider, ProviderError
 from .saver import SaverConfig
 
 # Anthropic list prices (USD per 1M tokens). Anything else: set `pricing:` in harness.yaml.
-DEFAULT_PRICING: dict[str, dict[str, float]] = {
+# DeepSeek's peak hours (UTC) since August 2026, as reported; outside them prices are halved (verify)
+DEEPSEEK_PEAK = ["01:00-04:00", "06:00-10:00"]
+
+
+def in_peak(windows: list[str], now: datetime | None = None) -> bool:
+    """True when `now` (UTC) falls in one of the "HH:MM-HH:MM" windows."""
+    t = (now or datetime.now(timezone.utc)).strftime("%H:%M")
+    return any(a <= t < b for a, b in (w.split("-") for w in windows or []))
+
+
+def next_offpeak(windows: list[str], now: datetime | None = None) -> datetime:
+    """The next moment outside every peak window (now, if already off-peak)."""
+    t = (now or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
+    for _ in range(24 * 60):
+        if not in_peak(windows, t):
+            return t
+        t += timedelta(minutes=1)
+    return t
+
+
+def price_now(price: dict, now: datetime | None = None) -> dict:
+    """A price with off-peak rates applied when the provider has them and it's off-peak now."""
+    if price.get("offpeak") and price.get("peak_utc") and not in_peak(price["peak_utc"], now):
+        return {**price, **price["offpeak"]}
+    return price
+
+
+DEFAULT_PRICING: dict[str, dict] = {
     "claude-fable-5-2": {"input": 8.0, "output": 40.0, "cache_read": 0.20},
     "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
     "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
+    # DeepSeek direct (official page, checked 26 November 2026): half price outside its peak hours
+    "deepseek-flash": {"input": 0.44, "output": 1.32, "cache_read": 0.014,
+                       "offpeak": {"input": 0.22, "output": 0.66, "cache_read": 0.007}, "peak_utc": DEEPSEEK_PEAK},
+    "deepseek-v4-flash": {"input": 0.44, "output": 1.32, "cache_read": 0.014,
+                          "offpeak": {"input": 0.22, "output": 0.66, "cache_read": 0.007}, "peak_utc": DEEPSEEK_PEAK},
     # Openference's names for some of its models (its prices, checked 26 November 2026)
     "DeepSeek-V4.1-Flash-1017": {"input": 0.30, "output": 1.20, "cache_read": 0.01},
     "DeepSeek-V4-Pro": {"input": 1.32, "output": 3.96, "cache_read": 0.13},
@@ -257,6 +290,7 @@ class HarnessConfig:
                  or self._listed_price(ref))
         if not price:
             return None
+        price = price_now(price)
         return (
             usage.input_tokens * price.get("input", 0)
             + usage.output_tokens * price.get("output", 0)

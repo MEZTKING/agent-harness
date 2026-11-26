@@ -14,6 +14,7 @@ failure, Ctrl-C) and resume exactly where it left off:
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 import os
 import subprocess
 import time
@@ -118,6 +119,19 @@ class Project:
             return 0
         rows = (json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip())
         return sum(int(r.get("saved_tokens_est") or 0) for r in rows)
+
+
+def due_cheap_runs(cfg) -> list[Path]:
+    """Lab projects that were approved to start when it's cheaper and whose time has come."""
+    from ..remote import project_dirs
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out = []
+    for root in project_dirs(cfg):
+        meta = Project(root).meta()
+        if meta.get("status") == "waiting_cheap" and (meta.get("start_after") or "") <= now:
+            out.append(root)
+    return out
 
 
 def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Task]) -> list[Task]:
@@ -578,6 +592,38 @@ class Orchestrator(LookStage, ReferenceStage):
         if "tasks" not in captured:
             raise HarnessError(f"planner did not produce a valid plan ({'; '.join(last_error[-1:]) or result.stop})")
         return captured["tasks"], captured["args"]
+
+    # -- running when it's cheaper (providers with off-peak prices, e.g. DeepSeek) -------
+    def cheap_start_at(self) -> datetime | None:
+        """When the run would be cheaper: the next off-peak moment for the models doing the tasks,
+        or None when it's already off-peak or none of them has off-peak prices."""
+        from .config import DEFAULT_PRICING, next_offpeak
+
+        windows: list[str] = []
+        for t in self.project.tasks():
+            role = self.cfg.roles.get(t.role)
+            if t.status != "pending" or not role:
+                continue
+            for ref in role.models[:1] + ([self.cfg.roles[self.cfg.reviewer_role].models[0]]
+                                          if self.cfg.reviewer_role in self.cfg.roles else []):
+                price = self.cfg.pricing.get(str(ref)) or self.cfg.pricing.get(ref.model) or DEFAULT_PRICING.get(ref.model) or {}
+                windows += [w for w in price.get("peak_utc", []) if w not in windows]
+        if not windows:
+            return None
+        now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        at = next_offpeak(windows, now)
+        return at if at > now else None
+
+    def start_when_cheap(self) -> str | None:
+        """Approve the plan to start at the next off-peak moment; returns that time (UTC, HH:MM) or None."""
+        at = self.cheap_start_at()
+        meta = self.project.meta()
+        meta["start_after"] = at.strftime("%Y-%m-%dT%H:%M:%SZ") if at else None
+        self.project.save_meta(meta)
+        if at:
+            self._set_status("waiting_cheap")
+            self.emit("waiting_cheap", {"start_after": meta["start_after"]})
+        return at.strftime("%H:%M") if at else None
 
     # -- profiles: budget / balanced / quality ---------------------------------------
     def profile(self) -> str | None:
@@ -1246,6 +1292,12 @@ class Orchestrator(LookStage, ReferenceStage):
         if not self.project.exists:
             raise HarnessError("no project here; use `roundtable new`")
         meta = self.project.meta()
+        after = meta.get("start_after")
+        if after and after > datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"):
+            return "waiting_cheap"  # approved to start when it's cheaper; the desktop app starts it then
+        if after:
+            meta["start_after"] = None
+            self.project.save_meta(meta)
         self._register_with_lab()
         try:
             if meta.get("status") == "planning":

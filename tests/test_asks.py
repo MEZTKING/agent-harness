@@ -10,7 +10,7 @@ from roundtable.harness import plandoc
 from roundtable.harness.orchestrator import HarnessError, Orchestrator
 from roundtable.providers.scripted import reply
 
-from .test_harness import RAW, Brain, make, tool_names
+from .test_harness import PLAN, RAW, Brain, make, tool_names
 from .test_look import direction
 from .test_plan import DOC, PlanBrain
 
@@ -342,3 +342,21 @@ def test_the_hub_gets_the_cards_next_to_the_plan(tmp_path):
     orch = planned(tmp_path, raw=raw)
     data = json.loads((tmp_path / "hubdata/plans/backend--proj.asks.json").read_text())
     assert data["project"] == "proj" and data["asks"][0]["id"] == "choose:C1"
+
+
+def test_approve_can_wait_for_the_cheaper_hours(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    from roundtable import asks as asks_mod
+    from roundtable.harness import orchestrator as orch_mod
+
+    orch, *_ = make(tmp_path, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal", require_approval=True)
+    orch.plan()
+    later = datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(orch_mod.Orchestrator, "cheap_start_at", lambda self: later)
+    card = next(a for a in asks_mod.open_asks(orch) if a["kind"] == "approve")
+    assert any(o["id"] == "approve_cheap" and "10:00" in o["label"] for o in card["options"])
+    r = asks_mod.answer_ask(orch, card["id"], ["approve_cheap"], "")
+    assert "10:00 UTC" in r["reply"] and orch.project.meta()["status"] == "waiting_cheap"
+    assert orch.run() == "waiting_cheap"  # not before its time

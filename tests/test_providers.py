@@ -224,3 +224,17 @@ def test_openrouter_asks_for_the_cheapest_route_unless_told_otherwise():
         assert (sent or {}).get("sort") == want and p.last_route == "Wafer"
     plain = OpenAICompatProvider("deepseek", api_key_env=None, base_url="https://api.deepseek.com")
     assert plain.routing is None
+
+
+def test_deepseek_is_half_price_off_peak():
+    from datetime import datetime, timezone
+
+    from roundtable.harness.config import DEEPSEEK_PEAK, in_peak, next_offpeak, price_now
+
+    p = {"input": 0.44, "output": 1.32, "offpeak": {"input": 0.22, "output": 0.66}, "peak_utc": DEEPSEEK_PEAK}
+    peak = datetime(2026, 11, 26, 7, 30, tzinfo=timezone.utc)
+    quiet = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
+    assert in_peak(DEEPSEEK_PEAK, peak) and not in_peak(DEEPSEEK_PEAK, quiet)
+    assert price_now(p, peak)["input"] == 0.44 and price_now(p, quiet)["input"] == 0.22
+    assert next_offpeak(DEEPSEEK_PEAK, peak).strftime("%H:%M") == "10:00"
+    assert next_offpeak(DEEPSEEK_PEAK, quiet) == quiet

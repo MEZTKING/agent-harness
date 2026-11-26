@@ -4,6 +4,25 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Cheaper everywhere: DeepSeek off-peak, and start when it's cheaper
+
+The owner: "Make them all cheaper while keeping the quality."
+
+- DeepSeek charges half outside its peak hours (reported: 01:00–04:00 and 06:00–10:00 UTC, since
+  August 2026). `harness/config.py`: prices may carry `offpeak` rates and `peak_utc` windows
+  (`DEEPSEEK_PEAK`, `in_peak`, `next_offpeak`, `price_now`); `DEFAULT_PRICING` has DeepSeek's
+  current official prices (V4-Flash: $0.44 / $1.32, cache $0.014; half off-peak) for
+  `deepseek-flash` (V4.1-Flash, DeepSeek's newest cheap model, in its model list) and
+  `deepseek-v4-flash`.
+- `Orchestrator.cheap_start_at` / `start_when_cheap`; `run()` waits while `start_after` is in the
+  future ("waiting_cheap"); `due_cheap_runs` and `AutoSync.start_cheap_runs` (desktop tick) start
+  them on time via `UIApp.start_run_job`. The approve card offers "Approve, start at HH:MM UTC"
+  when a model doing the work is half price later.
+- Quality is untouched: same models, same reviews and checks; only when and through which door.
+- Tests: `test_deepseek_is_half_price_off_peak`, `test_approve_can_wait_for_the_cheaper_hours`;
+  258 pass. Open: the peak hours come from news reports of DeepSeek's announcement; check its
+  pricing page now and then.
+
 ## 2026-11-26 – Cheaper OpenRouter: the cheapest route, and no whole big files
 
 The owner: "Find a way to optimise token usage for OpenRouter" (they'll top up the credit).
