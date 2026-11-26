@@ -48,7 +48,7 @@ def test_keystore_file_fallback_and_env_wins(paths, monkeypatch):
     ks.backend = None
     assert not ks.secure
     ks.set("OPENAI_API_KEY", "sk-file")
-    assert json.loads((paths.config / "keys.json").read_text()) == {"OPENAI_API_KEY": "sk-file"}
+    assert json.loads((paths.config / "keys.json").read_text(encoding="utf-8")) == {"OPENAI_API_KEY": "sk-file"}
     monkeypatch.setenv("OPENAI_API_KEY", "from-env")
     assert KeyStore(paths, backend=None).load_into_env() == []  # an explicit env var is not overridden
     assert os.environ["OPENAI_API_KEY"] == "from-env"
@@ -56,13 +56,13 @@ def test_keystore_file_fallback_and_env_wins(paths, monkeypatch):
 
 def test_first_run_creates_working_configs(paths):
     ensure_configs(paths)
-    hub = yaml.safe_load(paths.hub_yaml.read_text())
+    hub = yaml.safe_load(paths.hub_yaml.read_text(encoding="utf-8"))
     assert hub["storage"]["type"] == "file" and "me" in hub["agents"]
-    assert "roles:" in paths.harness_yaml.read_text()
-    before = paths.harness_yaml.read_text()
-    paths.harness_yaml.write_text(before + "\n# mine\n")
+    assert "roles:" in paths.harness_yaml.read_text(encoding="utf-8")
+    before = paths.harness_yaml.read_text(encoding="utf-8")
+    paths.harness_yaml.write_text(before + "\n# mine\n", encoding="utf-8")
     ensure_configs(paths)  # never overwrites the user's files
-    assert paths.harness_yaml.read_text().endswith("# mine\n")
+    assert paths.harness_yaml.read_text(encoding="utf-8").endswith("# mine\n")
 
 
 def test_connect_hub_validates(paths, monkeypatch):
@@ -82,7 +82,7 @@ def test_connect_hub_clones_and_keeps_repo_agents(paths, tmp_path):
     seed = tmp_path / "seed"
     subprocess.run(["git", "clone", "-q", str(remote), str(seed)], check=True, capture_output=True)
     (seed / "hub.yaml").write_text(yaml.safe_dump({"agents": {"me": {}, "mygame": {"description": "a game"}},
-                                                   "rules": [{"from": "*", "to": "*", "allow": ["read_card"]}]}))
+                                                   "rules": [{"from": "*", "to": "*", "allow": ["read_card"]}]}), encoding="utf-8")
     g = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
     subprocess.run(g + ["add", "."], cwd=seed, check=True)
     subprocess.run(g + ["commit", "-qm", "hub"], cwd=seed, check=True)
@@ -91,7 +91,7 @@ def test_connect_hub_clones_and_keeps_repo_agents(paths, tmp_path):
     # connect_github_hub only accepts https/git@ URLs, so pre-clone the local remote where it expects the clone
     subprocess.run(["git", "clone", "-q", str(remote), str(paths.home / "hub-repo")], check=True, capture_output=True)
     desktop.connect_github_hub(paths, "https://github.com/you/agent-hub-data", log=lambda *_: None)
-    cfg = yaml.safe_load(paths.hub_yaml.read_text())
+    cfg = yaml.safe_load(paths.hub_yaml.read_text(encoding="utf-8"))
     assert cfg["storage"]["type"] == "git" and cfg["storage"]["path"].endswith("hub-repo")
     assert "mygame" in cfg["agents"]
 
@@ -136,7 +136,7 @@ def test_app_server_setup_flow(paths, monkeypatch, tmp_path):
         status, res = _api(base, "/api/config", {"which": "harness", "text": "roles: [broken"})
         assert status == 400 and "not saved" in res["error"]
         status, res = _api(base, "/api/config", {"which": "harness", "text": cfg["text"] + "\n# edited\n"})
-        assert status == 200 and paths.harness_yaml.read_text().endswith("# edited\n")
+        assert status == 200 and paths.harness_yaml.read_text(encoding="utf-8").endswith("# edited\n")
         assert (paths.config / "harness.yaml.bak").exists()
         status, res = _api(base, "/api/setup/hub", {"mode": "local"})
         assert res["hub"]["mode"] == "file"
@@ -147,7 +147,7 @@ def test_app_server_setup_flow(paths, monkeypatch, tmp_path):
 def test_self_test_passes(paths, monkeypatch):
     monkeypatch.setattr(desktop, "KeyStore", lambda p: KeyStore(p, backend=MemoryKeyring()))
     assert desktop.self_test(paths) == 0
-    assert json.loads((paths.logs / "self-test.json").read_text())["ok"]
+    assert json.loads((paths.logs / "self-test.json").read_text(encoding="utf-8"))["ok"]
 
 
 def test_release_updater_for_installed_app(monkeypatch):

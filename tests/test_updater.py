@@ -71,14 +71,14 @@ def test_editable_update_end_to_end_with_real_git(tmp_path):
     _git("init", "-q", "--bare", "-b", "main", str(remote), cwd=tmp_path)
     dev = tmp_path / "dev"
     _git("clone", "-q", str(remote), str(dev), cwd=tmp_path)
-    (dev / "a.txt").write_text("v1")
+    (dev / "a.txt").write_text("v1", encoding="utf-8")
     _git("add", ".", cwd=dev)
     _git("commit", "-qm", "v1", cwd=dev)
     _git("push", "-q", "origin", "HEAD:main", cwd=dev)
     user = tmp_path / "user"
     _git("clone", "-q", str(remote), str(user), cwd=tmp_path)
 
-    (dev / "a.txt").write_text("v2")  # a new release lands upstream
+    (dev / "a.txt").write_text("v2", encoding="utf-8")  # a new release lands upstream
     _git("commit", "-qam", "add dragons", cwd=dev)
     _git("push", "-q", "origin", "HEAD:main", cwd=dev)
 
@@ -94,14 +94,14 @@ def test_editable_update_end_to_end_with_real_git(tmp_path):
     assert info.kind == "editable" and info.ref == "main" and info.commit
     assert check(info=info, runner=runner).available
 
-    (user / "a.txt").write_text("my local hack")  # uncommitted change: refuse
+    (user / "a.txt").write_text("my local hack", encoding="utf-8")  # uncommitted change: refuse
     with pytest.raises(UpdateError, match="uncommitted"):
         update(info=info, runner=runner, log=lambda *_: None)
     _git("checkout", "a.txt", cwd=user)
 
     lines = []
     st = update(info=info, runner=runner, log=lines.append)
-    assert (user / "a.txt").read_text() == "v2"
+    assert (user / "a.txt").read_text(encoding="utf-8") == "v2"
     assert any("add dragons" in c for c in st.changes)
     assert pip_calls and pip_calls[0][-2:] == ["-e", str(user)]
     assert any("Restart" in ln for ln in lines)

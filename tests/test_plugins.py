@@ -80,7 +80,7 @@ def test_manifest_from_a_toml_file_and_pyproject(tmp_path):
         type = "integer"
         default = 5
         description = "How many."
-    """))
+    """), encoding="utf-8")
     m = find_manifest(tmp_path / "a")
     assert (m.id, m.licence, m.api, m.hooks) == ("word-count", "MIT", 1, ["on_tool_result", "tools"])
     assert m.settings["limit"].default == 5 and m.settings["limit"].coerce("7") == 7
@@ -89,7 +89,7 @@ def test_manifest_from_a_toml_file_and_pyproject(tmp_path):
 
     (tmp_path / "b").mkdir()
     (tmp_path / "b" / "pyproject.toml").write_text(
-        '[project]\nname = "b"\n[tool.roundtable.plugin]\nid = "bee"\nname = "Bee"\nentry = "bee:plugin"\n')
+        '[project]\nname = "b"\n[tool.roundtable.plugin]\nid = "bee"\nname = "Bee"\nentry = "bee:plugin"\n', encoding="utf-8")
     assert find_manifest(tmp_path / "b").id == "bee"
     assert find_manifest(tmp_path).id == "word-count"  # one folder down, where pip puts it
     (tmp_path / "empty").mkdir()
@@ -333,12 +333,12 @@ def test_cost_log_is_off_until_switched_on(tmp_path):
 def harness(tmp_path):
     p = tmp_path / "lab" / "harness.yaml"
     p.parent.mkdir()
-    p.write_text(yaml.safe_dump({**RAW, "token_saver": {"min_bytes": 1500}}))
+    p.write_text(yaml.safe_dump({**RAW, "token_saver": {"min_bytes": 1500}}), encoding="utf-8")
     return p
 
 
 def custom(harness):
-    return yaml.safe_load((harness.parent / "custom.yaml").read_text())
+    return yaml.safe_load((harness.parent / "custom.yaml").read_text(encoding="utf-8"))
 
 
 def test_enable_disable_and_settings_persist_in_custom_yaml(harness):
@@ -380,7 +380,7 @@ def write_plugin(folder: Path, pid="hello-tools", module="hello_tools_mod", perm
         type = "string"
         default = "hello"
         description = "What it says."
-    """))
+    """), encoding="utf-8")
     (folder / f"{module}.py").write_text(textwrap.dedent("""
         from roundtable.plugins.api import Plugin, Tool, ToolSpec, _obj
 
@@ -390,9 +390,9 @@ def write_plugin(folder: Path, pid="hello-tools", module="hello_tools_mod", perm
 
             def commands(self):
                 return {"say": lambda ctx, argv: print(ctx.settings["greeting"], *argv)}
-    """))
+    """), encoding="utf-8")
     if deps:
-        (folder / "pyproject.toml").write_text(f"[project]\nname = 'x'\ndependencies = {json.dumps(list(deps))}\n")
+        (folder / "pyproject.toml").write_text(f"[project]\nname = 'x'\ndependencies = {json.dumps(list(deps))}\n", encoding="utf-8")
     return folder
 
 
@@ -490,7 +490,7 @@ def test_add_a_pip_package_reads_the_wheel_before_installing(harness, tmp_path):
 
 def test_a_plugin_that_cannot_start_is_shown_as_broken(harness, tmp_path):
     src = write_plugin(tmp_path / "bad", pid="bad-start", module="bad_start_mod", permissions=())
-    (src / "bad_start_mod.py").write_text("raise ImportError('missing piece')\n")
+    (src / "bad_start_mod.py").write_text("raise ImportError('missing piece')\n", encoding="utf-8")
     manage.add_plugin(harness, str(src), lambda m: True)
     listed = {p["id"]: p for p in manage.list_plugins(harness)}
     assert listed["bad-start"]["status"] == "broken" and "missing piece" in listed["bad-start"]["problem"]

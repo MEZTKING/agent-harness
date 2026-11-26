@@ -121,7 +121,7 @@ def test_slow_and_verbose_flags():
 def test_custom_probes_and_filter(tmp_path):
     (tmp_path / "probes.yaml").write_text(
         "- name: capital\n  prompt: What is the capital of Australia? One word.\n  expect_contains: canberra\n"
-        "- name: exact\n  prompt: Say hi\n  expect_exact: hello\n")
+        "- name: exact\n  prompt: Say hi\n  expect_exact: hello\n", encoding="utf-8")
     cfg = make(tmp_path, {})
     cfg.improve["probes_file"] = str(tmp_path / "probes.yaml")
     results = run_probes(cfg, [ModelRef("a", "good")], only=["capital", "exact"])
@@ -141,10 +141,10 @@ def test_image_probe_and_model_listing(tmp_path):
 def test_probes_are_recorded_in_lab(tmp_path):
     cfg = make(tmp_path, {})
     check(cfg, cfg.lab_dir, [ModelRef("a", "good")], only=["json"])
-    rows = [json.loads(x) for x in (cfg.lab_dir / "probes.jsonl").read_text().splitlines()]
+    rows = [json.loads(x) for x in (cfg.lab_dir / "probes.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[0]["model"] == "a/good" and rows[0]["probe"] == "json" and rows[0]["passed"]
     check(cfg, cfg.lab_dir, [ModelRef("a", "good")], only=["json"], save=False)
-    assert len((cfg.lab_dir / "probes.jsonl").read_text().splitlines()) == 1
+    assert len((cfg.lab_dir / "probes.jsonl").read_text(encoding="utf-8").splitlines()) == 1
 
 
 def test_cycle_holds_back_changes_involving_a_regressed_model(tmp_path):
@@ -174,12 +174,12 @@ def test_code_fix_grading_runs_in_process(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sys, "executable", str(tmp_path / "RoundtableHold.exe"))  # like the frozen app
     good = tmp_path / "good.py"
-    good.write_text(FIXED)
+    good.write_text(FIXED, encoding="utf-8")
     assert _grade_median(good) == (True, "tests pass")
     bad = tmp_path / "bad.py"
-    bad.write_text("def median(v):\n    s = sorted(v)\n    return s[len(s) // 2]\n")
+    bad.write_text("def median(v):\n    s = sorted(v)\n    return s[len(s) // 2]\n", encoding="utf-8")
     ok, detail = _grade_median(bad)
     assert not ok and "expected 2.5" in detail
     broken = tmp_path / "broken.py"
-    broken.write_text("def median(:\n")
+    broken.write_text("def median(:\n", encoding="utf-8")
     assert _grade_median(broken)[0] is False

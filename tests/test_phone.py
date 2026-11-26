@@ -58,7 +58,7 @@ def test_pairing_tls_and_tokens(phone):
     token = r["token"]
     assert call(p, "POST", "/api/pair/claim", {"code": pairing["code"], "device_name": "x"})[0] == 403  # single use
     assert "token" not in json.dumps(p.devices()) and p.devices()[0]["name"] == "Pixel 9"
-    assert token not in p.file.read_text()  # only its hash is kept
+    assert token not in p.file.read_text(encoding="utf-8")  # only its hash is kept
 
     assert call(p, "GET", "/api/ping")[0] == 401
     assert call(p, "GET", "/api/ping", token="nope")[0] == 401

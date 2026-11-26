@@ -79,8 +79,8 @@ def fake_network(monkeypatch):
 
     def clone(repo, dest, run=None):
         dest.mkdir(parents=True, exist_ok=True)
-        (dest / "README.md").write_text("# Star Hopper\nJump between planets.\n")
-        (dest / "LICENSE").write_text("MIT License\n")
+        (dest / "README.md").write_text("# Star Hopper\nJump between planets.\n", encoding="utf-8")
+        (dest / "LICENSE").write_text("MIT License\n", encoding="utf-8")
         return dest
 
     monkeypatch.setattr(scoutlib, "fetch_url", fetch)
@@ -111,7 +111,7 @@ def test_reference_given_at_start_is_scouted_before_planning(tmp_path, fake_netw
     assert "Never use another product's name" in plan_prompt
     # the raw page is kept under .harness, never in the project's files
     page = orch.project.dir / "references" / "R1" / "pages" / "1.txt"
-    assert page.read_text().startswith("https://star-hopper.example/play")
+    assert page.read_text(encoding="utf-8").startswith("https://star-hopper.example/play")
     assert "scout" not in orch._roles_text()  # not a role tasks are given to
 
 
@@ -146,7 +146,7 @@ def test_reports_survive_a_revision_and_show_in_markdown_and_context(tmp_path):
     doc = orch.project.plan_doc()
     assert doc["references"][0]["report"]["title"] == "Star Hopper"
     assert "Things the owner wants it to be like" in brain.prompts[-1]  # the revision sees it too
-    md = (orch.project.dir / "plan.md").read_text()
+    md = (orch.project.dir / "plan.md").read_text(encoding="utf-8")
     assert "## Like these" in md and "### Star Hopper {R1}" in md and "Borrow: jumping between small planets" in md
     assert "Avoid: its name and its art" in md and "Licence: MIT · code: allowed with credit" in md
     ctx = plandoc.context_text(doc)
@@ -163,7 +163,7 @@ def test_reference_added_later_waits_then_is_scouted_on_revise(tmp_path, fake_ne
     doc = orch.project.plan_doc()
     ref = doc["references"][0]
     assert ref["status"] == "new" and ref["type"] == "repository" and ref["repo"] == "owner/star-hopper"
-    assert "Not read yet" in (orch.project.dir / "plan.md").read_text()
+    assert "Not read yet" in (orch.project.dir / "plan.md").read_text(encoding="utf-8")
     with pytest.raises(HarnessError):
         orch.approve()  # the reference is a change still to apply
     orch.revise_plan()
@@ -192,7 +192,7 @@ def test_scout_failure_is_recorded_and_planning_still_happens(tmp_path):
     assert ref["status"] == "failed" and "Couldn't read it" in ref["error"]
     assert orch.project.meta()["status"] == "awaiting_approval" and len(orch.project.tasks()) == 3
     assert "Couldn't be read" in brain.prompts[0]
-    assert "Couldn't read it" in (orch.project.dir / "plan.md").read_text()
+    assert "Couldn't read it" in (orch.project.dir / "plan.md").read_text(encoding="utf-8")
 
 
 def test_look_stage_gets_the_references_look(tmp_path, monkeypatch):
@@ -345,7 +345,7 @@ def test_parse_reference_and_clone_safety(tmp_path):
         dest = tmp_path / "copy"
         dest.mkdir()
         (dest / ".git").mkdir()
-        (dest / "a.txt").write_text("hi")
+        (dest / "a.txt").write_text("hi", encoding="utf-8")
         (dest / "secret").symlink_to("/etc/passwd")
 
         class R:

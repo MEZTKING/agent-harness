@@ -210,7 +210,7 @@ def _init(argv: list[str]) -> None:
         if target.exists() and not force:
             print(f"kept existing {target} (use --force to overwrite)")
             continue
-        target.write_text(resources.files("roundtable").joinpath(f"templates/{template}").read_text())
+        target.write_text(resources.files("roundtable").joinpath(f"templates/{template}").read_text(encoding="utf-8"))
         print(f"wrote {target}")
     print("Next: edit them, set your API keys, then `roundtable probe` and `roundtable where`.")
 

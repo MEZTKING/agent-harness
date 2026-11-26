@@ -34,6 +34,7 @@ from .api import PluginError
 from .builtin import BUILTIN_MANIFESTS
 from .host import PluginHost, code_home, plugins_home
 from .manifest import SKIP, Manifest, check_api, find_manifest, project_dependencies
+from ..core.files import remove_tree
 
 Confirm = Callable[[Manifest], bool]
 Runner = Callable[..., Any]
@@ -148,9 +149,9 @@ def remove_plugin(harness_path: str | Path | None, pid: str, purge: bool = False
         raise PluginError(f"there's no plugin {pid!r} in custom.yaml")
     code = Path(str(entry.get("path") or ""))
     if not entry.get("linked") and code.is_dir() and code_home() in code.resolve().parents:
-        shutil.rmtree(code, ignore_errors=True)
+        remove_tree(code)
     if purge:
-        shutil.rmtree(plugins_home() / pid, ignore_errors=True)
+        remove_tree(plugins_home() / pid)
     del custom["plugins"][pid]
     _save(path, custom)
 

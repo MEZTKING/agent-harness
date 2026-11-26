@@ -54,7 +54,7 @@ def cmd_init(args) -> None:
     target = Path(args.path)
     if target.exists() and not args.force:
         sys.exit(f"error: {target} exists (use --force to overwrite)")
-    template = resources.files("roundtable").joinpath("templates/hub.example.yaml").read_text()
+    template = resources.files("roundtable").joinpath("templates/hub.example.yaml").read_text(encoding="utf-8")
     target.write_text(template, encoding="utf-8")
     print(f"wrote {target}. Edit the agents and rules, then try: roundtable --agent <id> cards")
 

@@ -17,6 +17,7 @@ from ..core.models import utcnow
 from ..providers.base import ToolSpec
 from . import scout as scoutlib
 from .tools import Tool
+from ..core.files import remove_tree
 
 MAX_REFERENCE_CHARS = 4000  # one report, as the planner sees it
 
@@ -96,7 +97,7 @@ class ReferenceStage:
         if not ref:
             raise HarnessError(f"no reference {rid!r} in the plan")
         doc["references"].remove(ref)
-        shutil.rmtree(self._reference_dir(rid), ignore_errors=True)
+        remove_tree(self._reference_dir(rid))
         title = (ref.get("report") or {}).get("title") or ref["input"]
         note(f"The owner removed the reference {rid} ({title[:200]}): don't make it like that any more.",
              f"reference:{rid}")

@@ -103,7 +103,7 @@ def test_first_plan_of_an_app_gets_looks_and_bad_ones_are_sent_back(tmp_path):
     assert "use a hex colour" in brain.design_tool_results[0]
     assert "contrast" in brain.design_tool_results[1] and "4.5:1" in brain.design_tool_results[1]
     assert brain.design_calls == 3  # the third one was accepted and ended the call
-    assert (orch.project.dir / "look" / "B.html").read_text().startswith("<!doctype html>")
+    assert (orch.project.dir / "look" / "B.html").read_text(encoding="utf-8").startswith("<!doctype html>")
     assert "mockup_html" not in look["directions"][0] and look["directions"][0]["mockup"] == ".harness/look/A.html"
     assert look["pictures"] == {} and "skipped" in look["render_note"]
     doc = orch.project.plan_doc()
@@ -148,9 +148,9 @@ def test_looks_used_in_other_projects_are_in_the_designer_prompt(tmp_path):
 
     other = tmp_path / "other"
     (other / ".harness").mkdir(parents=True)
-    (other / ".harness" / "project.json").write_text("{}")
+    (other / ".harness" / "project.json").write_text("{}", encoding="utf-8")
     (other / ".harness" / "plan.json").write_text(json.dumps({"look": {
-        "chosen": "A", "directions": [looklib.validate_looks([direction(0)], 1)[0]]}}))
+        "chosen": "A", "directions": [looklib.validate_looks([direction(0)], 1)[0]]}}), encoding="utf-8")
     brain = LookBrain(bad_first=False, has_ui=False)
     orch, *_ = make(tmp_path, brain=brain)
     orch.cfg.lab_dir = tmp_path / "lab"
@@ -177,15 +177,15 @@ def test_choosing_a_look_writes_the_design_file_and_a_restyle_task(tmp_path):
     tasks = orch.project.tasks()
     tasks[0].status = "done"
     orch.project.save_tasks(tasks)
-    (orch.project.root / "index.html").write_text("<style>body { color: #123456; font-family: Arial; }</style>\n")
+    (orch.project.root / "index.html").write_text("<style>body { color: #123456; font-family: Arial; }</style>\n", encoding="utf-8")
     calls = brain.design_calls
     orch.revise_plan()
     assert brain.design_calls == calls  # no note: no designer call
     root = orch.project.root
-    design = (root / "design" / "DESIGN.md").read_text()
+    design = (root / "design" / "DESIGN.md").read_text(encoding="utf-8")
     assert design.startswith("# The look: Night Bus Neon") and "Use only these tokens" in design
     assert "| Accent | `--color-accent` | #1f5f4a | #6fd1a8 |" in design and "never use pure black" in design
-    css = (root / "design" / "tokens.css").read_text()
+    css = (root / "design" / "tokens.css").read_text(encoding="utf-8")
     assert "@media (prefers-color-scheme: dark)" in css and "--color-accent: #6fd1a8;" in css
     assert "family=Space+Grotesk:wght@400;700&family=Work+Sans&display=swap" in css and "--color-vinyl" in css
     log = subprocess.run(["git", "log", "--oneline"], cwd=root, capture_output=True, text=True).stdout
@@ -212,7 +212,7 @@ def test_a_note_with_the_choice_asks_the_designer_once(tmp_path):
     r = orch.apply_look()
     assert brain.design_calls == calls + 1 and "the second, but warmer" in brain.design_prompts[-1]
     assert r["name"] == "Night Bus Ember" and r["task"] is None  # nothing built yet: no restyle task
-    design = (orch.project.root / "design" / "DESIGN.md").read_text()
+    design = (orch.project.root / "design" / "DESIGN.md").read_text(encoding="utf-8")
     assert "Night Bus Ember" in design and "the second, but warmer" in design
     orch.apply_look()
     assert brain.design_calls == calls + 1  # the same note isn't sent twice
@@ -220,14 +220,14 @@ def test_a_note_with_the_choice_asks_the_designer_once(tmp_path):
 
 def test_check_tokens(tmp_path):
     (tmp_path / "design").mkdir()
-    (tmp_path / "design" / "tokens.css").write_text(":root { --color-accent: #ff0000; font-family: X; }")
+    (tmp_path / "design" / "tokens.css").write_text(":root { --color-accent: #ff0000; font-family: X; }", encoding="utf-8")
     (tmp_path / "app.css").write_text("#main { color: var(--color-text); }\n.a { background: #fff; }\n"
-                                      "h1 { font-family: var(--font-display); }\np { font-family: Georgia; }\n")
-    (tmp_path / "app.js").write_text("el.style.color = '#abcdef';\nlocation.hash = '#add';\n")
-    (tmp_path / "Main.kt").write_text("val c = Color(0xFF112233)\n")
+                                      "h1 { font-family: var(--font-display); }\np { font-family: Georgia; }\n", encoding="utf-8")
+    (tmp_path / "app.js").write_text("el.style.color = '#abcdef';\nlocation.hash = '#add';\n", encoding="utf-8")
+    (tmp_path / "Main.kt").write_text("val c = Color(0xFF112233)\n", encoding="utf-8")
     for skip in ("node_modules/x.css", ".git/y.css", ".harness/look/A.html", "tests/z.css", "app.test.js"):
         (tmp_path / skip).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / skip).write_text("a { color: #000; }")
+        (tmp_path / skip).write_text("a { color: #000; }", encoding="utf-8")
     found = {(f["path"], f["line"], f["kind"]) for f in looklib.check_tokens(tmp_path)}
     assert found == {("app.css", 2, "colour"), ("app.css", 4, "font"), ("app.js", 1, "colour"), ("Main.kt", 1, "colour")}
     assert "app.css:2 (colour)" in looklib.findings_text(looklib.check_tokens(tmp_path))
@@ -267,7 +267,7 @@ def test_pictures_are_skipped_cleanly_without_playwright(tmp_path, monkeypatch):
     monkeypatch.setattr(looklib.importlib.util, "find_spec", lambda name: None)
     monkeypatch.setattr(looklib.shutil, "which", lambda name: None)
     assert looklib.renderer() is None
-    (tmp_path / "A.html").write_text("<html><body>hi</body></html>")
+    (tmp_path / "A.html").write_text("<html><body>hi</body></html>", encoding="utf-8")
     r = looklib.render_mockups(tmp_path, ["A"])
     assert r["pictures"] == {} and "Playwright isn't installed" in r["note"]
     monkeypatch.setattr(looklib, "renderer", lambda: "node")
@@ -313,7 +313,7 @@ def test_pictures_go_to_the_hub_next_to_the_plan(tmp_path):
     raw = json.loads(json.dumps(HUB_RAW))
     raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
     raw["agents"]["proj"] = {"description": "the project"}
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     hraw = json.loads(json.dumps(RAW))
     hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
     orch, *_ = planned(tmp_path, raw=hraw, bad_first=False)
@@ -326,7 +326,7 @@ def test_pictures_go_to_the_hub_next_to_the_plan(tmp_path):
     hub = tmp_path / "hubdata" / "plans"
     assert (hub / "looks" / "proj" / "A.png").read_bytes() == b"\x89PNG desktop"
     assert (hub / "looks" / "proj" / "A-phone.png").read_bytes() == b"\x89PNG phone"
-    page = (hub / "proj.md").read_text()
+    page = (hub / "proj.md").read_text(encoding="utf-8")
     assert "![A: Old Record Shop](looks/proj/A.png)" in page and "a look to choose" in page
 
 
@@ -346,7 +346,7 @@ def test_design_role_defaults():
 @pytest.mark.skipif(looklib.renderer() is None, reason="Playwright isn't installed here")
 def test_a_real_picture(tmp_path, monkeypatch):
     monkeypatch.undo()
-    (tmp_path / "A.html").write_text("<!doctype html><html><body style='background:#8a3b12'>hi</body></html>")
+    (tmp_path / "A.html").write_text("<!doctype html><html><body style='background:#8a3b12'>hi</body></html>", encoding="utf-8")
     r = looklib.render_mockups(tmp_path, ["A"])
     assert r["pictures"] == {"A": ["A.png", "A-phone.png"]}, r["note"]
     assert (tmp_path / "A.png").read_bytes().startswith(b"\x89PNG")
@@ -362,16 +362,16 @@ def test_no_second_restyle_when_the_planner_already_planned_the_look(tmp_path):
     tasks.append(Task(id="T99", title="Wire the Night Bus Neon tokens", role="coder",
                       description="link design/tokens.css everywhere", acceptance="ok"))
     orch.project.save_tasks(tasks)
-    (orch.project.root / "index.html").write_text("<style>body { color: #123456; }</style>\n")
+    (orch.project.root / "index.html").write_text("<style>body { color: #123456; }</style>\n", encoding="utf-8")
     d = {"name": "Night Bus Neon", "signature": "a glow"}
     assert orch._restyle_task(d) is None
     assert not any(t.title == RESTYLE_TITLE for t in orch.project.tasks())
 
 
 def test_design_check_ignores_throwaway_check_scripts(tmp_path):
-    (tmp_path / "smoke-l1.mjs").write_text("const accent = '#c23b22';\n")
+    (tmp_path / "smoke-l1.mjs").write_text("const accent = '#c23b22';\n", encoding="utf-8")
     (tmp_path / "scripts").mkdir()
-    (tmp_path / "scripts" / "check.js").write_text("const c = '#c23b22';\n")
-    (tmp_path / "app.css").write_text("body { color: #c23b22; }\n")
+    (tmp_path / "scripts" / "check.js").write_text("const c = '#c23b22';\n", encoding="utf-8")
+    (tmp_path / "app.css").write_text("body { color: #c23b22; }\n", encoding="utf-8")
     files = {f["path"] for f in looklib.check_tokens(tmp_path)}
     assert files == {"app.css"}

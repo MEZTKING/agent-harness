@@ -35,23 +35,23 @@ def world(tmp_path):
     cfg = home / "config"
     cfg.mkdir(parents=True)
     (cfg / "harness.yaml").write_text(yaml.safe_dump({"providers": {"ds": {"type": "openai_compat",
-                                                                           "api_key_env": "DEEPSEEK_API_KEY"}}}))
-    (cfg / "custom.yaml").write_text("roles:\n  coder:\n    model: ds/chat\n")
-    (cfg / "hub.yaml").write_text(yaml.safe_dump({"storage": {"type": "file", "path": str(home / "hub-data")}}))
-    (cfg / "app.json").write_text(json.dumps({"setup_done": True}))
-    (cfg / "keys.json").write_text(json.dumps({"DEEPSEEK_API_KEY": "not-a-real-key"}))
-    (home / "hub-path").write_text(str(cfg / "hub.yaml"))
-    (home / "phone.json").write_text(json.dumps({"devices": [{"id": "d1", "name": "Pixel", "token_sha256": "ab" * 32}]}))
-    (home / "phone-key.pem").write_text("-----BEGIN PRIVATE KEY-----\nxyz\n-----END PRIVATE KEY-----\n")
+                                                                           "api_key_env": "DEEPSEEK_API_KEY"}}}), encoding="utf-8")
+    (cfg / "custom.yaml").write_text("roles:\n  coder:\n    model: ds/chat\n", encoding="utf-8")
+    (cfg / "hub.yaml").write_text(yaml.safe_dump({"storage": {"type": "file", "path": str(home / "hub-data")}}), encoding="utf-8")
+    (cfg / "app.json").write_text(json.dumps({"setup_done": True}), encoding="utf-8")
+    (cfg / "keys.json").write_text(json.dumps({"DEEPSEEK_API_KEY": "not-a-real-key"}), encoding="utf-8")
+    (home / "hub-path").write_text(str(cfg / "hub.yaml"), encoding="utf-8")
+    (home / "phone.json").write_text(json.dumps({"devices": [{"id": "d1", "name": "Pixel", "token_sha256": "ab" * 32}]}), encoding="utf-8")
+    (home / "phone-key.pem").write_text("-----BEGIN PRIVATE KEY-----\nxyz\n-----END PRIVATE KEY-----\n", encoding="utf-8")
     (home / "hub-data" / "journal").mkdir(parents=True)
-    (home / "hub-data" / "journal" / "me.jsonl").write_text('{"text": "remember the logo"}\n')
+    (home / "hub-data" / "journal" / "me.jsonl").write_text('{"text": "remember the logo"}\n', encoding="utf-8")
     lab = cfg / ".harness-lab"
     (lab / "proposals").mkdir(parents=True)
     (lab / "versions" / "0001").mkdir(parents=True)
-    (lab / "learned.yaml").write_text("roles:\n  coder:\n    model: ds/chat\n")
-    (lab / "proposals" / "P1.json").write_text('{"id": "P1"}')
-    (lab / "versions" / "0001" / "meta.json").write_text('{"v": 1}')
-    (lab / "probes.jsonl").write_text('{"model": "ds/chat", "passed": 3}\n')
+    (lab / "learned.yaml").write_text("roles:\n  coder:\n    model: ds/chat\n", encoding="utf-8")
+    (lab / "proposals" / "P1.json").write_text('{"id": "P1"}', encoding="utf-8")
+    (lab / "versions" / "0001" / "meta.json").write_text('{"v": 1}', encoding="utf-8")
+    (lab / "probes.jsonl").write_text('{"model": "ds/chat", "passed": 3}\n', encoding="utf-8")
     with open(lab / "huge.bin", "wb") as f:  # big and rebuildable: left out
         f.truncate(bk.MAX_FILE + 1)
     projects = []
@@ -61,14 +61,14 @@ def world(tmp_path):
         for sub in ("spill", "scratch", "references", "look"):
             (hdir / sub).mkdir(parents=True)
         for fname, text in PROJECT_FILES.items():
-            (hdir / fname).write_text(text.replace("bakery", name))
-        (hdir / "spill" / "out.txt").write_text("long output")
-        (hdir / "scratch" / "smoke.mjs").write_text("// throwaway")
-        (hdir / "references" / "theirs.html").write_text("<p>someone else's</p>")
+            (hdir / fname).write_text(text.replace("bakery", name), encoding="utf-8")
+        (hdir / "spill" / "out.txt").write_text("long output", encoding="utf-8")
+        (hdir / "scratch" / "smoke.mjs").write_text("// throwaway", encoding="utf-8")
+        (hdir / "references" / "theirs.html").write_text("<p>someone else's</p>", encoding="utf-8")
         (hdir / "look" / "a.png").write_bytes(b"\x89PNG fake picture")
-        (root / "index.html").write_text(f"<h1>{name}</h1>")
+        (root / "index.html").write_text(f"<h1>{name}</h1>", encoding="utf-8")
         projects.append(root)
-    (lab / "projects.json").write_text(json.dumps([str(p.resolve()) for p in projects]))
+    (lab / "projects.json").write_text(json.dumps([str(p.resolve()) for p in projects]), encoding="utf-8")
     src = bk.find_sources(str(cfg / "harness.yaml"), str(cfg / "hub.yaml"), home)
     return SimpleNamespace(home=home, lab=lab, projects=projects, src=src, dest=tmp_path / "My Drive" / bk.FOLDER_NAME)
 
@@ -106,8 +106,8 @@ def test_backup_and_restore_round_trip(world):
     before = {p.name: _snapshot(p / ".harness") for p in world.projects}
     lab_before = _snapshot(world.lab)
     shutil.rmtree(world.projects[0])  # a project folder lost
-    (world.projects[1] / ".harness" / "tasks.json").write_text("[]")  # another one changed
-    (world.lab / "learned.yaml").write_text("broken")
+    (world.projects[1] / ".harness" / "tasks.json").write_text("[]", encoding="utf-8")  # another one changed
+    (world.lab / "learned.yaml").write_text("broken", encoding="utf-8")
 
     done = bk.restore(res.path, yes=True, home=world.home, sources=bk.find_sources(
         str(world.home / "config" / "harness.yaml"), str(world.home / "config" / "hub.yaml"), world.home),
@@ -134,16 +134,18 @@ def test_code_goes_in_only_with_code(world, tmp_path):
     assert not any(n.startswith("code/") for n in _names(plain.path))
     full = bk.make_backup(world.dest, world.src, with_code=True)
     assert "code/project-1.bundle" in _names(full.path)
-    shutil.rmtree(root)
+    from roundtable.core.files import remove_tree
+
+    remove_tree(root)  # git's objects are read-only on Windows
     bk.restore(full.path, yes=True, home=world.home, sources=world.src, log=lambda s: None)
-    assert (root / "index.html").read_text() == "<h1>bakery</h1>" and (root / ".git").is_dir()
+    assert (root / "index.html").read_text(encoding="utf-8") == "<h1>bakery</h1>" and (root / ".git").is_dir()
     assert (root / ".harness" / "plan.json").is_file()
 
 
 def test_a_file_with_a_key_is_refused_and_named(world):
     leak = world.lab / "notes.txt"
-    leak.write_text("use sk-abcdefghijklmnopqrstuvwxyz0123456789 for now")
-    (world.lab / ".env").write_text("X=1")
+    leak.write_text("use sk-abcdefghijklmnopqrstuvwxyz0123456789 for now", encoding="utf-8")
+    (world.lab / ".env").write_text("X=1", encoding="utf-8")
     res = bk.make_backup(world.dest, world.src)
     names = _names(res.path)
     assert "lab/notes.txt" not in names and "lab/.env" not in names
@@ -191,13 +193,13 @@ def test_keep_n_only_touches_this_computers_backups(tmp_path):
     mine = []
     for i in range(5):
         p = dest / f"roundtable-backup-{host}-2026-11-2{i}-0900.zip"
-        p.write_text("x")
+        p.write_text("x", encoding="utf-8")
         os.utime(p, (1_000_000 + i, 1_000_000 + i))
         mine.append(p)
     others = [dest / "roundtable-backup-otherpc-2026-11-01-0900.zip", dest / "holiday.jpg",
               dest / f"roundtable-backup-{host}-2026-11-01-0900-before-restore.zip"]
     for p in others:
-        p.write_text("keep me")
+        p.write_text("keep me", encoding="utf-8")
     removed = bk.prune(dest, keep=2)
     assert sorted(removed) == sorted(mine[:3])
     assert all(p.exists() for p in mine[3:] + others)
@@ -229,17 +231,17 @@ def test_finds_google_drive_folders(tmp_path, monkeypatch):
 
 def test_restore_asks_first_and_saves_a_safety_backup(world):
     res = bk.make_backup(world.dest, world.src)
-    (world.lab / "learned.yaml").write_text("changed since")
+    (world.lab / "learned.yaml").write_text("changed since", encoding="utf-8")
     asked = []
     out = bk.restore(res.path, confirm=lambda lines: asked.append(lines) or False, home=world.home,
                      sources=world.src, log=lambda s: None)
     assert out.cancelled and asked and any("replace" in line for line in asked[0])
-    assert (world.lab / "learned.yaml").read_text() == "changed since"
+    assert (world.lab / "learned.yaml").read_text(encoding="utf-8") == "changed since"
     assert [b["name"] for b in bk.list_backups(world.dest)] == [res.path.name]  # no safety backup either
     out = bk.restore(res.path, confirm=lambda lines: True, home=world.home, sources=world.src, log=lambda s: None)
     safety = bk.open_backup(out.safety)
     assert safety.zf.read("lab/learned.yaml") == b"changed since"  # what was here first is kept
-    assert (world.lab / "learned.yaml").read_text() != "changed since"
+    assert (world.lab / "learned.yaml").read_text(encoding="utf-8") != "changed since"
 
 
 def test_damaged_backup_is_refused(world):
@@ -276,7 +278,7 @@ def test_daily_backup_skips_when_locked_and_no_passphrase(world):
     try:
         assert bk.run_daily(world.home, sources=lambda: world.src, now=datetime(2026, 11, 27, 9))
         assert bk.list_backups(world.dest)[0]["locked"]
-        assert "in memory only" not in (world.home / "config" / "app.json").read_text()
+        assert "in memory only" not in (world.home / "config" / "app.json").read_text(encoding="utf-8")
     finally:
         bk.remember_passphrase(None)
 
@@ -352,7 +354,7 @@ def test_settings_page_routes(world, monkeypatch):
     assert st["destination"] == "" and "Google Drive for desktop" in st["no_drive"]
     st = app.dispatch("POST", "/api/backup", {}, {"action": "settings", "to": str(world.dest), "keep": 3, "daily": False})
     assert st["destination"] == str(world.dest) and st["settings"]["keep"] == 3 and not st["settings"]["daily"]
-    job = app.dispatch("POST", "/api/backup", {}, {"action": "now", "passphrase": "pp", "remember": False})
+    job = app.dispatch("POST", "/api/backup", {}, {"action": "now", "passphrase": "Lantern-Quill-4821", "remember": False})
     for _ in range(200):
         j = app.dispatch("GET", f"/api/jobs/{job['id']}", {}, {})
         if j["status"] != "running":
@@ -362,13 +364,13 @@ def test_settings_page_routes(world, monkeypatch):
     st = app.dispatch("GET", "/api/backup", {}, {})
     name = st["backups"][0]["name"]
     assert name.endswith(".zip.enc") and not st["passphrase_remembered"]
-    assert "pp" not in json.dumps(json.loads((world.home / "config" / "app.json").read_text()))
-    info = app.dispatch("POST", "/api/backup", {}, {"action": "inspect", "file": name, "passphrase": "pp"})
+    assert "Lantern-Quill-4821" not in json.dumps(json.loads((world.home / "config" / "app.json").read_text(encoding="utf-8")))
+    info = app.dispatch("POST", "/api/backup", {}, {"action": "inspect", "file": name, "passphrase": "Lantern-Quill-4821"})
     assert any("files:" in line for line in info["lines"])
     from roundtable.ui.server import ApiError
 
     with pytest.raises(ApiError, match="Confirm"):
-        app.dispatch("POST", "/api/backup", {}, {"action": "restore", "file": name, "passphrase": "pp"})
+        app.dispatch("POST", "/api/backup", {}, {"action": "restore", "file": name, "passphrase": "Lantern-Quill-4821"})
     with pytest.raises(ApiError, match="passphrase doesn't open"):
         app.dispatch("POST", "/api/backup", {}, {"action": "inspect", "file": name, "passphrase": "nope"})
 

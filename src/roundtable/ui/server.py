@@ -332,8 +332,8 @@ class UIApp:
         cfg = self.need_cfg()
         out = []
         for p in self.lab(cfg).projects():
-            meta = json.loads((p / ".harness/project.json").read_text())
-            tasks = json.loads((p / ".harness/tasks.json").read_text() or "[]")
+            meta = json.loads((p / ".harness/project.json").read_text(encoding="utf-8"))
+            tasks = json.loads((p / ".harness/tasks.json").read_text(encoding="utf-8") or "[]")
             counts: dict[str, int] = {}
             for t in tasks:
                 counts[t["status"]] = counts.get(t["status"], 0) + 1
@@ -351,7 +351,7 @@ class UIApp:
         events = []
         ev = proj.dir / "events.jsonl"
         if ev.is_file():
-            for line in ev.read_text().splitlines()[-300:]:
+            for line in ev.read_text(encoding="utf-8").splitlines()[-300:]:
                 try:
                     d = json.loads(line)
                 except json.JSONDecodeError:
@@ -365,7 +365,7 @@ class UIApp:
         agg: dict[str, dict] = defaultdict(lambda: {"attempts": 0, "approved": 0, "cost": 0.0})
         mp = proj.dir / "metrics.jsonl"
         if mp.is_file():
-            for line in mp.read_text().splitlines():
+            for line in mp.read_text(encoding="utf-8").splitlines():
                 r = json.loads(line)
                 if r.get("outcome") == "owner_feedback":
                     continue
@@ -375,7 +375,7 @@ class UIApp:
                 a["cost"] += r.get("cost_usd") or 0
         return {"path": str(proj.root), "name": proj.root.name, "meta": proj.meta(),
                 "tasks": [asdict(t) for t in proj.tasks()], "events": events[-150:],
-                "summary": summary.read_text() if summary.is_file() else "",
+                "summary": summary.read_text(encoding="utf-8") if summary.is_file() else "",
                 "metrics": [{"key": k, **v} for k, v in sorted(agg.items())],
                 "files": self._files(proj.root)}
 
@@ -640,7 +640,7 @@ class UIApp:
     def probes(self, q):
         cfg = self.need_cfg()
         path = cfg.lab_dir / "probes.jsonl" if cfg.lab_dir else None
-        rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()] if path and path.is_file() else []
+        rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()] if path and path.is_file() else []
         runs: dict[str, dict[str, Any]] = {}
         for r in rows:
             key = f"{r['run']}|{r['model']}"
@@ -863,7 +863,7 @@ class UIApp:
         path = self._config_paths().get(which)
         if not path:
             raise ApiError(f"no {which} config file", 404)
-        return {"which": which, "path": str(path), "text": path.read_text() if path.exists() else ""}
+        return {"which": which, "path": str(path), "text": path.read_text(encoding="utf-8") if path.exists() else ""}
 
     def config_save(self, body):
         import yaml
@@ -886,8 +886,8 @@ class UIApp:
             raise ApiError(f"not saved - {which}.yaml has a problem: {e}")
         backup = path.with_suffix(".yaml.bak")
         if path.exists():
-            backup.write_text(path.read_text())
-        path.write_text(text)
+            backup.write_text(path.read_text(encoding="utf-8"))
+        path.write_text(text, encoding="utf-8")
         if which == "hub":
             self.reload_hub()
         return {"saved": str(path), "backup": str(backup)}

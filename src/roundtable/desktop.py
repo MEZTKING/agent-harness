@@ -67,13 +67,13 @@ class Paths:
 
     def load_settings(self) -> dict:
         try:
-            return json.loads(self.settings.read_text())
+            return json.loads(self.settings.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return {}
 
     def save_settings(self, data: dict) -> None:
         self.ensure()
-        self.settings.write_text(json.dumps(data, indent=2))
+        self.settings.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 # -- API keys --------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ class KeyStore:
 
     def _file_keys(self) -> dict:
         try:
-            return json.loads(self.file.read_text())
+            return json.loads(self.file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return {}
 
@@ -129,7 +129,7 @@ class KeyStore:
             else:
                 keys.pop(name, None)
             self.paths.ensure()
-            self.file.write_text(json.dumps(keys))
+            self.file.write_text(json.dumps(keys), encoding="utf-8")
             try:
                 os.chmod(self.file, 0o600)
             except OSError:
@@ -159,8 +159,8 @@ def ensure_configs(paths: Paths) -> None:
     """Create a working harness.yaml and a local-only hub.yaml the first time."""
     paths.ensure()
     if not paths.harness_yaml.exists():
-        text = resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text()
-        paths.harness_yaml.write_text(text)
+        text = resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8")
+        paths.harness_yaml.write_text(text, encoding="utf-8")
     if not paths.hub_yaml.exists():
         write_local_hub(paths)
 
@@ -175,7 +175,7 @@ def write_local_hub(paths: Paths, agents: dict | None = None) -> None:
         "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}],
     }
     paths.hub_yaml.write_text("# Roundtable Hold hub (this computer only). Connect GitHub sync in Settings.\n"
-                              + yaml.safe_dump(cfg, sort_keys=False))
+                              + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
 
 
 def git_version() -> str | None:
@@ -207,14 +207,14 @@ def connect_github_hub(paths: Paths, url: str, log=print) -> None:
             raise RuntimeError(f"git clone failed: {res.stderr.strip()[-400:]}")
     repo_yaml = target / "hub.yaml"
     if repo_yaml.exists():
-        cfg = yaml.safe_load(repo_yaml.read_text()) or {}
+        cfg = yaml.safe_load(repo_yaml.read_text(encoding="utf-8")) or {}
         log("found hub.yaml in the repository")
     else:
         cfg = {"default_policy": "deny", "agents": {"me": {"description": "My own notes and plans"}},
                "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}]}
         log("repository has no hub.yaml yet; starting a new hub in it")
     cfg["storage"] = {"type": "git", "path": str(target), "branch": (cfg.get("storage") or {}).get("branch", "main")}
-    paths.hub_yaml.write_text("# Roundtable Hold hub, synced with " + url + "\n" + yaml.safe_dump(cfg, sort_keys=False))
+    paths.hub_yaml.write_text("# Roundtable Hold hub, synced with " + url + "\n" + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     log("hub connected")
 
 
@@ -288,7 +288,7 @@ def self_test(paths: Paths) -> int:
                              "hub_error": ov.get("hub_error"), "harness_error": ov.get("harness_error"),
                              "secure_keys": setup.get("secure_keys"), "home": str(paths.home)})
         paths.logs.mkdir(parents=True, exist_ok=True)
-        (paths.logs / "self-test.json").write_text(result)  # windowed builds have no console
+        (paths.logs / "self-test.json").write_text(result, encoding="utf-8")  # windowed builds have no console
         if sys.stdout is not None:
             print(result)
         return 0 if ok else 1

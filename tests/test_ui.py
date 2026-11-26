@@ -18,7 +18,7 @@ from .test_harness import RAW as HARNESS_RAW, Brain, make as make_harness
 def app(tmp_path):
     hub_raw = json.loads(json.dumps(HUB_RAW))
     hub_raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
     a = UIApp(hub_config=str(tmp_path / "hub.yaml"), harness_config=str(tmp_path / "missing.yaml"),
               agent="backend", projects_dir=str(tmp_path / "projects"))
     # harness side: scripted providers, injected
@@ -83,7 +83,7 @@ def test_harness_project_lifecycle_via_ui(app, tmp_path):
     d = call(app, "GET", "/api/project", path=p["path"])
     assert {t["status"] for t in d["tasks"]} == {"done"} and d["summary"] and d["events"]
     call(app, "POST", "/api/project", {"path": p["path"], "action": "feedback", "task": "T1", "rating": "bad", "note": "meh"})
-    assert "owner_feedback" in (tmp_path / "projects/site/.harness/metrics.jsonl").read_text()
+    assert "owner_feedback" in (tmp_path / "projects/site/.harness/metrics.jsonl").read_text(encoding="utf-8")
     with pytest.raises(ApiError):  # only registered projects are addressable
         call(app, "GET", "/api/project", path="/etc")
     with pytest.raises(ApiError):

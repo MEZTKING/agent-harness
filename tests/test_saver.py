@@ -54,7 +54,7 @@ def test_pipe_table_keeps_head_tail_and_numbered_samples(tmp_path):
     assert "\n".join(lines[-40:]) in out
     assert f"L61: {lines[60]}" in out  # the first sampled middle row, with its original line number
     sid, path = spilled(tmp_path, out)
-    assert path.read_text() == text
+    assert path.read_text(encoding="utf-8") == text
     assert events[0][0] == "token_saver" and events[0][1]["strategy"] == "table"
     assert events[0][1]["tokens_saved_est"] > 0 and s.stats.tokens_saved == events[0][1]["tokens_saved_est"]
 
@@ -121,14 +121,14 @@ def test_dedupe_within_and_after_the_ttl(tmp_path):
     stub = s.process("list_files", {}, text)
     assert "BYTE-IDENTICAL" in stub and "30s ago" in stub
     sid, path = spilled(tmp_path, stub)
-    assert path.read_text() == text and events[-1][1]["strategy"] == "dedupe"
+    assert path.read_text(encoding="utf-8") == text and events[-1][1]["strategy"] == "dedupe"
     clock.t += 91
     assert s.process("list_files", {}, text) == text  # the window passed
     assert s.process("list_files", {"path": "src"}, text) == text  # other arguments: another call
 
 
 def test_spill_failure_means_no_compression(tmp_path):
-    (tmp_path / ".harness").write_text("not a directory")
+    (tmp_path / ".harness").write_text("not a directory", encoding="utf-8")
     s, events, _ = saver(tmp_path)
     text = pipe_table()
     assert s.process("run_command", {}, text) == text
@@ -202,20 +202,20 @@ def test_end_to_end_the_next_call_sees_the_marker_not_the_table(tmp_path):
     root.mkdir(parents=True, exist_ok=True)
     (root / "make_table.py").write_text(
         "print('| id | name | price |')\n"
-        "for i in range(400):\n    print(f'| {i} | it{i} | {i * 0.25:.2f} |')\n")
+        "for i in range(400):\n    print(f'| {i} | it{i} | {i * 0.25:.2f} |')\n", encoding="utf-8")
     orch.start("price list")
     assert orch.run() == "done"
     tool_msg = brain.seen[-1][-1]
     assert tool_msg["role"] == "tool" and "[saved-output #" in tool_msg["content"]
     sid = tool_msg["content"].split("[saved-output #", 1)[1].split(" ", 1)[0]
-    original = (root / ".harness" / "spill" / f"{sid}.txt").read_text()
+    original = (root / ".harness" / "spill" / f"{sid}.txt").read_text(encoding="utf-8")
     assert all(f"| {i} | it{i} |" in original for i in range(400))
     assert sum(f"| {i} | it{i} |" in tool_msg["content"] for i in range(400)) < 200
     assert len(tool_msg["content"]) < len(original) * 0.72
     saved = [d for k, d in events if k == "token_saver"]
     assert saved and saved[0]["tool"] == "run_command"
-    rows = [json.loads(ln) for ln in (orch.project.dir / "metrics.jsonl").read_text().splitlines()]
+    rows = [json.loads(ln) for ln in (orch.project.dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[-1]["saved_tokens_est"] == saved[0]["tokens_saved_est"] > 0
     assert orch.project.saved_tokens_est() == saved[0]["tokens_saved_est"]
-    logged = [json.loads(ln) for ln in (orch.project.dir / "events.jsonl").read_text().splitlines()]
+    logged = [json.loads(ln) for ln in (orch.project.dir / "events.jsonl").read_text(encoding="utf-8").splitlines()]
     assert any(r["event"] == "token_saver" for r in logged)

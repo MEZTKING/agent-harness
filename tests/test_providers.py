@@ -20,7 +20,7 @@ BASE = {
 @pytest.fixture
 def harness(tmp_path):
     p = tmp_path / "harness.yaml"
-    p.write_text("# my comments stay\n" + yaml.safe_dump(BASE))
+    p.write_text("# my comments stay\n" + yaml.safe_dump(BASE), encoding="utf-8")
     return p
 
 
@@ -40,12 +40,12 @@ def test_catalog_presets_are_complete():
 
 
 def test_add_assign_remove_round_trip(harness):
-    before = harness.read_text()
+    before = harness.read_text(encoding="utf-8")
     manage.add_provider(harness, "openrouter")
     manage.add_provider(harness, "custom", pid="azure", base_url="https://r.openai.azure.com/openai/v1/",
                         auth_header="api-key", query={"api-version": "preview"})
-    assert harness.read_text() == before  # harness.yaml is never rewritten
-    custom = yaml.safe_load((harness.parent / "custom.yaml").read_text())
+    assert harness.read_text(encoding="utf-8") == before  # harness.yaml is never rewritten
+    custom = yaml.safe_load((harness.parent / "custom.yaml").read_text(encoding="utf-8"))
     assert custom["providers"]["azure"]["api_key_env"] == "AZURE_API_KEY"
 
     manage.set_role_models(harness, "coder", ["openrouter/some/model", "deepseek/deepseek-flash"])
@@ -117,13 +117,13 @@ PLUGIN = textwrap.dedent('''
 
 def test_plugin_provider(harness):
     (harness.parent / "plugins").mkdir()
-    (harness.parent / "plugins" / "echo.py").write_text(PLUGIN)
+    (harness.parent / "plugins" / "echo.py").write_text(PLUGIN, encoding="utf-8")
     manage.add_provider(harness, "plugin", pid="echo", **{"class": "echo.py:EchoProvider", "options": {"prefix": "> "}})
     cfg = load_config(str(harness))
     p = cfg.provider("echo")
     assert isinstance(p, Provider) and p.chat("v1", "", [{"role": "user", "content": "hi"}]).text == "> hi"
     assert manage.test_provider(cfg, "echo") == {"ok": True, "models": 1, "sample": ["v1"]}
-    (harness.parent / "plugins" / "bad.py").write_text("class Nope: pass\n")
+    (harness.parent / "plugins" / "bad.py").write_text("class Nope: pass\n", encoding="utf-8")
     manage.add_provider(harness, "plugin", pid="bad", **{"class": "bad.py:Nope"})
     with pytest.raises(ProviderError, match="must subclass"):
         load_config(str(harness)).provider("bad")
@@ -141,7 +141,7 @@ def test_ui_endpoints(harness, tmp_path):
 
     hub = tmp_path / "hub.yaml"
     hub.write_text(yaml.safe_dump({"storage": {"type": "file", "path": str(tmp_path / "hd")},
-                                   "agents": {"me": {}}, "rules": []}))
+                                   "agents": {"me": {}}, "rules": []}), encoding="utf-8")
     app = UIApp(str(hub), str(harness), agent="me")
     data = app.dispatch("GET", "/api/providers", {}, {})
     assert "openrouter" in data["presets"] and [p["id"] for p in data["providers"]] == ["deepseek"]

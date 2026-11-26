@@ -82,7 +82,7 @@ def test_first_plan_is_a_document_with_estimate_and_critique(tmp_path):
     assert est["tasks"] == 3 and est["cost_usd"] > 0 and est["minutes"] > 0
     assert est["unpriced"] == ["img/pic"]  # the image model has no price: shown, not guessed
     assert {t.section for t in orch.project.tasks()} == {"S1", "S2"}
-    md = (orch.project.dir / "plan.md").read_text()
+    md = (orch.project.dir / "plan.md").read_text(encoding="utf-8")
     assert "## Decisions" in md and "Pixel art (recommended)" in md and "## Don't" in md
     # the critic isn't a role tasks can be given to
     assert "critic" not in orch._roles_text()
@@ -192,7 +192,7 @@ def test_estimate_uses_history_when_there_is_some(tmp_path):
     orch, *_ = make(tmp_path)
     f = tmp_path / "m.jsonl"
     f.write_text("\n".join(json.dumps({"task": f"T{i}", "role": "coder", "cost_usd": 0.5, "seconds": 120,
-                                       "at": "2026-11-20T10:00:00Z"}) for i in range(4)))
+                                       "at": "2026-11-20T10:00:00Z"}) for i in range(4)), encoding="utf-8")
     hist = plandoc.history_by_role([f])
     assert hist["coder"]["cost"] == 0.5 and hist["coder"]["minutes"] == 2.0
     est = plandoc.estimate(orch.cfg, [Task("X", "x", "coder", "d")], hist)
@@ -208,20 +208,20 @@ def test_plan_published_to_the_projects_own_hub_page(tmp_path):
     raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
     raw["agents"]["proj"] = {"description": "the project folder's own hub project"}
     raw["agents"]["harness"] = {"description": "shared"}
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     hraw = json.loads(json.dumps(RAW))
     hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
     orch, *_ = make(tmp_path, raw=hraw, brain=PlanBrain())
     orch.start("bakery site", require_approval=True)
     orch.run()
-    page = (tmp_path / "hubdata" / "plans" / "proj.md").read_text()
+    page = (tmp_path / "hubdata" / "plans" / "proj.md").read_text(encoding="utf-8")
     assert page.startswith("_Plan status: waiting for the owner · plan ready: 1 choice, 1 question")
     assert "## Decisions" in page and "[T1]" in page
     hub = orch._hub()
     todo = hub.journal.entries("proj", "proj")
     assert any(e["kind"] == "plan" and e["text"].startswith("goal: bakery site") for e in todo)  # no name prefix
     orch.plan_update("choose", decision="C1", option="b")
-    assert "Watercolour (chosen)" in (tmp_path / "hubdata" / "plans" / "proj.md").read_text()
+    assert "Watercolour (chosen)" in (tmp_path / "hubdata" / "plans" / "proj.md").read_text(encoding="utf-8")
 
 
 def test_commands_through_the_hub(tmp_path):
@@ -235,7 +235,7 @@ def test_commands_through_the_hub(tmp_path):
     raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
     raw["agents"].update({"proj": {}, "harness": {}, "me": {}, "stranger": {}})
     raw["rules"].append({"from": "*", "to": "*", "allow": ["message"]})
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     hraw = json.loads(json.dumps(RAW))
     hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
     brain = PlanBrain()

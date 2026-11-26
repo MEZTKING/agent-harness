@@ -76,7 +76,7 @@ def test_status_markdown_is_written(tmp_path):
     hub.journal.add("backend", "todo", "add auth", priority="high")
     hub.journal.add("backend", "plan", "v2: Postgres")
     hub.journal.session_end("backend", "orders done", ["auth next"])
-    md = (tmp_path / "data/status/backend.md").read_text()
+    md = (tmp_path / "data/status/backend.md").read_text(encoding="utf-8")
     assert md.startswith("# backend (me/api)")
     assert "## Where we left off" in md and "- [ ] auth next" in md
     assert "- [ ] **(high)** add auth" in md and "## Future plans" in md
@@ -106,7 +106,7 @@ def test_cli_journal_commands(tmp_path, monkeypatch, capsys):
     from roundtable.cli import main
 
     cfg = tmp_path / "hub.yaml"
-    cfg.write_text(yaml.safe_dump(RAW))
+    cfg.write_text(yaml.safe_dump(RAW), encoding="utf-8")
     monkeypatch.setenv("HUB_CONFIG", str(cfg))
     monkeypatch.setenv("HUB_AGENT", "backend")
     main(["log", "todo", "ship v1", "--priority", "high"])
@@ -166,7 +166,7 @@ def test_harness_writes_project_history(tmp_path):
     hub_raw = json.loads(json.dumps(RAW))
     hub_raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
     hub_raw["agents"]["harness"] = {"description": "project runner"}
-    hub_cfg.write_text(yaml.safe_dump(hub_raw))
+    hub_cfg.write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
     raw = json.loads(json.dumps(HRAW))
     raw["hub"] = {"config": str(hub_cfg), "agent": "harness"}
 

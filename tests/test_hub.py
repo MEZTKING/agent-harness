@@ -139,7 +139,7 @@ def test_cli_agent_flag_either_position(tmp_path, monkeypatch, capsys):
     from roundtable.cli import main
 
     cfg = tmp_path / "hub.yaml"
-    cfg.write_text(yaml.safe_dump(RAW))
+    cfg.write_text(yaml.safe_dump(RAW), encoding="utf-8")
     monkeypatch.setenv("HUB_CONFIG", str(cfg))
     main(["--agent", "backend", "cards"])
     main(["cards", "--agent", "backend"])
@@ -154,7 +154,7 @@ def test_git_store_works_with_clone_of_initially_empty_repo(tmp_path):
     _git("clone", "-q", str(remote), str(tmp_path / "early"), cwd=tmp_path)  # cloned while empty
     seed = tmp_path / "seed"
     _git("clone", "-q", str(remote), str(seed), cwd=tmp_path)
-    (seed / "hub.yaml").write_text("x: 1\n")
+    (seed / "hub.yaml").write_text("x: 1\n", encoding="utf-8")
     _git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "add", ".", cwd=seed)
     _git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "init", cwd=seed)
     _git("push", "-q", "origin", "HEAD:main", cwd=seed)
@@ -174,7 +174,7 @@ def test_unified_roundtable_command_routes_to_hub_and_harness(tmp_path, monkeypa
     assert _command(["--agent", "me", "where"]) == "where"
     assert _command(["--config", "x.yaml", "-v", "new", "d", "g"]) == "new"
     cfg = tmp_path / "hub.yaml"
-    cfg.write_text(yaml.safe_dump(RAW))
+    cfg.write_text(yaml.safe_dump(RAW), encoding="utf-8")
     monkeypatch.setenv("HUB_CONFIG", str(cfg))
     main(["--agent", "backend", "log", "todo", "routed through roundtable"])
     main(["where", "--agent", "backend"])

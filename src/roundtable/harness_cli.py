@@ -110,7 +110,7 @@ def _metrics(project: Project) -> None:
         print("no metrics yet")
         return
     agg: dict[tuple[str, str], dict] = defaultdict(lambda: defaultdict(float))
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         r = json.loads(line)
         a = agg[(r["role"], r["model"])]
         a["attempts"] += 1
@@ -526,7 +526,7 @@ def main(argv: list[str] | None = None) -> None:
         target = Path(args.path)
         if target.exists() and not args.force:
             sys.exit(f"error: {target} exists (use --force)")
-        target.write_text(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
+        target.write_text(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8"))
         print(f"wrote {target}. Set your API keys as environment variables, then: roundtable roles")
         return
     if args.cmd == "feedback":

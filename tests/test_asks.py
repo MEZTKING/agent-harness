@@ -91,7 +91,7 @@ def test_a_waiting_plan_becomes_cards_in_order(tmp_path):
     assert [o["label"] for o in idea["options"]] == ["Yes, add it", "No thanks"]
     assert appr["options"][0]["label"] == "Approve and start" and "About $" in appr["options"][0]["description"]
     # the planner's ready answers are in the plan (and its markdown, for the phone and the hub)
-    md = (orch.project.dir / "plan.md").read_text()
+    md = (orch.project.dir / "plan.md").read_text(encoding="utf-8")
     assert "Answers: Crumbs & Co (recommended) {a}; The Oven Door {b}" in md and "Answers (any of)" in md
 
 
@@ -277,7 +277,7 @@ def test_server_asks_and_wizard(ui, tmp_path):
     assert r["path"].endswith("bakery-site")
     assert wait_job(ui, r["job"]["id"])["result"]["status"] == "awaiting_approval"
     path = r["path"]
-    meta = json.loads((tmp_path / "projects/bakery-site/.harness/project.json").read_text())
+    meta = json.loads((tmp_path / "projects/bakery-site/.harness/project.json").read_text(encoding="utf-8"))
     assert meta["profile"] == "budget" and meta["look_step"] is False and meta["goals"] == ["Web app: Bakery site"]
     assert meta["references"][0]["input"] == "https://made-up.example"
     all_asks = call(ui, "GET", "/api/asks")["asks"]
@@ -336,11 +336,11 @@ def test_the_hub_gets_the_cards_next_to_the_plan(tmp_path):
 
     hub_raw = json.loads(json.dumps(HUB_RAW))
     hub_raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
     raw = with_profiles()
     raw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "backend"}
     orch = planned(tmp_path, raw=raw)
-    data = json.loads((tmp_path / "hubdata/plans/backend--proj.asks.json").read_text())
+    data = json.loads((tmp_path / "hubdata/plans/backend--proj.asks.json").read_text(encoding="utf-8"))
     assert data["project"] == "proj" and data["asks"][0]["id"] == "choose:C1"
 
 

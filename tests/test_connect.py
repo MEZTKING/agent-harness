@@ -43,7 +43,7 @@ def world(tmp_path, monkeypatch):
     _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
     hub_dir = tmp_path / "agent-hub-data"
     _git("clone", str(remote), str(hub_dir), cwd=tmp_path)
-    (hub_dir / "hub.yaml").write_text(HUB_YAML)
+    (hub_dir / "hub.yaml").write_text(HUB_YAML, encoding="utf-8")
     _git("add", "hub.yaml", cwd=hub_dir)
     _git("commit", "-m", "hub", cwd=hub_dir)
     _git("push", "origin", "HEAD:main", cwd=hub_dir)
@@ -88,10 +88,10 @@ def test_connect_registers_pushes_and_writes_claude_files(world, monkeypatch):
     # pushed: a fresh clone sees the new project
     fresh = tmp_path / "fresh"
     _git("clone", str(remote), str(fresh), cwd=tmp_path)
-    assert yaml.safe_load((fresh / "hub.yaml").read_text())["agents"]["my-game"]["repo"] == "someone/my-game"
-    mcp = json.loads((repo / ".mcp.json").read_text())["mcpServers"]["roundtable"]
+    assert yaml.safe_load((fresh / "hub.yaml").read_text(encoding="utf-8"))["agents"]["my-game"]["repo"] == "someone/my-game"
+    mcp = json.loads((repo / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["roundtable"]
     assert mcp["command"] == "roundtable" and mcp["args"] == ["mcp", "--agent", "my-game"] and "env" not in mcp
-    s = json.loads((repo / ".claude" / "settings.json").read_text())
+    s = json.loads((repo / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert s["enabledMcpjsonServers"] == ["roundtable"] and "mcp__roundtable" in s["permissions"]["allow"]
     assert [g["hooks"][0]["command"] for g in s["hooks"]["SessionStart"]] == [
         "roundtable hook session-start --agent my-game"]
@@ -101,7 +101,7 @@ def test_connect_registers_pushes_and_writes_claude_files(world, monkeypatch):
     # connecting again changes nothing in the hub and doesn't duplicate anything
     monkeypatch.chdir(repo)
     assert connect()["added_to_hub"] is False
-    s2 = json.loads((repo / ".claude" / "settings.json").read_text())
+    s2 = json.loads((repo / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert s2 == s
 
 
@@ -111,15 +111,15 @@ def test_settings_merge_keeps_other_hooks_and_settings(tmp_path):
     path.write_text(json.dumps({"model": "x", "permissions": {"allow": ["Bash(ls)"]}, "hooks": {
         "Stop": [{"hooks": [{"type": "command", "command": "say done"},
                             {"type": "command", "command": "roundtable hook stop --agent old"}]}],
-        "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "check"}]}]}}))
+        "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "check"}]}]}}), encoding="utf-8")
     write_claude_settings(tmp_path, "new")
-    s = json.loads(path.read_text())
+    s = json.loads(path.read_text(encoding="utf-8"))
     assert s["model"] == "x" and s["permissions"]["allow"] == ["Bash(ls)", "mcp__roundtable"]
     assert s["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "check"
     stop = [h["command"] for g in s["hooks"]["Stop"] for h in g["hooks"]]
     assert stop == ["say done", "roundtable hook stop --agent new"]
     write_claude_settings(tmp_path, "new", hooks=False)  # --no-hooks removes ours only
-    s = json.loads(path.read_text())
+    s = json.loads(path.read_text(encoding="utf-8"))
     assert [h["command"] for g in s["hooks"]["Stop"] for h in g["hooks"]] == ["say done"]
     assert "SessionStart" not in s["hooks"]
 
@@ -132,7 +132,7 @@ def _transcript(path, edits=(), tools=()):
     for t in tools:
         lines.append({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": t, "input": {}}]}})
     lines.append({"type": "user", "message": {"content": "plain text"}})
-    path.write_text("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
+    path.write_text("\n".join(json.dumps(x) for x in lines) + "\nnot json\n", encoding="utf-8")
     return str(path)
 
 
@@ -202,5 +202,5 @@ def test_cli_and_cloud_script(world, monkeypatch, capsys):
     main(["connect", str(repo), "--config", str(hub_dir / "hub.yaml"), "--agent", "game2", "--description", "second game", "--no-hooks"])
     out = capsys.readouterr().out
     assert "as project 'game2' (new in the hub)" in out
-    assert "hooks" not in json.loads((repo / ".claude" / "settings.json").read_text())
-    assert yaml.safe_load((hub_dir / "hub.yaml").read_text())["agents"]["game2"]["description"] == "second game"
+    assert "hooks" not in json.loads((repo / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert yaml.safe_load((hub_dir / "hub.yaml").read_text(encoding="utf-8"))["agents"]["game2"]["description"] == "second game"

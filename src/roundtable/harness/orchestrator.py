@@ -246,9 +246,9 @@ class Orchestrator(LookStage, ReferenceStage):
         if not (self.project.root / ".git").exists():
             self._git("init", "-q")
         gi = self.project.root / ".gitignore"
-        lines = gi.read_text().splitlines() if gi.exists() else []
+        lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
         if ".harness/" not in lines:
-            gi.write_text("\n".join(lines + [".harness/"]) + "\n")
+            gi.write_text("\n".join(lines + [".harness/"]) + "\n", encoding="utf-8")
 
     def _git_commit(self, message: str) -> None:
         if not self.cfg.git:
@@ -1270,11 +1270,11 @@ class Orchestrator(LookStage, ReferenceStage):
         """A task that kept running out of steps is too big: ask the planner to split it, once."""
         outcomes = [a.get("outcome") for a in task.attempts]
         record = self.project.root / ".harness" / "split.json"
-        split = json.loads(record.read_text()) if record.is_file() else []
+        split = json.loads(record.read_text(encoding="utf-8")) if record.is_file() else []
         if (not self.cfg.limits.split_stuck_tasks or not outcomes or task.id in split
                 or any(o != "max_steps" for o in outcomes) or not self.project.plan_doc()):
             return False
-        record.write_text(json.dumps(split + [task.id]))
+        record.write_text(json.dumps(split + [task.id]), encoding="utf-8")
         try:
             r = self.revise_plan(
                 f"Task {task.id} '{task.title}' ran out of steps {len(outcomes)} times: it is too big for one "

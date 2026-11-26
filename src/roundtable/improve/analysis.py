@@ -94,7 +94,7 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
             continue
         seen.add(proj)
         ds.projects.append(proj)
-        tasks = {t["id"]: t for t in json.loads((proj / ".harness/tasks.json").read_text() or "[]")}
+        tasks = {t["id"]: t for t in json.loads((proj / ".harness/tasks.json").read_text(encoding="utf-8") or "[]")}
         ds.tasks += len(tasks)
         firsts: set[str] = set()
         for row in _read_jsonl(proj / ".harness/metrics.jsonl"):

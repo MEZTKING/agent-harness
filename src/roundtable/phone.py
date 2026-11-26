@@ -108,7 +108,7 @@ def make_certificate(cert: Path, key: Path, name: str) -> None:
 
 
 def cert_fingerprint(cert: Path) -> str:
-    der = ssl.PEM_cert_to_DER_cert(cert.read_text())
+    der = ssl.PEM_cert_to_DER_cert(cert.read_text(encoding="utf-8"))
     return hashlib.sha256(der).hexdigest()
 
 

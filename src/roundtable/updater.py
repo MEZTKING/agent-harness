@@ -259,7 +259,7 @@ def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
 # -- passive daily check ------------------------------------------------------------
 def _load_state() -> dict:
     try:
-        return json.loads(STATE_FILE.read_text())
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -267,7 +267,7 @@ def _load_state() -> dict:
 def _save_state(state: dict) -> None:
     try:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(json.dumps(state))
+        STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
     except OSError:
         pass
 

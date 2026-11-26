@@ -45,8 +45,8 @@ def _age_s(ts: str) -> float:
 def run_seat(app, path: Path) -> dict[str, Any]:
     """Status of one harness project as a seat at the table."""
     hdir = path / ".harness"
-    meta = json.loads((hdir / "project.json").read_text())
-    tasks = json.loads((hdir / "tasks.json").read_text() or "[]")
+    meta = json.loads((hdir / "project.json").read_text(encoding="utf-8"))
+    tasks = json.loads((hdir / "tasks.json").read_text(encoding="utf-8") or "[]")
     events = _read_jsonl(hdir / "events.jsonl", tail=60)
     done = sum(t["status"] == "done" for t in tasks)
     failed = [t for t in tasks if t["status"] == "failed"]
@@ -69,7 +69,7 @@ def run_seat(app, path: Path) -> dict[str, Any]:
 
         doc = None
         try:
-            doc = json.loads((hdir / "plan.json").read_text())
+            doc = json.loads((hdir / "plan.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             pass
         line = summary_line(doc) if doc else "plan ready"
@@ -97,7 +97,7 @@ ASK_STATES = ("awaiting_approval", "blocked", "paused", "paused_budget")
 def _asks(cfg, path: Path) -> list[dict[str, Any]]:
     """The project's open cards (asks.py), only when it is waiting for the owner; never breaks the table."""
     try:
-        meta = json.loads((path / ".harness" / "project.json").read_text())
+        meta = json.loads((path / ".harness" / "project.json").read_text(encoding="utf-8"))
         if meta.get("status") not in ASK_STATES:
             return []
         from ..asks import open_asks

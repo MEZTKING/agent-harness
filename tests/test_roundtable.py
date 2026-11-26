@@ -36,7 +36,7 @@ def setup(tmp_path):
     hub_raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
     hub_raw["agents"]["proj"] = {"description": "the harness project"}  # same name as the run folder below
     hub_raw["rules"].append({"from": "*", "to": "*", "allow": ["read_card", "message"]})
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
     brain = Recorder()
     orch, *_ = make_harness(tmp_path, brain=brain)  # project folder: tmp_path/"proj"
     cfg = orch.cfg
@@ -147,7 +147,7 @@ def test_auto_sync_picks_up_other_sessions(tmp_path):
     hub_raw = json.loads(json.dumps(HUB_RAW))
     hub_raw["storage"] = {"type": "git", "path": str(tmp_path / "mine"), "remote": str(remote),
                           "sync_interval": 3600}
-    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw))
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
     app = UIApp(str(tmp_path / "hub.yaml"), "missing.yaml", agent="backend")
     app.hub.store.sync(force=True)
     other.update_card("backend", status="v2")  # another session writes
@@ -170,7 +170,7 @@ def test_raise_budget_saves_limit_and_resumes(setup):
     s = seat(build(app), "proj")
     assert s["status"] == "waiting" and s["actions"] == ["budget"]
     harness_yaml = cfg.path = orch.project.root.parent / "harness.yaml"
-    harness_yaml.write_text(yaml.safe_dump(HARNESS_RAW))
+    harness_yaml.write_text(yaml.safe_dump(HARNESS_RAW), encoding="utf-8")
     from roundtable.harness.config import load_config
 
     def fresh():
@@ -187,8 +187,8 @@ def test_raise_budget_saves_limit_and_resumes(setup):
             break
         time.sleep(0.05)
     assert j["status"] == "done" and j["result"] == {"status": "done", "max_cost_usd": 50.0}
-    assert yaml.safe_load((harness_yaml.parent / "custom.yaml").read_text())["limits"]["max_cost_usd"] == 50.0
-    assert yaml.safe_load(harness_yaml.read_text()) == HARNESS_RAW  # harness.yaml untouched
+    assert yaml.safe_load((harness_yaml.parent / "custom.yaml").read_text(encoding="utf-8"))["limits"]["max_cost_usd"] == 50.0
+    assert yaml.safe_load(harness_yaml.read_text(encoding="utf-8")) == HARNESS_RAW  # harness.yaml untouched
 
 
 def test_feed_lines_say_who_did_what(setup):
@@ -222,5 +222,5 @@ def test_spend_today_counts_every_charge(setup):
     total = orch.project.meta()["spent_usd"]
     assert total > 0 and abs(data["spend_today"] - total) < 1e-6
     tasks_only = sum(json.loads(x).get("cost_usd") or 0
-                     for x in (orch.project.dir / "metrics.jsonl").read_text().splitlines())
+                     for x in (orch.project.dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines())
     assert data["spend_today"] > tasks_only  # includes planning and the completion report

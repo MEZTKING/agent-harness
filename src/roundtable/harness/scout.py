@@ -31,6 +31,7 @@ from urllib.parse import urljoin, urlsplit
 
 from ..providers.base import ToolSpec
 from .tools import Tool, Toolbox, ToolError, Workspace, _obj
+from ..core.files import remove_tree
 
 MAX_BYTES = 2_000_000
 TIMEOUT = 20
@@ -237,7 +238,7 @@ def clone_repo(repo: str, dest: Path, run: Callable[..., Any] = subprocess.run) 
     if not name:
         raise FetchError("only GitHub repositories (owner/name) can be read")
     if dest.exists():
-        shutil.rmtree(dest, ignore_errors=True)
+        remove_tree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1"}
     cmd = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.symlinks=false", "clone", "--depth", "1",
@@ -246,16 +247,16 @@ def clone_repo(repo: str, dest: Path, run: Callable[..., Any] = subprocess.run) 
     try:
         res = run(cmd, capture_output=True, text=True, timeout=CLONE_TIMEOUT, env=env)
     except subprocess.TimeoutExpired:
-        shutil.rmtree(dest, ignore_errors=True)
+        remove_tree(dest)
         raise FetchError(f"copying {name} took longer than {CLONE_TIMEOUT} seconds; gave up")
     if res.returncode != 0:
-        shutil.rmtree(dest, ignore_errors=True)
+        remove_tree(dest)
         raise FetchError(f"couldn't copy {name} (it may be private or gone): {(res.stderr or '').strip()[-300:]}")
-    shutil.rmtree(dest / ".git", ignore_errors=True)
+    remove_tree(dest / ".git")
     _remove_links(dest)
     size = _size(dest)
     if size > MAX_CLONE_BYTES:
-        shutil.rmtree(dest, ignore_errors=True)
+        remove_tree(dest)
         raise FetchError(f"{name} is too big to read ({size // 1_000_000} MB, the limit is "
                          f"{MAX_CLONE_BYTES // 1_000_000} MB)")
     return dest

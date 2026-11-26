@@ -55,7 +55,7 @@ def test_projects_register_and_base_commits_recorded(tmp_path):
     cfg, lab = make_cfg(tmp_path)
     run_projects(cfg, tmp_path, 1)
     assert lab.projects() == [(tmp_path / "p0").resolve()]
-    tasks = json.loads((tmp_path / "p0/.harness/tasks.json").read_text())
+    tasks = json.loads((tmp_path / "p0/.harness/tasks.json").read_text(encoding="utf-8"))
     t1 = next(t for t in tasks if t["id"] == "T1")
     assert t1["base_commit"]
     # fallback lookup for older runs without base_commit
@@ -117,7 +117,7 @@ def test_apply_overlay_and_rollback(tmp_path):
 
 def test_learned_overlay_loads_with_config_file(tmp_path):
     raw = json.loads(json.dumps(RAW))
-    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     cfg = load_config(str(tmp_path / "harness.yaml"))
     assert cfg.lab_dir == tmp_path / ".harness-lab"
     lab = Lab(cfg.lab_dir)
@@ -125,7 +125,7 @@ def test_learned_overlay_loads_with_config_file(tmp_path):
                        rationale="r", risk="low"), cfg)
     again = load_config(str(tmp_path / "harness.yaml"))
     assert [str(m) for m in again.roles["coder"].models] == ["b/coder2", "a/coder"]
-    assert yaml.safe_load((tmp_path / "harness.yaml").read_text()) == raw  # harness.yaml untouched
+    assert yaml.safe_load((tmp_path / "harness.yaml").read_text(encoding="utf-8")) == raw  # harness.yaml untouched
 
 
 def test_candidate_config_does_not_touch_base(tmp_path):
@@ -162,7 +162,7 @@ def test_replay_evaluation_prefers_better_model(tmp_path):
     assert res["verdict"] == "better" and res["passed"]
     assert lab.proposal(good.id).status == "tested"
     # replays never touch the real project
-    assert len(json.loads((tmp_path / "p0/.harness/tasks.json").read_text())) == 3
+    assert len(json.loads((tmp_path / "p0/.harness/tasks.json").read_text(encoding="utf-8"))) == 3
 
     bad = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["a/coder"]},
                                     rationale="r", risk="low"))
@@ -237,7 +237,7 @@ def test_owner_propose_cli(tmp_path, capsys):
     from roundtable.harness_cli import main
 
     raw = json.loads(json.dumps(RAW))
-    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw))
+    (tmp_path / "harness.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
     cfg_path = str(tmp_path / "harness.yaml")
     main(["--config", cfg_path, "improve", "propose", "coder", "--models", "b/coder2,a/coder", "--risk", "low"])
     main(["--config", cfg_path, "improve", "propose", "coder", "--options", '{"temperature": 0.2}'])

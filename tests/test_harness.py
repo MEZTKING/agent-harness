@@ -90,7 +90,7 @@ def make(tmp_path, raw=RAW, brain=None, b_brain=None):
 
 
 def test_template_config_is_valid():
-    raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
+    raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8"))
     cfg = parse_config(raw)
     assert cfg.roles["coder"].models == [ModelRef("deepseek", "deepseek-v4-pro"), ModelRef("anthropic", "claude-sonnet-5-5")]
     assert cfg.roles["artist"].kind == "image" and cfg.roles["artist"].review is False
@@ -117,21 +117,21 @@ def test_full_project_run(tmp_path):
     tasks = {t.id: t for t in orch.project.tasks()}
     assert all(t.status == "done" for t in tasks.values())
     root = orch.project.root
-    assert (root / "hello.py").read_text().startswith("print('hi')")
+    assert (root / "hello.py").read_text(encoding="utf-8").startswith("print('hi')")
     assert (root / "assets/logo.png").read_bytes().startswith(b"\x89PNG")
     assert img.prompts == ["a bakery logo"]
-    assert "Final report" in (root / ".harness/summary.md").read_text()
+    assert "Final report" in (root / ".harness/summary.md").read_text(encoding="utf-8")
     # T3 ran after T1 and saw T1's summary
     t3_prompt = next(c["messages"][0]["content"] for c in a.calls if "# Your task [T3]" in c["messages"][0]["content"])
     assert "T1 done by coder" in t3_prompt
     # one commit per task, .harness ignored
     log = subprocess.run(["git", "log", "--oneline"], cwd=root, capture_output=True, text=True).stdout
     assert "[T1] hello module" in log and "[T3] tests" in log
-    assert ".harness/" in (root / ".gitignore").read_text()
+    assert ".harness/" in (root / ".gitignore").read_text(encoding="utf-8")
     # spend tracked and metrics written
     meta = orch.project.meta()
     assert meta["status"] == "done" and meta["spent_usd"] > 0
-    metrics = [json.loads(line) for line in (root / ".harness/metrics.jsonl").read_text().splitlines()]
+    metrics = [json.loads(line) for line in (root / ".harness/metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {m["task"] for m in metrics} == {"T1", "T2", "T3"}
 
 
@@ -257,7 +257,7 @@ def test_workspace_sandboxing(tmp_path):
     out, err = box.call("write_file", {"path": "a/b.txt", "content": "x\ny\n"})
     assert not err
     out, err = box.call("edit_file", {"path": "a/b.txt", "old_text": "y", "new_text": "z"})
-    assert not err and (tmp_path / "a/b.txt").read_text() == "x\nz\n"
+    assert not err and (tmp_path / "a/b.txt").read_text(encoding="utf-8") == "x\nz\n"
     out, err = box.call("read_file", {"path": "../../etc/passwd"})
     assert err
     out, err = box.call("nope", {})
@@ -421,7 +421,7 @@ def test_real_balance_noted_at_start_and_end(tmp_path, monkeypatch):
     events = []
     orch._listener = lambda k, d: events.append((k, d))
     assert orch.run() == "done"
-    rows = [json.loads(x) for x in (orch.project.root / ".harness/balance.jsonl").read_text().splitlines()]
+    rows = [json.loads(x) for x in (orch.project.root / ".harness/balance.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [r["phase"] for r in rows] == ["start", "end"] and rows[1]["real_usd"] == pytest.approx(0.05)
     assert any(k == "real_cost" for k, _ in events)
 
@@ -446,7 +446,7 @@ def test_task_that_keeps_running_out_of_steps_is_split_once(tmp_path):
     assert orch.run() == "done"
     tasks = {t.id: t for t in orch.project.tasks()}
     assert "T1" not in tasks and tasks["T2"].status == "done"
-    assert json.loads((orch.project.root / ".harness/split.json").read_text()) == ["T1"]
+    assert json.loads((orch.project.root / ".harness/split.json").read_text(encoding="utf-8")) == ["T1"]
     revise = next(c for c in a.calls if "submit_plan" in tool_names(c["tools"] or [])
                   and "ran out of steps" in c["messages"][0]["content"])
     assert "Replace it with 2 to 4 smaller tasks" in revise["messages"][0]["content"]
@@ -555,7 +555,7 @@ def test_owner_can_accept_a_rejected_task_as_it_is(tmp_path):
     orch, *_ = make(tmp_path, brain=Brain(plan=PLAN[:1]))
     orch.start("goal")
     orch.plan()
-    (orch.project.root / "hello.py").write_text("print('hi')\n")
+    (orch.project.root / "hello.py").write_text("print('hi')\n", encoding="utf-8")
     tasks = orch.project.tasks()
     tasks[0].status = "failed"
     orch.project.save_tasks(tasks)
@@ -586,12 +586,12 @@ def test_real_money_is_checked_sooner_when_spending_fast(tmp_path, monkeypatch):
 def test_big_files_come_back_as_an_outline_and_a_start(tmp_path):
     ws = Workspace(tmp_path)
     body = "\n".join(f"function f{i}() {{ return {i}; }}" if i % 50 == 0 else f"  // line {i}" for i in range(1, 2001))
-    (tmp_path / "big.js").write_text(body)
+    (tmp_path / "big.js").write_text(body, encoding="utf-8")
     out = ws.read_file({"path": "big.js"})
     assert "has 2000 lines" in out and "50\tfunction f50()" in out and "# Lines 1-120" in out and len(out) < len(body) / 3
     part = ws.read_file({"path": "big.js", "start_line": 1000, "end_line": 1005})
     assert part.startswith("1000\t") and "1005\t" in part
     capped = ws.read_file({"path": "big.js", "start_line": 1, "end_line": 2000})
     assert "stopped at line 600 of 2000" in capped
-    (tmp_path / "small.js").write_text("a\nb\n")
+    (tmp_path / "small.js").write_text("a\nb\n", encoding="utf-8")
     assert ws.read_file({"path": "small.js"}) == "1\ta\n2\tb"
