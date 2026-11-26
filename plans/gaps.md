@@ -6,6 +6,14 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **A project run elsewhere is half-visible on the desktop** (26 November, the owner's screenshot): MSE
+  Studio's plan, made in a cloud session, shows only as a "harness" to-do "the plan is ready: approve it"
+  with a **done** button (which just ticks the to-do, it doesn't approve), no seat of its own, and Chat
+  says "no harness run". The desktop should show every hub project as its own seat with its plan and cards
+  (as the phone does in Hub mode), and an approval to-do should offer **Open the plan** / **Approve**
+  (sent through the hub to wherever the project lives). Approving through the hub needs a Roundtable
+  listening there (`roundtable remote --watch`); the desktop should say whether one is. → slice 2.
+
 - **The phone has no screen for a project's settings yet** (26 November): the desktop's project page has
   it and the phone's routes serve `/api/project/settings`; the phone screen comes with slice 2.
 - **This phone: only x86_64 was built and smoke-tested** (26 November); arm64 (the owner's phone) is built
