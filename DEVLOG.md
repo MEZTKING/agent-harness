@@ -4,6 +4,12 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Release 0.7.0
+
+The owner chose to release. `pyproject.toml` 0.7.0; README "What's new in 0.7.0"; Settings no
+longer breaks when there's no hub file (the config editor says it's not set up yet). Pull
+request to main, CI, merge, then the app workflow with `release_tag: v0.7.0`.
+
 ## 2026-11-26 – Cheaper everywhere: DeepSeek off-peak, and start when it's cheaper
 
 The owner: "Make them all cheaper while keeping the quality."

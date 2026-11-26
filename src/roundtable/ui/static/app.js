@@ -1280,7 +1280,14 @@ function lookCard() {
 async function viewSettings() {
   const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
   const editor = async (which) => {
-    const c = await api("GET", `/api/config?which=${which}`);
+    let c;
+    try { c = await api("GET", `/api/config?which=${which}`); }
+    catch (e) {  // e.g. no hub set up yet: say so, don't break the whole Settings page
+      return h("details", {}, h("summary", {}, `${which}.yaml`, h("span", { class: "muted small" }, " · not set up yet")),
+        h("p", { class: "muted small" }, which === "hub"
+          ? "There's no hub file yet. Set up the hub in the Hub card above (or run the setup again)."
+          : `There's no ${which}.yaml yet. Run the setup again to make one.`));
+    }
     const ta = h("textarea", { style: "min-height:320px;font-family:ui-monospace,monospace;font-size:12px" }, c.text);
     return h("details", {}, h("summary", {}, `${which}.yaml`, h("span", { class: "muted small" }, ` · ${c.path}`)),
       h("p", { class: "muted small" }, which === "harness" ? "Providers, which model does which role, prices, limits." : "Projects (agents) and who may read or message whom."),

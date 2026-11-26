@@ -15,30 +15,25 @@ visible on the desktop app and the phone. Details: CLAUDE.md, "The pieces".
 
 | Piece | State |
 |---|---|
-| Desktop app | **0.6.0 released** (the living plan): `RoundtableHold-Setup-0.6.0.exe` on the v0.6.0 release. The owner has it installed (`roundtable version` on their PC) |
-| Branch `ccr-fca0772b-7ma69z` | Ahead of `main`: plan fixes (answers kept, turned-down ideas stay out, carry-on after running out of steps), the phone app, these docs. Not yet merged or released |
-| Roundtable Mobile | Built and tried in Hub mode; a test APK went to the owner on 25 November. PC mode untried. Not released (needs a signing key) |
-| `roundtable connect` | Merged into main in MSE-Studio-Engine, MCSuperMods, blockloom and cutline-studio; their sessions report into the hub |
-| Hub (`agent-hub-data`) | Agents: harness, mse-studio-engine, mcsupermods, blockloom, cutline-studio, music-player, me. Plans are published to `plans/<project>.md` |
+| Desktop app | **0.7.0 being released** from the session branch (see DEVLOG): tap-to-answer cards, the Candlelit Oak look, the Look step, references, plugins (token saver built in), backups, picture models, Budget / Balanced / Quality, OpenRouter and Openference, real-money limits, off-peak starts, learned model switches |
+| Roundtable Mobile | Built (cards and the new look included); not released (needs a signing key) |
+| Hub (`agent-hub-data`) | Agents: harness, mse-studio-engine, mcsupermods, blockloom, cutline-studio, music-player, me |
+| The yardstick (music player) | Finished: web app (Record Shop Sleeve look), Android APK and Windows EXE sent to the owner (not yet tried on real devices). About $13 of real money spent on the day across DeepSeek and OpenRouter, much of it on Roundtable faults now fixed |
 
-## 3. The yardstick: the music player
+## 3. Where to read more
 
-A browser music player built only from the owner's answers (web app, no framework,
-`file://`-runnable). Plan v5: 14 tasks; the owner's answers are all in (see
-`plans/owner-todo.md`, "Decided for you"). Lab: a throw-away folder with a DeepSeek-only
-`harness.yaml` (the planner on V4 Pro, everything else on V4 Flash) using the hub's
-config.
-
-Run so far: task 1 done and approved; task 2 ran out of steps (fixed in `2e1b1ba`) and
-was run again on its own and approved. The DeepSeek balance went from 2.97 to 2.94 USD
-for it: about 3 cents a task, not the $0.27 Roundtable counted (fixed: cache hits were
-priced as new input). The rest (12 tasks) should cost well under $1. **Ask the owner
-before building the rest.**
+- What the owner must do: `plans/owner-todo.md`; decisions made for them (with Fable's advice):
+  `plans/notes-for-owner.md`.
+- What Roundtable can't do yet: `plans/gaps.md`. Next releases: `PLAN.md` (Proof it works next),
+  then kinds (`plans/kinds.md`), self-repair later (`plans/self-repair.md`), the whole workflow
+  (`plans/workflow.md`), borrowed ideas (`plans/inspiration.md`).
+- The lab used for real runs is throw-away (the scratchpad `yard/`); its harness.yaml shows the
+  owner's split: Openference and OpenRouter for planning, design and checks, DeepSeek V4.1-Flash
+  direct for coding, GLM-5.3 through OpenRouter as fallback; no DeepSeek V4 Pro for now (owner).
 
 ## 4. What to do next
 
-1. Carry on with the music player if the owner agrees (`run` notes the real balance).
-2. Fix the estimate's defaults from real runs (plans/gaps.md).
-3. Release 2, "Proof it works" (PLAN.md), shaped by what the music player run shows;
-   then release 3, your repositories and delivery (plans/workflow.md).
-4. Then merge the branch and release (CLAUDE.md, "Releasing").
+1. Check the 0.7.0 release exists and works; tell the owner.
+2. Release 2, "Proof it works": automatic build, test, start and screenshots judged by a seeing
+   model; stop and ask above the shown estimate; task sizing; project memory of the machine.
+3. Kinds: the web app kind and one-tap APK/EXE extras first.

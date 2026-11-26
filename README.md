@@ -27,6 +27,21 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.7.0
+
+- **Answer by tapping**: everything Roundtable asks you is a card with ready answers (the
+  recommended one first) and an Other box; a new-project wizard of cards.
+- **A new look, Candlelit Oak**: the Hall round a painted table, light and dark.
+- **A look of its own for every app you make** (the Look step), **"Make it like this"**
+  (links and repos read by a scout), **plugins** (the token saver is the first),
+  **backups** to Google Drive's folder, **picture models** (GPT Image, Nano Banana).
+- **Budget / Balanced / Quality** per project, **OpenRouter** and **Openference**, exact costs
+  and real balances, and many savings: the cheapest OpenRouter route, Claude's cache through
+  gateways, big files read as an outline, DeepSeek's half-price hours (approve to start then).
+- **Safer runs**: real-money limits, pausing when an account is empty, stronger checks after a
+  rejection, tasks split when too big, "accept as it is", and model switches learned after
+  each run (written in the journal with the reason).
+
 ### From the terminal (any OS)
 
 #### Try it on your computer (10 minutes)
