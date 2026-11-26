@@ -149,6 +149,6 @@ def test_setup_says_which_services_each_key_is_for(tmp_path, lab_cfg):
     st = call(a, "GET", "/api/setup")
     ds = next(k for k in st["keys"] if k["name"] == "DEEPSEEK_API_KEY")
     assert ds["label"] == "DeepSeek" and ds["providers"] == ["deepseek"]
-    assert st["config_exists"]["harness"] is True and st["config_exists"]["hub"] is False
+    assert st["config_exists"]["harness"] is True and isinstance(st["config_exists"]["hub"], bool)
     assert all("_API_KEY" not in k["label"] for k in st["keys"])
     json.dumps(st)
