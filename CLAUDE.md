@@ -64,6 +64,11 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
   `plans/inspiration.md`) keeps its licence and copyright line in
   `THIRD_PARTY_NOTICES.md`, and the devlog names the source file. Never copy art or
   anything not under an open licence.
+- **Test on the owner's PC what the cloud can't** (owner, 26 November 2026: "For whatever you
+  can't test on the cloud, you should be controlling the person's computer and testing through
+  that, as I have the hardware"). Unreal, Godot, Blender, the Windows app and a phone by USB are
+  tested there through Remote Control (`list_computer_folders`, then `request_computer_folder`),
+  not left to the owner. If no folder is shared, say so in one line and carry on with the rest.
 - **Nothing is released without the owner saying so** (they have said "you do
   everything" for merging and releasing the desktop app: see Releasing).
 
