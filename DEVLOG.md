@@ -4,6 +4,18 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The whole workflow in one place
+
+The owner: "Basically Roundtable should be able to do my entire workflow in one place."
+
+- `plans/workflow.md` (new): the owner's workflow in 16 steps (from the idea to the
+  release, the devlog and the phone), who does each today and what Roundtable can do.
+- `PLAN.md`: a new release 3, **Your repositories and delivery** (work in the owner's own
+  GitHub repositories by their rules, keep their documents, push, pull request, CI,
+  merge, release). The owner chose to put it right after Proof; the phone, sessions,
+  tandem and games move to 4–7.
+- Open: everything marked No or Part in `plans/workflow.md`.
+
 ## 2026-11-26 – The real cost: balance checks and a fairer price for cache hits
 
 The owner chose to run one task and check the real cost before building the rest.

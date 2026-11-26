@@ -39,5 +39,6 @@ before building the rest.**
 
 1. Carry on with the music player if the owner agrees (`run` notes the real balance).
 2. Fix the estimate's defaults from real runs (plans/gaps.md).
-3. Release 2, "Proof it works" (PLAN.md), shaped by what the music player run shows.
+3. Release 2, "Proof it works" (PLAN.md), shaped by what the music player run shows;
+   then release 3, your repositories and delivery (plans/workflow.md).
 4. Then merge the branch and release (CLAUDE.md, "Releasing").

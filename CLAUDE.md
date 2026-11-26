@@ -15,8 +15,9 @@ everyone else builds. Every task must be easy to see.
 Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
 [PLAN.md](PLAN.md) (decisions and the releases), the newest entries of
 [DEVLOG.md](DEVLOG.md), [README.md](README.md) (how to install and run everything),
-[plans/owner-todo.md](plans/owner-todo.md) (what waits for the owner) and
-[plans/gaps.md](plans/gaps.md) (what Roundtable couldn't do yet).
+[plans/owner-todo.md](plans/owner-todo.md) (what waits for the owner) 
+[plans/gaps.md](plans/gaps.md) (what Roundtable couldn't do yet) and
+[plans/workflow.md](plans/workflow.md) (the owner's whole workflow, step by step: the target).
 
 ## Ground rules
 

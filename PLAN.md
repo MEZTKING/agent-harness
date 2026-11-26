@@ -25,6 +25,10 @@ What was done when, and why: [DEVLOG.md](DEVLOG.md). Where things stand right no
   on hard tasks, escalation from cheap to strong (release 5).
 - **Use Roundtable, and grow it** (26 November 2026): what it can't do becomes part of
   it, not a workaround (CLAUDE.md).
+- **The whole workflow in one place** (26 November 2026): "Roundtable should be able to
+  do my entire workflow in one place." Each step and where it stands:
+  [plans/workflow.md](plans/workflow.md). Repositories and delivery come right after
+  Proof, so merges without the owner watching are safe.
 - **Yardstick:** each release is judged by how far a real project gets unaided. The
   first is a music player for the browser (`plans/music-player.md` in the hub); the
   owner chose web apps and browser games first, then desktop, Android, Minecraft/Java.
@@ -38,10 +42,11 @@ What was done when, and why: [DEVLOG.md](DEVLOG.md). Where things stand right no
 | 0.1–0.5 | Hub, harness, self-improvement, the desktop app and command centre, `roundtable connect` | **Released** (0.5.0) |
 | 1 | **The living plan**: plan document, critique, edits that wait and one update, estimate, plans in the hub, commands through the hub | **Released** as 0.6.0; fixes since (answers kept across revisions, turned-down ideas stay out, a task carries on after running out of steps) are on the branch |
 | 2 | **Proof it works**: every task builds, passes tests and starts; screenshots checked by a model that can see; a Proof tab; a speed number per project; a project memory file. Web apps first, then desktop, Android, Java | Next – being shaped by the music player run |
-| 3 | **Phone, first release**: pairing, The Table, Needs you cards, project, task, Minutes and Ask/Steer, new idea, notifications | Built and tried in Hub mode (`mobile/`); not released |
-| 4 | **Sessions**: work in any repository from Roundtable – Claude Code driven as a worker, then the own loop; approvals, changes view, terminal, resume | Not started |
-| 5 | **True tandem**: parallel tasks in separate folders, best-of-several, escalation, the Careful / Balanced / Fast dial, a sandbox for commands | Not started |
-| 6 | **Games and assets**: style guide and asset checks, sound and music, an approval gallery, scripted playtesting | Not started |
+| 3 | **Your repositories and delivery**: a project can be one of the owner's GitHub repositories; Roundtable follows its CLAUDE.md, reads its handoff, works on a branch, keeps its devlog, handoff and owner-todo, pushes, opens the pull request, watches and fixes CI, merges and releases (merge and release as Needs you cards unless the owner gave standing permission). See [plans/workflow.md](plans/workflow.md) | Not started (owner, 26 November: after Proof) |
+| 4 | **Phone, first release**: pairing, The Table, Needs you cards, project, task, Minutes and Ask/Steer, new idea, notifications | Built and tried in Hub mode (`mobile/`); not released |
+| 5 | **Sessions**: work in any repository from Roundtable – Claude Code driven as a worker, then the own loop; approvals, changes view, terminal, resume | Not started |
+| 6 | **True tandem**: parallel tasks in separate worktrees, routing by kind of job, best-of-several, escalation, the Careful / Balanced / Fast dial, a sandbox for commands | Not started |
+| 7 | **Games and assets**: style guide and asset checks, sound and music, an approval gallery, scripted playtesting | Not started |
 
 Explicitly not, for now: no 3D pipeline, no store publishing, no more than about four
 tasks at once, no automatic merging of conflicts without review.
