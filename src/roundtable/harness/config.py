@@ -112,6 +112,7 @@ class Limits:
     max_steps_per_task: int = 40
     max_attempts_per_task: int = 3
     max_real_usd_per_run: float = 0.0  # pause a run once providers' real balances fell this much (0 = off)
+    max_usd_per_day: float = 0.0  # pause a run once today's spend on every project reached this (0 = off)
     split_stuck_tasks: bool = True  # a task that keeps running out of steps is split by the planner, once
     command_timeout: int = 120
     max_parallel: int = 1
@@ -395,6 +396,8 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         out["limits"] = {**(raw.get("limits") or {}), **custom["limits"]}
     if custom.get("plugins"):
         out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
+    if custom.get("default_profile") and custom["default_profile"] in (raw.get("profiles") or {}):
+        out["default_profile"] = custom["default_profile"]  # the profile chosen in the app (shared settings)
     return out
 
 
@@ -596,6 +599,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             max_attempts_per_task=int(lim.get("max_attempts_per_task", 3)),
             split_stuck_tasks=bool(lim.get("split_stuck_tasks", True)),
             max_real_usd_per_run=float(lim.get("max_real_usd_per_run", 0) or 0),
+            max_usd_per_day=float(lim.get("max_usd_per_day", 0) or 0),
             command_timeout=int(lim.get("command_timeout", 120)),
             max_scout_steps=int(lim.get("max_scout_steps", 30)),
         ),

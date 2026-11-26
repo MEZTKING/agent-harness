@@ -189,7 +189,8 @@ def test_first_start_writes_a_ready_config(server):
     # projects in the workspaces folder
     assert app.projects_dir == (server["tmp"] / "workspaces").resolve() and app.projects_dir.is_dir()
     assert call(server, "GET", "/api/hub") == (200, {"mode": "file", "url": "", "seat": seat, "error": "",
-                                                     "token": False})
+                                                     "token": False, "seat_error": "",
+                                                     "machine": {"id": seat, "name": "Phone", "kind": "phone"}})
 
 
 def test_first_start_keeps_what_is_there(clean_env, tmp_path):
