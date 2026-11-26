@@ -68,6 +68,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         return _answer(orch, kw)
     if action == "autopilot":
         return autopilot_command(cfg, kw)
+    if action == "todo_done":
+        return todo_done(orch, kw)
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
@@ -132,6 +134,23 @@ def autopilot_command(cfg, kw: dict[str, Any]) -> str:
         return "Autopilot off."
     st = autopilot.status()
     return f"Autopilot: {st['label']}."
+
+
+def todo_done(orch, kw: dict[str, Any]) -> str:
+    """A to-do ticked off from the phone: closed in the project's own journal, noting it was the owner."""
+    from .hub.journal import JournalError
+
+    hub = orch._hub()
+    if hub is None:
+        return "Couldn't mark it done: this project isn't on the hub. Mark it done on the PC instead."
+    entry = str(kw.get("id") or "").strip()
+    if not entry:
+        return "Couldn't mark it done: the to-do's id is missing. Refresh the Table and try again."
+    try:
+        e = hub.journal.close(orch._hub_agent(), entry, note=str(kw.get("note") or "Marked done by the owner from the phone."))
+    except JournalError as err:
+        return f"Couldn't mark it done: {err}. It may already be closed: refresh the Table."
+    return f"Done: \"{e['text'][:80]}\" is ticked off."
 
 
 def _answer(orch, kw: dict[str, Any]) -> str:

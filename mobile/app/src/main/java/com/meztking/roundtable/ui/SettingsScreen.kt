@@ -126,7 +126,7 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             Text("ABOUT", style = Label)
             Spacer(Modifier.height(8.dp))
-            Line("Roundtable Mobile", "version ${BuildConfig.VERSION_NAME}")
+            UpdateAbout()
             Text("Released with Roundtable Hold of the same version.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
         Spacer(Modifier.height(24.dp))
