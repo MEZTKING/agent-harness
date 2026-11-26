@@ -165,7 +165,7 @@ def test_use_the_recommended_setup_keeps_the_owners_other_settings(paths):
     before = app.dispatch("GET", "/api/setup/recommended", {}, {})
     assert not before["in_use"] and "DeepSeek writes the code" in before["summary"]
     coder = next(r for r in before["rows"] if r["role"] == "coder")
-    assert coder["before"] == ["deepseek/deepseek-v4-pro"] and coder["after"][0] == "deepseek/deepseek-v4-flash"
+    assert coder["before"] == ["deepseek/deepseek-v4-pro"] and coder["after"][:2] == ["anthropic/claude-opus-5-5", "deepseek/deepseek-v4-flash"]
     assert [p["name"] for p in before["profiles"]] == ["budget", "balanced", "quality"]
 
     r = app.dispatch("POST", "/api/setup/recommended", {}, {})

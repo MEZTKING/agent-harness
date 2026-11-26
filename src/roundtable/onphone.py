@@ -65,10 +65,13 @@ def seat_id(paths: Paths) -> str:
 
 def harness_config(hub_yaml: Path, seat: str) -> dict[str, Any]:
     roles: dict[str, Any] = {r: {"model": MODEL} for r in ROLES}
-    roles["coder"]["description"] = "writes and tests code"
+    # the owner's choice: Claude Opus 5.5 codes (with an Anthropic key), DeepSeek Flash backs it up
+    roles["coder"] = {"model": "anthropic/claude-opus-5-5", "fallback": [MODEL], "options": {"effort": "medium"},
+                      "description": "writes and tests code"}
     return {
         "providers": {"deepseek": {"type": "openai_compat", "base_url": "https://api.deepseek.com",
-                                   "api_key_env": "DEEPSEEK_API_KEY"}},
+                                   "api_key_env": "DEEPSEEK_API_KEY"},
+                      "anthropic": {"type": "anthropic", "api_key_env": "ANTHROPIC_API_KEY"}},
         "roles": roles,
         "planner_role": "orchestrator", "reviewer_role": "reviewer", "critic_role": "critic",
         "design_role": "designer", "scout_role": "scout",

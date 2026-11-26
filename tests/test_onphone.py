@@ -171,7 +171,8 @@ def test_first_start_writes_a_ready_config(server):
     cfg = load_config(str(home / "config" / "harness.yaml"))
     assert cfg.roles, "no roles"
     for name, role in cfg.roles.items():
-        assert [str(m) for m in role.models] == ["deepseek/deepseek-v4-flash"], name
+        want = ["anthropic/claude-opus-5-5", "deepseek/deepseek-v4-flash"] if name == "coder" else ["deepseek/deepseek-v4-flash"]
+        assert [str(m) for m in role.models] == want, name
     assert "deepseek-v4-pro" not in (home / "config" / "harness.yaml").read_text()
     assert cfg.planner_role == "orchestrator" and cfg.reviewer_role == "reviewer" and cfg.critic_role == "critic"
     assert cfg.token_saver.enabled is True

@@ -92,7 +92,7 @@ def make(tmp_path, raw=RAW, brain=None, b_brain=None):
 def test_template_config_is_valid():
     raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8"))
     cfg = parse_config(raw)
-    assert cfg.roles["coder"].models == [ModelRef("deepseek", "deepseek-v4-flash"), ModelRef("openrouter", "z-ai/glm-5.3")]
+    assert cfg.roles["coder"].models == [ModelRef("anthropic", "claude-opus-5-5"), ModelRef("deepseek", "deepseek-v4-flash")]
     assert cfg.roles["illustrator"].kind == "image" and cfg.roles["illustrator"].review is False
     assert "deepseek-v4-pro" not in resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(
         encoding="utf-8")  # the owner's rule: no DeepSeek V4 Pro for now

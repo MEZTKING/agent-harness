@@ -56,9 +56,10 @@ roles:
     model: "openference/Claude Sonnet 5.5"
     fallback: [openference/GLM-5.3, deepseek/deepseek-v4-flash]
     max_tokens: 32000                 # three mockup pages in one answer
-  coder:
-    model: deepseek/deepseek-v4-flash
-    fallback: [openrouter/z-ai/glm-5.3]
+  coder:                            # the owner's choice (26 November 2026): Claude Opus 5.5 codes, DeepSeek Flash backs it up
+    model: anthropic/claude-opus-5-5
+    fallback: [deepseek/deepseek-v4-flash]
+    options: {effort: medium}
     description: writes and tests code
   scout:                            # reads the pages and repositories you want it to be like ("Make it like this")
     model: deepseek/deepseek-v4-flash
@@ -105,12 +106,12 @@ profiles:
       coder: {model: deepseek/deepseek-v4-flash, fallback: [openrouter/z-ai/glm-5.3]}
       reviewer: {model: "openference/GPT-6 Luna", fallback: [deepseek/deepseek-v4-flash]}
   balanced:
-    description: Claude plans and designs, other makers check, DeepSeek codes
+    description: Claude plans, designs and codes, other makers check, DeepSeek backs up
     roles:
       orchestrator: {model: "openference/Claude Opus 5.5", fallback: [openrouter/z-ai/glm-5.3, deepseek/deepseek-v4-flash]}
       critic: {model: "openference/GPT-6.1 Terra", fallback: [openference/GLM-5.3, deepseek/deepseek-v4-flash]}
       designer: {model: openrouter/anthropic/claude-sonnet-5.5, fallback: ["openference/Claude Sonnet 5.5", deepseek/deepseek-v4-flash]}
-      coder: {model: deepseek/deepseek-v4-flash, fallback: [openrouter/z-ai/glm-5.3]}
+      coder: {model: anthropic/claude-opus-5-5, fallback: [deepseek/deepseek-v4-flash], options: {effort: medium}}
       reviewer: {model: openrouter/openai/gpt-6.1-terra, fallback: [openrouter/anthropic/claude-sonnet-5.5, deepseek/deepseek-v4-flash]}
   quality:
     description: the strongest model for every job
@@ -119,7 +120,7 @@ profiles:
       orchestrator: {model: openrouter/anthropic/claude-opus-5.5, fallback: ["openference/Claude Opus 5.5", deepseek/deepseek-v4-flash]}
       critic: {model: openrouter/openai/gpt-6.1-terra, fallback: [openrouter/google/gemini-3.8-flash, deepseek/deepseek-v4-flash]}
       designer: {model: openrouter/anthropic/claude-opus-5.5, fallback: [openrouter/anthropic/claude-sonnet-5.5, deepseek/deepseek-v4-flash]}
-      coder: {model: openrouter/anthropic/claude-sonnet-5.5, fallback: [openrouter/z-ai/glm-5.3, deepseek/deepseek-v4-flash]}
+      coder: {model: anthropic/claude-opus-5-5, fallback: [deepseek/deepseek-v4-flash], options: {effort: medium}}
       reviewer: {model: openrouter/openai/gpt-6.1-terra, fallback: [openrouter/anthropic/claude-haiku-5.5, deepseek/deepseek-v4-flash]}
 default_profile: balanced
 
