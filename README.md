@@ -23,6 +23,8 @@ roundtable ui              # the same, in a web UI
    - click **Start**.
 4. Everything can be changed later under **Settings**: keys, the hub, which model does which role, prices and limits.
 
+The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs you is lit by a candle. It follows your computer's light or dark setting; pick one under **Settings → Look**.
+
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
 ### From the terminal (any OS)

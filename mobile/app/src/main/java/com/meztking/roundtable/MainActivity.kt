@@ -178,7 +178,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
             NavigationBar(containerColor = Hall.panel) {
-                val colors = NavigationBarItemDefaults.colors(selectedIconColor = Hall.ink, indicatorColor = Hall.gold, selectedTextColor = Hall.goldBright,
+                val colors = NavigationBarItemDefaults.colors(selectedIconColor = Hall.onAccent, indicatorColor = Hall.gold, selectedTextColor = Hall.text,
                     unselectedIconColor = Hall.muted, unselectedTextColor = Hall.muted)
                 NavigationBarItem(tab == 0, { tab = 0 }, icon = {
                     BadgedBox(badge = { if (needCount > 0) Badge(containerColor = Hall.ember) { Text("$needCount") } }) { Icon(Icons.Filled.TripOrigin, null) }

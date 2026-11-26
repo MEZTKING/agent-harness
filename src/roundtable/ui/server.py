@@ -1169,6 +1169,9 @@ class UIApp:
 
 
 # -- HTTP layer ------------------------------------------------------------------------------------
+# the look's fonts and pictures: some Pythons (and Windows' registry) don't know these types
+for _ext, _type in ((".woff2", "font/woff2"), (".webp", "image/webp")):
+    mimetypes.add_type(_type, _ext)
 def make_handler(app: UIApp, token: str | None, allow_remote: bool):
     static = resources.files("roundtable").joinpath("ui/static")
 

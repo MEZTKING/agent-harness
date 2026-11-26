@@ -98,7 +98,7 @@ fun LettersScreen(
         }
         ExtendedFloatingActionButton(
             onClick = { writing = true }, icon = { Icon(Icons.Filled.Edit, null) }, text = { Text("Write") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp), containerColor = Hall.gold, contentColor = Hall.ink,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp), containerColor = Hall.gold, contentColor = Hall.onAccent,
         )
     }
     all.firstOrNull { it.recipient + "/" + it.id == open }?.let { m ->

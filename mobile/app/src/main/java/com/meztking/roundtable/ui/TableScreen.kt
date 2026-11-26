@@ -1,6 +1,7 @@
 package com.meztking.roundtable.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,6 +65,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import com.meztking.roundtable.R
 import com.meztking.roundtable.data.HallState
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.AskReply
@@ -154,7 +157,7 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
         TableMark(Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text("ROUNDTABLE", fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = 2.8.sp, color = Hall.goldBright)
+            Text("Roundtable Hold", fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, color = Hall.text)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).background(if (mode == null) Hall.muted else Hall.good, CircleShape))
                 Spacer(Modifier.width(6.dp))
@@ -184,29 +187,10 @@ fun Loading(text: String) {
     }
 }
 
-/** The app's own mark: a ring with a candle flame (drawn, no image). */
+/** The app's own mark: the carved table with its one candle (original art made for Roundtable). */
 @Composable
 fun TableMark(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val r = size.minDimension / 2
-        drawCircle(Hall.gold, r * 0.86f, style = Stroke(r * 0.1f))
-        for (i in 0 until 6) {
-            val a = Math.toRadians(i * 60.0 - 90)
-            drawCircle(Hall.gold, r * 0.09f, Offset(center.x + cos(a).toFloat() * r * 0.86f, center.y + sin(a).toFloat() * r * 0.86f))
-        }
-        flame(center.copy(y = center.y - r * 0.05f), r * 0.5f)
-    }
-}
-
-private fun DrawScope.flame(c: Offset, h: Float) {
-    val w = h * 0.42f
-    val p = Path().apply {
-        moveTo(c.x, c.y - h / 2)
-        cubicTo(c.x + w * 0.9f, c.y - h * 0.05f, c.x + w, c.y + h * 0.3f, c.x, c.y + h / 2)
-        cubicTo(c.x - w, c.y + h * 0.3f, c.x - w * 0.9f, c.y - h * 0.05f, c.x, c.y - h / 2)
-        close()
-    }
-    drawPath(p, Brush.verticalGradient(listOf(Color(0xFFFFF1C4), Hall.amber, Color(0xFFB0611F)), startY = c.y - h / 2, endY = c.y + h / 2))
+    Image(painterResource(R.drawable.emblem), null, modifier.clip(CircleShape))
 }
 
 /** The round table: seats around a central circle that counts what needs the owner. */
@@ -224,29 +208,27 @@ fun RoundTable(
         val cy = h * 0.46f
         val rx = w * 0.37f
         val ry = h * 0.36f
-        val centreR = w * 0.17f
+        val centreR = w * 0.2f
         Box(Modifier.fillMaxWidth().height(h)) {
             // the table top and its glow
             Canvas(Modifier.fillMaxSize()) {
                 val c = Offset(cx.toPx(), cy.toPx())
                 val r = centreR.toPx()
-                drawCircle(Brush.radialGradient(listOf(Hall.amber.copy(alpha = 0.22f), Color.Transparent), c, r * 2.2f), r * 2.2f, c)
-                drawCircle(Brush.radialGradient(listOf(Color(0xFF4A3820), Color(0xFF2A2117), Color(0xFF1A1510)), c, r), r, c)
-                drawCircle(Hall.gold, r, c, style = Stroke(2.dp.toPx()))
-                drawCircle(Hall.goldDim, r * 0.86f, c, style = Stroke(1.dp.toPx()))
+                drawCircle(Brush.radialGradient(listOf(Hall.text.copy(alpha = 0.18f), Color.Transparent), c, r * 1.25f), r * 1.25f, c)
                 // the seats' places, faintly
-                drawOval(Hall.lineGold.copy(alpha = 0.5f), Offset(c.x - rx.toPx(), c.y - ry.toPx()), Size(rx.toPx() * 2, ry.toPx() * 2),
+                drawOval(Hall.line, Offset(c.x - rx.toPx(), c.y - ry.toPx()), Size(rx.toPx() * 2, ry.toPx() * 2),
                     style = Stroke(1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 10f))))
-                for (i in -1..1) flame(Offset(c.x + i * r * 0.22f, c.y - r * 0.42f), r * 0.2f)
             }
+            // the carved oak table (original art made for Roundtable)
+            Image(painterResource(R.drawable.table), null, Modifier.offset(cx - centreR, cy - centreR).size(centreR * 2).clip(CircleShape))
             Column(
                 Modifier.offset(cx - centreR, cy - centreR).size(centreR * 2).clip(CircleShape).clickable(onClick = onCentre)
                     .semantics { contentDescription = "$needCount things need you. Open the list." },
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
-                Spacer(Modifier.height(centreR * 0.3f))
-                Text("$needCount", fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = (centreR.value * 0.55f).sp, color = Hall.goldBright)
-                Text("NEED YOU", fontFamily = Serif, fontSize = 10.sp, letterSpacing = 2.4.sp, color = Hall.gold)
+                val wood = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.8f), Offset(0f, 2f), 8f))
+                Text("$needCount", fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = (centreR.value * 0.5f).sp, color = Hall.onWood, style = wood)
+                Text("need you", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Hall.onWood, style = wood)
             }
             seats.forEachIndexed { i, s ->
                 val a = Math.toRadians(-90.0 + 360.0 * i / seats.size)
@@ -274,23 +256,27 @@ fun RoundTable(
 @Composable
 fun SeatRing(s: SeatView, selected: Boolean, size: Dp) {
     val color = Hall.status(s.status)
+    val waiting = s.status == "waiting"
+    val flicker = if (waiting) com.meztking.roundtable.ui.theme.candleFlicker().value else 0f
+    val candle = Hall.candle
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = 3.5.dp.toPx()
             val r = this.size.minDimension / 2 - stroke
-            if (selected) drawCircle(Brush.radialGradient(listOf(Hall.amber.copy(alpha = 0.45f), Color.Transparent), center, r * 1.5f), r * 1.5f)
-            drawCircle(Brush.radialGradient(listOf(Color(0xFF332A1F), Hall.panel), center, r), r)
+            // the seat that needs the owner is lit by a slow candle glow (only that seat)
+            if (waiting) drawCircle(Brush.radialGradient(listOf(candle.copy(alpha = 0.25f + 0.35f * flicker), Color.Transparent), center, r * 1.75f), r * 1.75f)
+            drawCircle(Hall.panel, r)
             drawCircle(Hall.line, r, style = Stroke(stroke))
             val p = s.progress
             val sweep = if (p != null && p.total > 0) 360f * p.done / p.total else 360f
             drawArc(color, -90f, sweep, false, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), style = Stroke(stroke, cap = StrokeCap.Round))
-            if (selected) drawCircle(Hall.goldBright, r + stroke * 1.2f, style = Stroke(1.dp.toPx()))
+            if (selected) drawCircle(Hall.text, r + stroke * 1.2f, style = Stroke(1.5.dp.toPx()))
         }
-        Text(s.initials, fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.32f).sp, color = Hall.goldBright)
+        Text(s.initials, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.32f).sp, color = Hall.text)
         if (s.badge > 0) {
             Box(Modifier.align(Alignment.TopEnd).offset(4.dp, (-2).dp).size(20.dp).background(Hall.ember, CircleShape)
                 .border(1.5.dp, Hall.bg, CircleShape), contentAlignment = Alignment.Center) {
-                Text(if (s.badge > 9) "9+" else "${s.badge}", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                Text(if (s.badge > 9) "9+" else "${s.badge}", fontSize = 10.sp, color = Hall.on(Hall.ember), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -299,11 +285,11 @@ fun SeatRing(s: SeatView, selected: Boolean, size: Dp) {
 /** The card under the table for the seat that is tapped. */
 @Composable
 fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
-    Panel(Modifier.fillMaxWidth(), highlight = true) {
+    Panel(Modifier.fillMaxWidth(), highlight = s.status == "waiting") {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(9.dp).background(Hall.status(s.status), RoundedCornerShape(2.dp)))
+            Box(Modifier.size(9.dp).background(Hall.status(s.status), CircleShape))
             Spacer(Modifier.width(8.dp))
-            Text(s.id, style = MaterialTheme.typography.titleMedium, color = Hall.goldBright, modifier = Modifier.weight(1f, fill = false),
+            Text(s.id, style = MaterialTheme.typography.titleMedium, color = Hall.text, modifier = Modifier.weight(1f, fill = false),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(8.dp))
             Chip(s.status, Hall.status(s.status))
@@ -323,7 +309,7 @@ fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
         s.progress?.takeIf { it.total > 0 }?.let { p ->
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(4.dp).background(Hall.line, RoundedCornerShape(2.dp))) {
-                Box(Modifier.fillMaxWidth(p.done.toFloat() / p.total).height(4.dp).background(Hall.amber, RoundedCornerShape(2.dp)))
+                Box(Modifier.fillMaxWidth(p.done.toFloat() / p.total).height(4.dp).background(Hall.gold, RoundedCornerShape(2.dp)))
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -347,12 +333,13 @@ fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
 /** B's roll call: one row per project, for when there are too many seats for the table. */
 @Composable
 fun SeatRow(s: SeatView, onOpen: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Hall.panel).border(1.dp, Hall.line, RoundedCornerShape(8.dp))
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Hall.panel)
+        .border(if (s.status == "waiting") 2.dp else 1.dp, if (s.status == "waiting") Hall.candle else Hall.line, RoundedCornerShape(14.dp))
         .clickable(onClick = onOpen).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
         SeatRing(s, false, 46.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(s.id, style = MaterialTheme.typography.titleSmall, color = Hall.goldBright, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(s.id, style = MaterialTheme.typography.titleSmall, color = Hall.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(s.statusText, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (s.high > 0) Chip("${s.high} high", Hall.bad)
@@ -366,9 +353,9 @@ fun SeatRow(s: SeatView, onOpen: () -> Unit) {
 
 @Composable
 private fun CentreBanner(n: Int, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF33290F), Color(0xFF281F0C))))
-        .border(1.dp, Hall.goldDim, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("$n", fontFamily = Serif, fontSize = 30.sp, color = Hall.goldBright, fontWeight = FontWeight.SemiBold)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Hall.accentSoft)
+        .border(1.dp, Hall.line, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("$n", fontFamily = Serif, fontSize = 30.sp, color = Hall.text, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(12.dp))
         Text("NEED YOU", style = Label, modifier = Modifier.weight(1f))
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Hall.gold)
@@ -379,9 +366,9 @@ private fun CentreBanner(n: Int, onClick: () -> Unit) {
 @Composable
 private fun NeedsPeek(needs: List<NeedView>, modifier: Modifier, onOpen: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-            .background(Brush.verticalGradient(listOf(Hall.panelHi, Hall.panel)))
-            .border(1.dp, Hall.lineGold, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+        modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .background(Hall.panel)
+            .border(1.dp, Hall.line, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
             .clickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -396,8 +383,8 @@ private fun NeedsPeek(needs: List<NeedView>, modifier: Modifier, onOpen: () -> U
 
 @Composable
 fun CountBadge(n: Int) {
-    Box(Modifier.size(24.dp).background(Hall.accentSoft, CircleShape).border(1.dp, Hall.gold, CircleShape), contentAlignment = Alignment.Center) {
-        Text("$n", fontSize = 12.sp, color = Hall.goldBright, fontFamily = Serif, fontWeight = FontWeight.SemiBold)
+    Box(Modifier.size(24.dp).background(Hall.gold, CircleShape), contentAlignment = Alignment.Center) {
+        Text("$n", fontSize = 12.sp, color = Hall.onAccent, fontWeight = FontWeight.Bold)
     }
 }
 
