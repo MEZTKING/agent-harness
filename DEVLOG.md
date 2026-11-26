@@ -4,6 +4,14 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Money to-dos close when the run carries on
+
+The owner's phone showed 16 "need you", two of them the music player's "high" money to-dos, though that
+project finished hours ago. `Orchestrator._attention("money", …)` was never resolved, and a finished run
+didn't close any. `run` now resolves `approval`, `budget` and `money` when it resumes, and `_finish` does
+too. Test: `test_money_and_budget_todos_close_when_the_run_goes_on`. One-off hub fix: closed the two stale
+to-dos (87fe66, c908ed) and the DeepSeek-prices one (e85317; prices are built in).
+
 ## 2026-11-26 – Tool servers (MCP) for roles, and Unreal Engine (0.7.2)
 
 The owner asked for something that can drive Unreal Engine's assets and Blueprints, then "Go ahead"

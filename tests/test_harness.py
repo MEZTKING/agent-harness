@@ -202,6 +202,21 @@ def test_budget_pauses_and_resumes(tmp_path):
     assert orch.run() == "done"
 
 
+def test_money_and_budget_todos_close_when_the_run_goes_on(tmp_path):
+    """A pause for money raises a high to-do for the owner; it must not stay open once the run carries on
+    and finishes (the music player kept two stale "high" items on the phone)."""
+    orch, *_ = make(tmp_path)
+    opened, closed = [], []
+    orch._journal = lambda kind, text, **kw: (opened.append(text), f"id{len(opened)}")[1]
+    orch._journal_close = lambda entry_id, note="": closed.append(entry_id)
+    orch.start("goal")
+    orch._attention("money", "this run has spent $1.00 of real credit")
+    orch._attention("budget", "paused at the budget limit")
+    assert orch.run() == "done"
+    assert {"id1", "id2"} <= set(closed)
+    assert not orch.project.meta().get("journal_todos")
+
+
 def test_extend_adds_goal_and_tasks(tmp_path):
     orch, *_ = make(tmp_path)
     orch.start("goal one")

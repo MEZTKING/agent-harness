@@ -1331,7 +1331,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 self._attention("approval", f"review the plan, then: roundtable approve {self.project.root} "
                                             f"&& roundtable run {self.project.root}")
                 return "awaiting_approval"
-            self._resolved("approval", "budget", note="run resumed")
+            self._resolved("approval", "budget", "money", note="run resumed")
             self._set_status("running")
 
             executed = finished_this_run = 0
@@ -1425,6 +1425,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             summary = f"(summary unavailable: {e})"
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
+        self._resolved("approval", "budget", "money", note="the run finished")
         self._publish_plan()
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
         for plan_id in meta.get("journal_plans", []):
