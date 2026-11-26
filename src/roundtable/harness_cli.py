@@ -10,6 +10,9 @@
     roundtable run DIR                       resume a project
     roundtable approve DIR                   approve a plan waiting for approval
     roundtable status DIR                    task board and spend
+    roundtable settings DIR                  the project's own settings (.harness/project.yaml), and where each comes from
+    roundtable set DIR KEY VALUE             change one, e.g. set DIR test "python -m pytest tests -q"
+                                             (env and limits: NAME=VALUE, NAME= removes; an empty VALUE removes the key)
     roundtable retry DIR TASK_ID             re-open a failed task
     roundtable skip DIR TASK_ID              mark a task done without running it
     roundtable metrics DIR                   per role/model success rate and cost
@@ -93,6 +96,14 @@ def _status(project: Project) -> None:
     saved = project.saved_tokens_est()
     if saved:
         print(f"Token saver: about {saved:,} tokens kept out of the models' conversations")
+    repo = meta.get("repository")
+    if repo:
+        print(f"Branch:  {repo.get('branch') or '(not made yet)'} (started from {repo.get('start_branch') or 'a detached HEAD'}"
+              f"; never pushed)")
+    base = meta.get("baseline")
+    if base:
+        state = "passed" if base.get("passed") else f"failed ({len(base.get('failing') or [])} failing test(s))"
+        print(f"Checks:  `{base.get('command')}` {state} before the first task")
     for i, g in enumerate(meta.get("goals", []), 1):
         print(f"Goal {i}:  {g}")
     print()
@@ -205,6 +216,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--like", action="append", default=[], metavar="URL_OR_TEXT",
                    help="make it like this: a web link, a GitHub repository or a description (repeat for more)")
     s.add_argument("--max-tasks", type=int)
+    s.add_argument("--test", help="the project's test command (saved in .harness/project.yaml)")
+    s.add_argument("--setup", help="a command run once before the first task (saved in .harness/project.yaml)")
     s = sub.add_parser("extend")
     s.add_argument("dir")
     s.add_argument("goal")
@@ -214,6 +227,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--max-tasks", type=int)
     for name in ("approve", "status", "metrics"):
         sub.add_parser(name).add_argument("dir")
+    sub.add_parser("settings", help="the project's own settings and where each comes from").add_argument("dir")
+    s = sub.add_parser("set", help="change one of the project's settings (.harness/project.yaml)")
+    s.add_argument("dir")
+    s.add_argument("key")
+    s.add_argument("value", nargs="?", default="")
     for name in ("retry", "skip"):
         s = sub.add_parser(name)
         s.add_argument("dir")
@@ -543,6 +561,33 @@ def _feedback(args) -> None:
     print(f"recorded {'good' if args.good else 'bad'} rating for {task.id} ({model})")
 
 
+def _settings(args) -> None:
+    from .harness import projectsettings as ps
+
+    root = Path(args.dir)
+    if not root.is_dir():
+        sys.exit(f"error: no folder {args.dir}")
+    try:
+        cfg = load_config(args.config)
+        profiles = list(cfg.profiles)
+    except Exception:  # the settings can be read and changed without a working harness.yaml
+        profiles = None
+    try:
+        view = ps.set_from_text(root, args.key, args.value, profiles) if args.cmd == "set" else ps.view(root, profiles)
+    except ValueError as e:
+        sys.exit(f"error: {e}")
+    for item in view["settings"]:
+        value = item["value"]
+        shown = json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict)) else str(value)
+        where = "" if item["source"] == "default" else f"   (from {item['source']})"
+        print(f"{item['key']:18} {shown or '-'}{where}")
+    for line in view["warnings"] + view["errors"]:
+        print(f"! {line}")
+    print(f"\n{view['order']}.")
+    if args.cmd == "set":
+        print(f"saved in {view['files']['project']}")
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.cmd == "init":
@@ -561,6 +606,8 @@ def main(argv: list[str] | None = None) -> None:
 
         return serve(hub_config=args.hub_config, harness_config=args.config, agent=os.environ.get("HUB_AGENT"),
                      host=args.host, port=args.port, open_browser=not args.no_browser, projects_dir=args.projects_dir)
+    if args.cmd in ("settings", "set"):
+        return _settings(args)
     if args.cmd in ("status", "metrics"):
         project = Project(args.dir)
         if not project.exists:
@@ -619,6 +666,11 @@ def main(argv: list[str] | None = None) -> None:
         orch = Orchestrator(cfg, args.dir, on_event=_printer(args.verbose))
         if args.cmd == "new":
             orch.start(args.goal, require_approval=args.approve, references=args.like)
+            from .harness import projectsettings
+
+            changes = {k: v for k, v in (("test", args.test), ("setup", args.setup)) if v}
+            if changes:
+                projectsettings.update(orch.project.root, changes)
         elif args.cmd == "extend":
             orch.extend(args.goal)
         elif args.cmd == "approve":

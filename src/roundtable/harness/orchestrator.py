@@ -28,6 +28,7 @@ from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
 from .lookstage import LookStage
 from .refstage import ReferenceStage, new_reference
+from .repostage import RepoStage
 from .saver import TokenSaver
 from .showstage import ShowStage
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
@@ -187,7 +188,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(LookStage, ReferenceStage, ShowStage):
+class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -196,12 +197,12 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     ):
         self.base_cfg = cfg
         self.project = Project(project_dir)
-        self.cfg = cfg.for_profile(self.profile())
+        self.cfg = self._settle_cfg(cfg.for_profile(self.profile()))
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
         self._listener = on_event
         meta = self.project.meta()
         # the owner can let one project spend more than the limit ("Carry on with $X more")
-        limit = cfg.limits.max_cost_usd + float(meta.get("budget_extra_usd") or 0)
+        limit = self.cfg.limits.max_cost_usd + float(meta.get("budget_extra_usd") or 0)
         self.budget = Budget(limit_usd=limit, spent_usd=meta.get("spent_usd", 0.0))
         # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
         self.budget.on_charge = self._on_charge
@@ -264,6 +265,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def _git_init(self) -> None:
         if not self.cfg.git:
             return
+        if getattr(self, "_repo_found", None):  # one of the owner's apps: its .gitignore stays as it is
+            return self._exclude_harness()
         if not (self.project.root / ".git").exists():
             self._git("init", "-q")
         gi = self.project.root / ".gitignore"
@@ -274,6 +277,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def _git_commit(self, message: str) -> None:
         if not self.cfg.git:
             return
+        self._guard_branch()  # repository mode: only ever on Roundtable's own branch
         self._git("add", "-A")
         if self._git("status", "--porcelain").strip():
             self._git("commit", "-q", "-m", message)
@@ -357,7 +361,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         try:
             hub = self._hub()
             if hub:
-                hub.update_card(self._hub_agent(), change_note=note, status=status)
+                hub.update_card(self._hub_agent(), change_note=note, status=self._card_status(status))
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
 
@@ -529,6 +533,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         for text in references or []:
             if str(text).strip():
                 refs.append(new_reference(text, refs))
+        self._repo_found = self._detect_repository()
         self._git_init()
         self.project.save_meta({
             "goals": [goal], "status": "planning", "created_at": utcnow(),
@@ -536,6 +541,9 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             "references": refs,
         })
         self.project.save_tasks([])
+        self._ensure_settings_file()
+        if self._repo_found:
+            self._begin_repository(goal, self._repo_found)
         self.emit("goal", {"goal": goal})
         self._register_with_lab()
 
@@ -651,7 +659,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     # -- profiles: budget / balanced / quality ---------------------------------------
     def profile(self) -> str | None:
         """The project's chosen set of models, else the config's default (None: the roles as written)."""
-        chosen = self.project.meta().get("profile") if self.project.exists else None
+        chosen = self._settings_profile() or (self.project.meta().get("profile") if self.project.exists else None)
         return chosen if chosen in self.base_cfg.profiles else self.base_cfg.default_profile
 
     def set_profile(self, name: str) -> dict[str, Any]:
@@ -660,7 +668,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         meta = self.project.meta()
         meta["profile"] = name
         self.project.save_meta(meta)
-        self.cfg = self.base_cfg.for_profile(name)
+        self._remember_profile(name)
+        self.cfg = self._settle_cfg(self.base_cfg.for_profile(name))
         doc = self.project.plan_doc()
         if doc:
             doc["profile"] = name
@@ -676,7 +685,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         out, keep = {}, self.cfg
         try:
             for name in self.base_cfg.profiles:
-                self.cfg = self.base_cfg.for_profile(name)
+                self.cfg = self._settle_cfg(self.base_cfg.for_profile(name))
                 e = self._estimate(self.project.tasks())
                 out[name] = {"cost_usd": e.get("cost_usd"), "minutes": e.get("minutes"), "unpriced": e.get("unpriced", [])}
         finally:
@@ -708,6 +717,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         like = self._references_text()
         job = (
             (f"{like}\n\n" if like else "")
+            + self._repo_plan_note()
             + f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
             + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
             + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
@@ -770,7 +780,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         prompt = (f"{plandoc.render_markdown(doc, goal_tasks)}\n\n# Task details\n"
                   + "\n".join(f"[{t.id}] ({t.role}) {t.title}: {t.description[:600]} | done when: {t.acceptance[:300]}"
                                + (f" | after {', '.join(t.depends_on)}" if t.depends_on else "") for t in goal_tasks)
-                  + "\n\nCritique this plan before any work starts. Look for: missing pieces, wrong order, tasks too big "
+                  + "\n\n" + self._repo_critic_note() + "Critique this plan before any work starts. Look for: missing pieces, wrong order, tasks too big "
                     "or vague to verify, risky or over-engineered choices, choices the owner should make that are "
                     "hidden, and a better recommendation where you'd pick differently. Severity high = the plan "
                     "would fail or waste most of the budget. Be brief; call submit_critique.")
@@ -977,9 +987,10 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     ) -> AgentResult:
         """Run a one-shot role job (planning / summary), trying fallback models on provider errors."""
         last: Exception | None = None
+        self._require_models(role)
         for ref in role.models:
             try:
-                res = run_agent(self.cfg, ref, system, prompt, box, self.budget,
+                res = run_agent(self.cfg, ref, self._with_repo_rules(system), prompt, box, self.budget,
                                 max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
                                 options=role.options, require_terminal=require, on_event=self.emit,
                                 saver=self._saver(), role=role.name)
@@ -1006,6 +1017,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             parts.append("# Results of tasks this depends on\n" + "\n".join(f"- [{d.id}] {d.summary}" for d in deps))
         if feedback:
             parts.append("# Feedback on your previous attempt(s) - address all of it\n" + "\n\n".join(feedback))
+        parts.extend(self._repo_worker_parts())
         parts.append("Work in the project files using your tools. Throwaway scripts you write only to check your work "
                      "go in .harness/scratch/ (never committed or reviewed), or delete them before you finish. When "
                      "finished, call finish_task with a concise summary of what you did and anything the next person "
@@ -1015,6 +1027,9 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def _review(self, task: Task, worker_summary: str, stronger: bool = False) -> tuple[bool, str, AgentResult | None]:
         reviewer = self.cfg.roles.get(self.cfg.reviewer_role or "")
         role = self.cfg.roles[task.role]
+        checks = self._task_checks(task)  # the project's own test command, when it has one
+        if checks and checks["blame"]:
+            return False, checks["feedback"], None
         if not reviewer or not role.review:
             return True, "(review skipped)", None
         if stronger and len(reviewer.models) > 1:
@@ -1047,6 +1062,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "")
             + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
+            + (checks["text"] if checks else "")
             + self._later_tasks_text(task) +
             ("This project is a Godot game: call run_game to start it and see its script errors.\n\n"
                if game is not None else "") +
@@ -1121,6 +1137,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         role = self.cfg.roles.get(task.role)
         if not role:
             raise HarnessError(f"task {task.id}: role {task.role!r} no longer exists in config")
+        self._require_models(role)
         if role.kind == "image":
             return self._run_image_task(task, role)
 
@@ -1153,7 +1170,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             box.add(Tool(ToolSpec("finish_task", "Call when the task is complete.",
                                   _obj({"summary": {"type": "string"}}, ["summary"])), finish_task, terminal=True))
             try:
-                res = run_agent(self.cfg, ref, self.cfg.prompt_text(role.prompt), self._worker_prompt(task, tasks, feedback),
+                res = run_agent(self.cfg, ref, self._with_repo_rules(self.cfg.prompt_text(role.prompt)),
+                                self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
                                 on_event=self.emit, saver=self._saver(), role=task.role)
@@ -1345,6 +1363,9 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 return "awaiting_approval"
             self._resolved("approval", "budget", "money", note="run resumed")
             self._set_status("running")
+            stop = self._prepare_run()  # the project's settings, setup and the checks' baseline
+            if stop:
+                return stop
 
             executed = finished_this_run = 0
             while True:
@@ -1523,7 +1544,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         role = self.cfg.roles.get(task.role)
         if not quality or not role:
             return []
-        strong = self.base_cfg.for_profile(quality).roles.get(task.role)
+        strong = self._settle_cfg(self.base_cfg.for_profile(quality)).roles.get(task.role)
         if not strong or [str(m) for m in strong.models] == [str(m) for m in role.models]:
             return []
         return list(strong.models)
