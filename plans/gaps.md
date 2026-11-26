@@ -6,6 +6,23 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **References: the phone can't add one from its own screen yet.** The hub command works
+  (`reference_add` with `text`, `reference_remove` with `id`), but Roundtable Mobile has no
+  "Make it like this" box or "Like these" view. → release 4.
+- **References: sites that refuse automated readers stay unread.** Reddit and others answer
+  403 to a plain reader; the scout says so and works from the rest. A real browser (the
+  Playwright the Look step uses) or the site's own API would read more. → release 2.
+- **References: the address check happens before the request, not on the connection.** A
+  site could answer a different address the second time it is looked up (and the
+  session's proxy looks it up itself). Connecting to the checked address, or reading
+  through the sandbox, closes that. → release 6 (the sandbox for commands).
+- **References: a repository's size is checked after it is copied.** git can't stop a
+  clone at a size, so a huge repository is downloaded (within 120 seconds) before it is
+  refused and deleted. A size check through the GitHub API first would avoid that. →
+  release 3.
+- **References: a reference that couldn't be read isn't tried again by itself.** Remove
+  it and add it again. No real run of the scout has been made yet (it costs credit). →
+  release 2.
 - **Long tasks have no compaction; the token saver's "compact at 120k" needs it.** The
   token saver (26 November) slims tool results as they arrive, but a long task's
   conversation still grows without limit; the plugin it comes from asks the harness to

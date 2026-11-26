@@ -177,6 +177,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("dir")
     s.add_argument("goal")
     s.add_argument("--approve", action="store_true", help="stop after planning until you run `roundtable approve`")
+    s.add_argument("--like", action="append", default=[], metavar="URL_OR_TEXT",
+                   help="make it like this: a web link, a GitHub repository or a description (repeat for more)")
     s.add_argument("--max-tasks", type=int)
     s = sub.add_parser("extend")
     s.add_argument("dir")
@@ -588,7 +590,7 @@ def main(argv: list[str] | None = None) -> None:
 
         orch = Orchestrator(cfg, args.dir, on_event=_printer(args.verbose))
         if args.cmd == "new":
-            orch.start(args.goal, require_approval=args.approve)
+            orch.start(args.goal, require_approval=args.approve, references=args.like)
         elif args.cmd == "extend":
             orch.extend(args.goal)
         elif args.cmd == "approve":

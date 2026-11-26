@@ -10,7 +10,8 @@ are obeyed. Anyone who can write to the hub repository could already change ever
 this adds no new access; it only makes the owner's intent actionable.
 
 Actions: the plan edits (choose, answer, dont_add, dont_remove, idea, section, scope_add,
-scope_remove, note, look: choose a look by its id, with an optional note), revise, approve (then
+scope_remove, note, look: choose a look by its id, with an optional note, reference_add: ``text`` is a
+link, a GitHub repository or a description to make it like, reference_remove: ``id`` such as R1), revise, approve (then
 run), run, retry, skip, steer, ask, looks (make new looks to choose from; ``text`` is the owner's
 starting point).
 """

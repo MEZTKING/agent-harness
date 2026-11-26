@@ -88,12 +88,15 @@ class LookStage:
 
     def _looks_job(self, brief: str, count: int) -> str:
         used = self._used_looks()
+        like = self._reference_looks()
         used_text = "\n".join(f"- {u['project']}: {u['name']} (accents {', '.join(u['accents'])}; display font "
                               f"{u['display_font']})" for u in used)
         return (
             f"# Your job\nDesign {count} clearly different visual directions for this project's app, with ids "
             f"{', '.join(LOOK_IDS[:count])}. For each, a mockup of the app's main screen as one static HTML page.\n"
             + (f"\n# The owner's starting point\n{brief}\n" if brief else "")
+            + (f"\n# The looks of what the owner wants it to be like (a starting point: similar in spirit, never "
+               f"their logos or art)\n{like}\n" if like else "")
             + (f"\n# Looks already used in the owner's other projects\n{used_text}\nDon't reuse these names, accent "
                "colours or display fonts" + (" unless the owner's starting point asks for it" if brief else "") + ".\n"
                if used else "")

@@ -26,6 +26,7 @@ from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
 from .lookstage import LookStage
+from .refstage import ReferenceStage, new_reference
 from .saver import TokenSaver
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
@@ -169,7 +170,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(LookStage):
+class Orchestrator(LookStage, ReferenceStage):
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -364,7 +365,7 @@ class Orchestrator(LookStage):
 
     def _not_for_tasks(self) -> set[str]:
         """Roles that plan, critique or design looks: never given a task."""
-        return {r for r in (self.cfg.planner_role, self.cfg.critic_role, self.cfg.design_role) if r}
+        return {r for r in (self.cfg.planner_role, self.cfg.critic_role, self.cfg.design_role, self.cfg.scout_role) if r}
 
     def _project_context(self, tasks: list[Task], upto: Task | None = None) -> str:
         meta = self.project.meta()
@@ -462,13 +463,19 @@ class Orchestrator(LookStage):
         return {"reply": answer, "model": res.model, "cost_usd": res.cost_usd}
 
     # -- planning --------------------------------------------------------------
-    def start(self, goal: str, require_approval: bool = False) -> None:
+    def start(self, goal: str, require_approval: bool = False, references: list[str] | None = None) -> None:
+        """A new project. ``references``: links, GitHub repositories or descriptions to make it like."""
         if self.project.exists:
             raise HarnessError(f"{self.project.root} already has a project; use `roundtable extend` to add a goal")
+        refs: list[dict[str, Any]] = []
+        for text in references or []:
+            if str(text).strip():
+                refs.append(new_reference(text, refs))
         self._git_init()
         self.project.save_meta({
             "goals": [goal], "status": "planning", "created_at": utcnow(),
             "require_approval": require_approval, "plan_approved": not require_approval, "spent_usd": 0.0,
+            "references": refs,
         })
         self.project.save_tasks([])
         self.emit("goal", {"goal": goal})
@@ -607,8 +614,11 @@ class Orchestrator(LookStage):
         existing = self.project.tasks()
         goal_index = len(meta["goals"]) - 1
         goal = meta["goals"][-1]
+        refs = self._scout_pending()
+        like = self._references_text()
         job = (
-            f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
+            (f"{like}\n\n" if like else "")
+            + f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
             + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
             + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
               "don't-do list, a short spec, the real decisions with your recommendation, questions only you can't "
@@ -621,6 +631,7 @@ class Orchestrator(LookStage):
         tasks = existing + new
         self.project.save_tasks(tasks)
         doc = plandoc.doc_from_submission(args, goal, goal_index)
+        doc["references"] = refs
         doc["estimate"] = self._estimate(new)
         if self.base_cfg.profiles:
             doc["estimates"] = self.profile_estimates()
@@ -711,6 +722,10 @@ class Orchestrator(LookStage):
         instruction = (instruction or "").strip()
         if not pending and not instruction:
             raise HarnessError("nothing to change: choose, answer, edit or write what you want changed first")
+        if any(r.get("status") == "new" for r in doc.get("references", [])):
+            self._scout_pending()  # a reference added since: read it before re-planning
+            doc = self.project.plan_doc()
+        like = self._references_text()
         meta = self.project.meta()
         gi = doc["goal_index"]
         tasks = self.project.tasks()
@@ -719,6 +734,7 @@ class Orchestrator(LookStage):
         changes = "\n".join(f"- {c['text']}" for c in pending)
         job = (
             f"# Current plan (version {doc.get('version', 1)})\n{plandoc.render_markdown(doc, [t for t in tasks if t.goal_index == gi])}\n\n"
+            + (f"{like}\n\n" if like else "")
             + (f"# The owner's changes to apply\n{changes}\n\n" if changes else "")
             + (f"# {'The owner says' if by == 'owner' else 'Also'}\n{instruction}\n\n" if instruction else "")
             + f"# Your job\nRevise the plan for goal #{gi + 1}: {meta['goals'][gi]}\n"
@@ -766,7 +782,7 @@ class Orchestrator(LookStage):
         return {"version": new_doc["version"], "summary": summary, **diff}
 
     PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note",
-                    "look")
+                    "look", "reference_add", "reference_remove")
 
     def plan_update(self, action: str, **kw: Any) -> dict[str, Any]:
         """The owner edits the plan. Edits wait in `pending` until revise_plan applies them (one model call)."""
@@ -831,6 +847,10 @@ class Orchestrator(LookStage):
                 note(f"No longer {'out of' if kw.get('out') else 'in'} scope: {text}", f"{key}:{text[:40]}")
         elif action == "look":
             self._choose_look(doc, kw, note)
+        elif action == "reference_add":
+            self._add_reference(doc, kw, note)
+        elif action == "reference_remove":
+            self._remove_reference(doc, kw, note)
         elif action == "note":
             text = str(kw.get("text", "")).strip()[:2000]
             if not text:
@@ -859,14 +879,14 @@ class Orchestrator(LookStage):
     # -- execution ---------------------------------------------------------------
     def _run_with_fallback(
         self, role: RoleSpec, system: str, prompt: str, box: Toolbox,
-        require: str | None = None, done: Callable[[], bool] | None = None,
+        require: str | None = None, done: Callable[[], bool] | None = None, max_steps: int | None = None,
     ) -> AgentResult:
         """Run a one-shot role job (planning / summary), trying fallback models on provider errors."""
         last: Exception | None = None
         for ref in role.models:
             try:
                 res = run_agent(self.cfg, ref, system, prompt, box, self.budget,
-                                max_steps=self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
+                                max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
                                 options=role.options, require_terminal=require, on_event=self.emit,
                                 saver=self._saver())
                 self._save_spend()

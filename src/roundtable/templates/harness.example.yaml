@@ -47,6 +47,9 @@ roles:
   critic:                           # a second opinion on every new plan, from another maker's model
     model: deepseek/deepseek-v4-pro
     fallback: [anthropic/claude-opus-5-5]
+  scout:                            # reads the pages and repositories you want it to be like ("Make it like this")
+    model: deepseek/deepseek-v4-flash
+    fallback: [deepseek/deepseek-v4-pro]
   reviewer:                         # checks every task against its acceptance criteria
     model: anthropic/claude-opus-5-5
     options: {effort: medium}
@@ -93,6 +96,7 @@ planner_role: orchestrator
 reviewer_role: reviewer             # remove to skip reviews
 critic_role: critic                 # remove to skip the plan critique
 design_role: designer               # who designs the looks (default: a chat role named designer, else the planner)
+scout_role: scout                   # who reads references (default: a chat role named scout, else the planner)
 look_stage: auto                    # auto: offer three looks when the plan is an app with screens; off: only when asked
 # prompts_dir: ./prompts            # override built-in prompts (orchestrator.md, coder.md, ...)
 

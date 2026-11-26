@@ -7,6 +7,8 @@
 * decisions: a question, options, the planner's recommendation and why, and the owner's choice;
 * questions for the owner, and ideas the planner recommends beyond the goal;
 * a critique of the plan by a second model (ideally from another maker);
+* references ("Make it like this"): what the owner wants it to be like, each read by the scout
+  (``scout.py``, ``refstage.py``);
 * the look: visual directions for an app with screens, and the one the owner chose (``look.py``);
 * an estimate of cost and time before anything runs;
 * pending owner changes (choices, answers, edits) until the plan is revised with them;
@@ -119,6 +121,8 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
         new["has_ui"] = old.get("has_ui")
     if old.get("look"):
         new["look"] = old["look"]  # the looks aren't the planner's: they stay as they were
+    if old.get("references"):
+        new["references"] = old["references"]  # the owner's, read by the scout: never the planner's to drop
     new["version"] = old.get("version", 1) + 1
     new["history"] = old.get("history", [])
     new["critique"] = old.get("critique")
@@ -293,6 +297,29 @@ def _look_markdown(look: dict[str, Any], image_base: str) -> list[str]:
     return L
 
 
+def _references_markdown(refs: list[dict[str, Any]]) -> list[str]:
+    L = ["## Like these", "What you want it to be like. Similar, never a copy: no names, characters, art, music or "
+         "text taken; code only where the licence allows it, with credit.", ""]
+    for r in refs:
+        rep = r.get("report") or {}
+        L.append(f"### {rep.get('title') or r['input'][:120]} {{{r['id']}}}")
+        if r.get("status") == "new":
+            L += ["Not read yet: it is read when the plan is next updated.", ""]
+            continue
+        if r.get("status") == "failed":
+            L += [r.get("error") or "Couldn't read it.", f"You gave: {r['input'][:300]}", ""]
+            continue
+        L.append(rep.get("what_it_is", ""))
+        for title, key in (("Borrow", "borrow"), ("Avoid", "avoid")):
+            if rep.get(key):
+                L.append(f"{title}: " + "; ".join(rep[key]))
+        L.append(f"Licence: {rep.get('licence', 'unknown')} · code: {rep.get('code_reuse', 'not allowed')}")
+        if rep.get("unreadable"):
+            L.append("Couldn't read: " + "; ".join(rep["unreadable"]))
+        L.append("")
+    return L
+
+
 def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_base: str = "look/") -> str:
     """Readable plan. Items end with their id in braces ({C1}-style ids for options {a}, questions {Q1},
     ideas {I1}, don'ts {D1}, looks {A}; decisions and spec sections carry [C1]/[S1] in their heading) so a
@@ -329,6 +356,8 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
             if d.get("why"):
                 L.append(f"Why: {d['why']}")
             L.append("")
+    if doc.get("references"):
+        L += _references_markdown(doc["references"])
     if (doc.get("look") or {}).get("directions"):
         L += _look_markdown(doc["look"], image_base)
     if doc.get("questions"):
@@ -378,9 +407,33 @@ def context_text(doc: dict[str, Any] | None) -> str:
     chosen = next((d for d in look.get("directions", []) if d["id"] == look.get("chosen")), None)
     if chosen:
         L.append(f"Look (owner's choice): {chosen['name']}, see design/DESIGN.md")
+    L += _references_context(doc.get("references") or [])
     for s in doc.get("spec", []):
         L.append(f"## {s['title']}\n{s.get('text', '')}")
     return "\n".join(L)
+
+
+def _references_context(refs: list[dict[str, Any]]) -> list[str]:
+    """The short form of the references for tasks and reviews, with the rule about copying."""
+    read = [r for r in refs if r.get("report")]
+    if not read:
+        return []
+    L = ["Make it like these (similar, never a copy: borrow ideas, mechanics and general style; never their names, "
+         "characters, story, art, music, sounds, levels, logos or text; never copy their images, sounds, fonts or "
+         "models):"]
+    for r in read:
+        rep = r["report"]
+        L.append(f"- {r['id']} {rep.get('title', '')}: {rep.get('what_it_is', '')[:300]}"
+                 + (f" Borrow: {'; '.join(rep.get('borrow', []))[:400]}." if rep.get("borrow") else "")
+                 + (f" Avoid: {'; '.join(rep.get('avoid', []))[:300]}." if rep.get("avoid") else ""))
+    credit = [r for r in read if r["report"].get("code_reuse") == "allowed with credit"]
+    if credit:
+        L.append("Code may be taken only from " + ", ".join(f"{r['id']} ({r['report'].get('licence')})" for r in credit)
+                 + ", and then its licence and copyright line go into THIRD_PARTY_NOTICES.md. Code from any other "
+                 "reference must not be copied.")
+    else:
+        L.append("No reference's code may be copied: write your own.")
+    return L
 
 
 def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:

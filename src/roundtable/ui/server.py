@@ -36,6 +36,12 @@ from ..core.models import utcnow
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 
+def _lines(raw) -> list[str]:
+    """References from the form: a list, or text with one per line."""
+    items = raw if isinstance(raw, list) else str(raw or "").splitlines()
+    return [str(x).strip() for x in items if str(x).strip()][:20]
+
+
 class ApiError(Exception):
     def __init__(self, message: str, status: int = 400):
         super().__init__(message)
@@ -409,10 +415,11 @@ class UIApp:
         path = (path if path.is_absolute() else self.projects_dir / path).resolve()
         if (path / ".harness/project.json").exists():
             raise ApiError(f"{path} already has a project; use extend")
+        refs = _lines(body.get("references"))
 
         def run(job: Job):
             orch = self._orch(cfg, path, job)
-            orch.start(goal, require_approval=bool(body.get("approve")))
+            orch.start(goal, require_approval=bool(body.get("approve")), references=refs)
             return {"status": orch.run(max_tasks=body.get("max_tasks")), "path": str(path)}
 
         return self.jobs.start("run", f"new project {path.name}", run, target=str(path)).view()

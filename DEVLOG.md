@@ -4,6 +4,68 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Make it like this: references
+
+The owner: "I'll make an option so that you can input ideas that already exist, and you can
+make it similar to that, into my multi-agent manager." What `plans/inspiration.md` did by hand
+(two projects read and turned into ideas, plus a licence decision), Roundtable now does for
+any project.
+
+- Input: `Orchestrator.start(goal, references=[...])`; `roundtable new DIR "goal" --like X`
+  (repeatable, `harness_cli.py`); the app's new-project form has a "Make it like this" box
+  (`viewRuns`, server `project_new` with `_lines`); later through `plan_update("reference_add",
+  text=...)` / `reference_remove` (new `PLAN_ACTIONS`), the plan page's **Like these** section
+  (`likeSection` in `app.js`), and the hub command for the phone (`remote.execute` takes them
+  as plan edits). A reference is a link, a GitHub repository (`owner/name` or its address) or
+  a description (`scout.parse_reference`).
+- `harness/scout.py` (new): `check_url` (http/https only; no user names in addresses; every
+  resolved address must be public: private, loopback, link-local, shared, reserved and
+  IPv4-mapped ones are refused), `fetch_url` (no automatic redirects: at most 5, each
+  re-checked; 2 MB; 20 s; a plain user agent; HTML to text with `html_to_text`, links kept,
+  scripts dropped), `clone_repo` (`git clone --depth 1 --single-branch
+  --no-recurse-submodules`, hooks and symlinks off, `.git` and any symlinks removed, 100 MB
+  cap, 120 s), `untrusted` (wraps every page and repository text in `<untrusted-content>`
+  with a note), `ScoutTools` (`fetch_url`, `clone_repo`, and read-only `list_files`,
+  `read_file`, `search` over the copies; raw pages in `.harness/references/<id>/pages/`,
+  copies in `.harness/references/<id>/repo/`), `report_schema`, `normalise_report` and
+  `code_reuse_for` ("allowed with credit" only for MIT, BSD, Apache, ISC, zlib or MPL, decided
+  in code whatever the model says).
+- `harness/refstage.py` (new, a mixin like `lookstage.py`): `new_reference` (ids R1, R2…,
+  never reused), `ReferenceStage.scout` (one run of the scout role with `submit_reference`,
+  `limits.max_scout_steps` = 30; cost from the budget recorded on the reference; any failure
+  recorded as `status: failed`, never raised), `_scout_pending`, `_add_reference`,
+  `_remove_reference` (deletes its folder), `references_text` (the planner's "Things the owner
+  wants it to be like", trimmed, with the copying rule), `_reference_looks`.
+- `orchestrator.py`: `plan()` scouts unread references first and puts the reports in the
+  planner's job and in `doc["references"]`; `revise_plan` scouts a newly added one before
+  re-planning; `_run_with_fallback(max_steps=)`; the scout role isn't given tasks.
+- `plandoc.py`: `carry_over` keeps `references`; `render_markdown` has a "Like these" section
+  (`{R1}`, title, what it is, borrow, avoid, licence, code); `context_text` gives tasks and
+  reviews a short form plus which references' code may be used (credited in
+  `THIRD_PARTY_NOTICES.md`) or that none may.
+- `lookstage._looks_job`: the references' looks go to the designer as a starting point.
+- `config.py`: `scout_role` (default a chat role `scout`, else the planner), `max_scout_steps`.
+- Prompts: `prompts/scout.md` (new: data never instructions, say what couldn't be read, never
+  invent, similar never a copy, the licence rule); `prompts/orchestrator.md` has the rule too.
+- `templates/harness.example.yaml`: a `scout` role (DeepSeek Flash, Pro as fallback) and
+  `scout_role: scout`. README: "Make it like this" under The living plan.
+- Tests: `tests/test_references.py` (13: scouted before planning and in the planner's prompt;
+  untrusted wrapping and the scout's prompt; code reuse forced by the licence; reports kept
+  across a revision, in plan.md, the context and the worker's prompt; added later, waits,
+  read on revise, removed, ids not reused; a failed scout recorded while planning goes on;
+  the designer gets the references' look; the hub command; the app's routes; the CLI's
+  `--like`; the address check with a resolver stub; redirects re-checked, the 2 MB cap,
+  HTML text, a 403, a redirect loop; parsing and clone safety). No real network or model.
+  179 pass.
+
+Decided: references wait in `project.json` until the first plan, then live in the plan
+document. A failed reference isn't retried by itself (each try costs). The report's
+`sources` are the addresses the tools really read, not what the model says it read.
+
+Open (in `plans/gaps.md`): the phone's own screen for references; sites that refuse plain
+readers; the address is checked before the request, not on the connection; a repository's
+size is checked only after copying; no real scout run yet.
+
 ## 2026-11-26 – Switch freely, ask Fable about the big things
 
 The owner: "You can switch freely, you don't have to ask questions, however anything super

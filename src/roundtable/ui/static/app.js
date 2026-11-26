@@ -497,12 +497,15 @@ async function viewRuns() {
   if (projects.some((p) => p.job_running)) autoRefresh(4000);
   const form = h("form", { class: "stack", onsubmit: async (ev) => {
     ev.preventDefault(); const d = formData(form);
-    const job = await act(() => api("POST", "/api/projects", { dir: d.dir, goal: d.goal, approve: !!d.approve }), "Project started");
+    const job = await act(() => api("POST", "/api/projects", { dir: d.dir, goal: d.goal, approve: !!d.approve, references: d.references || "" }), "Project started");
     if (job) location.hash = `#/job/${job.id}`;
   } },
   h("div", { class: "row" }, field("dir", { placeholder: "Folder name (e.g. bakery-site)", required: true, class: "grow" }),
     h("label", { class: "check" }, h("input", { type: "checkbox", name: "approve", value: "1", checked: true }), "Let me approve the plan first")),
   h("textarea", { name: "goal", placeholder: "Describe the goal: what should be built, constraints, assets…", required: true }),
+  h("label", { class: "stack", title: "Roundtable reads each one first and makes something similar: the ideas, how it works and its style, never its name, art, music or text. Code only where its licence allows, with credit." },
+    h("span", { class: "small muted" }, "Make it like this (links, repos or a description, one per line)"),
+    h("textarea", { name: "references", rows: 2, placeholder: "e.g. https://example.com/a-game-you-like\nowner/repository\nthe queue from Spotify" })),
   h("div", { class: "row" }, h("button", { class: "primary" }, "Start project"), h("span", { class: "muted small" }, `relative folders go under ${OV.projects_dir}`)));
   return h("div", {}, h("h1", {}, "Runs"), h("p", { class: "sub" }, "Projects run by the harness: plan → route to the best model per role → review → commit."),
     h("div", { class: "card" }, projects.length ? h("table", {},
@@ -578,6 +581,7 @@ async function viewPlan(path) {
     ideas.length ? [h("h3", {}, "Recommended ideas"), ideas] : null) : null;
 
   const looks = lookSection(doc.look || {}, d.busy, q, edit, startJob);
+  const like = likeSection(doc.references || [], d.busy, edit);
 
   const cr = doc.critique;
   const critique = cr ? section(`Second opinion · ${cr.model}`,
@@ -618,7 +622,32 @@ async function viewPlan(path) {
 
   return h("div", { class: "plan-page" }, back, h("h1", {}, `Plan · ${d.name}`),
     h("p", { class: "sub" }, "Read it, choose, answer, cut or add, then Update plan. Nothing is built until you approve."),
-    head, looks, input, critique, scope, spec, history);
+    head, like, looks, input, critique, scope, spec, history);
+}
+
+// "Make it like this": what the owner wants it to be like, as the scout read each one; add or remove.
+function likeSection(refs, busy, edit) {
+  const inp = h("input", { class: "grow", placeholder: "A link, a GitHub repository or a description, e.g. “the queue from Spotify”" });
+  const state = { new: "not read yet", failed: "couldn't read it" };
+  const card = (r) => {
+    const rep = r.report || {};
+    return h("div", { class: "decision" },
+      h("div", { class: "row" }, h("b", { class: "grow" }, `${r.id} · ${rep.title || r.input}`),
+        state[r.status] ? h("span", { class: "pill " + (r.status === "failed" ? "warn" : "") }, state[r.status]) : null,
+        h("button", { class: "icon danger", disabled: busy, title: "Stop making it like this one", onclick: () => edit({ action: "reference_remove", id: r.id }, "Removed. Update the plan to apply it.") }, "×")),
+      rep.what_it_is ? h("div", { class: "small" }, rep.what_it_is) : null,
+      r.status === "failed" ? h("div", { class: "muted small" }, r.error) : null,
+      (rep.borrow || []).length ? h("div", { class: "small" }, h("b", {}, "Borrow: "), rep.borrow.join("; ")) : null,
+      (rep.avoid || []).length ? h("div", { class: "small" }, h("b", {}, "Avoid: "), rep.avoid.join("; ")) : null,
+      r.report ? h("div", { class: "muted small", title: "Code is only used when the licence clearly allows it, and then it's credited" },
+        `Licence: ${rep.licence} · code: ${rep.code_reuse}`) : null,
+      (rep.unreadable || []).length ? h("div", { class: "muted small" }, "Couldn't read: ", rep.unreadable.join("; ")) : null);
+  };
+  return section("Like these",
+    h("p", { class: "muted small" }, "Things you want it to be like. Roundtable makes something similar, never a copy: no names, characters, art, music or text taken."),
+    refs.map(card),
+    h("div", { class: "row" }, inp, h("button", { disabled: busy, title: "It's read (a model call, so it costs a little) when you next update the plan",
+      onclick: () => edit({ action: "reference_add", text: inp.value }, "Added. Update the plan to read it and use it.") }, "Add")));
 }
 
 // The look: the designer's directions side by side, a "Choose this look" button each, and "Make new looks".

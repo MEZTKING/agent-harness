@@ -330,6 +330,14 @@ So that every app you make looks like itself, an app with screens gets a **Look*
 
 Press **Choose this look** (you can add a note, such as "warmer"), then **Update plan**. Roundtable writes the look into the project as `design/DESIGN.md` (in plain words) and `design/tokens.css` (the colours, fonts and corners for light and dark), and every task and review follows it: a check finds colours or fonts written into the code instead of taken from the design file, and the reviewer sends that work back. If screens are already built, a task "Restyle the app in the chosen look" is added. Choosing a look never blocks **Approve & start**; an unchosen look shows under Needs you. From the phone: `look` (choose, with `id` and an optional `note`) and `looks` (new ones). Set `look_stage: off` in harness.yaml to make looks only when you ask. The pictures need Playwright (`pip install playwright && playwright install chromium`); without it you still get the looks and their pages.
 
+#### Make it like this
+
+If something like your idea already exists, give it to Roundtable: a web link (an app, a game page, a website, a forum post), a GitHub repository (`owner/name` or its address), or a plain description ("the queue from Spotify"). Put them in the **Make it like this** box when you start a project (one per line), add them later in **Like these** on the plan page, from the terminal with `roundtable new DIR "goal" --like ADDRESS_OR_TEXT` (repeat it for more), or from the phone (`reference_add` with `text`, `reference_remove` with `id`).
+
+Before planning, a `scout` role (any cheap, capable chat model; without one the planner does it) reads each one and writes a short report: what it is, its features, how the parts worth borrowing work, its look in words, its licence, what to borrow for your project and what to avoid. The plan shows the reports under **Like these**, the planner builds on them, the designer starts its looks from them, and every task sees a short form. One you add later is read when you press **Update plan**. Each reading costs a little and counts in the budget. Many sites refuse automated readers (Reddit does): the report then says plainly what couldn't be read, and nothing is made up.
+
+**Similar, never a copy.** Your project borrows the kind of thing it is, how it works and its general style, never another product's name, characters, story, art, music, sounds, levels, logos or text, and it is never presented as that product. Pictures, sounds, fonts and models are never copied. Code is used only when its licence is clearly open (MIT, BSD, Apache, ISC, zlib, MPL); Roundtable decides that from the licence itself, and such code is credited in the project's `THIRD_PARTY_NOTICES.md`.
+
 Everything is saved in `<project>/.harness/` (`plan.json` and a readable `plan.md` included). A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `roundtable run` resumes where it left off.
 
 ### Setup
