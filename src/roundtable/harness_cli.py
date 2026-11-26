@@ -584,7 +584,8 @@ def main(argv: list[str] | None = None) -> None:
             if role.kind != "chat":
                 sys.exit("error: `ask` only works for chat roles")
             res = run_agent(cfg, role.models[0], cfg.prompt_text(role.prompt), args.prompt, Toolbox(),
-                            Budget(cfg.limits.max_cost_usd), max_steps=1, max_tokens=role.max_tokens, options=role.options)
+                            Budget(cfg.limits.max_cost_usd), max_steps=1, max_tokens=role.max_tokens, options=role.options,
+                            role=role.name)
             print(res.text)
             cost = f"${res.cost_usd:.5f}" if cfg.cost(role.models[0], res.usage) is not None else "unpriced"
             print(f"\n[{res.model} · {res.usage.input_tokens} in / {res.usage.output_tokens} out · {cost}]", file=sys.stderr)
