@@ -309,7 +309,10 @@ def wait_for_change(app, since: str, wait_s: float, poll_s: float = 1.5) -> dict
 
 # -- the phone server -------------------------------------------------------------------------
 def make_phone_handler(phone: PhoneAccess):
+    """The phone server's handler. `phone.local` (onphone.LocalAccess) is Roundtable running on the
+    phone itself: plain HTTP on 127.0.0.1, the app's launch token, no pairing, plus health and keys."""
     app = phone.app
+    local = bool(getattr(phone, "local", False))
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "roundtable-phone"
@@ -352,20 +355,31 @@ def make_phone_handler(phone: PhoneAccess):
         def _handle(self, method: str):
             url = urlparse(self.path)
             path, q = url.path, parse_qs(url.query)
+            dev = None
+            if local:  # Roundtable on the phone itself (onphone.py): the launch token, before anything else
+                if (method, path) == ("GET", "/api/health"):
+                    return self._json(200, phone.health())
+                dev = self._device()
+                if not dev:
+                    return self._json(401, {"error": phone.unauthorized})
             if method == "POST" and not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 return self._json(415, {"error": "json only"})
             body = self._body() if method == "POST" else {}
             if body is None:
                 return
-            if (method, path) == ("POST", "/api/pair/claim"):
+            if not local and (method, path) == ("POST", "/api/pair/claim"):
                 try:
                     return self._json(200, phone.claim(body.get("code", ""), body.get("device_name", "")))
                 except PermissionError as e:
                     return self._json(403, {"error": str(e)})
-            dev = self._device()
+            dev = dev or self._device()
             if not dev:
                 return self._json(401, {"error": "this phone isn't paired (or was removed): pair it again"})
             try:
+                if local:
+                    done, data = phone.local_api(method, path, q, body)
+                    if done:
+                        return self._json(200, data)
                 if (method, path) == ("GET", "/api/ping"):
                     from . import __version__
 

@@ -1,0 +1,106 @@
+name: Phone runtime
+
+# The small Linux Roundtable Mobile downloads once to run Roundtable on the phone itself
+# (runtime/README.md): per ABI a base layer (Debian, Python, git, Node) and a roundtable layer
+# (/opt/roundtable/venv), plus a signed manifest.json. A push to main that changes runtime/
+# builds without publishing; run it by hand with a release_tag to publish.
+
+on:
+  push:
+    branches: [main]
+    paths: ["runtime/**", ".github/workflows/runtime.yml"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a release with this tag (e.g. runtime-2026.11.26-1). Leave empty to only build."
+        required: false
+        default: ""
+
+permissions:
+  contents: write  # publish the runtime release
+
+jobs:
+  layers:
+    name: Layers (${{ matrix.abi }})
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [aarch64, x86_64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.abi == 'aarch64'
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the base and roundtable layers
+        run: runtime/build.sh ${{ matrix.abi }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: layers-${{ matrix.abi }}
+          path: |
+            runtime/out/roundtable-*-${{ matrix.abi }}.tar.xz
+            runtime/out/base-versions-${{ matrix.abi }}.json
+          retention-days: 7
+          compression-level: 0
+
+  manifest:
+    name: Manifest (signed)
+    needs: layers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "cryptography>=42"
+      - uses: actions/download-artifact@v4
+        with:
+          path: runtime/out
+          merge-multiple: true
+      - name: Write manifest.json
+        run: |
+          tag="${RELEASE_TAG:-runtime-$(date -u +%Y.%m.%d)-$(( GITHUB_RUN_NUMBER % 100 ))}"
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          versions=runtime/out/base-versions-aarch64.json
+          py=$(python -c "import json; print(json.load(open('$versions'))['python'])")
+          node=$(python -c "import json; print(json.load(open('$versions'))['node'])")
+          python runtime/make_manifest.py --release-tag "$tag" --repo "$GITHUB_REPOSITORY" \
+            --roundtable-version "$version" --python-version "$py" --node-version "$node" \
+            --layer arm64-v8a:base:runtime/out/roundtable-base-aarch64.tar.xz \
+            --layer arm64-v8a:roundtable:runtime/out/roundtable-app-aarch64.tar.xz \
+            --layer x86_64:base:runtime/out/roundtable-base-x86_64.tar.xz \
+            --layer x86_64:roundtable:runtime/out/roundtable-app-x86_64.tar.xz \
+            --out runtime/out/manifest.json
+      - name: Sign it (the real key, or the public TEST key when the secret is missing)
+        env:
+          RUNTIME_SIGNING_KEY: ${{ secrets.RUNTIME_SIGNING_KEY }}
+        run: |
+          python runtime/sign_manifest.py runtime/out/manifest.json --key-env RUNTIME_SIGNING_KEY --test-fallback
+          if [ -z "$RUNTIME_SIGNING_KEY" ]; then
+            python runtime/sign_manifest.py runtime/out/manifest.json --verify runtime/test-key/public.b64
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest
+          path: runtime/out/manifest.json*
+          retention-days: 7
+      - name: Publish the release
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$RELEASE_TAG" in runtime-*) ;; *) echo "the tag must start with runtime-"; exit 1 ;; esac
+          channel=$(python -c "import json; print(json.load(open('runtime/out/manifest.json'))['channel'])")
+          notes="Phone runtime for Roundtable Mobile (channel: $channel). Downloaded by the app; nothing to install by hand."
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Phone runtime $RELEASE_TAG" \
+            --notes "$notes" $([ "$channel" = test ] && echo --prerelease) \
+            runtime/out/manifest.json runtime/out/manifest.json.sig runtime/out/roundtable-*.tar.xz
