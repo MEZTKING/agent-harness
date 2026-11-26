@@ -119,6 +119,35 @@ class Limits:
 
 
 @dataclass
+class GodotSettings:
+    """``godot:`` in harness.yaml: how Roundtable starts a Godot 4 game to check it (harness/godot.py)."""
+
+    path: str | None = None  # the Godot program; empty: $GODOT, then godot / godot4 on PATH
+    frames: int = 90  # frames recorded for the pictures (30 a second)
+    timeout: int = 120  # seconds each Godot run may take
+    enabled: bool = True  # false: never start Godot
+
+
+def _godot_settings(raw: Any, base: Path) -> GodotSettings:
+    if raw is None:
+        return GodotSettings()
+    if isinstance(raw, bool):
+        return GodotSettings(enabled=raw)
+    if isinstance(raw, str):
+        raw = {"path": raw}
+    if not isinstance(raw, dict):
+        raise ValueError("godot must be a setting like {path: ..., frames: 90, timeout: 120, enabled: true}")
+    path = str(raw.get("path") or "").strip() or None
+    if path and ("/" in path or "\\" in path):
+        p = Path(path).expanduser()
+        path = str(p if p.is_absolute() else (base / p))
+    frames, timeout = int(raw.get("frames", 90) or 90), int(raw.get("timeout", 120) or 120)
+    if frames < 1 or timeout < 1:
+        raise ValueError("godot: frames and timeout must be at least 1")
+    return GodotSettings(path=path, frames=frames, timeout=timeout, enabled=bool(raw.get("enabled", True)))
+
+
+@dataclass
 class HarnessConfig:
     path: Path | None
     providers: dict[str, dict[str, Any]]
@@ -150,6 +179,7 @@ class HarnessConfig:
     plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
     # MCP servers: {name: {command, args, env, cwd} or {url, headers}, plus tools, timeout, enabled}
     mcp_servers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    godot: GodotSettings = field(default_factory=GodotSettings)  # checking Godot games (harness/godot.py)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
     _shared: dict[str, Any] = field(default_factory=dict, repr=False)  # shared by variants (the plugin host)
 
@@ -588,6 +618,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         token_saver=_token_saver(raw, plugins),
         plugins=plugins,
         mcp_servers=mcp_servers,
+        godot=_godot_settings(raw.get("godot"), base),
     )
 
 
