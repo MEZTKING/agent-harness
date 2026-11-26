@@ -55,6 +55,9 @@ data class NeedView(
     val path: String? = null,
     val message: Message? = null,
     val at: String = "",
+    /** A question to answer by tapping (asks.py), and how many wait on this project in all. */
+    val ask: Ask? = null,
+    val asks: Int = 0,
 )
 
 @Serializable
@@ -79,6 +82,10 @@ interface Backend {
     suspend fun markRead(messages: List<Message>)
     /** A one-tap answer on a Needs-you card. Returns a short line to show. */
     suspend fun act(need: NeedView, action: String): String
+    /** The questions waiting on a project, as cards to tap. */
+    suspend fun asks(seat: SeatView): List<Ask>
+    /** Answer a card. Returns a short line to show. */
+    suspend fun answer(ask: Ask, reply: AskReply): String
     /** Hub only: a command through the hub (see GitHubHub.command). */
     suspend fun command(project: String, action: String, fields: Map<String, Any?> = emptyMap()): String
 }
@@ -131,7 +138,27 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
                     "${seat.id} · high priority · from the journal", listOf("open"), id = t.id, at = doc.updated)
             }
         }
+        needs.addAll(0, askNeeds(seats.filter { it.hasPlan }))
         return HallState(sortSeats(seats), needs, Instant.now().toString())
+    }
+
+    /** The next card of each project with a plan waiting for the owner. */
+    private suspend fun askNeeds(planned: List<SeatView>): List<NeedView> = coroutineScope {
+        planned.map { seat -> async { seat to runCatching { asks(seat) }.getOrDefault(emptyList()) } }.awaitAll()
+            .filter { it.second.isNotEmpty() }
+            .map { (seat, asks) -> askNeed(seat.id, asks) }
+    }
+
+    override suspend fun asks(seat: SeatView): List<Ask> {
+        val file = hub.asks(seat.id)
+        if (file != null) return Asks.parse(file).map { it.copy(project = seat.id) }
+        val md = hub.plan(seat.id) ?: return emptyList()
+        return Asks.fromPlan(PlanDoc.parse(md), seat.id)
+    }
+
+    override suspend fun answer(ask: Ask, reply: AskReply): String {
+        hub.command(identity, ask.project, "answer", Asks.commandFields(ask, reply))
+        return "Sent. Roundtable will reply in Letters."
     }
 
     override suspend fun status(project: String) = StatusDoc.parse(hub.status(project))
@@ -213,7 +240,8 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
                 "messages" -> "Letters for you"
                 else -> n.text
             }
-            NeedView("pc:${n.kind}:${n.project}:${n.id ?: n.task ?: n.text}", if (n.kind == "messages") "message" else n.kind,
+            if (n.ask != null) askNeed(n.project, listOf(n.ask.copy(path = n.ask.path ?: n.path)), n.asks)
+            else NeedView("pc:${n.kind}:${n.project}:${n.id ?: n.task ?: n.text}", if (n.kind == "messages") "message" else n.kind,
                 n.project, title, if (n.kind == "todo") "${n.project} · high priority · from the journal" else n.text,
                 n.actions, id = n.id, task = n.task, path = n.path, at = n.at)
         }
@@ -250,6 +278,10 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
     }
 
     override suspend fun inbox(project: String) = api.inbox(project, all = true)
+
+    override suspend fun asks(seat: SeatView): List<Ask> = seat.path?.let { api.asks(it) }.orEmpty()
+
+    override suspend fun answer(ask: Ask, reply: AskReply): String = api.answer(ask, reply)
 
     override suspend fun letters(): List<Message> = coroutineScope {
         projects().map { p -> async { runCatching { api.inbox(p, all = true) }.getOrDefault(emptyList()) } }
@@ -293,6 +325,13 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
         api.projectAction(path, "approve")
         return "Approved: the run starts"
     }
+}
+
+/** A Needs-you item that is a card to tap: the project's first question, and how many wait. */
+fun askNeed(project: String, asks: List<Ask>, total: Int = asks.size): NeedView {
+    val a = asks.first()
+    return NeedView("ask:$project:${a.id}:${a.stamp}", "ask", project, a.question, a.detail, path = a.path, ask = a,
+        asks = maxOf(total, asks.size))
 }
 
 /** Running first, then waiting, idle, done; most recently active first within each group. */

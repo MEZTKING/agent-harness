@@ -91,6 +91,23 @@ def run_seat(app, path: Path) -> dict[str, Any]:
     }
 
 
+ASK_STATES = ("awaiting_approval", "blocked", "paused", "paused_budget")
+
+
+def _asks(cfg, path: Path) -> list[dict[str, Any]]:
+    """The project's open cards (asks.py), only when it is waiting for the owner; never breaks the table."""
+    try:
+        meta = json.loads((path / ".harness" / "project.json").read_text())
+        if meta.get("status") not in ASK_STATES:
+            return []
+        from ..asks import open_asks
+        from ..harness.orchestrator import Orchestrator
+
+        return open_asks(Orchestrator(cfg, path))
+    except Exception:
+        return []
+
+
 def build(app) -> dict[str, Any]:
     seats: dict[str, dict[str, Any]] = {}
     needs: list[dict[str, Any]] = []
@@ -138,9 +155,12 @@ def build(app) -> dict[str, Any]:
                 seat["last_activity"] = max(seat.get("last_activity") or "", run["last_activity"] or "")
             else:
                 seats[run["id"]] = {**run, "open_todos": 0, "high": 0, "unread": 0, "repo": "", "description": ""}
-            if run["status"] == "waiting":
+            asks = _asks(cfg, path) if run["status"] != "running" else []
+            if run["status"] == "waiting" or asks:
                 needs.insert(0, {"kind": "run", "project": run["id"], "path": run["path"], "text": run["detail"],
-                                 "actions": run["actions"], "task": run["failed_task"], "at": run["last_activity"]})
+                                 "actions": run["actions"], "task": run["failed_task"], "at": run["last_activity"],
+                                 # the next card to tap, and how many more wait on the plan page
+                                 "ask": asks[0] if asks else None, "asks": len(asks)})
         # model health: latest probe run per model
         latest: dict[str, dict[str, Any]] = {}
         for r in _read_jsonl(cfg.lab_dir / "probes.jsonl"):

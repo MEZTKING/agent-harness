@@ -349,6 +349,14 @@ You write the idea; the plan is a page you can argue with before anything is bui
 
 Your edits wait as "changes" until you press **Update plan** (one planner call): the planner revises the document and the tasks, keeping finished work and every task your changes don't touch, and the page shows what was added, changed or removed. **Approve & start** begins the build. Every task and review is told the plan, your choices, answers and don'ts. To add the critic to an existing setup: Settings > Which model does what, role `critic`, any model (a different maker from your planner works best).
 
+#### Answer by tapping
+
+Roundtable asks you things the way a good assistant does: one card per question, with a short label at the top, the question, two to four answers to tap (the one it recommends comes first, marked **(Recommended)**), and **Other…** when you'd rather type. Where more than one answer fits you tick them and press **Done**. On a computer, number keys pick and Enter sends.
+
+The same cards are everywhere: **Needs you** on the Roundtable shows the next one for each project, the plan page shows them all (the answered ones fold away under **Answered**, where you can change an answer until you approve), and the phone shows them on its Needs you list and the project's Plan tab. They cover the plan's choices, its questions (the planner now offers likely answers), its ideas, the look, the setting (Budget, Balanced or Quality, each with its estimate), approving the plan, a task that failed (Retry, Retry with the stronger model, Accept as it is, Skip it) and a run paused for money (Carry on with $X more, Stop here, Switch to the Budget setting). Anything that would spend beyond the estimate shows a second card first: **Are you sure?** **Not now** leaves a card for later.
+
+**+ New project** is a few cards too: what you want to make (web app, game, Android app, Windows app or something else), your idea in a few words, something to make it like, the setting, and whether to see three looks. Then the planner makes the plan, with its own questions for you. From the phone in Hub mode a card's answer goes through the hub as the `answer` command (`id`, `chosen`, `other`, `confirmed`); the cards themselves are written next to the plan as `plans/<project>.asks.json`.
+
 #### A look of its own
 
 So that every app you make looks like itself, an app with screens gets a **Look** step in its plan. A designer (the `designer` role: a model that can see pictures) makes three clearly different looks, each with a name, a mood, light and dark colours, fonts, shapes, one signature detail and a list of things it must never do, plus a picture of the app's main screen in that look (on a computer and on a phone). They're never the same as the looks you chose for your other projects, unless you ask. Give a starting point if you like ("like an old record shop") and press **Make new looks** for another three.

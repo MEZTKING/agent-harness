@@ -48,6 +48,31 @@ def _items(raw: Any, prefix: str, fields: tuple[str, ...]) -> list[dict[str, Any
     return out
 
 
+def _header(raw: Any) -> str:
+    """The short label on a question's card (at most 12 characters)."""
+    return " ".join(str(raw or "").split())[:12].strip()
+
+
+def _questions(raw: Any) -> list[dict[str, Any]]:
+    """Questions for the owner, each with 0-4 ready answers to tap (the first is the recommendation).
+
+    Old plans and planners that send only text still work: the card then shows only the text box."""
+    out = []
+    for i, x in enumerate(raw or []):
+        src = x if isinstance(x, dict) else {"text": x} if isinstance(x, str) else {}
+        text = str(src.get("text", "")).strip()
+        if not text:
+            continue
+        opts = _items(src.get("options"), "a", ("label", "detail"))[:4]
+        ids = [o["id"] for o in opts]
+        rec = str(src.get("recommended") or (ids[0] if ids else ""))
+        out.append({"text": text, "why": str(src.get("why") or ""), "id": str(src.get("id") or f"Q{i + 1}"),
+                    "header": _header(src.get("header")), "options": opts,
+                    "recommended": rec if rec in ids else (ids[0] if ids else ""),
+                    "multi": bool(src.get("multi")) and len(opts) > 1, "answer": ""})
+    return out
+
+
 def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dict[str, Any]:
     """Build the plan document from what the planner submitted (every part is optional)."""
     decisions = []
@@ -60,6 +85,7 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
         ids = [o["id"] for o in opts]
         rec = str(d.get("recommended") or ids[0])
         decisions.append({"id": str(d.get("id") or f"C{i + 1}"), "question": str(d["question"]), "options": opts,
+                          "header": _header(d.get("header")),
                           "recommended": rec if rec in ids else ids[0], "why": str(d.get("why", "")),
                           "section": str(d.get("section", "")), "chosen": None})
     return {
@@ -71,7 +97,7 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
         "dont": [{**x, "by": "planner"} for x in _items(args.get("dont"), "D", ("text", "why"))],
         "spec": _items(args.get("spec"), "S", ("title", "text")),
         "decisions": decisions,
-        "questions": [{**q, "answer": ""} for q in _items(args.get("questions"), "Q", ("text", "why"))],
+        "questions": _questions(args.get("questions")),
         "ideas": [{**x, "state": "open"} for x in _items(args.get("ideas"), "I", ("text", "why"))],
         "critique": None, "estimate": None, "pending": [], "history": [{"at": utcnow(), "version": 1,
                                                                          "change": "first plan"}],
@@ -320,6 +346,16 @@ def _references_markdown(refs: list[dict[str, Any]]) -> list[str]:
     return L
 
 
+def _question_markdown(q: dict[str, Any]) -> str:
+    line = f"- {q['text']} {{{q['id']}}}"
+    opts = q.get("options") or []
+    if opts:
+        marks = lambda o: " (recommended)" if o["id"] == q.get("recommended") else ""  # noqa: E731
+        line += ("\n  Answers" + (" (any of)" if q.get("multi") else "") + ": "
+                 + "; ".join(f"{o['label']}{marks(o)} {{{o['id']}}}" for o in opts))
+    return line + (f"\n  Answer: {q['answer']}" if q.get("answer") else "")
+
+
 def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_base: str = "look/") -> str:
     """Readable plan. Items end with their id in braces ({C1}-style ids for options {a}, questions {Q1},
     ideas {I1}, don'ts {D1}, looks {A}; decisions and spec sections carry [C1]/[S1] in their heading) so a
@@ -361,9 +397,7 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
     if (doc.get("look") or {}).get("directions"):
         L += _look_markdown(doc["look"], image_base)
     if doc.get("questions"):
-        L += ["## Questions for the owner"] + [
-            f"- {q['text']} {{{q['id']}}}" + (f"\n  Answer: {q['answer']}" if q.get("answer") else "")
-            for q in doc["questions"]] + [""]
+        L += ["## Questions for the owner"] + [_question_markdown(q) for q in doc["questions"]] + [""]
     if doc.get("ideas"):
         L += ["## Ideas"] + [f"- [{i['state']}] {i['text']}" + (f" ({i['why']})" if i.get("why") else "")
                              + f" {{{i['id']}}}" for i in doc["ideas"]] + [""]
@@ -453,14 +487,25 @@ def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:
             "decisions": {"type": "array", "description": "real choices the owner may want to make, with your recommendation",
                           "items": item({
                               "id": {**s, "description": "C1, C2..."}, "question": s,
+                              "header": {**s, "description": "a label of at most 12 characters, e.g. Art style"},
                               "options": {"type": "array", "items": item({"id": s, "label": s, "detail": s,
                                                                          "cost": {**s, "description": "effort/cost note"}},
                                                                         ["id", "label"])},
                               "recommended": {**s, "description": "option id"}, "why": s,
                               "section": {**s, "description": "spec section id it affects"}},
                               ["id", "question", "options", "recommended", "why"])},
-            "questions": {"type": "array", "description": "what you need the owner to tell you (only real unknowns)",
-                          "items": item({"id": {**s, "description": "Q1, Q2..."}, "text": s, "why": s}, ["id", "text"])},
+            "questions": {"type": "array", "description": "what you need the owner to tell you (only real unknowns); "
+                                                           "offer 2-4 likely answers to tap, your recommendation first "
+                                                           "(the owner can still type their own)",
+                          "items": item({
+                              "id": {**s, "description": "Q1, Q2..."}, "text": s, "why": s,
+                              "header": {**s, "description": "a label of at most 12 characters, e.g. Audience"},
+                              "options": {"type": "array", "description": "2-4 likely answers, the recommended first",
+                                          "items": item({"id": {**s, "description": "a, b, c..."}, "label": s,
+                                                         "detail": {**s, "description": "one line"}}, ["id", "label"])},
+                              "recommended": {**s, "description": "option id (normally the first)"},
+                              "multi": {"type": "boolean", "description": "true when more than one answer can apply"}},
+                              ["id", "text"])},
             "ideas": {"type": "array", "description": "worthwhile extras beyond the goal, for the owner to accept or not",
                       "items": item({"id": {**s, "description": "I1, I2..."}, "text": s, "why": s}, ["id", "text"])},
             "has_ui": {"type": "boolean", "description": "true when the project is an app or game with screens "

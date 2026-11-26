@@ -117,6 +117,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 val plan by vm.plan.collectAsState()
                 val inbox by vm.inbox.collectAsState()
                 val sent by vm.sent.collectAsState()
+                val asks by vm.asks.collectAsState()
                 val notice by vm.notice.collectAsState()
                 val snack = remember { SnackbarHostState() }
                 LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); vm.noticeShown() } }
@@ -124,10 +125,10 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { pad ->
                     Box(Modifier.padding(pad)) {
                         ProjectScreen(
-                            ProjectUi(vm.id, seat, backend?.mode, backend?.identity ?: app.store.identity, status, plan, inbox, sent),
+                            ProjectUi(vm.id, seat, backend?.mode, backend?.identity ?: app.store.identity, status, plan, inbox, sent, asks),
                             ProjectActions(
                                 back = { nav.popBackStack() }, refresh = vm::refresh, command = vm::command, act = vm::act,
-                                opened = vm::opened, reply = vm::reply, send = vm::send,
+                                opened = vm::opened, reply = vm::reply, send = vm::send, answer = vm::answer,
                             ),
                             initialTab = entry.arguments?.getInt("tab") ?: 0,
                         )
@@ -199,11 +200,13 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                         showNeeds = false
                         when {
                             n.kind == "message" -> { tab = 1; main.loadLetters() }
+                            n.ask != null -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
                             n.actions.contains("approve") -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
                             else -> nav.navigate("project/${android.net.Uri.encode(n.project)}")
                         }
                     },
                     showNeeds = showNeeds, onShowNeeds = { showNeeds = it },
+                    onAnswer = main::answer,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),

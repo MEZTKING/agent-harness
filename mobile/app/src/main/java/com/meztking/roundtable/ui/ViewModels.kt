@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.meztking.roundtable.RoundtableApp
+import com.meztking.roundtable.data.Ask
+import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.Backend
 import com.meztking.roundtable.data.HallState
 import com.meztking.roundtable.data.NeedView
@@ -108,6 +110,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** A card tapped on Needs you: the answer goes the way this phone is connected (hub command or the PC). */
+    fun answer(need: NeedView, reply: AskReply) {
+        val b = backend ?: return
+        val ask = need.ask ?: return
+        viewModelScope.launch {
+            _busy.update { it + need.key }
+            try {
+                _notice.value = b.answer(ask.copy(project = need.project, path = ask.path ?: need.path), reply)
+                _hall.value.data?.let { h -> _hall.value = _hall.value.copy(data = h.copy(needs = h.needs.filter { it.key != need.key })) }
+                refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _notice.value = friendly(e)
+            } finally {
+                _busy.update { it - need.key }
+            }
+        }
+    }
+
     fun send(to: String, subject: String, body: String, onDone: Done) {
         val b = backend ?: return
         viewModelScope.launch {
@@ -182,6 +204,9 @@ class ProjectViewModel(app: Application, saved: SavedStateHandle) : AndroidViewM
     val sent: StateFlow<Map<String, String>> = _sent.asStateFlow()
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
+    private val _asks = MutableStateFlow(Load<List<Ask>>())
+    /** The questions waiting on this project, as cards to tap. */
+    val asks: StateFlow<Load<List<Ask>>> = _asks.asStateFlow()
 
     fun noticeShown() { _notice.value = null }
 
@@ -200,6 +225,27 @@ class ProjectViewModel(app: Application, saved: SavedStateHandle) : AndroidViewM
     fun loadPlan() {
         val b = rt.backend() ?: return
         viewModelScope.launch { _plan.fetch { b.plan(_seat.value ?: SeatView(id)) } }
+        viewModelScope.launch { _asks.fetch { b.asks(_seat.value ?: SeatView(id)) } }
+    }
+
+    /** A card answered on the plan tab; it shows Roundtable's reply in place of its buttons. */
+    fun answer(ask: Ask, reply: AskReply) {
+        val b = rt.backend() ?: return
+        val key = "ask:${ask.id}"
+        _sent.update { it + (key to "Sending…") }
+        viewModelScope.launch {
+            try {
+                val said = b.answer(ask.copy(project = ask.project.ifBlank { id }, path = ask.path ?: _seat.value?.path), reply)
+                _sent.update { it + (key to said) }
+                _notice.value = said
+                if (b.mode == com.meztking.roundtable.data.Mode.PC) loadPlan()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sent.update { it - key }
+                _notice.value = friendly(e)
+            }
+        }
     }
 
     /** A plan command (Hub mode: through the hub). [key] marks which control was used. */

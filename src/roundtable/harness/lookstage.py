@@ -32,7 +32,13 @@ class LookStage:
                     self.cfg.planner_role)
 
     def _look_wanted(self, doc: dict[str, Any]) -> bool:
-        return self.cfg.look_stage == "auto" and bool(doc.get("has_ui")) and not (doc.get("look") or {}).get("directions")
+        """The owner's answer on the new-project card wins ("look_step" in project.json); else the config."""
+        if (doc.get("look") or {}).get("directions"):
+            return False
+        asked = self.project.meta().get("look_step")
+        if asked is not None:
+            return bool(asked)
+        return self.cfg.look_stage == "auto" and bool(doc.get("has_ui"))
 
     # -- other projects' looks -----------------------------------------------------------------
     def _used_looks(self) -> list[dict[str, Any]]:
@@ -143,7 +149,7 @@ class LookStage:
         if not doc or not self._look_wanted(doc):
             return
         try:
-            self.look(publish=False)
+            self.look(self.project.meta().get("look_brief", ""), publish=False)
         except (HarnessError, BudgetExceeded) as e:
             self.emit("looks", {"error": str(e)[:300]})
 

@@ -13,7 +13,9 @@ Actions: the plan edits (choose, answer, dont_add, dont_remove, idea, section, s
 scope_remove, note, look: choose a look by its id, with an optional note, reference_add: ``text`` is a
 link, a GitHub repository or a description to make it like, reference_remove: ``id`` such as R1), revise, approve (then
 run), run, retry, skip, steer, ask, looks (make new looks to choose from; ``text`` is the owner's
-starting point).
+starting point), answer (a tapped card: ``id`` of the ask, ``chosen`` option ids, ``other`` typed
+text, ``confirmed`` after "Are you sure?", ``stamp`` so an old card can't answer a changed question;
+see asks.py; the phone reads the cards from plans/<project>.asks.json).
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 PREFIX = "roundtable:"
-LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks"}
+LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -57,6 +59,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     kw = {k: v for k, v in cmd.items() if k != "action"}
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
+    if action == "answer":
+        return _answer(orch, kw)
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
@@ -88,6 +92,15 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "ask":
         return orch.ask(kw.get("text", ""))["reply"]
     return f"Unknown action {action!r}."
+
+
+def _answer(orch, kw: dict[str, Any]) -> str:
+    """A card answered from the phone or another machine: the same as tapping it on the PC."""
+    from .asks import answer_ask, finish
+
+    r = answer_ask(orch, str(kw.get("id", "")), kw.get("chosen"), str(kw.get("other") or ""),
+                   confirmed=bool(kw.get("confirmed")), stamp=kw.get("stamp") or None, skip=bool(kw.get("skip")))
+    return " ".join(x for x in (r["reply"], finish(orch, r)) if x)
 
 
 def process(cfg, hub, background: bool = False, log: Callable[[str], None] = print) -> int:

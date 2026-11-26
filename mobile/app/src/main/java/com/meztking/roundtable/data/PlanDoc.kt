@@ -72,7 +72,9 @@ data class PlanDoc(
                     "decisions" -> decisions += decisionsIn(body)
                     "questions for the owner" -> body.filterIsInstance<Md.Item>().forEach { item ->
                         val text = item.text.substringBefore("\n").let { Markdown.splitId(it) }
-                        val answer = item.text.substringAfter("\n", "").trim().removePrefix("Answer:").trim()
+                        // later lines: "Answers: …" (the ready answers to tap) and "Answer: …" (the owner's)
+                        val answer = item.text.lines().drop(1).map { it.trim() }
+                            .firstOrNull { it.startsWith("Answer:") }?.removePrefix("Answer:")?.trim().orEmpty()
                         questions += Question(item.id ?: text.second, text.first.trim(), answer)
                     }
                     "ideas" -> body.filterIsInstance<Md.Item>().forEach { item ->

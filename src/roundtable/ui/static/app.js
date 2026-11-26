@@ -37,6 +37,97 @@ function profilePicker(doc, edit) {
     }, `${n[0].toUpperCase()}${n.slice(1)} · about ${money(ests[n].cost_usd || 0)}`)));
 }
 
+// ---------- questions to tap (asks.py) ----------
+// One card for every question: a header chip, the question, big option buttons (the recommended one
+// first and marked), ticks and Done when several answers fit, and "Other…" opening a text box.
+// Keys: 1-9 pick an option, the next number opens Other…, Enter sends. An option with `confirm`
+// shows an "Are you sure?" card first. onAnswer({chosen, other, confirmed}) does the work and may
+// return a reply line; opts: {pictures: {id: src}, onSkip, compact, title}.
+function askCard(ask, onAnswer, opts = {}) {
+  const picked = new Set((ask.answer && ask.answer.chosen) || []);
+  const textOnly = !ask.options.length;
+  const card = h("div", { class: "ask" + (opts.compact ? " compact" : "") + (ask.answer ? " answered" : ""), tabindex: "0", "data-ask": ask.id });
+  const other = h("textarea", { class: "ask-text grow", rows: ask.id === "like" ? 3 : 2, placeholder: ask.other_hint || "Type your own answer",
+    "aria-label": ask.other_hint || "Your own answer" });
+  if (ask.answer && ask.answer.other) other.value = ask.answer.other;
+  const chosenNow = () => (ask.multi ? [...picked] : []);
+  const otherRow = h("div", { class: "ask-other row" }, other,
+    h("button", { class: "primary", type: "button", disabled: opts.disabled, onclick: () => send(chosenNow()) }, opts.sendLabel || "Send"));
+  let busy = false;
+  async function send(chosen, confirmed = false) {
+    if (busy) return;
+    const text = other.value.trim();
+    if (!chosen.length && !text) { toast(textOnly ? "Type your answer first." : "Pick an answer, or type one.", true); showOther(true); return; }
+    const sure = !confirmed && ask.options.find((o) => chosen.includes(o.id) && o.confirm);
+    if (sure) { card.replaceChildren(...confirmParts(sure, () => send(chosen, true), draw)); card.focus(); return; }
+    busy = true; card.classList.add("sending");
+    try { await onAnswer({ chosen, other: text, confirmed }); }
+    catch (e) { toast(e.message, true); }
+    busy = false; card.classList.remove("sending");
+  }
+  // the second card for anything that spends beyond the estimate or can't be undone
+  const confirmParts = (opt, yes, no) => [
+    h("div", { class: "ask-head" }, h("span", { class: "chip warn" }, "Check")),
+    h("b", { class: "ask-q" }, "Are you sure?"),
+    h("div", { class: "ask-detail" }, opt.confirm),
+    h("div", { class: "ask-opts" },
+      h("button", { class: "ask-opt rec", type: "button", onclick: yes }, h("b", {}, h("kbd", {}, 1), "Yes, go ahead"), h("span", {}, opt.label)),
+      h("button", { class: "ask-opt", type: "button", onclick: no }, h("b", {}, h("kbd", {}, 2), "No, go back"), h("span", {}, "Nothing is changed.")))];
+  const pick = (o) => {
+    if (!ask.multi) return send([o.id]);
+    picked.has(o.id) ? picked.delete(o.id) : picked.add(o.id);
+    draw(); card.focus();
+  };
+  function showOther(open) { otherRow.hidden = !open; if (open) setTimeout(() => other.focus(), 0); }
+  other.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(chosenNow()); }
+    if (ev.key === "Escape" && !textOnly) { other.value = ""; showOther(false); card.focus(); }
+  });
+  card.addEventListener("keydown", (ev) => {
+    if (ev.target !== card || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const btns = [...card.querySelectorAll(".ask-opt")], n = Number(ev.key);
+    if (n >= 1 && n <= btns.length) { ev.preventDefault(); btns[n - 1].click(); }
+    else if (ev.key === "Enter" && ask.multi) { ev.preventDefault(); send([...picked]); }
+  });
+  function draw() {
+    const rec = ask.recommended;
+    const optButtons = ask.options.map((o, i) => {
+      const on = picked.has(o.id);
+      return h("button", { class: "ask-opt" + (on ? " on" : "") + (o.id === rec ? " rec" : ""), type: "button", disabled: opts.disabled,
+        "aria-pressed": ask.multi || ask.answer ? String(on) : null, title: o.confirm ? "You'll be asked to make sure first" : `Press ${i + 1}`, onclick: () => pick(o) },
+      o.picture && opts.pictures && opts.pictures[o.picture] ? h("img", { class: "ask-pic", src: opts.pictures[o.picture], alt: o.label }) : null,
+      h("b", {}, ask.multi ? h("i", { class: "tick" + (on ? " on" : "") }) : h("kbd", {}, i + 1), o.label, o.id === rec ? h("span", { class: "rec-mark" }, " (Recommended)") : null),
+      o.description ? h("span", {}, o.description) : null);
+    });
+    const otherBtn = ask.allow_other !== false && !textOnly ? h("button", { class: "ask-opt other", type: "button", disabled: opts.disabled,
+      title: `Type your own answer (press ${ask.options.length + 1})`, onclick: () => showOther(otherRow.hidden) },
+    h("b", {}, h("kbd", {}, ask.options.length + 1), "Other…"), h("span", {}, ask.other_hint || "Type your own answer")) : null;
+    card.replaceChildren(...[
+      h("div", { class: "ask-head" }, h("span", { class: "chip", title: opts.title || "" }, ask.header),
+        opts.project ? h("span", { class: "muted small" }, opts.project) : null, ask.answer ? h("span", { class: "pill good" }, "answered") : null),
+      h("b", { class: "ask-q" }, ask.question),
+      ask.detail ? h("div", { class: "ask-detail" }, ask.detail) : null,
+      textOnly ? null : h("div", { class: "ask-opts" + (ask.pictures ? " pics" : "") }, optButtons, otherBtn),
+      ask.allow_other !== false ? otherRow : null,
+      h("div", { class: "ask-foot" },
+        ask.multi ? h("button", { class: "primary", type: "button", disabled: opts.disabled, onclick: () => send([...picked]) }, "Done") : null,
+        opts.onSkip ? h("button", { class: "link-btn", type: "button", title: "Leave this for later. It comes back if things change.", onclick: opts.onSkip }, "Not now") : null,
+        opts.extra || null,
+        h("span", { class: "muted small" }, ask.multi ? "Tick all that fit, then Done." : textOnly ? "Enter sends." : "Tap one, or type your own."))]
+      .filter(Boolean));  // replaceChildren would write "null" for a missing part
+    otherRow.hidden = !(textOnly || other.value);
+  }
+  draw();
+  return card;
+}
+
+// Answer a card of a project through /api/asks; a long step (a run, a plan update) comes back as a job.
+async function answerAsk(ask, a) {
+  const r = await api("POST", "/api/asks", { path: ask.path, id: ask.id, stamp: ask.stamp, ...a });
+  toast(r.reply || "Done");
+  return r;
+}
+
 async function api(method, path, body) {
   const opts = { method, headers: {} };
   if (method !== "GET") {
@@ -85,7 +176,7 @@ let setupChecked = false;
 function route() { const p = (location.hash || "#/roundtable").slice(2).split("?")[0].split("/"); return [p[0] === "where" || !p[0] ? "roundtable" : p[0], ...p.slice(1).map(decodeURIComponent)]; }
 function setActive(name) {
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === name ||
-    (name === "project" && a.dataset.nav === "projects") || (name === "run" && a.dataset.nav === "runs") ||
+    (name === "project" && a.dataset.nav === "projects") || ((name === "run" || name === "new") && a.dataset.nav === "runs") ||
     (name === "job" && a.dataset.nav === "jobs")));
 }
 async function render(auto = false) {
@@ -103,7 +194,7 @@ async function render(auto = false) {
       try { const st = await api("GET", "/api/setup"); if (st.desktop && !st.setup_done && view !== "setup") { location.hash = "#/setup"; return; } } catch { /* ignore */ }
     }
     const views = { setup: viewSetup, settings: viewSettings, roundtable: viewRoundtable, projects: viewProjects, project: viewProject, messages: viewMessages,
-      runs: viewRuns, run: viewRun, plan: viewPlan, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
+      runs: viewRuns, run: viewRun, plan: viewPlan, new: viewNew, models: viewModels, improve: viewImprove, jobs: viewJobs, job: viewJob };
     const node = await (views[view] || viewRoundtable)(...args);
     const typing = document.activeElement && $main().contains(document.activeElement) && document.activeElement.value;
     if (auto && typing) { autoRefresh(3000); return; } // don't clobber what the user is typing
@@ -279,7 +370,17 @@ async function viewRoundtable() {
     h("div", { class: "now" }, now));
   }
 
+  // a waiting project's next card, answered right here; the rest wait on its plan page
+  function needAsk(n) {
+    const a = n.ask, more = n.asks > 1 ? h("a", { class: "btn icon", href: `#/plan/${encodeURIComponent(n.path)}`, title: "See every question on the plan page" }, `${n.asks - 1} more`) : null;
+    return h("div", { class: "need need-ask" }, askCard(a, async (ans) => { await answerAsk(a, ans); await refresh(true); }, {
+      compact: true, project: n.project, extra: more,
+      onSkip: a.kind === "approve" || a.kind === "money" ? null : () => run(null, () => api("POST", "/api/asks", { path: a.path, id: a.id, stamp: a.stamp, skip: true }), "Left for later"),
+    }));
+  }
+
   function needItem(n) {
+    if (n.kind === "run" && n.ask) return needAsk(n);
     let acts = null;
     if (n.kind === "run") acts = (n.actions || []).includes("approve")
       ? h("a", { class: "btn icon primary", href: `#/plan/${encodeURIComponent(n.path)}` }, "Open plan")
@@ -362,7 +463,7 @@ async function viewRoundtable() {
           : h("span", { class: "muted" }, "not probed yet")),
       h("span", { class: "stat" }, "Today ", h("b", {}, money(data.spend_today))),
       h("a", { class: "stat", href: "#/messages" }, "Unread ", h("b", {}, unread)),
-      h("a", { class: "btn primary", href: "#/runs" }, "+ New project")]);
+      h("a", { class: "btn primary", href: "#/new", title: "A few questions, then the planner makes a plan for you to check" }, "+ New project")]);
     patch(strip, JSON.stringify([rtSel, data.seats.map((x) => ({ ...x, brief: null, last_activity: x.last_activity ? ago(x.last_activity) : "" }))]), () =>
       [data.seats.length ? data.seats.map(seatCard) : h("div", { class: "empty" }, "Nobody at the table yet."), h("div", { class: "candles" }, h("i", { class: "cdl" }), h("i", { class: "cdl" }), h("i", { class: "cdl" }))]);
     patch(needs, JSON.stringify(data.needs_you.map((n) => ({ ...n, at: n.at ? ago(n.at) : "" }))), () => [
@@ -515,13 +616,60 @@ async function viewRuns() {
         h("td", {}, statusPill(p.job_running ? "running" : p.status)), h("td", { class: "small" }, taskCounts(p.tasks)),
         h("td", { class: "num" }, money(p.spent_usd), p.unpriced_calls ? h("div", { class: "muted small" }, `+${p.unpriced_calls} unpriced`) : null),
         h("td", { class: "small muted" }, ago(p.updated_at))))) : h("div", { class: "empty" }, "No harness projects yet.")),
-    section("New project", form));
+    section("New project", h("p", { class: "muted" }, "Answer a few questions by tapping; the planner then makes a plan for you to check."),
+      h("a", { class: "btn primary", href: "#/new" }, "+ New project"),
+      h("details", { style: "margin-top:12px" }, h("summary", { class: "small muted" }, "Or type the folder and the goal yourself"), form)));
+}
+
+// ---------- a new project: a few cards to tap ----------
+async function viewNew() {
+  const nh = needHarness(); if (nh) return nh;
+  const w = await api("GET", "/api/asks?wizard=1");
+  const answers = {};
+  let step = 0;
+  const root = h("div", { class: "wizard asks" });
+  const said = (a) => {
+    const ans = answers[a.id] || {};
+    return [...(ans.chosen || []).map((c) => (a.options.find((o) => o.id === c) || {}).label || c), ans.other].filter(Boolean).join(" · ");
+  };
+  const summary = (a, i) => h("div", { class: "ask answered compact wizard-row" },
+    h("div", { class: "ask-head" }, h("span", { class: "chip" }, a.header), h("span", { class: "grow" }, h("span", { class: "muted small" }, a.question), h("br"), h("b", {}, said(a))),
+      h("button", { class: "icon", title: "Change this answer", onclick: () => { step = i; draw(); } }, "Change")));
+  const next = () => { step = w.asks.findIndex((a) => !answers[a.id]); if (step < 0) step = w.asks.length; };
+  const start = () => h("div", { class: "ask ready" },
+    h("div", { class: "ask-head" }, h("span", { class: "chip" }, "Ready")),
+    h("b", { class: "ask-q" }, "Make the plan?"),
+    h("div", { class: "ask-detail" }, "The planner writes a plan with its own questions for you. Nothing is built until you approve it. Making the plan costs a little (usually a few cents)."),
+    h("div", { class: "ask-opts" },
+      h("button", { class: "ask-opt rec", type: "button", onclick: async (ev) => {
+        ev.currentTarget.disabled = true;
+        try { const r = await api("POST", "/api/asks", { wizard: answers }); toast(r.reply); location.hash = `#/job/${r.job.id}`; }
+        catch (e) { toast(e.message, true); ev.currentTarget.disabled = false; }
+      } }, h("b", {}, h("kbd", {}, 1), "Make the plan", h("span", { class: "rec-mark" }, " (Recommended)")), h("span", {}, "You'll see it, with its questions, in a minute or two.")),
+      h("button", { class: "ask-opt", type: "button", onclick: () => { step = 0; draw(); } }, h("b", {}, h("kbd", {}, 2), "Go back"), h("span", {}, "Look at your answers again."))));
+  function draw() {
+    const kids = w.asks.map((a, i) => {
+      if (i === step) return askCard(a, async (ans) => {
+        if (a.required && !ans.other) throw new Error("Write your idea in a few words first.");
+        answers[a.id] = ans; next(); draw();
+      }, { sendLabel: "Next" });
+      return answers[a.id] ? summary(a, i) : null;
+    });
+    if (step >= w.asks.length) kids.push(start());
+    root.replaceChildren(...kids.filter(Boolean));
+    const live = root.querySelector(".ask:not(.wizard-row)");
+    if (live) setTimeout(() => (live.querySelector("textarea:not([hidden])") && !live.querySelector(".ask-other").hidden ? live.querySelector("textarea") : live).focus(), 0);
+  }
+  draw();
+  return h("div", {}, h("a", { href: "#/roundtable", class: "muted small" }, "← Roundtable"), h("h1", {}, "New project"),
+    h("p", { class: "sub" }, "Tap an answer, or choose Other… to type your own. Number keys pick, Enter sends. ",
+      h("span", { class: "link", title: w.projects_dir }, "Where it's saved")), root);
 }
 
 // ---------- the living plan ----------
 async function viewPlan(path) {
   const q = encodeURIComponent(path);
-  const d = await api("GET", `/api/plan?path=${q}`);
+  const [d, aq] = await Promise.all([api("GET", `/api/plan?path=${q}`), api("GET", `/api/asks?path=${q}&answered=1`).catch(() => ({ asks: [] }))]);
   const doc = d.doc;
   const edit = async (body, ok) => { try { await api("POST", "/api/plan", { path, ...body }); if (ok) toast(ok); await render(); } catch (e) { toast(e.message, true); } };
   const startJob = async (body, ok) => { try { const j = await api("POST", "/api/plan", { path, ...body }); toast(ok); location.hash = `#/job/${j.id}`; } catch (e) { toast(e.message, true); } };
@@ -556,29 +704,27 @@ async function viewPlan(path) {
       o.choices ? h("span", { class: "muted small" }, `${o.choices} choice(s) left on the recommendation`) : null),
     pending.length ? h("details", { class: "small" }, h("summary", {}, `Your changes waiting to be applied (${pending.length})`), h("ul", {}, pending.map((p) => h("li", {}, p.text)))) : null);
 
-  const decisions = (doc.decisions || []).map((c) => h("div", { class: "decision" },
-    h("div", { class: "q" }, h("b", {}, c.question), c.why ? h("div", { class: "muted small" }, "Recommended because: ", c.why) : null),
-    h("div", { class: "opts" }, c.options.map((op) => {
-      const chosen = c.chosen === op.id, rec = c.recommended === op.id;
-      return h("button", { class: "opt" + (chosen ? " chosen" : !c.chosen && rec ? " rec" : ""), disabled: d.busy,
-        onclick: () => edit({ action: "choose", decision: c.id, option: op.id }, `Chosen: ${op.label}`) },
-      h("b", {}, op.label, rec ? h("span", { class: "pill good", style: "margin-left:6px" }, "recommended") : null, chosen ? h("span", { class: "pill info", style: "margin-left:6px" }, "your choice") : null),
-      op.detail ? h("span", { class: "small" }, op.detail) : null, op.cost ? h("span", { class: "muted small" }, op.cost) : null);
-    }))));
-  const questions = (doc.questions || []).map((qq) => {
-    const inp = h("input", { class: "grow", value: qq.answer || "", placeholder: "your answer" });
-    return h("div", { class: "decision" }, h("div", { class: "q" }, h("b", {}, qq.text), qq.why ? h("div", { class: "muted small" }, qq.why) : null),
-      h("div", { class: "row" }, inp, h("button", { class: "icon primary", disabled: d.busy, onclick: () => edit({ action: "answer", question: qq.id, text: inp.value }, "Answer saved") }, "Save")));
-  });
-  const ideas = (doc.ideas || []).map((i) => h("div", { class: "row idea" },
-    h("span", { class: "grow" }, i.text, i.why ? h("span", { class: "muted small" }, ` · ${i.why}`) : null),
-    i.state === "open" ? [h("button", { class: "icon primary", disabled: d.busy, onclick: () => edit({ action: "idea", id: i.id, accept: true }, "Idea added") }, "Yes, add it"),
-      h("button", { class: "icon", disabled: d.busy, onclick: () => edit({ action: "idea", id: i.id, accept: false }) }, "No thanks")]
-      : h("span", { class: "pill " + (i.state === "accepted" ? "good" : "") }, i.state)));
-  const input = (o.choices || o.questions || o.ideas || decisions.length) ? section("Your input",
-    decisions.length ? [h("h3", {}, "Choices"), decisions] : null,
-    questions.length ? [h("h3", {}, "Questions for you"), questions] : null,
-    ideas.length ? [h("h3", {}, "Recommended ideas"), ideas] : null) : null;
+  // the planner's choices, questions, ideas and the look, as cards to tap (asks.py)
+  const pictures = {};
+  if (Object.keys((doc.look || {}).pictures || {}).length) {
+    try { const r = await api("GET", `/api/plan/looks?path=${q}`); for (const [id, pp] of Object.entries(r.pictures || {})) pictures[id] = pp.desktop; } catch { /* the cards still show the words */ }
+  }
+  const cardFor = (a) => askCard(a, async (ans) => {
+    const r = await answerAsk(a, ans);
+    if (r.job) location.hash = `#/job/${r.job.id}`; else await render();
+  }, { pictures, disabled: d.busy });
+  const mine = (aq.asks || []).filter((a) => ["decision", "question", "look", "idea"].includes(a.kind));
+  const waiting = mine.filter((a) => !a.answer), answered = mine.filter((a) => a.answer);
+  const madeChoices = d.approved && (doc.decisions || []).length ? section("Choices", h("ul", {}, doc.decisions.map((c) => {
+    const pick = c.options.find((op) => op.id === (c.chosen || c.recommended));
+    return h("li", {}, h("b", {}, c.question), " ", pick ? pick.label : "", h("span", { class: "muted small" }, c.chosen ? " (your choice)" : " (recommended)"));
+  }))) : null;
+  const input = mine.length ? section("Your input",
+    h("p", { class: "muted small" }, waiting.length ? `${waiting.length} question${waiting.length > 1 ? "s" : ""} for you. Tap an answer: the recommended one is first. Or type your own with Other….`
+      : "All answered. Update the plan to apply your answers, then approve it."),
+    waiting.length ? h("div", { class: "asks" }, waiting.map(cardFor)) : null,
+    answered.length ? h("details", { class: "answered-list" }, h("summary", {}, `Answered (${answered.length}): change an answer`),
+      h("div", { class: "asks" }, answered.map(cardFor))) : null) : madeChoices;
 
   const looks = lookSection(doc.look || {}, d.busy, q, edit, startJob);
   const like = likeSection(doc.references || [], d.busy, edit);
@@ -621,8 +767,8 @@ async function viewPlan(path) {
     hh.diff ? h("span", { class: "muted" }, ` (${["added", "changed", "removed"].filter((k) => hh.diff[k] && hh.diff[k].length).map((k) => `${hh.diff[k].length} ${k}`).join(", ") || "tasks unchanged"})`) : null)))) : null;
 
   return h("div", { class: "plan-page" }, back, h("h1", {}, `Plan · ${d.name}`),
-    h("p", { class: "sub" }, "Read it, choose, answer, cut or add, then Update plan. Nothing is built until you approve."),
-    head, like, looks, input, critique, scope, spec, history);
+    h("p", { class: "sub" }, "Tap your answers, cut or add, then Update plan. Nothing is built until you approve."),
+    head, input, like, looks, critique, scope, spec, history);
 }
 
 // "Make it like this": what the owner wants it to be like, as the scout read each one; add or remove.
@@ -653,34 +799,22 @@ function likeSection(refs, busy, edit) {
 // The look: the designer's directions side by side, a "Choose this look" button each, and "Make new looks".
 function lookSection(lk, busy, q, edit, startJob) {
   const dirs = lk.directions || [];
-  const note = h("input", { class: "grow", placeholder: "Anything to change in the one you choose? (optional), e.g. “warmer colours”" });
   const brief = h("input", { class: "grow", placeholder: "A starting point for new looks (optional), e.g. “like an old record shop”" });
-  const pics = {};
   const swatch = (hex, title) => h("span", { class: "swatch", title: `${title} ${hex}`, style: `background:${hex}` });
   const card = (x) => {
     const chosen = lk.chosen === x.id, light = x.palette.light;
-    pics[x.id] = h("img", { class: "look-pic", alt: `Look ${x.id}: ${x.name}` });
-    return h("div", { class: "look" + (chosen ? " chosen" : "") }, pics[x.id],
+    return h("div", { class: "look" + (chosen ? " chosen" : "") },
       h("b", {}, `${x.id} · ${x.name}`, chosen ? h("span", { class: "pill info", style: "margin-left:6px" }, "your choice") : null),
       h("div", { class: "small" }, x.mood),
       h("div", { class: "muted small" }, "Signature: ", x.signature),
       h("div", { class: "row swatches", title: "Its colours (light)" }, ["background", "surface", "text", "accent"].map((k) => swatch(light[k], k)),
-        h("span", { class: "muted small" }, `${x.fonts.display.family} · ${x.fonts.body.family}`)),
-      h("button", { class: chosen ? "" : "primary", disabled: busy, title: "Then Update plan: the look becomes the app's design file",
-        onclick: () => edit({ action: "look", id: x.id, note: note.value }, `Chosen: ${x.name}. Update the plan to apply it.`) },
-      chosen ? "Chosen (choose again to change the note)" : "Choose this look"));
+        h("span", { class: "muted small" }, `${x.fonts.display.family} · ${x.fonts.body.family}`)));
   };
-  if (dirs.length && Object.keys(lk.pictures || {}).length) {
-    api("GET", `/api/plan/looks?path=${q}`).then((r) => {
-      for (const [id, p] of Object.entries(r.pictures || {})) if (pics[id] && p.desktop) pics[id].src = p.desktop;
-    }).catch(() => { /* the cards still show the words */ });
-  }
   return section("Look",
-    h("p", { class: "muted small" }, dirs.length ? "Choose how the app looks. Every task then follows the design file of the look you choose."
+    h("p", { class: "muted small" }, dirs.length ? "The looks in detail. Choose one with the Look card under Your input; every task then follows its design file."
       : "No looks yet. Roundtable can design three different looks for the app, with a picture of each, for you to choose from."),
     dirs.length ? h("div", { class: "looks" }, dirs.map(card)) : null,
     dirs.length && !Object.keys(lk.pictures || {}).length && lk.render_note ? h("p", { class: "muted small" }, lk.render_note) : null,
-    dirs.length ? h("div", { class: "row" }, note) : null,
     h("div", { class: "row" }, brief, h("button", { disabled: busy, title: "Asks the designer for new looks (a model call, so it costs a little)",
       onclick: () => startJob({ action: "looks", text: brief.value }, "Designing new looks…") }, dirs.length ? "Make new looks" : "Make looks")));
 }

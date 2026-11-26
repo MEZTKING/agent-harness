@@ -42,7 +42,7 @@ PHONE_ROUTES = {
     ("GET", "/api/projects"), ("GET", "/api/project"), ("POST", "/api/projects"), ("POST", "/api/project"),
     ("GET", "/api/where"), ("GET", "/api/cards"), ("POST", "/api/send"), ("POST", "/api/reply"),
     ("GET", "/api/thread"), ("GET", "/api/jobs"), ("GET", "/api/roles"), ("GET", "/api/probes"),
-    ("GET", "/api/plan"), ("POST", "/api/plan"),
+    ("GET", "/api/plan"), ("POST", "/api/plan"), ("GET", "/api/asks"), ("POST", "/api/asks"),
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))

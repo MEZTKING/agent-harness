@@ -49,6 +49,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.meztking.roundtable.data.Mode
+import com.meztking.roundtable.data.Ask
+import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.PlanDoc
 import com.meztking.roundtable.data.PlanView
 import com.meztking.roundtable.data.SeatView
@@ -73,6 +75,8 @@ data class ProjectUi(
     val plan: Load<PlanView>,
     val inbox: Load<List<Message>>,
     val sent: Map<String, String> = emptyMap(),
+    /** The questions waiting on this project, as cards to tap (asks.py). */
+    val asks: Load<List<Ask>> = Load(),
 )
 
 class ProjectActions(
@@ -83,6 +87,7 @@ class ProjectActions(
     val opened: (Message) -> Unit = {},
     val reply: (Message, String, Done) -> Unit = { _, _, _ -> },
     val send: (String, String, Done) -> Unit = { _, _, _ -> },
+    val answer: (Ask, AskReply) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -153,14 +158,23 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
     PullToRefreshBox(plan.loading && plan.data != null, a.refresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (plan.error != null) item { ErrorLine(plan.error, a.refresh) }
+            val cards = ui.asks.data.orEmpty()
+            if (cards.isNotEmpty()) {
+                item { SectionTitle("Your answers") }
+                item {
+                    Text("Tap an answer: the recommended one is first. Or choose Other… to type your own.",
+                        style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+                }
+                items(cards, key = { "ask:" + it.id }) { c -> AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"]) }
+            }
             val p = plan.data
             when {
                 p == null && plan.loading -> item { Loading("Reading the plan…") }
                 p == null -> {}
-                p.doc != null -> planDoc(p.doc, ui, a)
+                p.doc != null -> planDoc(p.doc, ui, a, cards.map { it.id }.toSet())
                 p.tasks.isNotEmpty() -> {
                     item { Text("Run: ${p.runStatus.replace('_', ' ')}", color = Hall.muted, style = MaterialTheme.typography.bodySmall) }
-                    if (p.canApprove) item {
+                    if (p.canApprove && cards.none { it.kind == "approve" }) item {
                         Button(onClick = { a.act("approve") }, modifier = Modifier.fillMaxWidth()) { Text("Approve & start") }
                     }
                     items(p.tasks, key = { it.id }) { TaskRow(it) }
@@ -174,9 +188,10 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, ui: ProjectUi, a: ProjectActions) {
+private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, ui: ProjectUi, a: ProjectActions, carded: Set<String> = emptySet()) {
     val hub = ui.mode == Mode.HUB
-    val canAnswer = hub && d.waitingForOwner
+    // what is already a card above is shown here only to read
+    val canAnswer = hub && d.waitingForOwner && carded.isEmpty()
     item {
         Column {
             if (d.state.isNotBlank()) {
@@ -199,7 +214,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, u
     items(d.questions, key = { "Q" + (it.id ?: it.text) }) { q -> QuestionCard(q, canAnswer, ui.sent, a) }
     if (d.ideas.isNotEmpty()) item { SectionTitle("Ideas") }
     items(d.ideas, key = { "I" + (it.id ?: it.text) }) { i -> IdeaCard(i, canAnswer, ui.sent, a) }
-    if (canAnswer) item { PlannerBox(ui.sent, a) }
+    if (hub && d.waitingForOwner) item { PlannerBox(ui.sent, a) }
     else if (hub && !d.waitingForOwner && d.state.isNotBlank()) item {
         Text("This plan isn't waiting for you, so it can't be changed from here.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     } else if (!hub) item {

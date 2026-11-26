@@ -52,6 +52,7 @@ class Task:
     goal_index: int = 0
     base_commit: str | None = None  # project state the task started from (for replays)
     section: str = ""  # the plan's spec section (or decision) this task belongs to
+    stronger: bool = False  # the owner asked to retry it with the Quality setting's model
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -183,7 +184,9 @@ class Orchestrator(LookStage, ReferenceStage):
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
         self._listener = on_event
         meta = self.project.meta()
-        self.budget = Budget(limit_usd=cfg.limits.max_cost_usd, spent_usd=meta.get("spent_usd", 0.0))
+        # the owner can let one project spend more than the limit ("Carry on with $X more")
+        limit = cfg.limits.max_cost_usd + float(meta.get("budget_extra_usd") or 0)
+        self.budget = Budget(limit_usd=limit, spent_usd=meta.get("spent_usd", 0.0))
         # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
         self.budget.on_charge = self._on_charge
         self._broke: set[str] = set()  # providers that said "out of credit" during this run
@@ -204,6 +207,8 @@ class Orchestrator(LookStage, ReferenceStage):
 
     def _set_status(self, status: str, **extra: Any) -> None:
         meta = self.project.meta()
+        if not status.startswith("paused"):
+            meta.pop("pause", None)  # why it last paused: only while it is paused
         meta.update(status=status, updated_at=utcnow(), **extra)
         self.project.save_meta(meta)
         self.emit("status", {"status": status, **extra})
@@ -293,11 +298,24 @@ class Orchestrator(LookStage, ReferenceStage):
             md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
                   + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
                                             image_base=f"looks/{name}/"))
-            files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n")}
+            files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n"),
+                                     f"plans/{name}.asks.json": TextFile(self._asks_json())}
             files.update({f"plans/looks/{name}/{f}": BinaryFile(b) for f, b in self._look_pictures().items()})
             hub.store.write_json(files, f"plan({name}): v{doc.get('version', 1)} {state}")
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
+
+    def _asks_json(self) -> str:
+        """What waits for the owner, as cards for the phone (Hub mode reads it next to the plan)."""
+        from ..asks import open_asks
+
+        try:
+            asks = open_asks(self)
+        except Exception as e:  # the cards are a help: never fail a publish over them
+            self.emit("hub_error", {"error": f"asks: {e}"})
+            asks = []
+        return json.dumps({"project": self.project.root.name, "at": utcnow(), "asks": asks}, indent=1,
+                          ensure_ascii=False) + "\n"
 
     def _hub_update(self, status: str, note: str | None = None) -> None:
         try:
@@ -340,6 +358,7 @@ class Orchestrator(LookStage, ReferenceStage):
         if entry:
             open_[key] = entry
             self.project.save_meta(meta)
+        self._publish_plan()  # the phone's cards (plans/<project>.asks.json) show it too
 
     def _resolved(self, *keys: str, note: str = "") -> None:
         meta = self.project.meta()
@@ -809,6 +828,10 @@ class Orchestrator(LookStage, ReferenceStage):
         elif action == "answer":
             q = find(doc["questions"], kw.get("question", ""))
             q["answer"] = str(kw.get("text", "")).strip()[:2000]
+            if not q["answer"]:
+                raise HarnessError("write an answer, or pick one")
+            ids = {o.get("id") for o in q.get("options") or []}
+            q["chosen"] = [c for c in kw.get("chosen") or [] if c in ids]  # which ready answers were tapped
             note(f"Answer to '{q['text']}': {q['answer']}", f"answer:{q['id']}")
         elif action == "dont_add":
             text = str(kw.get("text", "")).strip()[:500]
@@ -1028,14 +1051,15 @@ class Orchestrator(LookStage, ReferenceStage):
         model_idx = 0
         rejections_on_model = 0
         ran_out_once = False
+        models = (self.stronger_models(task) if task.stronger else []) or role.models
         for attempt in range(1, self.cfg.limits.max_attempts_per_task + 1):
-            while model_idx < len(role.models) and role.models[model_idx].provider in self._broke:
+            while model_idx < len(models) and models[model_idx].provider in self._broke:
                 model_idx += 1  # that account is empty: no point trying it again this run
-            if model_idx >= len(role.models):
-                if all(m.provider in self._broke for m in role.models):
-                    raise OutOfCredit("no credit left with " + ", ".join(sorted({m.provider for m in role.models})))
+            if model_idx >= len(models):
+                if all(m.provider in self._broke for m in models):
+                    raise OutOfCredit("no credit left with " + ", ".join(sorted({m.provider for m in models})))
                 break
-            ref = role.models[model_idx]
+            ref = models[model_idx]
             self.emit("attempt", {"task": task.id, "attempt": attempt, "model": str(ref)})
             summary: dict[str, Any] = {}
 
@@ -1065,7 +1089,7 @@ class Orchestrator(LookStage, ReferenceStage):
             if res.stop in ("refusal", "max_steps") and not summary:
                 task.attempts.append({"model": str(ref), "outcome": res.stop, "cost_usd": res.cost_usd})
                 self._metric(task, ref, res.stop, res)
-                if res.stop == "max_steps" and model_idx + 1 >= len(role.models) and not ran_out_once:
+                if res.stop == "max_steps" and model_idx + 1 >= len(models) and not ran_out_once:
                     # no fallback model: the files it wrote are still there, so let it carry on once
                     ran_out_once = True
                     feedback.append("Your previous attempt ran out of steps before finishing. Its changes are still "
@@ -1090,7 +1114,7 @@ class Orchestrator(LookStage, ReferenceStage):
                 return True
             feedback.append(f"Attempt {attempt} ({ref}) was rejected by the reviewer:\n{fb}")
             rejections_on_model += 1
-            if rejections_on_model >= 2 and model_idx + 1 < len(role.models):
+            if rejections_on_model >= 2 and model_idx + 1 < len(models):
                 model_idx += 1  # this model keeps missing; let the fallback try
                 rejections_on_model = 0
         task.summary = f"failed after {len(task.attempts)} attempt(s)"
@@ -1256,12 +1280,12 @@ class Orchestrator(LookStage, ReferenceStage):
                     return "blocked"
                 if not finished_this_run and executed and self._real_spend_over_limit(0.5):
                     # half the money gone and nothing passed: stop and let the owner look, don't spend the rest
-                    self._set_status("paused")
+                    self._set_status("paused", pause="money_nothing_done")
                     self._attention("money", "this run has spent half its real-money limit and finished nothing; "
                                              "look at the failed attempts before running again")
                     return "paused"
                 if self._real_spend_over_limit():
-                    self._set_status("paused")
+                    self._set_status("paused", pause="money")
                     self._attention("money", f"this run has spent ${self.cfg.limits.max_real_usd_per_run:.2f} of real "
                                              "credit, the limit you set; run again to carry on")
                     return "paused"
@@ -1298,10 +1322,10 @@ class Orchestrator(LookStage, ReferenceStage):
             self.project.save_tasks(tasks)
             self._save_spend()
             if isinstance(e, OutOfCredit):
-                self._set_status("paused", reason=str(e))
+                self._set_status("paused", reason=str(e), pause="credit")
                 self._attention("money", f"{e}: top up that account, then run the project again")
                 return "paused"
-            self._set_status("paused_budget", reason=str(e))
+            self._set_status("paused_budget", reason=str(e), pause="budget")
             self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
                                       f"roundtable run {self.project.root}")
             return "paused_budget"
@@ -1336,17 +1360,44 @@ class Orchestrator(LookStage, ReferenceStage):
                       next_steps=[f"review the result and report: {self.project.dir / 'summary.md'}",
                                   f"rate tasks: roundtable feedback {self.project.root} TASK --good/--bad"])
 
-    def retry(self, task_id: str) -> None:
+    def retry(self, task_id: str, stronger: bool = False) -> None:
+        """Try a task again; ``stronger``: with the Quality setting's model for its role."""
         tasks = self.project.tasks()
         for t in tasks:
             if t.id == task_id:
                 if t.status not in ("failed", "skipped", "done"):
                     raise HarnessError(f"task {task_id} is {t.status}; only failed/skipped/done tasks can be retried")
-                t.status = "pending"
+                if stronger and not self.stronger_models(t):
+                    raise HarnessError("there's no stronger model set up for this task (the Quality setting has the "
+                                       "same one)")
+                t.status, t.stronger = "pending", stronger
                 self.project.save_tasks(tasks)
-                self.emit("retry", {"task": task_id})
+                self.emit("retry", {"task": task_id, "stronger": stronger})
                 return
         raise HarnessError(f"no task {task_id!r}")
+
+    def stronger_models(self, task: Task) -> list[ModelRef]:
+        """The Quality setting's models for the task's role, when they differ from the ones in use."""
+        quality = next((n for n in self.base_cfg.profiles if n.lower() == "quality"), None)
+        role = self.cfg.roles.get(task.role)
+        if not quality or not role:
+            return []
+        strong = self.base_cfg.for_profile(quality).roles.get(task.role)
+        if not strong or [str(m) for m in strong.models] == [str(m) for m in role.models]:
+            return []
+        return list(strong.models)
+
+    def raise_budget(self, extra_usd: float) -> float:
+        """Let this project spend ``extra_usd`` more than its limit; returns the new limit."""
+        extra = round(float(extra_usd), 2)
+        if not 0 < extra <= 10_000:
+            raise HarnessError("the extra must be between $0.01 and $10,000")
+        meta = self.project.meta()
+        meta["budget_extra_usd"] = round(float(meta.get("budget_extra_usd") or 0) + extra, 2)
+        self.project.save_meta(meta)
+        self.budget.limit_usd = self.cfg.limits.max_cost_usd + meta["budget_extra_usd"]
+        self.emit("budget_raised", {"extra_usd": extra, "limit_usd": self.budget.limit_usd})
+        return self.budget.limit_usd
 
     def accept(self, task_id: str, note: str = "") -> None:
         """The owner accepts a task's work as it is in the files (e.g. a reviewer rejected it for the wrong
