@@ -207,6 +207,26 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         self.budget.on_charge = self._on_charge
         self._broke: set[str] = set()  # providers that said "out of credit" during this run
         self._last_real_check = 0.0
+        self._mcp = None  # the MCP servers' clients for this run (mcp_tools.MCPPool), started on first use
+        self.mcp_allowed = True  # off for the lab's replays: they must not drive the owner's open editor
+
+    # -- MCP servers -----------------------------------------------------------
+    def _add_mcp_tools(self, box: Toolbox, role: RoleSpec) -> None:
+        """The tools of the MCP servers this role lists under `mcp` (none for a role without it)."""
+        if not role.mcp or not self.cfg.mcp_servers or not self.mcp_allowed:
+            return
+        if self._mcp is None:
+            from .mcp_tools import MCPPool
+
+            self._mcp = MCPPool(self.cfg.mcp_servers, self.emit)
+        for tool in self._mcp.tools_for(role.mcp):
+            if tool.spec.name not in box.tools:
+                box.add(tool)
+
+    def _close_mcp(self) -> None:
+        pool, self._mcp = self._mcp, None
+        if pool is not None:
+            pool.close()
 
     # -- logging -------------------------------------------------------------
     def emit(self, kind: str, data: dict[str, Any]) -> None:
@@ -1005,6 +1025,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             return "review recorded"
 
         box = self.ws.toolbox(REVIEW_TOOLS)
+        self._add_mcp_tools(box, reviewer)
         box.add(Tool(
             ToolSpec("submit_review", "Record your verdict. approved=true only if every acceptance criterion is met.",
                      _obj({"approved": {"type": "boolean"}, "feedback": {"type": "string",
@@ -1116,6 +1137,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 return "recorded"
 
             box = self.ws.toolbox(role.tools)
+            self._add_mcp_tools(box, role)
             box.add(Tool(ToolSpec("finish_task", "Call when the task is complete.",
                                   _obj({"summary": {"type": "string"}}, ["summary"])), finish_task, terminal=True))
             try:
@@ -1177,6 +1199,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         try:
             status = self._run(max_tasks)
         finally:
+            self._close_mcp()
             if start:
                 self._note_balance("end", start)
         if status != "awaiting_approval":
@@ -1308,7 +1331,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 self._attention("approval", f"review the plan, then: roundtable approve {self.project.root} "
                                             f"&& roundtable run {self.project.root}")
                 return "awaiting_approval"
-            self._resolved("approval", "budget", note="run resumed")
+            self._resolved("approval", "budget", "money", note="run resumed")
             self._set_status("running")
 
             executed = finished_this_run = 0
@@ -1402,6 +1425,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             summary = f"(summary unavailable: {e})"
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
+        self._resolved("approval", "budget", "money", note="the run finished")
         self._publish_plan()
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
         for plan_id in meta.get("journal_plans", []):

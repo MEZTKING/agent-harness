@@ -17,6 +17,9 @@ hidden = (
     + collect_submodules("segno")  # phone access: pairing QR code
     + ["cryptography.x509", "cryptography.hazmat.primitives.asymmetric.ec"]  # phone access: TLS certificate
     + ["webview", "yaml"]
+    # MCP tool servers for roles (Unreal's editor and others): the client and what it pulls in
+    + collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
+    + collect_submodules("mcp_types")
 )
 
 a = Analysis(
@@ -24,7 +27,7 @@ a = Analysis(
     pathex=[str(ROOT / "src")],
     datas=collect_data_files("roundtable"),  # UI, prompts, templates
     hiddenimports=hidden,
-    excludes=["mcp", "tkinter", "pytest"],
+    excludes=["mcp.cli", "tkinter", "pytest"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

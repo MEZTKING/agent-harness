@@ -4,6 +4,47 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Money to-dos close when the run carries on
+
+The owner's phone showed 16 "need you", two of them the music player's "high" money to-dos, though that
+project finished hours ago. `Orchestrator._attention("money", …)` was never resolved, and a finished run
+didn't close any. `run` now resolves `approval`, `budget` and `money` when it resumes, and `_finish` does
+too. Test: `test_money_and_budget_todos_close_when_the_run_goes_on`. One-off hub fix: closed the two stale
+to-dos (87fe66, c908ed) and the DeepSeek-prices one (e85317; prices are built in).
+
+## 2026-11-26 – Tool servers (MCP) for roles, and Unreal Engine (0.7.2)
+
+The owner asked for something that can drive Unreal Engine's assets and Blueprints, then "Go ahead"
+on building MCP support into Roundtable. Unreal 5.8's own plug-in, Unreal MCP, serves the editor's
+tools over streamable HTTP at `http://127.0.0.1:8000/mcp` (Epic's docs: no stdio, no password, one call
+at a time, and with tool search on only four tools: list_toolsets, describe_toolsets, describe_tools,
+call_tool).
+
+- `harness/mcp_tools.py` (new): `MCPServerClient` (one server, its own thread and event loop with the
+  `mcp` 2.x `Client`, stdio or streamable HTTP, one call at a time, timeouts), `MCPPool` (one run's
+  servers: `tools_for`, `failed`, `close`), `tool_name` (`mcp__<server>__<tool>`), `result_text`
+  (pictures and files as one line), `check_servers` (the CLI). A JSON string sent where the schema wants
+  an object is decoded (Unreal's `call_tool`).
+- `harness/config.py`: `mcp_servers:` (`command`/`args`/`env`/`cwd` or `url`/`headers`; `tools` allow-list,
+  `timeout`, `enabled`) and `mcp:` on chat roles, with plain errors. Opt-in: a role without `mcp` sees none.
+- `orchestrator.py`: `_add_mcp_tools` for workers (and the reviewer only if its own role lists `mcp`),
+  `_close_mcp` when a run ends. A server that can't start gives an `mcp_error` event and the run goes on.
+- `improve/evaluate.py`: replay tests get no MCP tools (`mcp_allowed = False`), so the lab never changes
+  an editor that happens to be open.
+- `roundtable mcp list` (`harness_cli._mcp_list`; `main._after` keeps `roundtable mcp` for the hub server).
+- The Windows build had `mcp` excluded: `packaging/roundtable.spec` now collects `mcp` (but its CLI) and
+  `mcp_types`, and the installed app's `--self-test` checks the MCP client is there (`_mcp_client_present`).
+- Tests: `tests/test_mcp_tools.py` with `tests/fixtures/fake_mcp_server.py` (a made-up editor over stdio,
+  and over HTTP with `FAKE_MCP_PORT`, like Unreal). 318 pass.
+- Docs: `docs/mcp.md`, `docs/unreal.md` (installing Unreal 5.8, turning on Unreal MCP, Claude Code or a
+  Roundtable role), README.
+- Fab kits (the owner's list): advice given in chat – one framework (the Blueprint Soulslike Framework) plus
+  a matching environment first; several packs say "Allows AI usage: No".
+
+Open: not tried against a real Unreal editor (needs the owner's PC) or on Windows yet; MCP tools aren't
+offered to planning, asks or the report; no MCP page in the app; `create_mcp_http_client` comes from a
+private module of the SDK.
+
 ## 2026-11-26 – The phone APK on every release
 
 The owner asked where the APKs are kept (only in the session's scratch folder and in chat) and chose

@@ -15,7 +15,7 @@ visible on the desktop app and the phone. Details: CLAUDE.md, "The pieces".
 
 | Piece | State |
 |---|---|
-| Desktop app | **0.7.0 being released** from the session branch (see DEVLOG): tap-to-answer cards, the Candlelit Oak look, the Look step, references, plugins (token saver built in), backups, picture models, Budget / Balanced / Quality, OpenRouter and Openference, real-money limits, off-peak starts, learned model switches |
+| Desktop app | **0.7.2** (MCP tool servers for roles; Unreal guide), after 0.7.1 and 0.7.0: tap-to-answer cards, the Candlelit Oak look, the Look step, references, plugins (token saver built in), backups, picture models, Budget / Balanced / Quality, OpenRouter and Openference, real-money limits, off-peak starts, learned model switches |
 | Roundtable Mobile | Built (cards and the new look included); not released (needs a signing key) |
 | Hub (`agent-hub-data`) | Agents: harness, mse-studio-engine, mcsupermods, blockloom, cutline-studio, music-player, me |
 | The yardstick (music player) | Finished: web app (Record Shop Sleeve look), Android APK and Windows EXE sent to the owner (not yet tried on real devices). About $13 of real money spent on the day across DeepSeek and OpenRouter, much of it on Roundtable faults now fixed |
@@ -32,6 +32,9 @@ visible on the desktop app and the phone. Details: CLAUDE.md, "The pieces".
   direct for coding, GLM-5.3 through OpenRouter as fallback; no DeepSeek V4 Pro for now (owner).
 
 ## 4. What to do next
+
+0. MCP tool servers (0.7.2, `docs/mcp.md`, `docs/unreal.md`): try them against a real Unreal editor when
+   the owner is at the PC; the Windows build now includes the `mcp` package (self-test checks it).
 
 1. Check the 0.7.0 release exists and works; tell the owner.
 2. Release 2, "Proof it works": automatic build, test, start and screenshots judged by a seeing

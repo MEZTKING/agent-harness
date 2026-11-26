@@ -16,6 +16,8 @@
     roundtable ui [--port 8765]              web UI (same as `roundtable ui`)
     roundtable feedback DIR TASK_ID --good|--bad ["note"]   rate a finished task (feeds learning)
 
+    roundtable mcp list                      the MCP servers in harness.yaml: does each answer, and its tools
+
     roundtable probe [--role R] [--model M] [--images]   quick health check: regressions / boosts per model
 
     roundtable improve analyze [--llm]       find improvement proposals in run history
@@ -124,6 +126,24 @@ def _metrics(project: Project) -> None:
               f"{a['cost']:9.4f} {a['seconds'] / a['attempts']:6.1f}")
 
 
+def _mcp_list(cfg) -> None:
+    from .harness.mcp_tools import check_servers
+
+    if not cfg.mcp_servers:
+        print("No MCP servers in harness.yaml. Add them under mcp_servers: (see docs/mcp.md).")
+        return
+    users = {name: [r.name for r in cfg.roles.values() if name in r.mcp] for name in cfg.mcp_servers}
+    for row in check_servers(cfg.mcp_servers):
+        name = row["server"]
+        state = "off" if row["ok"] is None else "answers" if row["ok"] else "NOT ANSWERING"
+        print(f"{name}  [{state}]  {row['where']}")
+        print(f"  used by: {', '.join(users[name]) or 'no role yet (add mcp: [' + name + '] to a role)'}")
+        if row.get("error"):
+            print(f"  {row['error']}")
+        if row["ok"]:
+            print(f"  {len(row['tools'])} tool(s): {', '.join(row['tools']) or '(none offered)'}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="roundtable", description="Roundtable Hold: projects, models and self-improvement")
     p.add_argument("--config", help="path to harness.yaml (default $HARNESS_CONFIG or ./harness.yaml)")
@@ -135,6 +155,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--force", action="store_true")
     sub.add_parser("roles")
     sub.add_parser("balance", help="the money left with providers that report it (DeepSeek)")
+    m = sub.add_parser("mcp", help="MCP servers whose tools roles can use (Unreal Engine and others)")
+    msub = m.add_subparsers(dest="mcmd", required=True)
+    msub.add_parser("list", help="the servers in harness.yaml, whether each answers, and its tools")
     s = sub.add_parser("ask")
     s.add_argument("role")
     s.add_argument("prompt")
@@ -554,6 +577,8 @@ def main(argv: list[str] | None = None) -> None:
                 if r.description:
                     print(f"{'':18} {r.description}")
             return
+        if args.cmd == "mcp":
+            return _mcp_list(cfg)
         if args.cmd == "balance":
             from .providers.balance import balances
 
