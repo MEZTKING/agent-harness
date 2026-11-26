@@ -6,6 +6,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Godot: the checker hasn't met a real Godot yet** (26 November): built and tested against a stand-in;
+  the first run on the owner's PC (or a session allowed to run Godot) should confirm `--import`, the Movie
+  Maker frames and the error lines. No GUT/gdUnit test runner yet, and no Android/HTML5 export. → release 2.
+
 - **MCP tool servers: only workers use them, and only from harness.yaml** (26 November): planning,
   asks and the run report get no MCP tools, there's no page in the app to add or check a server
   (`roundtable mcp list` only), and nothing has been tried against a real Unreal editor yet. An

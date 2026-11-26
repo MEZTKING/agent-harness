@@ -27,6 +27,13 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.7.3
+
+- **Godot games**: after every approved task Roundtable starts a Godot 4 game itself (no editor
+  needed), lists its script errors and takes three pictures of it running; the coder and reviewer
+  get a **run_game** tool to test their own work. Godot and Blender can also be driven through
+  their MCP plug-ins. How: [docs/godot.md](docs/godot.md).
+
 ### What's new in 0.7.2
 
 - **Tool servers (MCP) for your roles**: a role can use the tools of any MCP server, such as the

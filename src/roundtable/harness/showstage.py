@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from . import godot as godotlib
 from . import session as sessionlib
 from . import showit
 
@@ -24,20 +25,27 @@ class ShowStage:
         if self.cfg.show_it == "off":
             return False
         has_ui = bool((self.project.plan_doc() or {}).get("has_ui"))
-        return has_ui or showit.entry_page(self.project.root) is not None
+        if has_ui or showit.entry_page(self.project.root) is not None:
+            return True
+        return self.cfg.godot.enabled and godotlib.project_dir(self.project.root) is not None
 
     def _show_it(self, task) -> dict[str, Any] | None:
         """Pictures of the app after an approved task (never fails the task)."""
         if not self._shots_wanted():
             return None
         try:
-            record = showit.take_shots(self.project.root, task.id, render=getattr(self, "shot_renderer", None))
+            record = showit.take_shots(self.project.root, task.id, render=getattr(self, "shot_renderer", None),
+                                         godot=self.cfg.godot)
         except Exception as e:  # take_shots writes its problems down; this is for the unexpected
             record = {"task": task.id, "pictures": {}, "errors": [], "failed": str(e)[:300]}
         self.emit("shots", {"task": task.id, "dir": record.get("dir", ""), "pictures": list(record.get("pictures") or {}),
                             "errors": len(record.get("errors") or []), "title": record.get("title", ""),
                             "note": record.get("failed") or record.get("note", "")})
         return record
+
+    def _game_tool(self):
+        """``run_game`` when the project is a Godot game and Godot is on this computer, else None."""
+        return godotlib.game_tool(self.project.root, self.cfg.godot)
 
     def _after_task(self, task, ok: bool) -> None:
         record = self._show_it(task) if ok else None
