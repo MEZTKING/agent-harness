@@ -56,6 +56,17 @@ data class Seat(
     val brief: Brief? = null,
     /** Autopilot answers this project's questions while the owner is away. */
     val autopilot: Boolean = false,
+    /** What the owner reads, and its state in words (roundtable.py build()). */
+    val name: String = "",
+    val state: String = "",
+    /** "here": this machine runs it; "elsewhere": another computer or a session. */
+    val where: String = "",
+    /** The hub project commands go to, and the plan's name in the hub. */
+    val hub_agent: String = "",
+    val hub_name: String = "",
+    /** The machine building it (its claim), when the machine says. */
+    val machine: String = "",
+    val machine_name: String = "",
 )
 
 @Serializable
@@ -166,6 +177,12 @@ data class Changes(val version: String = "", val changed: Boolean = false)
 
 @Serializable
 data class Ping(val name: String = "", val version: String = "", val device: String = "", val agent: String? = null)
+
+/** This phone's Roundtable and the hub (GET/POST /api/hub on This phone): mode is "none", "local" or "git". */
+@Serializable
+data class HubLink(val mode: String = "none", val url: String = "", val seat: String? = null, val error: String? = null, val token: Boolean = false) {
+    val joined: Boolean get() = url.isNotBlank() && error.isNullOrBlank()
+}
 
 @Serializable
 data class PairResult(val token: String, val device_id: String, val name: String = "")

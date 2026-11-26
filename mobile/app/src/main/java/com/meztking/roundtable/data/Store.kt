@@ -7,7 +7,7 @@ import androidx.security.crypto.MasterKey
 import com.meztking.roundtable.net.PcLink
 
 /** The PC link, its token and the optional GitHub token, encrypted with a key kept in Android's keystore. */
-class Store(context: Context) {
+class Store(context: Context) : SeenStore {
     private val prefs: SharedPreferences = try {
         open(context)
     } catch (e: Exception) {
@@ -75,6 +75,10 @@ class Store(context: Context) {
         set(v) = prefs.edit().putString("mode", v).apply()
 
     val configured: Boolean get() = githubToken != null || link != null || thisPhone
+
+    /** When each connection last answered (Your computers: "last seen 2 h ago"). */
+    override fun lastOk(src: Source): String = prefs.getString("last_ok_${src.key}", "")!!
+    override fun setLastOk(src: Source, iso: String) = prefs.edit().putString("last_ok_${src.key}", iso).apply()
 
     /** The last table we showed, so the app opens with something while it refreshes. */
     var cachedHall: String

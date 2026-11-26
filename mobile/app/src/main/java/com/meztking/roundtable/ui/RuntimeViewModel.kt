@@ -46,7 +46,35 @@ class RuntimeViewModel(app: Application) : AndroidViewModel(app) {
     val supported: Boolean get() = AndroidRuntimeSystem(rt).supported
     val commandChoice: String get() = rt.store.commandChoice
 
-    fun chooseCommands(choice: String) { rt.store.commandChoice = choice }
+    /** "run" or "ask"; Roundtable takes it at its next start (ROUNDTABLE_ASK_FIRST), so a running one restarts. */
+    fun chooseCommands(choice: String) {
+        val was = rt.store.commandChoice
+        rt.store.commandChoice = choice
+        if (was.isNotBlank() && was != choice && runtime.state.value is RuntimeState.Running) runtime.restart()
+    }
+
+    private val _check = MutableStateFlow<RuntimeCheck?>(null)
+    /** The answer to Check for a newer Roundtable. */
+    val check: StateFlow<RuntimeCheck?> = _check.asStateFlow()
+
+    fun checkForNewer() {
+        _check.value = RuntimeCheck.Checking
+        viewModelScope.launch {
+            _check.value = try {
+                runtimeCheckOf(runtime.check(), runtime.installed?.version.orEmpty())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                RuntimeCheck.Problem(friendly(e))
+            }
+        }
+    }
+
+    /** Download the newer one; Roundtable stops for the swap and starts again by itself. */
+    fun updateRuntime() {
+        _check.value = null
+        runtime.install()
+    }
 
     /** Set up: check the download, ask before using mobile data, then download, unpack and start. */
     fun setUp(mobileDataOk: Boolean = false) {

@@ -43,7 +43,7 @@ import com.meztking.roundtable.ui.theme.Panel
 import com.meztking.roundtable.work.Watch
 
 @Composable
-fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() -> Unit)? = null) {
+fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() -> Unit)? = null, onComputers: () -> Unit = {}, onShared: () -> Unit = {}) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as RoundtableApp
     val store = app.store
@@ -59,60 +59,32 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
         Text("Settings", style = MaterialTheme.typography.headlineSmall, color = Hall.goldBright)
 
         Panel(Modifier.fillMaxWidth()) {
-            Text("WAY IN", style = Label)
+            Text("YOUR COMPUTERS", style = Label)
             Spacer(Modifier.height(8.dp))
-            val phone = store.thisPhone
-            val mode = if (app.usingThisPhone()) "PHONE" else app.backend()?.mode?.name
-            Text(when (mode) { "HUB" -> "Using the hub on GitHub"; "PC" -> "Using your paired PC (${link?.name})"; "PHONE" -> "Using Roundtable on this phone"; else -> "Not set up" })
-            // Each way in is its own connection; this picks which one the Table shows.
-            val ways = buildList { if (hasHub) add("HUB" to "Hub"); if (link != null) add("PC" to "PC"); if (phone) add("PHONE" to "This phone") }
-            if (ways.size > 1) {
-                Spacer(Modifier.height(8.dp))
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    ways.forEachIndexed { i, (key, name) ->
-                        SegmentedButton(mode == key, { store.mode = if (key == "PHONE") "phone" else key.lowercase(); changed() },
-                            SegmentedButtonDefaults.itemShape(i, ways.size)) { Text(name) }
-                    }
-                }
+            val b = app.backend()
+            val rows = connectionRows(ConnInputs(
+                phoneSet = store.thisPhone, phoneState = phoneWords(app.runtime.state.value),
+                phoneRunning = app.runtime.state.value is com.meztking.roundtable.runtime.RuntimeState.Running,
+                pcSet = link != null, pc = b?.health(com.meztking.roundtable.data.Source.PC) ?: com.meztking.roundtable.data.ConnHealth(lastOk = store.lastOk(com.meztking.roundtable.data.Source.PC)),
+                pcHost = (b?.parts?.get(com.meztking.roundtable.data.Source.PC) as? com.meztking.roundtable.data.PcBackend)?.api?.activeHost,
+                hubSet = hasHub, hubRepo = store.hubRepo,
+                hub = b?.health(com.meztking.roundtable.data.Source.HUB) ?: com.meztking.roundtable.data.ConnHealth(lastOk = store.lastOk(com.meztking.roundtable.data.Source.HUB)),
+            ))
+            rows.forEach { Text(it.line, color = if (it.ok == false) Hall.bad else if (it.set) Hall.text else Hall.muted, style = MaterialTheme.typography.bodyMedium) }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onComputers) { Text("Open") }
+                OutlinedButton(onClick = onConnect) { Text(if (hasHub || link != null) "Add the hub or a PC" else "Set up") }
             }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = onConnect) { Text(if (hasHub || link != null) "Connect another way, or change" else "Set up") }
         }
 
-        if (onHarness != null) Panel(Modifier.fillMaxWidth()) {
-            Text("HARNESS ON THIS PHONE", style = Label)
+        Panel(Modifier.fillMaxWidth()) {
+            Text("SHARED SETTINGS", style = Label)
             Spacer(Modifier.height(8.dp))
-            Text("Running, starting and stopping Roundtable on this phone, its log, storage, and keeping it running.",
+            Text("Spending limits, autopilot, the set of models and who does which job: the same on every computer.",
                 style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             Spacer(Modifier.height(6.dp))
-            OutlinedButton(onClick = onHarness) { Text("Open") }
-        }
-
-        Panel(Modifier.fillMaxWidth()) {
-            Text("HUB ON GITHUB", style = Label)
-            Spacer(Modifier.height(8.dp))
-            Line("Repository", store.hubRepo)
-            Line("Token", if (hasHub) "saved (encrypted on this phone)" else "none")
-            if (hasHub) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onConnect) { Text("Replace token") }
-                    TextButton(onClick = { confirm = "token" }) { Text("Remove token", color = Hall.bad) }
-                }
-            }
-        }
-
-        Panel(Modifier.fillMaxWidth()) {
-            Text("YOUR PC", style = Label)
-            Spacer(Modifier.height(8.dp))
-            if (link == null) Text("Not paired. Needs Roundtable Hold 0.7 or later with phone access on.", color = Hall.muted)
-            else {
-                Line("Paired with", link.name)
-                Line("Addresses", link.hosts.joinToString(", ") + " · port ${link.port}")
-                Line("Certificate", link.fingerprint.take(16).chunked(4).joinToString(":") + "…")
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { confirm = "pc" }) { Text("Unpair", color = Hall.bad) }
-            }
+            OutlinedButton(onClick = onShared, enabled = app.backend() != null) { Text("Open") }
         }
 
         Panel(Modifier.fillMaxWidth()) {

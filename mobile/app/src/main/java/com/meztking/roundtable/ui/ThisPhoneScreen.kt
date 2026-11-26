@@ -214,14 +214,19 @@ fun CommandQuestion(vm: RuntimeViewModel) {
             "they can't reach your photos or other apps, but they can change anything inside this app.",
             style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         Spacer(Modifier.height(8.dp))
-        if (choice == "run") {
-            Text("Run it: chosen. You can change it in Settings, Harness on this phone.", color = Hall.good)
+        if (choice.isNotBlank()) {
+            Text(if (choice == "run") "Run it: chosen." else "Ask me first: chosen.", color = Hall.good)
+            if (choice == "ask") Text("Coming soon: until Roundtable on this phone can ask, it carries on running commands. Your choice is kept and passed on at every start.",
+                style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+            TextButton(onClick = { val c = if (choice == "run") "ask" else "run"; vm.chooseCommands(c); choice = c }) {
+                Text(if (choice == "run") "Change to Ask me first" else "Change to Run it")
+            }
         } else {
             Button(onClick = { vm.chooseCommands("run"); choice = "run" }, modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Hall.gold, contentColor = Hall.onAccent)) {
                 Text("Run it (recommended for building)")
             }
-            OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Ask me first (coming soon)") }
+            OutlinedButton(onClick = { vm.chooseCommands("ask"); choice = "ask" }, modifier = Modifier.fillMaxWidth()) { Text("Ask me first (coming soon)") }
         }
     }
 }

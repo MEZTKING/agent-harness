@@ -285,16 +285,27 @@ class GitHubHub(
     suspend fun command(from: String, project: String, action: String, fields: Map<String, Any?> = emptyMap()): Message {
         val body = buildJsonObject {
             put("action", action)
-            for ((k, v) in fields) when (v) {
-                null -> {}
-                is Boolean -> put(k, v)
-                is Number -> put(k, v)
-                is List<*> -> put(k, JsonArray(v.filterNotNull().map { JsonPrimitive(it.toString()) }))
-                else -> put(k, v.toString())
-            }
+            for ((k, v) in fields) if (v != null) put(k, Api.jsonOf(v))
         }.toString()
         return send(from, project, "roundtable: $action", body, kind = "request")
     }
+
+    /** Every .json file directly in [dir] (machines/, claims/), name -> text; at most [limit], newest names first. */
+    suspend fun jsonFiles(dir: String, limit: Int = 40): Map<String, String> = coroutineScope {
+        val names = listDir(dir).filter { it.type == "file" && it.name.endsWith(".json") }.map { it.name }.sortedDescending().take(limit)
+        val gate = Semaphore(6)
+        names.map { n -> async { gate.withPermit { getOrNull("$dir/$n")?.let { n to it } } } }.awaitAll().filterNotNull().toMap()
+    }
+
+    /** The live sessions published for a project (sessions/<key>/<run_id>.jsonl), newest run first. */
+    suspend fun sessionRuns(key: String): List<String> =
+        listDir("sessions/$key").filter { it.type == "file" && it.name.endsWith(".jsonl") }.map { it.name.removeSuffix(".jsonl") }.sortedDescending()
+
+    /** One run's session, one JSON line per event; null when it isn't there. */
+    suspend fun sessionLog(key: String, run: String): String? = getOrNull("sessions/$key/$run.jsonl")
+
+    /** The settings every machine shares (settings/shared.yaml); null when there's none yet. */
+    suspend fun sharedSettings(): String? = getOrNull("settings/shared.yaml")
 
     @Serializable
     private data class ReadState(val read: List<String> = emptyList())

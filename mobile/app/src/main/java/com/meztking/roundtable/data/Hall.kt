@@ -37,6 +37,22 @@ data class SeatView(
     val path: String? = null,
     /** Autopilot answers this project's questions while the owner is away. */
     val autopilot: Boolean = false,
+    /** Which connection this seat was read through: "phone", "pc" or "hub" (Source.key). */
+    val source: String = "",
+    /** The machine that has the project: "phone", "pc", or "" when it is elsewhere or unknown. */
+    val holder: String = "",
+    /** Where it lives, in words: "on your PC", "on this phone", "in the cloud". */
+    val lives: String = "",
+    /** The machine building it just now (from the hub's claims): its hub seat and name. */
+    val machine: String = "",
+    val machineName: String = "",
+    /** "Building T3 of 7 on your PC", while it builds. */
+    val building: String = "",
+    /** The plan's name in the hub and the hub project commands go to (the PC's seats). */
+    val hubName: String = "",
+    val hubAgent: String = "",
+    /** The other connections that also see it. */
+    val seenIn: List<String> = emptyList(),
 ) {
     val initials: String get() = initialsOf(id)
     val badge: Int get() = unread + high
@@ -60,6 +76,8 @@ data class NeedView(
     /** A question to answer by tapping (asks.py), and how many wait on this project in all. */
     val ask: Ask? = null,
     val asks: Int = 0,
+    /** Which connection it came through (Source.key); answers go back the same way. */
+    val source: String = "",
 )
 
 @Serializable
@@ -100,6 +118,25 @@ interface Backend {
     suspend fun setAutopilot(on: Boolean, until: String = "", cap: Double? = null): String
     /** The newest pictures of the project's app and its latest task's steps (the Live tab). */
     suspend fun live(seat: SeatView): LiveView
+
+    // -- keeping several machines in step (each has a default, so a backend says only what it can) ------------
+
+    /** This connection's own seat in the hub (its machine id), once known. */
+    val seatId: String? get() = null
+    /** The machines in the hub and who is building what. */
+    suspend fun syncInfo(): SyncInfo = SyncInfo()
+    /** The project's live session, as fresh as this connection has it; null when it has none. */
+    suspend fun session(seat: SeatView): SessionLog.Result? = null
+    /** The settings every machine shares; null when this connection can't read them. */
+    suspend fun sharedSettings(): SharedSettings? = null
+    /** Change shared settings ([changes] in the file's own shape). [to]: the machine a hub command goes to. */
+    suspend fun saveShared(changes: kotlinx.serialization.json.JsonObject, to: String? = null): String =
+        throw IllegalStateException("Shared settings can't be changed this way. Connect your PC or the hub first.")
+    /** One project's own settings (the machine that has it). */
+    suspend fun projectSettings(seat: SeatView): ProjectSettingsView =
+        throw IllegalStateException("This project's settings live on the computer that builds it. Connect that computer first.")
+    suspend fun saveProjectSettings(seat: SeatView, changes: kotlinx.serialization.json.JsonObject): ProjectSettingsView =
+        throw IllegalStateException("This project's settings live on the computer that builds it. Connect that computer first.")
 }
 
 class HubBackend(private val hub: GitHubHub, override val identity: String) : Backend {
@@ -242,6 +279,32 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
         LiveView(shots, images.awaitAll().filterNotNull().toMap(), session.await())
     }
 
+    override suspend fun syncInfo(): SyncInfo = coroutineScope {
+        val machines = async { runCatching { hub.jsonFiles("machines") }.getOrDefault(emptyMap()) }
+        val claims = runCatching { hub.jsonFiles("claims") }.getOrDefault(emptyMap())
+        SyncInfo(
+            machines.await().mapNotNull { (f, t) -> Sync.parseFile(t)?.let { Sync.machine(it, f) } },
+            claims.mapNotNull { (f, t) -> Sync.parseFile(t)?.let { Sync.claim(it, f) } },
+        )
+    }
+
+    /** sessions/<key>/<newest run>.jsonl, else the older one-task summary (plans/shots/<project>/session.json). */
+    override suspend fun session(seat: SeatView): SessionLog.Result? {
+        for (key in listOf(seat.hubName, seat.id).filter { it.isNotBlank() }.distinct()) {
+            val run = runCatching { hub.sessionRuns(key) }.getOrDefault(emptyList()).firstOrNull() ?: continue
+            SessionLog.parse(hub.sessionLog(key, run).orEmpty(), seat.id)?.let { return it }
+        }
+        return Live.parseSession(hub.session(seat.id))?.let { SessionLog.Result(it) }
+    }
+
+    override suspend fun sharedSettings(): SharedSettings? = SharedSettings.parseYaml(hub.sharedSettings())
+
+    override suspend fun saveShared(changes: kotlinx.serialization.json.JsonObject, to: String?): String {
+        val target = to?.ifBlank { null } ?: throw IllegalStateException("No computer has joined the hub yet, so there's nowhere to send this. Open Roundtable Hold on your PC first.")
+        hub.command(identity, target, "shared_settings", mapOf("changes" to changes))
+        return "Sent: every computer takes it at its next sync."
+    }
+
     override suspend fun setAutopilot(on: Boolean, until: String, cap: Double?): String {
         val to = Autopilot.commandTarget(autopilot(), lastSeats)
             ?: throw IllegalStateException("No project of Roundtable's is in the hub yet, so there's nowhere to send this. Start one on your PC first.")
@@ -250,9 +313,61 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
     }
 }
 
-class PcBackend(private val api: Api, override val identity: String) : Backend {
+/** A machine that runs Roundtable: the paired PC, or Roundtable on this phone ([here] says which). */
+class PcBackend(val api: Api, override val identity: String, val here: Source = Source.PC) : Backend {
     override val mode = Mode.PC
     @Volatile private var seats: List<Seat> = emptyList()
+    @Volatile private var agent: String? = null
+    override val seatId: String? get() = agent
+
+    override suspend fun syncInfo(): SyncInfo = Sync.parseMachines(api.machines())
+
+    override suspend fun session(seat: SeatView): SessionLog.Result? {
+        val path = seat.path
+        if (path != null && seat.holder == here.key) {
+            SessionLog.parseAny(api.session(path), seat.id)?.let { return it }
+        }
+        return SessionLog.parseAny(api.hubSession(seat.hubName.ifBlank { seat.id }), seat.id)
+    }
+
+    override suspend fun sharedSettings(): SharedSettings? {
+        val choices = runCatching { SharedSettings.roleChoices(api.roles()) }.getOrDefault(emptyMap())
+        val text = try {
+            api.sharedSettings()
+        } catch (e: com.meztking.roundtable.net.ApiException) {
+            if (e.status != 404) throw e
+            null
+        }
+        val o = text?.let { runCatching { com.meztking.roundtable.net.ApiJson.parseToJsonElement(it) as kotlinx.serialization.json.JsonObject }.getOrNull() }
+        if (o != null) return SharedSettings.from((o["settings"] as? kotlinx.serialization.json.JsonObject) ?: o, choices)
+        // an older Roundtable Hold: show its own roles and limits (read only until it is updated)
+        val roles = runCatching { com.meztking.roundtable.net.ApiJson.parseToJsonElement(api.roles()) as kotlinx.serialization.json.JsonObject }.getOrNull() ?: return null
+        val wrapped = kotlinx.serialization.json.JsonObject(mapOf(
+            "limits" to (roles["limits"] ?: kotlinx.serialization.json.JsonObject(emptyMap())),
+            "roles" to kotlinx.serialization.json.JsonObject(choices.mapValues { (_, m) -> kotlinx.serialization.json.JsonArray(m.map { kotlinx.serialization.json.JsonPrimitive(it) }) }),
+        ))
+        return SharedSettings.from(wrapped, choices)
+    }
+
+    override suspend fun saveShared(changes: kotlinx.serialization.json.JsonObject, to: String?): String {
+        try {
+            api.saveSharedSettings(changes)
+        } catch (e: com.meztking.roundtable.net.ApiException) {
+            if (e.status == 404) throw IllegalStateException("${here.title} needs a newer Roundtable to change shared settings. Update it, then try again.")
+            throw e
+        }
+        return "Saved on ${here.words}. Every computer takes it at its next sync."
+    }
+
+    override suspend fun projectSettings(seat: SeatView): ProjectSettingsView {
+        val path = seat.path ?: return super.projectSettings(seat)
+        return ProjectSettings.parse(api.projectSettings(path))
+    }
+
+    override suspend fun saveProjectSettings(seat: SeatView, changes: kotlinx.serialization.json.JsonObject): ProjectSettingsView {
+        val path = seat.path ?: return super.saveProjectSettings(seat, changes)
+        return ProjectSettings.parse(api.saveProjectSettings(path, changes))
+    }
 
     override suspend fun projects(): List<String> {
         if (seats.isEmpty()) hall()
@@ -262,6 +377,7 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
     override suspend fun hall(): HallState {
         val r = api.roundtable()
         seats = r.seats
+        agent = r.agent ?: agent
         val views = r.seats.map { s ->
             SeatView(
                 id = s.id, status = s.status,
@@ -274,6 +390,8 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
                 leftOff = s.brief?.last_session?.text.orEmpty(), nextSteps = s.brief?.last_session?.next.orEmpty(),
                 openTodos = s.open_todos, high = s.high, unread = s.unread, progress = s.progress, path = s.path,
                 hasPlan = s.path != null, autopilot = s.autopilot,
+                holder = if (s.where == "here" || (s.where.isBlank() && s.path != null)) here.key else "",
+                hubName = s.hub_name, hubAgent = s.hub_agent, machine = s.machine, machineName = s.machine_name,
             )
         }
         val needs = r.needs_you.map { n ->
@@ -380,12 +498,17 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
     }
 
     override suspend fun command(project: String, action: String, fields: Map<String, Any?>): String {
-        val path = seats.firstOrNull { it.id == project }?.path
-        if (action != "approve" || path == null) {
-            throw IllegalStateException("From the phone, plan changes go through the hub: switch to Hub mode in Settings.")
+        val seat = seats.firstOrNull { it.id == project }
+        val path = seat?.path
+        if (action == "approve" && path != null) {
+            api.projectAction(path, "approve")
+            return "Approved: the run starts"
         }
-        api.projectAction(path, "approve")
-        return "Approved: the run starts"
+        // anything else goes into the hub, passed on by this machine (POST /api/hub/command)
+        val machine = fields["machine"]?.toString().orEmpty()
+        val folder = fields["project_folder"]?.toString() ?: project
+        val agentTo = seat?.hub_agent?.ifBlank { null } ?: fields["hub_agent"]?.toString() ?: project
+        return api.hubCommand(agentTo, folder, action, fields - setOf("machine", "project_folder", "hub_agent"), machine)
     }
 }
 

@@ -21,6 +21,10 @@ project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``
 Projects Roundtable builds report through one shared hub agent (``harness``) unless the hub has a project of
 their own name; a command for one of them carries ``project_folder`` (the project's folder name), so only that
 project picks it up. Commands without it go to the first project of that agent, as before.
+
+A command can also carry ``machine`` (a machine's seat, such as ``pc-desk`` or ``phone-1a2b3c``): only that
+machine does it, so the PC and the phone never both act on one command. ``carry_on`` continues a paused or
+stopped run on the machine that holds the project's files (the same as ``run``).
 """
 
 from __future__ import annotations
@@ -33,7 +37,8 @@ from typing import Any, Callable
 
 PREFIX = "roundtable:"
 FOLDER = "project_folder"  # which project a command is for, when several share one hub agent (``harness``)
-LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer"}
+MACHINE = "machine"  # which machine a command is for (sync.this_machine()["id"]); none: whichever runs it
+LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer", "carry_on"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -63,7 +68,7 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
 
     orch = Orchestrator(cfg, project, on_event=lambda k, d: None)
     action = cmd.get("action")
-    kw = {k: v for k, v in cmd.items() if k not in ("action", FOLDER)}
+    kw = {k: v for k, v in cmd.items() if k not in ("action", FOLDER, MACHINE)}
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
     if action == "answer" and "id" not in kw and "question" in kw:  # the plan's own answer: {question, text}
@@ -75,6 +80,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         return autopilot_command(cfg, kw)
     if action == "todo_done":
         return todo_done(orch, kw)
+    if action == "shared_settings":
+        return shared_settings(orch, cfg, kw)
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
@@ -95,7 +102,7 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action in ("retry", "skip"):
         getattr(orch, action)(kw.get("task", ""))
         return f"{action} {kw.get('task')}: done. The run ended as: {orch.run()}."
-    if action == "run":
+    if action in ("run", "carry_on"):
         return f"The run ended as: {orch.run()}."
     if action == "profile":
         r = orch.set_profile(str(kw.get("name", "")))
@@ -141,6 +148,22 @@ def autopilot_command(cfg, kw: dict[str, Any]) -> str:
     return f"Autopilot: {st['label']}."
 
 
+def shared_settings(orch, cfg, kw: dict[str, Any]) -> str:
+    """{"changes": {limits, autopilot, default_profile, roles}}: the settings every machine shares (sync.py)."""
+    from .autopilot import app_home
+    from .sync import change_shared
+
+    hub = orch._hub()
+    if hub is None:
+        return "Couldn't change the shared settings: this machine isn't on the hub."
+    changes = kw.get("changes")
+    if not isinstance(changes, dict) or not changes:
+        return "Couldn't change the shared settings: nothing to change was sent."
+    out = change_shared(hub, changes, cfg.path, app_home(), cfg)
+    what = ", ".join(out["changed"]) or "nothing new here"
+    return f"Shared settings saved for every machine ({what})."
+
+
 def todo_done(orch, kw: dict[str, Any]) -> str:
     """A to-do ticked off from the phone: closed in the project's own journal, noting it was the owner."""
     from .hub.journal import JournalError
@@ -171,7 +194,13 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
     """One pass: find owner commands for the projects this Roundtable runs, do them, reply."""
     from .harness.orchestrator import Orchestrator
 
+    from .sync import this_machine
+
     allowed = set((getattr(cfg, "remote", None) or {}).get("owners") or ["me"])
+    # the owner's own machines (seats registered in the hub as role: machine) speak for the owner too,
+    # so a command sent from the phone's own Roundtable reaches the PC
+    allowed |= {a for a, spec in hub.config.agents.items() if getattr(spec, "role", None) == "machine"}
+    me = this_machine()["id"]
     done = 0
     hub.store.sync()
     for project in project_dirs(cfg):
@@ -184,6 +213,8 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
                 continue
             if cmd.get(FOLDER) and cmd[FOLDER] != project.name:
                 continue  # for another project that reports through the same hub agent: leave it for that one
+            if cmd.get(MACHINE) and cmd[MACHINE] != me:
+                continue  # for another machine (the phone or another PC): leave it for that one
             key = f"{project}:{msg['id']}"
             with _busy_lock:
                 if key in _busy:
