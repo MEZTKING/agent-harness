@@ -121,13 +121,64 @@ def provider_models(cfg, pid: str) -> list[str]:
     return provider.list_models()
 
 
+def provider_label(pid: str, spec: dict[str, Any] | None = None) -> str:
+    """A provider's short name for the owner: "OpenRouter", "DeepSeek", or its own id."""
+    spec = spec or {}
+    key = spec.get("preset") or pid
+    if key in ("custom", "plugin"):
+        return pid
+    preset = PRESETS.get(key) or {}
+    return str(preset.get("name") or pid).split(" (")[0]
+
+
+_REFUSED = ("401", "403", "authentication", "unauthori", "invalid api key", "incorrect api key", "permission")
+
+
 def test_provider(cfg, pid: str) -> dict[str, Any]:
-    """Check a provider answers: list its models (free on every provider that supports it)."""
+    """Check a provider answers and that its key works, in plain words (``message``).
+
+    A missing key is said plainly (never "OK"); where the service has an address that needs the key
+    (DeepSeek's and OpenRouter's balance) that is asked, as a model list alone can be public."""
+    from . import balance
+
+    spec = (getattr(cfg, "providers", {}) or {}).get(pid)
+    if spec is None:
+        try:
+            provider_models(cfg, pid)
+        except (ProviderError, ValueError) as e:
+            return {"ok": False, "error": str(e)}
+        spec = {}
+    name = provider_label(pid, spec)
+    env = spec.get("api_key_env") or ""
+    if env and not os.environ.get(env):
+        return {"ok": False, "missing_key": True,
+                "error": f"No key for {name} yet: paste it under API keys, then Save."}
+    refused = f"The key for {name} was refused: check it under API keys, paste it again and Save."
+    checked = balance.check_key(spec) if env else None
+    if checked is not None and not checked["ok"]:
+        if checked.get("refused"):
+            return {"ok": False, "refused": True, "error": refused}
+        return {"ok": False, "error": f"{name}: {checked['error']}. Check your internet connection and try again."}
     try:
         models = provider_models(cfg, pid)
-        return {"ok": True, "models": len(models), "sample": models[:12]}
     except (ProviderError, ValueError) as e:
-        return {"ok": False, "error": str(e)}
+        if checked is None:
+            if env and any(w in str(e).lower() for w in _REFUSED):
+                return {"ok": False, "refused": True, "error": refused}
+            return {"ok": False, "error": str(e)}
+        models = []  # the key works; the model list just didn't come
+    out: dict[str, Any] = {"ok": True, "models": len(models), "sample": models[:12]}
+    count = f"{len(models)} model" + ("" if len(models) == 1 else "s")
+    money = (checked or {}).get("balance")
+    if money:
+        out["balance"] = money
+        left = f"${money['amount']:.2f}" if money.get("currency") == "USD" else f"{money['amount']:.2f} {money['currency']}"
+        out["message"] = f"OK: the key works ({name}, {left} left)"
+    elif env:
+        out["message"] = f"OK: the key works ({name}, {count})"
+    else:
+        out["message"] = f"OK: {name} answers ({count})"
+    return out
 
 
 def set_budget(harness_path: str | Path | None, max_cost_usd: float) -> float:

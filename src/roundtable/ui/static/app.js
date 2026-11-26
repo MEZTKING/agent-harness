@@ -1201,6 +1201,29 @@ async function viewJob(id) {
 }
 
 // ---------- setup & settings ----------
+async function recommendedCard() {
+  let r;
+  try { r = await api("GET", "/api/setup/recommended"); } catch (e) { return null; }
+  const models = (ms) => ms.length ? h("span", { title: ms.length > 1 ? `If ${ms[0]} can't answer: ${ms.slice(1).join(", then ")}` : "" },
+    ms[0], ms.length > 1 ? h("span", { class: "muted small" }, ` (+${ms.length - 1} backup)`) : null) : h("span", { class: "muted" }, "none");
+  const table = h("table", {}, h("tr", {}, h("th", {}, "Job"), h("th", {}, "Now"), h("th", {}, "With the recommended setup")),
+    r.rows.map((x) => h("tr", {}, h("td", {}, x.role), h("td", { class: "small" }, models(x.before)),
+      h("td", { class: "small" }, x.same ? h("span", { class: "muted" }, "the same") : models(x.after)))));
+  const use = async () => {
+    if (!confirm("Use the recommended setup? Your current settings file is kept as a copy, so you can go back.")) return;
+    await act(() => api("POST", "/api/setup/recommended", {}), (res) => res.backup ? "Done. The old settings were kept as " + res.backup.split(/[\\/]/).pop() : "Done");
+  };
+  return section("Recommended setup",
+    h("p", {}, r.summary),
+    h("p", { class: "muted small", title: "Each project can switch between these on its plan page" }, "Three settings to choose from per project: ",
+      r.profiles.map((p, i) => [i ? ", " : "", h("b", { title: p.description }, p.name), p.name === r.default_profile ? " (used unless you pick another)" : ""])),
+    table,
+    h("div", { class: "row", style: "margin-top:8px" },
+      h("button", { class: r.in_use ? "" : "primary", disabled: r.in_use, onclick: use, title: "Your hub, limits, plugins and your own model choices in Models stay as they are" },
+        r.in_use ? "You're using the recommended setup" : "Use the recommended setup"),
+      h("span", { class: "muted small" }, "Needs an Openference, an OpenRouter and a DeepSeek key for everything; DeepSeek alone works to start.")));
+}
+
 function keysCard(st) {
   const form = h("form", { class: "stack", onsubmit: async (ev) => {
     ev.preventDefault();
@@ -1210,7 +1233,7 @@ function keysCard(st) {
     await act(() => api("POST", "/api/setup/keys", { keys }), "Keys saved");
   } },
   st.keys.map((k) => h("div", { class: "row" },
-    h("span", { style: "width:210px" }, k.label, " ", k.set ? h("span", { class: "pill good" }, "saved") : h("span", { class: "pill" }, "not set")),
+    h("span", { style: "width:210px", title: `Saved as ${k.name}` }, k.label, " ", k.set ? h("span", { class: "pill good" }, "saved") : h("span", { class: "pill" }, "not set")),
     h("input", { type: "password", class: "grow", "data-key": k.name, placeholder: k.set ? "•••••••• (paste a new key to replace it)" : `paste your ${k.label} API key`, autocomplete: "off", disabled: !st.desktop }),
     k.set && st.desktop ? h("button", { type: "button", class: "icon danger", onclick: () => { if (confirm(`Remove the ${k.label} key?`)) act(() => api("POST", "/api/setup/keys", { keys: { [k.name]: "" } }), "Key removed"); } }, "Remove") : null)),
   st.desktop ? h("div", { class: "row" }, h("button", { class: "primary" }, "Save keys"),
@@ -1265,13 +1288,15 @@ async function providersCard() {
   const addModels = (pid, list) => { list.forEach((m) => models.add(`${pid}/${m}`)); modelList.replaceChildren(...[...models].sort().map((m) => h("option", { value: m }))); };
   data.roles.forEach((r) => r.models.forEach((m) => models.add(m)));
   addModels("", []);
-  const showResult = (pid, r) => out.replaceChildren(r.ok ? h("span", {}, h("span", { class: "pill good" }, "OK"), ` ${pid}: ${r.models} model(s), e.g. ${r.sample.slice(0, 6).join(", ")}`)
-    : h("span", {}, h("span", { class: "pill bad" }, "failed"), ` ${pid}: ${r.error}`));
+  const showResult = (pid, r) => out.replaceChildren(r.ok ? h("span", { title: r.sample && r.sample.length ? `Some of its models: ${r.sample.slice(0, 6).join(", ")}` : "" },
+      h("span", { class: "pill good" }, "OK"), " ", r.message || `${pid}: ${r.models} model(s)`)
+    : h("span", {}, h("span", { class: r.missing_key ? "pill warn" : "pill bad" }, r.missing_key ? "no key" : "failed"), ` ${r.error}`));
   const table = h("table", {}, h("tr", {}, h("th", {}, "Provider"), h("th", {}, "Type"), h("th", {}, "Key"), h("th", {}, "")),
     data.providers.map((p) => h("tr", {},
       h("td", {}, h("strong", {}, p.id), p.base_url ? h("div", { class: "muted small" }, p.base_url) : null),
       h("td", { class: "small" }, p.type, h("div", { class: "muted small" }, p.source)),
-      h("td", {}, !p.needs_key ? h("span", { class: "pill" }, "none needed") : p.key_set ? h("span", { class: "pill good" }, "set") : h("span", { class: "pill warn" }, `missing: ${p.api_key_env}`)),
+      h("td", {}, !p.needs_key ? h("span", { class: "pill" }, "none needed") : p.key_set ? h("span", { class: "pill good", title: `Saved as ${p.api_key_env}` }, "set")
+        : h("span", { class: "pill warn", title: `Paste it under API keys above, then Save (it's saved as ${p.api_key_env})` }, "no key yet")),
       h("td", { class: "actions" }, h("div", { class: "row" },
         h("button", { class: "icon", onclick: async () => { out.textContent = `testing ${p.id}…`; try { showResult(p.id, await api("POST", "/api/providers", { action: "test", id: p.id })); } catch (e) { toast(e.message, true); } } }, "Test"),
         h("button", { class: "icon", onclick: async () => { out.textContent = `loading ${p.id} models…`; try { const r = await api("POST", "/api/providers", { action: "models", id: p.id }); addModels(p.id, r.models); out.replaceChildren(h("pre", {}, r.models.map((m) => `${p.id}/${m}`).join("\n"))); } catch (e) { out.textContent = ""; toast(e.message, true); } } }, "Models"),
@@ -1503,7 +1528,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    lookCard(), keysCard(st), await providersCard(), hubCard(st), await backupsCard(), await pluginsCard(), SHOW_PHONE ? await phoneCard() : null,
+    lookCard(), keysCard(st), await recommendedCard(), await providersCard(), hubCard(st), await backupsCard(), await pluginsCard(), SHOW_PHONE ? await phoneCard() : null,
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),

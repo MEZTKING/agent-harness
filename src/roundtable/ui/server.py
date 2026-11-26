@@ -911,12 +911,15 @@ class UIApp:
             "agents": list(self.hub.config.agents) if self.hub else [],
         }
         if d:
-            from ..desktop import KNOWN_KEYS, git_version
+            from ..desktop import git_version, key_label, provider_specs
 
             ks = d["keys"]
+            specs = provider_specs(d["paths"].harness_yaml)
             cfg = self.cfg()
-            extra = [v.get("api_key_env") for v in (cfg.providers.values() if cfg else []) if v.get("api_key_env")]
-            out["keys"] = [{"name": n, "label": KNOWN_KEYS.get(n, n), "set": bool(os.environ.get(n) or ks.get(n))}
+            if cfg:
+                specs = {**cfg.providers, **specs}
+            extra = [v.get("api_key_env") for v in specs.values() if v.get("api_key_env")]
+            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(os.environ.get(n) or ks.get(n))}
                            for n in ks.names(extra)]
             out["secure_keys"] = ks.secure
             out["git"] = git_version()
@@ -940,6 +943,27 @@ class UIApp:
             if value is not None:
                 ks.set(name, str(value))
         return self.setup()
+
+    def recommended(self, q=None):
+        from ..recommended import preview
+
+        path = self._config_paths().get("harness")
+        if not path or not path.exists():
+            raise ApiError("There's no harness.yaml yet. Run the setup again to make one.", 404)
+        return preview(path)
+
+    def recommended_apply(self, body):
+        from ..recommended import apply
+
+        path = self._config_paths().get("harness")
+        if not path or not path.exists():
+            raise ApiError("There's no harness.yaml yet. Run the setup again to make one.", 404)
+        try:
+            done = apply(path)
+        except ValueError as e:
+            raise ApiError(f"Nothing was changed: the recommended setup didn't fit your settings ({e}). "
+                           "Check the Config files below, then try again.")
+        return {**done, **self.recommended()}
 
     def setup_hub(self, body):
         if not self.desktop:
@@ -1242,6 +1266,8 @@ class UIApp:
             ("POST", "/api/setup/keys"): R.setup_keys,
             ("POST", "/api/setup/hub"): R.setup_hub,
             ("POST", "/api/setup/done"): R.setup_done,
+            ("GET", "/api/setup/recommended"): R.recommended,
+            ("POST", "/api/setup/recommended"): R.recommended_apply,
             ("GET", "/api/config"): R.config_get,
             ("GET", "/api/providers"): R.providers,
             ("POST", "/api/providers"): R.providers_action,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Any
 
@@ -39,6 +40,34 @@ def read_balance(spec: dict[str, Any], timeout: float = 10.0) -> dict[str, Any] 
     except Exception:
         return None
     return parse(data)
+
+
+def check_key(spec: dict[str, Any], timeout: float = 15.0) -> dict[str, Any] | None:
+    """Ask the provider whether its key works, on an address that needs the key.
+
+    {"ok": True, "balance": {...} | None}, {"ok": False, "refused": True, "status": 401}, or
+    {"ok": False, "error": "..."} when it couldn't be reached; None when this provider has no such
+    address (the caller then uses its model list, which needs the key on most services).
+    """
+    url = balance_url(spec)
+    key = os.environ.get(spec.get("api_key_env") or "")
+    if not url or not key:
+        return None
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode() or "{}"
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return {"ok": False, "refused": True, "status": e.code}
+        return {"ok": False, "error": f"the service answered {e.code}"}
+    except Exception as e:  # noqa: BLE001 - offline, DNS, timeout
+        return {"ok": False, "error": f"couldn't reach it ({type(e).__name__})"}
+    try:
+        data = json.loads(body)
+    except ValueError:
+        data = {}
+    return {"ok": True, "balance": parse(data) if isinstance(data, dict) else None}
 
 
 def parse(data: dict[str, Any]) -> dict[str, Any] | None:

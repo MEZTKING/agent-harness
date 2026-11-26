@@ -46,6 +46,7 @@ PHONE_ROUTES = {
     ("GET", "/api/autopilot"), ("POST", "/api/autopilot"),
     ("GET", "/api/project/live"), ("GET", "/api/project/session"),
     ("GET", "/api/project/settings"), ("POST", "/api/project/settings"),
+    ("GET", "/api/setup/recommended"), ("POST", "/api/setup/recommended"),  # the recommended setup, one tap
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))
