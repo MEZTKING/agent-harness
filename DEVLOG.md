@@ -4,6 +4,20 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Self-improvement learns from the music player: cost per finished task
+
+The music player run paused itself at its $1 real limit ($1.19 spent, Roundtable counted
+$1.22 – the count now matches the bill), with 11 of 14 tasks done. `roundtable improve
+analyze` showed DeepSeek Flash finishing 7 of 17 attempts and V4 Pro 4 of 4, but made no
+suggestion: the rules wanted 5 judged tries of the fallback and compared cost per attempt.
+
+- `improve/analysis.py`: `ModelStats.cost_per_success` (failed attempts included) and a new
+  rule `_rescue_proposal`: when the primary finishes half or less and the fallback finished
+  at least 90% of 3 or more tries for less per finished task, propose the fallback first.
+  On the music player it proposes V4 Pro first ($0.19 against $0.28 per finished task).
+- Test: `test_rule_spots_a_fallback_that_keeps_rescuing_a_cheap_primary`; 148 pass.
+- Open: the owner decides whether to apply it.
+
 ## 2026-11-26 – OpenRouter, and the Budget / Balanced / Quality settings
 
 The owner plans games from bought Fab assets and asked: OpenRouter or Openference, and

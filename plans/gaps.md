@@ -27,6 +27,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Fixed
 
+- **Self-improvement missed a cheap model that mostly failed** (26 November): it compared
+  cost per attempt and wanted 5 tries of the fallback. It now also compares the cost per
+  finished task and spots a fallback that keeps rescuing the primary.
+
 - **Every app looks the same** (26 November): an app with screens now gets a Look step in
   its plan – three different looks with pictures, the chosen one written as
   `design/DESIGN.md` and `design/tokens.css` that every task and review follows, a check

@@ -250,3 +250,20 @@ def test_owner_propose_cli(tmp_path, capsys):
         main(["--config", cfg_path, "improve", "apply", routing, "--skip-probe"])
     main(["--config", cfg_path, "improve", "apply", routing, "--force", "--skip-probe"])
     assert [str(m) for m in load_config(cfg_path).roles["coder"].models] == ["b/coder2", "a/coder"]
+
+
+def test_rule_spots_a_fallback_that_keeps_rescuing_a_cheap_primary(tmp_path):
+    from roundtable.improve.analysis import Dataset, ModelStats
+
+    cfg, _ = make_cfg(tmp_path)
+    ds = Dataset()
+    # the music player's numbers: the cheap model finished 7 of 17, the fallback 4 of 4
+    ds.stats[("coder", "a/coder")] = ModelStats("coder", "a/coder", attempts=17, approved=7, other_fail=10,
+                                                cost=17 * 0.117, priced_attempts=17)
+    ds.stats[("coder", "b/coder2")] = ModelStats("coder", "b/coder2", attempts=4, approved=4,
+                                                 cost=4 * 0.19, priced_attempts=4)
+    props = rule_proposals(cfg, ds)
+    assert len(props) == 1 and props[0].change == {"models": ["b/coder2", "a/coder"]}
+    assert "41%" in props[0].rationale and "$0.19" in props[0].rationale and "$0.28" in props[0].rationale
+    ds.stats[("coder", "b/coder2")].cost = 4 * 2.0  # rescuing, but dearer per finished task: not this rule
+    assert all("finished only" not in p.rationale for p in rule_proposals(cfg, ds))
