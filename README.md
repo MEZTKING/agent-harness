@@ -27,6 +27,23 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.8.0
+
+- **Your existing apps** (first part of "your repositories"): point Roundtable at one of your apps'
+  folders and it works on its own branch, follows the app's own CLAUDE.md, runs the app's tests
+  before and after every change (a newly broken test sends the change back) and never pushes. Each
+  project has a settings file (`.harness/project.yaml`, or `roundtable.yaml` in the app itself) you can
+  change from the project page on the desktop or the phone. How: [docs/repositories.md](docs/repositories.md).
+- **The phone, in plain words**: questions and ideas can always be tapped and answered on the card;
+  Needs you is grouped by project and by what's most urgent; letters read as sentences; Roundtable's
+  "done" receipts no longer count as needing you; Mark all read.
+- **The phone updates itself**: Settings → About shows a new version with **Download and install**,
+  and a banner on the Table.
+- **This phone (beta)**: Roundtable can run on the phone itself, in a small Linux inside the app (the
+  way DSH Mobile does), with no computer and no GitHub. Set up from the connect screen; about 100 MB to
+  download once. First slice: set up, a DeepSeek key, idea → plan → approve → build. Syncing with the
+  PC and the hub comes next.
+
 ### What's new in 0.7.3
 
 - **Godot games**: after every approved task Roundtable starts a Godot 4 game itself (no editor

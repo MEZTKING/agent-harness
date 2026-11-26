@@ -6,6 +6,16 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **The phone has no screen for a project's settings yet** (26 November): the desktop's project page has
+  it and the phone's routes serve `/api/project/settings`; the phone screen comes with slice 2.
+- **This phone: only x86_64 was built and smoke-tested** (26 November); arm64 (the owner's phone) is built
+  by the runtime workflow and must be tried on the phone through the PC. "Ask me first" for commands is
+  stored but not used yet. The runtime workflow doesn't link `previous` releases yet; Docker Hub limits can
+  stop a local build (use the `BASE_IMAGE` mirror).
+- **A repository's machine set-up is by hand** (26 November): MSE Studio's tests needed Qt's system
+  libraries (`libegl1` and others) and its add-on repositories cloned next to it, done by hand. A project's
+  `setup` can run commands, but cloning sibling repositories and system packages should be declared too.
+
 - **The phone and the PC as one Roundtable** (owner, 26 November: "This mobile roundtable should be
   able to connect with the PC, and all sessions should be synced, etc., and everything else that is
   necessary"). Slice 2 of "This phone", right after slice 1:
