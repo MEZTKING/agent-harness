@@ -376,3 +376,23 @@ def test_missing_claude_key_gives_a_clear_error(monkeypatch):
     p = AnthropicProvider(api_key_env="RT_TEST_NO_SUCH_KEY")
     with pytest.raises(ProviderError, match="ANTHROPIC_API_KEY"):
         p.chat("claude-opus-5-5", "sys", [{"role": "user", "content": "hi"}], max_tokens=10)
+
+
+def test_out_of_steps_without_fallback_carries_on_once(tmp_path):
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["coder"].pop("fallback")
+    raw["limits"]["max_steps_per_task"] = 3
+
+    class Slow(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools):
+                prompt = messages[0]["content"]
+                if "# Your task [T1]" in prompt and "ran out of steps" not in prompt:
+                    return reply(calls=[("write_file", {"path": "hello.py", "content": "print('hi')\n"})])
+            return super().__call__(model, system, messages, tools)
+
+    orch, *_ = make(tmp_path, raw=raw, brain=Slow(plan=PLAN[:1]))
+    orch.start("goal")
+    assert orch.run() == "done"
+    t1 = orch.project.tasks()[0]
+    assert [x["outcome"] for x in t1.attempts] == ["max_steps", "approved"]

@@ -912,6 +912,7 @@ class Orchestrator:
         feedback: list[str] = []
         model_idx = 0
         rejections_on_model = 0
+        ran_out_once = False
         for attempt in range(1, self.cfg.limits.max_attempts_per_task + 1):
             if model_idx >= len(role.models):
                 break
@@ -943,6 +944,12 @@ class Orchestrator:
             if res.stop in ("refusal", "max_steps") and not summary:
                 task.attempts.append({"model": str(ref), "outcome": res.stop, "cost_usd": res.cost_usd})
                 self._metric(task, ref, res.stop, res)
+                if res.stop == "max_steps" and model_idx + 1 >= len(role.models) and not ran_out_once:
+                    # no fallback model: the files it wrote are still there, so let it carry on once
+                    ran_out_once = True
+                    feedback.append("Your previous attempt ran out of steps before finishing. Its changes are still "
+                                    "in the files: check what's there, finish the rest, and call finish_task.")
+                    continue
                 feedback.append(f"Previous attempt ended with {res.stop}. Work more efficiently and call finish_task.")
                 model_idx += 1
                 continue
