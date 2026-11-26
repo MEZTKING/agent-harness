@@ -635,3 +635,9 @@ div.t-tool { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .live-frame { height: 520px; }
   .term { max-height: none; }
 }
+
+/* the project's own settings */
+.settings-form { display: grid; gap: 0.75rem; margin-top: 0.5rem; }
+.settings-form .setting { display: grid; gap: 0.25rem; }
+.settings-form .setting input, .settings-form .setting select, .settings-form .setting textarea { width: 100%; box-sizing: border-box; }
+p.err { color: var(--color-bad); }

@@ -894,8 +894,57 @@ async function viewRun(path) {
     d.summary ? section("Completion report", h("pre", {}, d.summary)) : null,
     d.metrics.length ? section("Models used", h("table", {}, h("tr", {}, h("th", {}, "Role · model"), h("th", { class: "num" }, "Attempts"), h("th", { class: "num" }, "Approved"), h("th", { class: "num" }, "Cost")),
       d.metrics.map((m) => h("tr", {}, h("td", {}, m.key), h("td", { class: "num" }, m.attempts), h("td", { class: "num" }, m.approved), h("td", { class: "num" }, money(m.cost)))))) : null,
+    settingsCard(d.path),
     h("div", { class: "card" }, h("details", {}, h("summary", {}, `Event log (${d.events.length})`), h("pre", { class: "log" }, d.events.map((e) => `${e.at.slice(11, 19)}  ${e.text}`).join("\n")))),
     h("div", { class: "card" }, h("details", {}, h("summary", {}, `Files (${d.files.length})`), h("pre", {}, d.files.join("\n")))));
+}
+
+// ---------- the project's own settings (.harness/project.yaml over roundtable.yaml) ----------
+const SETTING_LABELS = { test: "Test command", env: "Settings for the test", setup: "Set-up command", timeout: "Time allowed (seconds)",
+  branch: "Branch", rules_files: "Rules files", rules_budget: "Rules length (characters)", providers_allowed: "Allowed AI providers",
+  profile: "Set of models", limits: "Limits", look: "Choose a look", show_it: "Pictures after each task", notes: "Notes for the planner" };
+const SOURCE_NAMES = { default: "default", "roundtable.yaml": "from roundtable.yaml in the app", ".harness/project.yaml": "set here" };
+function settingInput(it) {
+  const v = it.value, tip = it.description;
+  if (it.type === "choice") return h("select", { name: it.key, title: tip }, it.choices.map((c) =>
+    h("option", { value: c, selected: c === v ? true : null }, c || "(the app's choice)")));
+  if (it.type === "map" || it.type === "number-map") return h("textarea", { name: it.key, title: tip, rows: 2,
+    placeholder: it.type === "map" ? "NAME=value, one a line" : (it.keys || []).map((k) => `${k}=…`).join("\n") },
+    Object.entries(v || {}).map(([k, x]) => `${k}=${x}`).join("\n"));
+  if (it.key === "notes") return h("textarea", { name: it.key, title: tip, rows: 3 }, v || "");
+  if (it.type === "lines") return h("input", { name: it.key, title: tip, value: (v || []).join(", "), placeholder: "comma-separated" });
+  return h("input", { name: it.key, title: tip, value: v ?? "", type: it.type === "int" ? "number" : "text" });
+}
+function settingsCard(path) {
+  const box = h("div", {}, h("p", { class: "muted" }, "Loading…"));
+  const load = async () => {
+    let S;
+    try { S = await api("GET", `/api/project/settings?project=${encodeURIComponent(path)}`); }
+    catch (e) { box.replaceChildren(h("p", { class: "muted" }, e.message)); return; }
+    const shown = (it) => it.type === "lines" ? (it.value || []).join(", ") : (it.type === "map" || it.type === "number-map")
+      ? Object.entries(it.value || {}).map(([k, x]) => `${k}=${x}`).join("\n") : String(it.value ?? "");
+    const form = h("form", { class: "settings-form", onsubmit: async (ev) => {
+      ev.preventDefault();
+      const changes = {};
+      for (const it of S.settings) {
+        const el = form.elements[it.key]; if (!el) continue;
+        if (el.value !== shown(it)) changes[it.key] = el.value.replace(/\n/g, ",");
+      }
+      if (!Object.keys(changes).length) { toast("Nothing changed"); return; }
+      try { await api("POST", "/api/project/settings", { project: path, changes }); toast("Settings saved"); load(); }
+      catch (e) { toast(e.message, true); }
+    } },
+    S.settings.map((it) => h("label", { class: "setting", title: it.description },
+      h("span", {}, SETTING_LABELS[it.key] || it.key, " ", h("span", { class: "muted small" }, `· ${SOURCE_NAMES[it.source] || it.source}`)),
+      settingInput(it), h("span", { class: "muted small" }, it.description))),
+    h("div", { class: "row" }, h("button", { class: "primary", title: `Saves in ${S.files.project}` }, "Save")));
+    box.replaceChildren(
+      h("p", { class: "small muted" }, "How Roundtable works on this project. These are kept in the project's own file (",
+        h("code", {}, ".harness/project.yaml"), "); a ", h("code", {}, "roundtable.yaml"), " in the app's top folder gives defaults, and what you set here wins. Leave a box empty to go back to the default."),
+      ...(S.warnings || []).concat(S.errors || []).map((w) => h("p", { class: "small err" }, w)), form);
+  };
+  load();
+  return h("div", { class: "card" }, h("details", {}, h("summary", { title: "The project's own settings: its test command, branch, rules, allowed AI providers and limits" }, "Settings"), box));
 }
 
 // ---------- Live and Session: watching a project being made, like a Claude Code session ----------

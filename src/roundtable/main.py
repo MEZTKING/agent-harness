@@ -58,7 +58,7 @@ import sys
 HUB_COMMANDS = {"where", "log", "todo", "close", "session", "history", "agents", "cards", "card", "send",
                 "inbox", "reply", "thread", "subscribe", "mcp", "ui"}
 HARNESS_COMMANDS = {"new", "run", "extend", "approve", "status", "retry", "skip", "metrics", "feedback", "roles",
-                    "ask", "image", "probe", "improve", "providers", "assign", "balance"}
+                    "ask", "image", "probe", "improve", "providers", "assign", "balance", "settings", "set"}
 VALUE_FLAGS = {"--config", "--agent", "--description"}
 
 
