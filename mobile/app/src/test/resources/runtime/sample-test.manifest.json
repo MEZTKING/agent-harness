@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "product": "roundtable",
+  "channel": "test",
+  "releaseId": "2026.11.26-1",
+  "sequence": 2026112601,
+  "createdAt": "2026-11-26T00:00:00Z",
+  "minAppVersion": "0.8.0",
+  "signing": {
+    "algorithm": "Ed25519",
+    "keyId": "75763b846c59086a",
+    "signatureFile": "manifest.json.sig"
+  },
+  "assetBaseUrl": "https://github.com/MEZTKING/agent-harness/releases/download/runtime-2026.11.26-1/",
+  "harness": {
+    "package": "roundtable-hold",
+    "version": "0.7.3"
+  },
+  "python": {
+    "version": "",
+    "home": "/opt/roundtable/venv"
+  },
+  "node": {
+    "version": "",
+    "home": "/usr"
+  },
+  "debian": "bookworm",
+  "runtime": {
+    "entrypoint": "/opt/roundtable/venv/bin/roundtable",
+    "args": [
+      "phone",
+      "serve",
+      "--local",
+      "--port",
+      "{port}",
+      "--home",
+      "/root/.roundtable"
+    ],
+    "env": {
+      "ROUNDTABLE_HOME": "/root/.roundtable",
+      "ROUNDTABLE_WORKSPACES": "/workspaces"
+    },
+    "launchTokenEnv": "ROUNDTABLE_LAUNCH_TOKEN",
+    "readinessPrefix": "Roundtable is ready on",
+    "healthPath": "/api/health",
+    "workspaces": "/workspaces",
+    "fakeProc": [],
+    "resolvConf": "/etc/resolv.conf"
+  },
+  "archs": {
+    "arm64-v8a": {
+      "debianArch": "arm64",
+      "proot": [],
+      "layers": [
+        {
+          "file": "roundtable-base-aarch64.tar.xz",
+          "size": 168,
+          "sha256": "d305a7ed055e15c70cd428637723d4da3967f3ed4007a783f753c2cf275e75b8",
+          "name": "base",
+          "id": "debian-bookworm-d305a7ed055e",
+          "compression": "xz",
+          "format": "tar",
+          "unpackedSize": 6,
+          "entries": 1,
+          "excludes": [
+            "/opt/roundtable"
+          ]
+        },
+        {
+          "file": "roundtable-app-aarch64.tar.xz",
+          "size": 184,
+          "sha256": "70fef2f1d0b3112e4b8ed043ef76f85144456668c2826b5905277319cd985d1d",
+          "name": "roundtable",
+          "id": "roundtable-0.7.3-70fef2f1d0b3",
+          "compression": "xz",
+          "format": "tar",
+          "unpackedSize": 10,
+          "entries": 1,
+          "owns": [
+            "/opt/roundtable"
+          ]
+        }
+      ]
+    },
+    "x86_64": {
+      "debianArch": "amd64",
+      "proot": [],
+      "layers": [
+        {
+          "file": "roundtable-base-x86_64.tar.xz",
+          "size": 168,
+          "sha256": "d305a7ed055e15c70cd428637723d4da3967f3ed4007a783f753c2cf275e75b8",
+          "name": "base",
+          "id": "debian-bookworm-d305a7ed055e",
+          "compression": "xz",
+          "format": "tar",
+          "unpackedSize": 6,
+          "entries": 1,
+          "excludes": [
+            "/opt/roundtable"
+          ]
+        },
+        {
+          "file": "roundtable-app-x86_64.tar.xz",
+          "size": 184,
+          "sha256": "70fef2f1d0b3112e4b8ed043ef76f85144456668c2826b5905277319cd985d1d",
+          "name": "roundtable",
+          "id": "roundtable-0.7.3-70fef2f1d0b3",
+          "compression": "xz",
+          "format": "tar",
+          "unpackedSize": 10,
+          "entries": 1,
+          "owns": [
+            "/opt/roundtable"
+          ]
+        }
+      ]
+    }
+  }
+}

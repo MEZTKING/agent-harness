@@ -23,8 +23,11 @@ data class PcLink(val name: String, val hosts: List<String>, val port: Int, val 
 /**
  * Talks to the Roundtable Hold phone server. Tries the PC's addresses in turn (Wi-Fi first,
  * then Tailscale) and remembers the one that answered.
+ *
+ * With [local] it talks to Roundtable on this phone instead ("This phone", [thisPhone]): plain HTTP to
+ * 127.0.0.1 with the launch token, the same API calls.
  */
-class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link.fingerprint)) {
+class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link.fingerprint), private val local: LocalAccess? = null) {
     @Volatile var activeHost: String = link.hosts.first()
 
     private fun url(host: String, path: String): String {
@@ -34,6 +37,7 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
 
     private suspend fun call(method: String, path: String, body: String? = null, client: OkHttpClient = this.client): String =
         withContext(Dispatchers.IO) {
+            if (local != null) return@withContext localCall(local, method, path, body, client)
             val order = listOf(activeHost) + link.hosts.filter { it != activeHost }
             var last: IOException? = null
             for (host in order) {
@@ -59,7 +63,34 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
             throw ApiException(friendly(last), 0)
         }
 
+    private suspend fun localCall(local: LocalAccess, method: String, path: String, body: String?, client: OkHttpClient): String {
+        try {
+            val token = local.token()
+            val b = Request.Builder().url("http://127.0.0.1:${local.port()}$path").header("Authorization", "Bearer $token")
+            if (method == "POST") b.post((body ?: "{}").toRequestBody(JSON)) else b.get()
+            client.newCall(b.build()).execute().use { r ->
+                val text = r.body?.string().orEmpty()
+                if (!r.isSuccessful) {
+                    val msg = runCatching { ApiJson.parseToJsonElement(text) as JsonObject }.getOrNull()
+                        ?.get("error")?.let { (it as? JsonPrimitive)?.content } ?: "HTTP ${r.code}"
+                    throw ApiException(msg, r.code)
+                }
+                return text
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: IOException) {
+            throw ApiException(if (e.message?.startsWith("refused") == true || e.message?.startsWith("Roundtable") == true) e.message!!
+                else "Roundtable on this phone isn't answering. Open Settings, Harness on this phone, and press Restart.", 0)
+        }
+    }
+
     private fun q(v: String) = URLEncoder.encode(v, "UTF-8")
+
+    /** This phone: give Roundtable an API key (it keeps it; this app doesn't). */
+    suspend fun saveKey(provider: String, key: String) {
+        call("POST", "/api/keys", obj { put("provider", provider); put("key", key) })
+    }
 
     suspend fun ping(): Ping = ApiJson.decodeFromString(call("GET", "/api/ping"))
     suspend fun roundtable(): RoundtableData = ApiJson.decodeFromString(call("GET", "/api/roundtable"))
@@ -145,6 +176,12 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
                 "can't reach your PC. Is it on, with Roundtable Hold open and phone access on? Away from home, turn on Tailscale."
             else -> e.message ?: "couldn't reach your PC"
         }
+
+        /** Roundtable on this phone ("This phone"): 127.0.0.1 only, with the launch token, no pairing. */
+        fun thisPhone(access: LocalAccess, client: OkHttpClient = localClient()): Api =
+            Api(PcLink(THIS_PHONE, listOf("127.0.0.1"), 0, "", ""), client, access)
+
+        const val THIS_PHONE = "This phone"
 
         /** Pair with a PC using the offer from its QR code (or typed code). */
         suspend fun pair(offer: PairingOffer, deviceName: String, code: String = offer.code): PcLink {

@@ -11,3 +11,10 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+# "This phone": EdDSA-Java (manifest signature) and XZ for Java (layers)
+-keep class net.i2p.crypto.eddsa.** { *; }
+-dontwarn net.i2p.crypto.eddsa.**
+-dontwarn sun.security.x509.**
+-dontwarn org.tukaani.xz.**
+# Tink (inside security-crypto) refers to compile-only Error Prone annotations
+-dontwarn com.google.errorprone.annotations.**

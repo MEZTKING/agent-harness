@@ -64,7 +64,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 const val TOKEN_URL = "https://github.com/settings/personal-access-tokens/new"
 
 @Composable
-fun SetupScreen(onDone: () -> Unit, onBack: (() -> Unit)?, vm: SetupViewModel = viewModel()) {
+fun SetupScreen(onDone: () -> Unit, onBack: (() -> Unit)?, vm: SetupViewModel = viewModel(), onThisPhone: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val store = (ctx.applicationContext as RoundtableApp).store
     val state by vm.state.collectAsState()
@@ -84,7 +84,11 @@ fun SetupScreen(onDone: () -> Unit, onBack: (() -> Unit)?, vm: SetupViewModel = 
                 Text("See your projects from anywhere", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
             }
         }
-        Text("Two ways in. The hub on GitHub works even when your PC is off.", color = Hall.text)
+        val phoneCard = onThisPhone != null && remember { com.meztking.roundtable.runtime.AndroidRuntimeSystem(ctx).supported }
+        if (phoneCard) {
+            ThisPhoneCard(onSetUp = onThisPhone!!)
+            Text("Or see your projects elsewhere. The hub on GitHub works even when your PC is off.", color = Hall.text)
+        } else Text("Two ways in. The hub on GitHub works even when your PC is off.", color = Hall.text)
         PrimaryTabRow(selectedTabIndex = tab, containerColor = Hall.panel) {
             Tab(tab == 0, { tab = 0; vm.clearError() }, text = { Text("Hub on GitHub") })
             Tab(tab == 1, { tab = 1; vm.clearError() }, text = { Text("Pair with my PC") })
