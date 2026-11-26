@@ -78,7 +78,7 @@ class Jobs:
     def start(self, kind: str, title: str, fn: Callable[[Job], Any], target: str = "") -> Job:
         with self.lock:
             if target and target in self.busy:
-                raise ApiError(f"a job is already running for {target}", 409)
+                raise ApiError("Something is already running for this project. Wait for it to finish (see Jobs), then try again.", 409)
             job = Job(secrets.token_hex(4), kind, title, target)
             self.jobs[job.id] = job
             if target:
@@ -217,20 +217,24 @@ class UIApp:
 
     def need_hub(self):
         if not self.hub:
-            raise ApiError(f"hub not configured: {self.hub_error}", 503)
+            raise ApiError("The hub isn't set up on this computer yet. Connect it in Settings, then try again."
+                           + (f" (What went wrong: {self.hub_error})" if self.hub_error else ""), 503)
         return self.hub
 
     def need_cfg(self):
         cfg = self.cfg()
         if not cfg:
-            raise ApiError(f"harness not configured: {self.harness_error}", 503)
+            raise ApiError("Roundtable can't build projects on this computer yet: its settings file is missing or has a "
+                           "problem. Open Settings to fix it."
+                           + (f" (What went wrong: {self.harness_error})" if self.harness_error else ""), 503)
         return cfg
 
     def lab(self, cfg):
         from ..improve.lab import Lab
 
         if not cfg.lab_dir:
-            raise ApiError("no lab directory configured", 503)
+            raise ApiError("There's no folder for Roundtable's own records yet (lab in harness.yaml). Open Settings to set "
+                           "one.", 503)
         return Lab(cfg.lab_dir)
 
     def _lab_projects(self) -> list[Path]:
@@ -246,7 +250,8 @@ class UIApp:
 
         p = Path(path or "").expanduser().resolve()
         if p not in [x.resolve() for x in self.lab(cfg).projects()]:
-            raise ApiError(f"unknown project {path!r}", 404)
+            raise ApiError("That project isn't on this computer (it may run on another one). Go back to the Hall and "
+                           "refresh.", 404)
         return Project(p)
 
     # -- overview -------------------------------------------------------------------------
@@ -260,7 +265,10 @@ class UIApp:
         }
         if self.hub:
             out["hub_path"] = str(self.hub.config.path)
-            out["agents"] = [{"id": a, "repo": s.repo, "description": s.description, "role": s.role}
+            from .hall import NOTES_NAME, friendly
+
+            out["agents"] = [{"id": a, "repo": s.repo, "description": s.description, "role": s.role,
+                              "name": NOTES_NAME if a == self.agent and not s.repo else friendly(a, s)}
                              for a, s in self.hub.config.agents.items()]
         if cfg:
             out["harness_path"] = str(cfg.path) if cfg.path else ""
@@ -452,6 +460,15 @@ class UIApp:
         """A project's picture or made file, for the page (/raw/shot, /raw/file)."""
         from .live import raw
 
+        if kind == "hubshot":  # a picture a project on another computer published to the hub
+            from . import hall
+
+            try:
+                p = hall.hub_shot_file(self.need_hub(), (q.get("name") or [""])[0], (q.get("file") or [""])[0])
+            except ValueError as e:
+                raise ApiError(str(e), 404) from None
+            ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+            return p.read_bytes(), ctype, {"Cache-Control": "no-cache"}
         proj = self.project(self.need_cfg(), q.get("path", [""])[0])
         return raw(proj.root, kind, (q.get("name") or [""])[0], (q.get("task") or [""])[0])
 
@@ -486,11 +503,11 @@ class UIApp:
         goal = (body.get("goal") or "").strip()
         name = (body.get("dir") or "").strip()
         if not goal or not name:
-            raise ApiError("a project folder and a goal are required")
+            raise ApiError("Give the project a folder name and say what to build, then start it.")
         path = Path(name).expanduser()
         path = (path if path.is_absolute() else self.projects_dir / path).resolve()
         if (path / ".harness/project.json").exists():
-            raise ApiError(f"{path} already has a project; use extend")
+            raise ApiError(f"{path} already has a project. Open it and add a new goal there instead.")
         refs = _lines(body.get("references"))
 
         def run(job: Job):
@@ -522,7 +539,7 @@ class UIApp:
                                    target=str(proj.root)).view()
         if action in ("run", "extend"):
             if action == "extend" and not (body.get("goal") or "").strip():
-                raise ApiError("a goal is required")
+                raise ApiError("Say what to build next first.")
 
             def run(job: Job):
                 orch = self._orch(cfg, proj.root, job)
@@ -532,7 +549,7 @@ class UIApp:
 
             return self.jobs.start("run", f"{action} {proj.root.name}", run, target=str(proj.root)).view()
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
-            raise ApiError("wait for the running job on this project to finish", 409)
+            raise ApiError("Wait for the job running on this project to finish (see Jobs), then try again.", 409)
         from ..harness.orchestrator import Orchestrator
 
         orch = Orchestrator(cfg, proj.root)
@@ -544,7 +561,7 @@ class UIApp:
             tasks = {t.id: t for t in proj.tasks()}
             t = tasks.get(body.get("task", ""))
             if not t:
-                raise ApiError("no such task", 404)
+                raise ApiError("That task isn't in the plan any more. Refresh and try again.", 404)
             model = next((a["model"] for a in reversed(t.attempts) if a.get("outcome") == "approved"),
                          t.attempts[-1]["model"] if t.attempts else "?")
             proj.append("metrics.jsonl", {"at": utcnow(), "task": t.id, "role": t.role, "model": model,
@@ -588,7 +605,7 @@ class UIApp:
         proj = self.project(cfg, body.get("path", ""))
         action = body.get("action", "")
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
-            raise ApiError("wait for the running job on this project to finish", 409)
+            raise ApiError("Wait for the job running on this project to finish (see Jobs), then try again.", 409)
         if action == "revise":
             def run(job: Job):
                 orch = self._orch(cfg, proj.root, job)
@@ -651,7 +668,7 @@ class UIApp:
             return self._wizard_start(cfg, body["wizard"])
         proj = self.project(cfg, body.get("path", ""))
         if self._busy(proj.root):
-            raise ApiError("wait for the running job on this project to finish", 409)
+            raise ApiError("Wait for the job running on this project to finish (see Jobs), then try again.", 409)
         try:
             r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
                            str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
@@ -1065,6 +1082,52 @@ class UIApp:
         data["sync_error"] = self.auto_sync_error
         return data
 
+    # -- projects that run elsewhere: their plan and questions in the hub, answered through the hub ----------
+    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip")
+
+    def hub_plan(self, q):
+        """A plan another computer published (plans/<name>.md) with its open questions."""
+        from . import hall
+
+        hub = self.need_hub()
+        name = (q.get("name") or [""])[0]
+        with self.hub_lock:
+            plans = hall.hub_plans(hub)
+        p = plans.get(name)
+        if not p:
+            raise ApiError("That plan isn't in the hub any more. Go back to the Hall and refresh.", 404)
+        root = hall.hub_root(hub)
+        md = (root / "plans" / f"{name}.md").read_text(encoding="utf-8")
+        spec = hub.config.agents.get(p["folder"])
+        return {**p, "title": hall.friendly(p["folder"], spec), "markdown": md,
+                "here": p["folder"] in {x.name for x in self._lab_projects()}}
+
+    def hub_command(self, body):
+        """Send a command to a project another computer runs: {agent, folder, action, ...fields}.
+
+        It goes to the project's hub inbox as the owner's request (remote.py); the computer that runs the
+        project does it the next time it checks the hub, and replies in the owner's letters."""
+        from ..remote import FOLDER, PREFIX
+
+        hub = self.need_hub()
+        agent, action = str(body.get("agent") or ""), str(body.get("action") or "")
+        if agent not in hub.config.agents:
+            raise ApiError("That project isn't in the hub. Refresh the Hall and try again.", 404)
+        if action not in self.HUB_ACTIONS:
+            raise ApiError(f"Can't send {action!r} through the hub.")
+        if not self.agent:
+            raise ApiError("This computer has no name in the hub yet. Connect the hub in Settings first.")
+        cmd = {"action": action, **{k: v for k, v in (body.get("fields") or {}).items() if k not in ("action", FOLDER)}}
+        if body.get("folder") and body["folder"] != agent:
+            cmd[FOLDER] = str(body["folder"])
+        try:
+            with self.hub_lock:
+                hub.send(self.agent, [agent], f"{PREFIX} {action}", json.dumps(cmd), kind="request")
+        except (PermissionError, ValueError) as e:
+            raise ApiError(f"The hub didn't take it: {e}. Check the hub's rules let you message this project.") from None
+        return {"reply": "Sent: it starts when that computer next checks the hub. Its answer comes back in "
+                         "Messages."}
+
     def activity(self, q):
         from .roundtable import activity
 
@@ -1236,6 +1299,8 @@ class UIApp:
             ("GET", "/api/update"): R.update_status,
             ("GET", "/api/roundtable"): R.roundtable,
             ("GET", "/api/activity"): R.activity,
+            ("GET", "/api/hub/plan"): R.hub_plan,
+            ("POST", "/api/hub/command"): R.hub_command,
             ("GET", "/api/chat"): R.chat_get,
             ("POST", "/api/chat"): R.chat_post,
             ("GET", "/api/setup"): R.setup,
@@ -1279,7 +1344,7 @@ class UIApp:
         if parts[:2] == ["api", "jobs"] and len(parts) == 3 and method == "GET":
             job = self.jobs.jobs.get(parts[2])
             if not job:
-                raise ApiError("no such job", 404)
+                raise ApiError("That job has gone (the app was restarted). Look at Jobs for the current ones.", 404)
             return job.view(int((q.get("since") or ["0"])[0]))
         if parts[:2] == ["api", "plugins"]:
             from ..plugins.manage import api as plugins_api
@@ -1349,7 +1414,7 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                 return
             if url.path.startswith("/api/"):
                 return self._api("GET", url.path, q, {})
-            if url.path in ("/raw/shot", "/raw/file"):
+            if url.path in ("/raw/shot", "/raw/file", "/raw/hubshot"):
                 return self._raw(url.path[5:], q)
             name = "index.html" if url.path in ("/", "/index.html") else url.path.lstrip("/")
             if "/" in name or name.startswith("."):

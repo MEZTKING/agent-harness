@@ -34,8 +34,25 @@ class Hub:
 
         self.journal = Journal(self)
 
+    def refresh_config(self) -> bool:
+        """Read the projects and rules again (after a sync brought a new hub.yaml); True when they changed.
+
+        Storage stays as it is: only who is in the hub and what they may do can change while running."""
+        from ..core.config import read_config
+
+        try:
+            fresh = read_config(self.config.path)
+        except Exception:  # missing, half-written or broken: keep working with what was read before
+            return False
+        if fresh.agents == self.config.agents and fresh.policy == self.config.policy:
+            return False
+        self.config.agents, self.config.policy = fresh.agents, fresh.policy
+        return True
+
     # -- helpers ----------------------------------------------------------
     def _require_agent(self, agent: str) -> None:
+        if agent not in self.config.agents:
+            self.refresh_config()  # added to the hub's hub.yaml since this was read
         if agent not in self.config.agents:
             known = ", ".join(sorted(self.config.agents)) or "(none)"
             raise HubError(f"unknown agent {agent!r}; known agents: {known}")

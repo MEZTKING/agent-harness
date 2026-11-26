@@ -17,6 +17,10 @@ starting point), answer (a tapped card: ``id`` of the ask, ``chosen`` option ids
 text, ``confirmed`` after "Are you sure?", ``stamp`` so an old card can't answer a changed question;
 see asks.py; the phone reads the cards from plans/<project>.asks.json), autopilot (one switch for every
 project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``never``; see autopilot.py).
+
+Projects Roundtable builds report through one shared hub agent (``harness``) unless the hub has a project of
+their own name; a command for one of them carries ``project_folder`` (the project's folder name), so only that
+project picks it up. Commands without it go to the first project of that agent, as before.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 PREFIX = "roundtable:"
+FOLDER = "project_folder"  # which project a command is for, when several share one hub agent (``harness``)
 LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
@@ -58,7 +63,7 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
 
     orch = Orchestrator(cfg, project, on_event=lambda k, d: None)
     action = cmd.get("action")
-    kw = {k: v for k, v in cmd.items() if k != "action"}
+    kw = {k: v for k, v in cmd.items() if k not in ("action", FOLDER)}
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
     if action == "answer" and "id" not in kw and "question" in kw:  # the plan's own answer: {question, text}
@@ -177,6 +182,8 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
             cmd = parse(msg)
             if cmd is None or msg.get("sender") not in allowed:
                 continue
+            if cmd.get(FOLDER) and cmd[FOLDER] != project.name:
+                continue  # for another project that reports through the same hub agent: leave it for that one
             key = f"{project}:{msg['id']}"
             with _busy_lock:
                 if key in _busy:
