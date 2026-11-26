@@ -34,6 +34,10 @@ Newest first. Each item says what to do and where.
 
 ## Decided for you
 
+- **No DeepSeek V4 Pro for now** (owner, 26 November): after the music player's last three
+  tasks (which use it, as Roundtable suggested), Roundtable's settings stop using V4 Pro
+  until you say otherwise.
+
 - Code from your forks of Munder Difflin and DeepSeek Harness Mobile may be used in
   Roundtable (both MIT), credited in `THIRD_PARTY_NOTICES.md`; the forks stay as they are.
 

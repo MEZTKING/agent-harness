@@ -4,6 +4,20 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The suggestion applied; learned order inside a setting
+
+The owner: apply Roundtable's suggestion (V4 Pro codes first) and finish the music player,
+"but after this don't use the DeepSeek Pro models for now".
+
+- Applied `P44cf47` in the lab (learned version 1). It had no effect at first: the
+  project's Balanced setting laid its own order over the learned one.
+  `HarnessConfig.for_profile` now keeps a learned order when it only reorders that
+  setting's own models (`cfg.learned`, set by `Lab.apply_learned`). Test:
+  `test_learned_order_still_applies_inside_a_profile`; 149 pass.
+- The last three tasks are building with V4 Pro first.
+- Open: once they're done, take V4 Pro out of the lab's settings and roll the learned
+  version back (the owner's "not for now").
+
 ## 2026-11-26 – Self-improvement learns from the music player: cost per finished task
 
 The music player run paused itself at its $1 real limit ($1.19 spent, Roundtable counted
