@@ -66,7 +66,7 @@ def _questions(raw: Any) -> list[dict[str, Any]]:
         opts = _items(src.get("options"), "a", ("label", "detail"))[:4]
         ids = [o["id"] for o in opts]
         rec = str(src.get("recommended") or (ids[0] if ids else ""))
-        out.append({"text": text, "why": str(src.get("why", "")), "id": str(src.get("id") or f"Q{i + 1}"),
+        out.append({"text": text, "why": str(src.get("why") or ""), "id": str(src.get("id") or f"Q{i + 1}"),
                     "header": _header(src.get("header")), "options": opts,
                     "recommended": rec if rec in ids else (ids[0] if ids else ""),
                     "multi": bool(src.get("multi")) and len(opts) > 1, "answer": ""})

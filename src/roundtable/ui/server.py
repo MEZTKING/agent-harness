@@ -546,7 +546,7 @@ class UIApp:
         out = []
         for root in roots:
             try:
-                asks = open_asks(Orchestrator(cfg, root))
+                asks = open_asks(Orchestrator(cfg, root), answered=bool(q.get("answered")))
             except (OSError, ValueError):
                 continue
             busy = self._busy(root)

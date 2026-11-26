@@ -397,3 +397,50 @@ ul.tree ul li::after { content: ""; position: absolute; left: -11px; top: 23px; 
 .plan-page .swatches { gap: 4px; align-items: center; flex-wrap: wrap; }
 .plan-page .swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(127,127,127,.4); display: inline-block; }
 @media (max-width: 720px) { .plan-page .grid2, .plan-page .looks { grid-template-columns: 1fr; } }
+
+/* ---------- questions to tap (askCard in app.js; only the theme's own colours) ---------- */
+.asks { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
+.ask { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: var(--radius); min-width: 0;
+  border: 1px solid var(--line-gold); background: var(--panel-hi); box-shadow: inset 0 0 0 1px rgba(0,0,0,.45); }
+.ask:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.ask.answered { background: var(--panel); border-color: var(--line); }
+.ask.sending { opacity: .6; pointer-events: none; }
+.ask-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ask .chip { display: inline-block; white-space: nowrap; padding: 1px 8px;
+  border-radius: 3px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--gold-bright); background: var(--accent-soft); border: 1px solid var(--info-line); }
+.ask .chip.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }
+.ask-q { font: 600 16px/1.35 var(--serif); color: var(--text); overflow-wrap: anywhere; }
+.ask-detail { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.ask-opts { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.ask.compact .ask-opts { grid-template-columns: 1fr; gap: 6px; }
+.ask-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 10px 12px; height: auto;
+  white-space: normal; min-height: 44px; }
+.ask.compact .ask-opt { padding: 7px 10px; min-height: 38px; }
+.ask-opt > b { display: flex; align-items: center; gap: 7px; font-size: 14px; color: var(--text); }
+.ask-opt > span { font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.ask-opt.rec { border-color: var(--good-line); }
+.ask-opt .rec-mark { color: var(--good); font-weight: 600; font-size: 12px; }
+.ask-opt.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold), 0 0 12px rgba(226,162,74,.18); }
+.ask-opt.other > b { color: var(--muted); }
+.ask-opt kbd { font: 600 11px/1 var(--mono); min-width: 18px; padding: 3px 4px; text-align: center; border-radius: 3px;
+  border: 1px solid var(--line-gold); color: var(--gold); background: var(--field); }
+.ask-opt .tick { width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--gold-dim); background: var(--field); flex-shrink: 0; position: relative; }
+.ask-opt .tick.on { background: var(--gold); border-color: var(--gold); }
+.ask-opt .tick.on::after { content: ""; position: absolute; left: 5px; top: 1px; width: 4px; height: 9px; border: solid var(--bg-deep);
+  border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.ask-opts.pics { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.ask-pic { width: 100%; aspect-ratio: 1280 / 800; object-fit: cover; border-radius: 3px; border: 1px solid var(--line); margin-bottom: 4px; }
+.ask-other { align-items: flex-end; }
+.ask-other textarea { min-height: 44px; }
+.ask-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ask-foot:empty { display: none; }
+.link-btn { background: none; border: none; box-shadow: none; padding: 2px 0; color: var(--muted); text-decoration: underline;
+  text-underline-offset: 3px; font-weight: 400; }
+.link-btn:hover { background: none; color: var(--gold-bright); }
+.need.need-ask { display: block; padding: 8px 0; }
+.need.need-ask .ask { background: transparent; border: none; box-shadow: none; padding: 0; }
+.answered-list { margin-top: 12px; }
+.answered-list > summary { cursor: pointer; color: var(--muted); margin-bottom: 10px; }
+.wizard { grid-template-columns: minmax(0, 720px); }
+.wizard .wizard-row .grow { flex: 1; min-width: 0; }

@@ -60,8 +60,11 @@ def _money(x: float | None) -> str:
 
 
 # -- what waits ------------------------------------------------------------------------------------
-def open_asks(orch) -> list[dict[str, Any]]:
-    """Everything waiting for the owner on one project, as cards, most urgent first."""
+def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
+    """Everything waiting for the owner on one project, as cards, most urgent first.
+
+    ``answered``: also the plan's cards the owner has answered already (with ``answer`` filled in), so the
+    plan page can show them and the owner can change an answer before approving."""
     meta = orch.project.meta()
     doc = orch.project.plan_doc()
     tasks = orch.project.tasks()
@@ -72,7 +75,9 @@ def open_asks(orch) -> list[dict[str, Any]]:
     dismissed = meta.get("asks_dismissed") or {}
     out = []
     for a in asks:
-        if dismissed.get(a["id"]) == a["stamp"]:
+        if a["answer"] is None and dismissed.get(a["id"]) == a["stamp"]:
+            continue
+        if a["answer"] is not None and not answered:
             continue
         a["project"], a["path"] = name, str(orch.project.root)
         out.append(a)
@@ -80,16 +85,23 @@ def open_asks(orch) -> list[dict[str, Any]]:
 
 
 def _plan_asks(orch, doc: dict[str, Any], meta: dict[str, Any]) -> list[dict[str, Any]]:
-    asks = [_decision_ask(d) for d in doc.get("decisions", []) if not d.get("chosen")]
-    asks += [_question_ask(q) for q in doc.get("questions", []) if not q.get("answer")]
-    if plandoc.look_open(doc):
+    asks = [_decision_ask(d) for d in doc.get("decisions", [])]
+    asks += [_question_ask(q) for q in doc.get("questions", [])]
+    if (doc.get("look") or {}).get("directions"):
         asks.append(_look_ask(doc["look"]))
-    if doc.get("estimates") and not meta.get("profile") and meta.get("status") == "awaiting_approval":
-        asks.append(profile_ask(orch.base_cfg, doc))
-    asks += [_idea_ask(i) for i in doc.get("ideas", []) if i.get("state") == "open"]
+    if doc.get("estimates") and meta.get("status") == "awaiting_approval":
+        asks.append(_answered(profile_ask(orch.base_cfg, doc), [meta["profile"]] if meta.get("profile") else None))
+    asks += [_idea_ask(i) for i in doc.get("ideas", []) if i.get("state") in ("open", "accepted", "rejected")]
     if meta.get("status") == "awaiting_approval":
         asks.append(_approve_ask(doc))
     return asks
+
+
+def _answered(ask: dict[str, Any], chosen: list[str] | None, other: str = "") -> dict[str, Any]:
+    """Mark a card answered (None: still open)."""
+    if chosen is not None or other:
+        ask["answer"] = {"chosen": chosen or [], "other": other}
+    return ask
 
 
 def _decision_ask(d: dict[str, Any]) -> dict[str, Any]:
@@ -97,30 +109,45 @@ def _decision_ask(d: dict[str, Any]) -> dict[str, Any]:
              "description": " · ".join(x for x in (o.get("detail"), o.get("cost")) if x)} for o in d["options"]]
     return _ask(f"choose:{d['id']}", "decision", d.get("header") or "Choice", d["question"], opts,
                 recommended=d.get("recommended"), detail=f"Recommended because: {d['why']}" if d.get("why") else "",
-                other_hint="Something else? Say what you want", source={"decision": d["id"]})
+                other_hint="Something else? Say what you want", source={"decision": d["id"]}) \
+        | {"answer": {"chosen": [d["chosen"]], "other": ""} if d.get("chosen") else None}
 
 
 def _question_ask(q: dict[str, Any]) -> dict[str, Any]:
     opts = [{"id": o["id"], "label": o["label"], "description": o.get("detail", "")} for o in q.get("options") or []]
     return _ask(f"answer:{q['id']}", "question", q.get("header") or "Question", q["text"], opts,
-                recommended=q.get("recommended") or None, multi=bool(q.get("multi")), detail=q.get("why", ""),
-                other_hint="Type your answer" if not opts else OTHER_HINT, source={"question": q["id"]})
+                recommended=q.get("recommended") or None, multi=bool(q.get("multi")), detail=q.get("why") or "",
+                other_hint="Type your answer" if not opts else OTHER_HINT, source={"question": q["id"]}) \
+        | {"answer": _question_answer(q)}
+
+
+def _question_answer(q: dict[str, Any]) -> dict[str, Any] | None:
+    """What the owner answered: the tapped answers, and whatever else they typed."""
+    if not q.get("answer"):
+        return None
+    chosen = list(q.get("chosen") or [])
+    labels = {o["label"] for o in q.get("options") or [] if o["id"] in chosen}
+    typed = "; ".join(x for x in q["answer"].split("; ") if x not in labels)
+    return {"chosen": chosen, "other": typed}
 
 
 def _idea_ask(i: dict[str, Any]) -> dict[str, Any]:
     opts = [{"id": "yes", "label": "Yes, add it", "description": "The planner adds it to the plan."},
             {"id": "no", "label": "No thanks", "description": "It won't be suggested again."}]
-    return _ask(f"idea:{i['id']}", "idea", "Idea", f"Add this? {i['text']}", opts, recommended="yes",
-                detail=i.get("why", ""), other_hint="Yes, but… (say what to change)", source={"idea": i["id"]})
+    state = {"accepted": ["yes"], "rejected": ["no"]}.get(i.get("state", ""))
+    return _answered(_ask(f"idea:{i['id']}", "idea", "Idea", f"Add this? {i['text']}", opts, recommended="yes",
+                          detail=i.get("why") or "", other_hint="Yes, but… (say what to change)",
+                          source={"idea": i["id"]}), state)
 
 
 def _look_ask(look: dict[str, Any]) -> dict[str, Any]:
     opts = [{"id": d["id"], "label": f"{d['id']} · {d['name']}", "description": d.get("mood", ""), "picture": d["id"]}
             for d in look.get("directions", [])]
-    return _ask("look", "look", "Look", "Which look should the app have?", opts, recommended=opts[0]["id"],
-                detail="Every screen then follows the look you choose.",
-                other_hint="A note on the one you pick, or what new looks should be like",
-                source={"look": [o["id"] for o in opts]}, pictures=True)
+    ask = _ask("look", "look", "Look", "Which look should the app have?", opts, recommended=opts[0]["id"],
+               detail="Every screen then follows the look you choose.",
+               other_hint="A note on the one you pick, or what new looks should be like",
+               source={"look": [o["id"] for o in opts]}, pictures=True)
+    return _answered(ask, [look["chosen"]] if look.get("chosen") else None, look.get("note", "") if look.get("chosen") else "")
 
 
 def profile_ask(cfg, doc: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -224,7 +251,7 @@ def _carry_on_amount(orch) -> float:
 
 # -- answering ---------------------------------------------------------------------------------------
 def find_ask(orch, ask_id: str) -> dict[str, Any]:
-    for a in open_asks(orch):
+    for a in open_asks(orch, answered=True):  # an answer can be changed until the plan is approved
         if a["id"] == ask_id:
             return a
     raise HarnessError("That question has been answered already or has changed. Look again for what's waiting.")

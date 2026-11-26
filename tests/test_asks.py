@@ -110,6 +110,10 @@ def test_answering_each_plan_card_uses_the_plan_actions(tmp_path):
     q1, q2 = doc["questions"]
     assert q1["answer"] == "Bun Voyage" and q1["chosen"] == []
     assert q2["answer"] == "Menu; Map; and a contact form" and q2["chosen"] == ["a", "c"]
+    shown = {a["id"]: a["answer"] for a in asklib.open_asks(orch, answered=True)}
+    assert shown["answer:Q2"] == {"chosen": ["a", "c"], "other": "and a contact form"}
+    assert shown["idea:I1"] == {"chosen": ["no"], "other": ""} and shown["look"] == {"chosen": ["B"], "other": "warmer colours"}
+    assert shown["profile"] == {"chosen": ["budget"], "other": ""}
     assert doc["ideas"][0]["state"] == "rejected"
     assert doc["look"]["chosen"] == "B" and doc["look"]["note"] == "warmer colours"
     assert orch.project.meta()["profile"] == "budget"
@@ -133,8 +137,15 @@ def test_wrong_or_stale_answers_are_refused(tmp_path):
     with pytest.raises(HarnessError, match="changed since"):
         asklib.answer_ask(orch, "choose:C1", ["a"], stamp="0000000000")
     asklib.answer_ask(orch, "choose:C1", "a")  # a comma list works too (the hub sends text)
-    with pytest.raises(HarnessError, match="answered already"):
-        asklib.answer_ask(orch, "choose:C1", ["b"])
+    assert "choose:C1" not in ids(orch)
+    [c1] = [a for a in asklib.open_asks(orch, answered=True) if a["id"] == "choose:C1"]
+    assert c1["answer"] == {"chosen": ["a"], "other": ""}
+    asklib.answer_ask(orch, "choose:C1", ["b"])  # changed before approving: fine
+    assert orch.project.plan_doc()["decisions"][0]["chosen"] == "b"
+    orch.revise_plan()
+    orch.approve()
+    with pytest.raises(HarnessError, match="answered already"):  # building: the plan's cards are settled
+        asklib.answer_ask(orch, "choose:C1", ["a"])
 
 
 def test_other_alone_and_skipping(tmp_path):
@@ -276,8 +287,10 @@ def test_server_asks_and_wizard(ui, tmp_path):
     assert [a["id"] for a in one] == [a["id"] for a in all_asks]
     r = call(ui, "POST", "/api/asks", {"path": path, "id": "choose:C1", "chosen": ["b"], "stamp": one[0]["stamp"]})
     assert "Watercolour" in r["reply"] and "job" not in r
-    with pytest.raises(ApiError, match="answered already"):
-        call(ui, "POST", "/api/asks", {"path": path, "id": "choose:C1", "chosen": ["a"]})
+    with pytest.raises(ApiError, match="isn't one of"):
+        call(ui, "POST", "/api/asks", {"path": path, "id": "choose:C1", "chosen": ["zz"]})
+    done = call(ui, "GET", "/api/asks", path=path, answered="1")["asks"]
+    assert done[0]["answer"] == {"chosen": ["b"], "other": ""}
     r = call(ui, "POST", "/api/asks", {"path": path, "id": "approve", "chosen": ["revise"]})
     assert wait_job(ui, r["job"]["id"])["status"] == "done"
     r = call(ui, "POST", "/api/asks", {"path": path, "id": "approve", "chosen": ["approve"]})
@@ -308,7 +321,7 @@ def test_remote_answer_action(tmp_path):
     text = remote.execute(orch.cfg, orch.project.root, {"action": "answer", "id": "answer:Q2", "chosen": "a,b"})
     assert orch.project.plan_doc()["questions"][1]["chosen"] == ["a", "b"] and "Answer saved" in text
     with pytest.raises(HarnessError):
-        remote.execute(orch.cfg, orch.project.root, {"action": "answer", "id": "choose:C1", "chosen": ["a"]})
+        remote.execute(orch.cfg, orch.project.root, {"action": "answer", "id": "nope", "chosen": ["a"]})
     text = remote.execute(orch.cfg, orch.project.root, {"action": "answer", "id": "approve", "chosen": ["revise"]})
     assert "Updating the plan" in text and "Plan v2" in text
     text = remote.execute(orch.cfg, orch.project.root, {"action": "answer", "id": "approve", "chosen": ["approve"]})
