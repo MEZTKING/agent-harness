@@ -4,6 +4,29 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Godot games, with Blender (0.7.3)
+
+The owner: "Do one for Godot support as well… I want that to work with Blender and everything… make
+another framework as well." Godot and Blender need no new code to be driven (MCP from 0.7.2: Godlink
+MCP, tomyud1/godot-mcp, and MCP for Blender, both MIT, both stdio); what was missing was proof.
+
+- `harness/godot.py` (new): `find_godot` (setting, `$GODOT`, PATH, usual folders; never downloads),
+  `project_dir` (root or one down), `check` (`--headless --import`, then `--headless --quit-after 60`;
+  `errors_in` picks out script and load errors), `screenshots` (Movie Maker, `--write-movie
+  frames/frame.png --fixed-fps 30 --quit-after N`, `xvfb-run -a` and opengl3 on a Linux without a
+  screen; keeps 3 frames), `run` (kills the process tree on a timeout), `game_tool` (`run_game`).
+- `config.py`: `godot:` (`GodotSettings`: path, frames, timeout, enabled). `showit.take_shots` →
+  `_game_shots` for a Godot project with no web page (pictures `start`, `middle`, `desktop`; the check's
+  errors; a plain note when Godot isn't installed); `showstage._shots_wanted`; orchestrator gives
+  `run_game` to writing workers and the reviewer on Godot projects; app.js names the new pictures.
+- Tests: `tests/test_godot.py` with a stand-in Godot (`tests/fixtures/fake_godot.py`); 335 pass.
+- `docs/godot.md`: installing, the Godot and Blender plug-ins, harness.yaml (a `game_builder` and a
+  `modeller` role), Blender to Godot as .glb, how the check works.
+
+Not tried with a real Godot (running a downloaded program wasn't allowed in this session): `--import`
+(4.3+), Movie Maker's frame names and xvfb need the first real run. A "Godot game" kind (plans/kinds.md)
+would bundle these roles, the check and the prompts.
+
 ## 2026-11-26 – Money to-dos close when the run carries on
 
 The owner's phone showed 16 "need you", two of them the music player's "high" money to-dos, though that

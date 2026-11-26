@@ -69,7 +69,7 @@ mcp_servers:
     timeout: 300
 
 godot:
-  path: C:\Godot\Godot_v4.7-stable_win64.exe   # so Roundtable can start the game to check it
+  path: C:\Godot\Godot_v4.7-stable_win64_console.exe   # so Roundtable can start the game to check it
 
 roles:
   game_builder:
@@ -93,8 +93,32 @@ role above is told to do exactly that, so the `game_builder` can place them.
 
 ## How Roundtable checks a Godot game
 
-(Filled in once the checker is in: Roundtable opens the project without a screen, reports script
-errors, and takes pictures of the game running after every approved task.)
+When a project has a Godot 4 game (`project.godot` in the project's folder or one folder down,
+such as `game/`), Roundtable checks it itself after every approved task. The editor needn't be
+open.
+
+1. It opens the project without a window and runs the main scene for a moment, noting every
+   script or loading error with the file and line Godot gives.
+2. It runs the game again with Godot's Movie Maker for a few seconds and keeps three pictures:
+   early on, halfway and the end. You see them in Live, on the seat and on the phone, with any
+   errors listed under them.
+3. While building, the coder and the reviewer have a **run_game** tool: they start the game
+   themselves and fix their own errors before you see them.
+
+Roundtable never downloads Godot. It looks at the `godot: path` setting, then `GODOT`, then
+`godot` or `godot4` on the computer, then the usual folders. On Windows, point it at the
+**console** Godot program (it comes in the same zip) so Roundtable can read its messages:
+
+```yaml
+godot:
+  path: C:\Godot\Godot_v4.7-stable_win64_console.exe
+  frames: 90      # how much of the game is recorded (30 frames a second)
+  timeout: 120    # seconds before a stuck game is stopped
+  enabled: true   # false: never start Godot
+```
+
+If Godot isn't found the task still finishes and Roundtable says so. The main scene must be
+set (**Project → Project Settings → Application → Run → Main Scene**), or there's nothing to start.
 
 ## If something goes wrong
 
