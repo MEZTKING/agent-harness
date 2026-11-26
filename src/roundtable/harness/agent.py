@@ -123,7 +123,7 @@ def run_agent(
         total = total + resp.usage
         messages.append(resp.as_message())
         text = resp.text or text
-        emit("model_turn", {"model": str(ref), "step": step, "text": resp.text[:500],
+        emit("model_turn", {"model": str(ref), "step": step, "text": resp.text[:500], "role": role,
                             "tools": [tc.name for tc in resp.tool_calls], "cost": c})
 
         if resp.stop_reason == "refusal":
@@ -133,7 +133,7 @@ def run_agent(
         if resp.tool_calls:
             for tc in resp.tool_calls:
                 out, is_err = toolbox.call(tc.name, tc.arguments)
-                emit("tool_call", {"tool": tc.name, "args": _short(tc.arguments), "error": is_err, "result": out[:300]})
+                emit("tool_call", _tool_event(tc.name, tc.arguments, out, is_err, toolbox.take_change()))
                 out = plugins.on_tool_result(tc.name, tc.arguments, out, is_err)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": out, "is_error": is_err})
             if toolbox.done():
@@ -164,6 +164,17 @@ def run_agent(
         seconds=round(time.monotonic() - t0, 2),
         saved_tokens_est=(saver.stats.tokens_saved - saved_at_start) if saver else 0,
     )
+
+
+def _tool_event(name: str, args: dict[str, Any], out: str, is_err: bool, change: dict[str, Any] | None) -> dict[str, Any]:
+    """What a tool call leaves in events.jsonl: short arguments, the start of the result, and for the
+    Session view the diff of a write or edit and the end of a command's output."""
+    row: dict[str, Any] = {"tool": name, "args": _short(args), "error": is_err, "result": out[:300]}
+    if change:
+        row["change"] = change
+    if name == "run_command":
+        row["output"] = out if len(out) <= 3000 else out[:1000] + "\n...\n" + out[-2000:]
+    return row
 
 
 def _short(args: dict[str, Any]) -> dict[str, Any]:

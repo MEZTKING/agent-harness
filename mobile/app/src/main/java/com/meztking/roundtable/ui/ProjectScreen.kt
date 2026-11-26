@@ -77,6 +77,8 @@ data class ProjectUi(
     val sent: Map<String, String> = emptyMap(),
     /** The questions waiting on this project, as cards to tap (asks.py). */
     val asks: Load<List<Ask>> = Load(),
+    /** The newest pictures of the app and the latest task's steps (the Live tab). */
+    val live: Load<com.meztking.roundtable.data.LiveView> = Load(),
 )
 
 class ProjectActions(
@@ -116,11 +118,13 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
             Tab(tab == 0, { tab = 0 }, text = { Text("Status") })
             Tab(tab == 1, { tab = 1 }, text = { Text(if (ui.plan.data?.doc?.waitingForOwner == true) "Plan •" else "Plan") })
             Tab(tab == 2, { tab = 2 }, text = { Text(if (unread > 0) "Messages ($unread)" else "Messages") })
+            Tab(tab == 3, { tab = 3 }, text = { Text("Live") })
         }
         Box(Modifier.weight(1f)) {
             when (tab) {
                 0 -> StatusTab(ui.status, a.refresh)
                 1 -> PlanTab(ui, a)
+                3 -> LiveTab(ui.live, ui.mode, a.refresh)
                 else -> MessagesTab(ui, a)
             }
         }

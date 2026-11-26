@@ -34,6 +34,17 @@ android {
     }
 
     signingConfigs {
+        // test builds: the same test key everywhere (this machine, CI), so a new test APK installs over the
+        // last one; see test-key/README.md. Not the release key.
+        getByName("debug") {
+            val testKey = rootProject.file("test-key/debug.keystore")
+            if (testKey.exists()) {
+                storeFile = testKey
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         create("release") {
             val envStore = System.getenv("ROUNDTABLE_KEYSTORE_FILE")
             storeFile = if (!envStore.isNullOrBlank()) file(envStore) else rootProject.file("signing/roundtable.jks")

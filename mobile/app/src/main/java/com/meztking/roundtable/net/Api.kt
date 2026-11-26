@@ -98,6 +98,11 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     }
 
     /** Autopilot's switch and what it did lately. */
+    /** The newest pictures of a run's app, as data addresses (Show it). */
+    suspend fun live(path: String): String = call("GET", "/api/project/live?inline=1&path=${q(path)}")
+    /** The latest task's steps as short lines. */
+    suspend fun session(path: String): String = call("GET", "/api/project/session?compact=1&path=${q(path)}")
+
     suspend fun autopilot(): com.meztking.roundtable.data.AutopilotState =
         ApiJson.decodeFromString(call("GET", "/api/autopilot?limit=30"))
 

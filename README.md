@@ -27,6 +27,18 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.7.1
+
+- **See what's being made**: after every approved task Roundtable starts the app and takes pictures
+  (computer, phone, dark); each project page has a **Live** tab (the app itself, running) and a
+  **Session** tab that reads like a Claude Code session (every step, with the changes in colour and
+  the outputs, pictures and files shown as they are); the Hall's seats show the app's picture; the
+  phone has a Live tab too.
+- **The phone app on every release**: the releases page now has `RoundtableMobile-<version>-test.apk`
+  next to the Windows installer (a test build; it installs over the previous one).
+- **Phone fix**: Roundtable Mobile no longer closes on start (Android's text-pattern engine); if it
+  ever crashes again it opens in safe mode with "Send the details to my PC".
+
 ### What's new in 0.7.0
 
 - **Answer by tapping**: everything Roundtable asks you is a card with ready answers (the
@@ -113,6 +125,37 @@ roundtable backup settings --daily on --keep 10 --encrypt on
 ```
 
 **Restoring** (Settings → Backups → Restore…, or `roundtable backup restore`) shows what's in the backup and what it would replace, and asks first. It saves what's there now as a safety backup next to it, then puts everything back; projects whose folders are gone are made again. Afterwards **type your API keys again** (Settings → API keys) and **pair your phones again**.
+
+### See what's being made
+
+Every project's page has three tabs: **Overview** (the tasks, costs and files), **Live** and
+**Session**.
+
+- **Live** shows the app itself, running from its folder inside the page (**Computer** or
+  **Phone** width, **Reload**, **Open in browser**), and pictures of it. After every task the
+  reviewer approves, Roundtable opens the app's page (`index.html`, at the top of the project or in
+  `public/`, `www/`, `dist/` and the like) on a small web server of its own and takes pictures: a
+  computer screen (1280×800), a phone (390×844) and, when the app follows the computer's dark
+  mode, a dark one. Errors the page reports while loading are listed. Earlier tasks' pictures sit
+  in a strip underneath; click any picture to see it full size. Pictures need Playwright (the
+  same as the looks); without it everything else still works.
+- **Session** reads like watching a Claude Code session: the model's words, then each step as one
+  line (● Read js/app.js · ● Edit css/styles.css (+12 −3) · ● Run `node --test` · passed). Click a
+  line to see the change in colour, the command's output or the lines read. The reviewer's
+  verdict, the cost of each step and the pictures follow, and while a task runs the tab follows it
+  live. **Outputs** lists the pictures and files the project made (shown as pictures; apk, zip and
+  exe files as downloads), as if sent in a chat.
+- The Hall's seat for a project shows its newest picture.
+- On the phone, the project's **Live** tab shows the newest pictures (tap to see one full size,
+  pinch to zoom) and the latest task's steps. In Hub mode they come from the hub
+  (`plans/shots/<project>/`: the newest set, one picture per finished task up to 20, and
+  `session.json` with short lines only, never file contents); in PC mode from the PC.
+
+The app runs in its frame from a separate local address, so it can't reach Roundtable's own pages
+or the internet; only files inside the project are served (never `.git`, `.harness`, `.env` or a
+link that leads outside). Anything shaped like a key is hidden in the Session view and the hub.
+Turn the pictures off with `show_it: off` in `harness.yaml`. Apps that start with a command
+(`npm start`) are shown from their page as it is for now.
 
 ### Autopilot
 
