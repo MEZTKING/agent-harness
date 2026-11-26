@@ -25,11 +25,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 from urllib.parse import quote, unquote, urlparse
 
+from . import godot as godotlib
 from . import look as looklib
 
 SHOTS_DIR = "shots"  # under .harness/
 # kind: (width, height, dark)
 KINDS = {"desktop": (1280, 800, False), "phone": (390, 844, False), "dark": (1280, 800, True)}
+# a Godot game's three frames: early, middle and the last ("desktop", the one shown everywhere)
+GAME_KINDS = ("start", "middle", "desktop")
 ENTRY_DIRS = ("", "public", "www", "web", "site", "app", "dist", "build", "docs", "src")
 SKIP_DIRS = {"node_modules", ".git", ".harness", "vendor", "__pycache__"}
 HUB_KEEP = 20  # pictures of earlier tasks kept in the hub (the oldest go first)
@@ -302,13 +305,53 @@ def _errors(results: list[dict[str, Any]]) -> list[str]:
     return seen[:20]
 
 
-def take_shots(project_root: Path, task_id: str, render: Callable | None = None) -> dict[str, Any]:
-    """Start the app from its folder, take its pictures, and write ``shots.json``. Never raises."""
+def _game_shots(root: Path, game: Path, out_dir: Path, record: dict[str, Any], settings: Any) -> dict[str, Any]:
+    """A Godot game: check it headless, then record it with Movie Maker and keep three frames."""
+    record["game"] = "godot"
+    record["entry"] = (game.relative_to(root) / "project.godot").as_posix()
+    record["title"] = godotlib.game_name(game)
+    godot = godotlib.find_godot(getattr(settings, "path", None))
+    if not godot:
+        record["note"] = godotlib.NOT_INSTALLED
+        return _write_record(out_dir, record)
+    timeout = int(getattr(settings, "timeout", 120) or 120)
+    result = godotlib.check(game, godot, timeout=timeout)
+    record["errors"] = list(result["errors"])
+    record["check"] = {"ok": result["ok"], "seconds": result["seconds"]}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("*.*"):
+        if old.suffix in (".png", ".jpg"):
+            old.unlink()
+    frames_dir = out_dir / "frames"
+    try:
+        kept = godotlib.screenshots(game, godot, frames_dir, frames=int(getattr(settings, "frames", 90) or 90),
+                                    timeout=timeout)
+        names = GAME_KINDS[-len(kept):] if len(kept) < len(GAME_KINDS) else GAME_KINDS
+        for kind, p in zip(names, kept):
+            p.replace(out_dir / f"{kind}.png")
+    except godotlib.NoDisplay as e:
+        record["note"] = str(e)
+    except Exception as e:  # pictures are a help, never a reason to fail
+        record["failed"] = f"the pictures couldn't be taken: {str(e)[:300]}"
+    shutil.rmtree(frames_dir, ignore_errors=True)
+    record["pictures"] = {k: f"{k}.png" for k in GAME_KINDS if (out_dir / f"{k}.png").is_file()}
+    return _write_record(out_dir, record)
+
+
+def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
+               godot: Any = None) -> dict[str, Any]:
+    """Start the app from its folder, take its pictures, and write ``shots.json``. Never raises.
+
+    ``godot`` is the ``godot:`` setting: a project with no web page but a Godot game is started
+    with Godot itself (harness/godot.py), unless the setting turns that off."""
     root = Path(project_root)
     out_dir = shots_root(root) / _safe_task(task_id)
     record: dict[str, Any] = {"task": task_id, "dir": out_dir.name, "at": _now(), "seq": _next_seq(root),
                               "entry": None, "title": "", "pictures": {}, "errors": [], "note": ""}
     entry = entry_page(root)
+    game = godotlib.project_dir(root) if not entry and getattr(godot, "enabled", True) else None
+    if game is not None:
+        return _game_shots(root, game, out_dir, record, godot)
     if not entry:
         record["note"] = ("nothing to open yet: no index.html (apps started with a command come in a later "
                           "version of Roundtable)")
@@ -397,7 +440,7 @@ def hub_files(project_root: Path, record: dict[str, Any], previous: dict[str, An
             files[f"{base}/{name}"] = BinaryFile(got[1])
             pictures[kind] = name
     for ext in (".jpg", ".png"):  # a kind (or a format) the latest set no longer has
-        for kind in KINDS:
+        for kind in dict.fromkeys([*KINDS, *GAME_KINDS]):
             name = f"latest-{kind}{ext}"
             if pictures.get(kind) != name and name in ((previous or {}).get("pictures") or {}).values():
                 files[f"{base}/{name}"] = None

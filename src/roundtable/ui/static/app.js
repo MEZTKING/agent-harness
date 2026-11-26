@@ -933,7 +933,7 @@ function picture(src, label, cls = "") {
   return h("button", { class: "pic " + cls, title: `${label}: click to see it full size`, onclick: () => enlarge(src, label) },
     h("img", { src, alt: label, loading: "lazy" }));
 }
-const SHOT_NAMES = { desktop: "Computer", phone: "Phone", dark: "Dark mode" };
+const SHOT_NAMES = { desktop: "Computer", phone: "Phone", dark: "Dark mode", start: "Game, early on", middle: "Game, halfway" };
 
 function liveTab(d, running) {
   const box = h("div", { class: "live-tab" }, h("p", { class: "muted" }, "Loading…"));

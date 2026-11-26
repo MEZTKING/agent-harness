@@ -1026,6 +1026,9 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
 
         box = self.ws.toolbox(REVIEW_TOOLS)
         self._add_mcp_tools(box, reviewer)
+        game = self._game_tool()
+        if game is not None:
+            box.add(game)
         box.add(Tool(
             ToolSpec("submit_review", "Record your verdict. approved=true only if every acceptance criterion is met.",
                      _obj({"approved": {"type": "boolean"}, "feedback": {"type": "string",
@@ -1042,6 +1045,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
             + self._later_tasks_text(task) +
+            ("This project is a Godot game: call run_game to start it and see its script errors.\n\n"
+               if game is not None else "") +
             "Verify the work (read files, run tests if relevant), then call submit_review. Judge THIS task "
             "against its own acceptance criteria: the plan, the design file and later tasks are context, so don't "
             "reject for work a later task will do, or for small harmless changes the criteria don't forbid."
@@ -1138,6 +1143,10 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
 
             box = self.ws.toolbox(role.tools)
             self._add_mcp_tools(box, role)
+            if "write_file" in box.tools or "edit_file" in box.tools or "run_game" in (role.tools or []):
+                game = self._game_tool()  # a Godot game: the coder can start it and see its errors
+                if game is not None:
+                    box.add(game)
             box.add(Tool(ToolSpec("finish_task", "Call when the task is complete.",
                                   _obj({"summary": {"type": "string"}}, ["summary"])), finish_task, terminal=True))
             try:
