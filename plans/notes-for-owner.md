@@ -9,6 +9,28 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **Asked Fable: how should the phone run Roundtable itself, "just like DSH Mobile"?** You asked
+  for the phone to be the harness, so you don't wait on GitHub. Fable's advice, taken:
+  - **The DSH way**: a small Linux (Debian with Python, git and Node) inside the app, run with proot,
+    downloaded once and checked by signature; Roundtable runs in it on the phone and the app talks
+    to it directly. Borrow DSH's runtime code (MIT, credited; the proot program itself is GPL-2,
+    noted separately). Not "Python inside the APK": that has no shell or git, so it couldn't build.
+  - **Our own download, built by GitHub Actions** in this repository, not DSH's (theirs has no Python).
+    It's signed: the test phone app accepts a test key, clearly labelled; the official phone release
+    will need a real key you add as a secret (in your to-do list).
+  - **Commands have no sandbox on a phone** (Android allows none). They can't reach your photos or
+    other apps, but they can change anything inside the app, keys included. You'll choose **Run it**
+    or **Ask me first**; Run it is the default for builds.
+  - **The hub stays in step** in the background (a normal git copy on the phone, synced when it can);
+    the phone becomes its own seat, so the PC and the phone never build the same project at once.
+  - **What a phone can't build**: Android APKs, Windows EXEs, Godot, Unreal, Blender – those stay on the
+    PC, and the app will say so. Web apps and Python work. About 200–300 MB to download once.
+  - **Also**: the PC connection (phone to PC on your Wi-Fi, no GitHub) is nearly built and is the
+    quicker fix for slowness when the PC is on; it gets finished alongside.
+  - **Done:** PLAN.md changed (the phone is now also a seat of its own); building in slices – first
+    "This phone (beta)": set up, keys, idea → plan → approve → run with DeepSeek. Real-phone tests
+    through your PC and USB once a folder is shared.
+
 - **Asked Fable: finish the APK and EXE through Roundtable, or by hand?** The run had spent
   $1.51 with one task of four done, and I had told you $0.50–1.50 while Roundtable's planner
   said $3.45. My mistake, not Roundtable's. Fable: stop the paid run, finish the two small

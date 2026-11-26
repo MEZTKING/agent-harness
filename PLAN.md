@@ -16,7 +16,11 @@ What was done when, and why: [DEVLOG.md](DEVLOG.md). Where things stand right no
   second model, an estimate – that the owner argues with before anything is built.
 - **Proof, not opinions:** a task counts as done when it builds, passes tests, starts
   and looks right, not when a reviewer says "looks good" (release 2).
-- **The phone is a window on the desktop app**, not a second product: The Table
+- **The phone can also be a seat of its own** (owner, 26 November 2026: "use my phone as harness
+  itself so I'm not using GitHub … just like DSH Mobile"; Fable's plan in plans/notes-for-owner.md):
+  Roundtable runs on the phone in a small Linux inside the app, synced with the hub in the
+  background. Heavy builds (APK, EXE, game engines) stay on the PC.
+- **The phone is a window on the desktop app** too: The Table
   (concept A) with decision cards (B) and notifications (C). Away from home it works
   through the hub (commands as hub messages).
 - **Sessions:** drive Claude Code as a worker first, then Roundtable's own loop for every
