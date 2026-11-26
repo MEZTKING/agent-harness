@@ -22,6 +22,7 @@ project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``
 from __future__ import annotations
 
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Callable
@@ -60,6 +61,9 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     kw = {k: v for k, v in cmd.items() if k != "action"}
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
+    if action == "answer" and "id" not in kw and "question" in kw:  # the plan's own answer: {question, text}
+        r = orch.plan_update("answer", **kw)
+        return f"Answer saved. {_waiting(r['pending'])}"
     if action == "answer":
         return _answer(orch, kw)
     if action == "autopilot":
@@ -67,13 +71,13 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
-        return f"New looks to choose from: {names}. They're in the plan in the hub; send 'look' with your pick."
+        return f"New looks to choose from: {names}. Pick the one you like in the plan."
     if action in orch.PLAN_ACTIONS:
         r = orch.plan_update(action, **kw)
-        return f"Done. {r['pending']} change(s) waiting: send 'revise' (Update plan) to apply them."
+        return f"Done. {_waiting(r['pending'])}"
     if action == "revise":
         r = orch.revise_plan(kw.get("text", ""))
-        return r["summary"] + ". The new plan is in plans/ in the hub."
+        return r["summary"] + ". The new plan is ready to look at."
     if action == "approve":
         orch.approve()
         status = orch.run()
@@ -95,6 +99,21 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "ask":
         return orch.ask(kw.get("text", ""))["reply"]
     return f"Unknown action {action!r}."
+
+
+TROUBLE = re.compile(r"\b(couldn'?t|could not|can'?t|cannot|refused|failed|blocked|unknown action|isn't|not allowed|"
+                     r"error|are you sure)\b", re.I)
+
+
+def is_trouble(text: str) -> bool:
+    """A reply that reports a refusal or a failure: the owner must see it. Anything else is a receipt."""
+    return bool(TROUBLE.search(text or ""))
+
+
+def _waiting(pending: int) -> str:
+    """What the owner reads after a plan change: how many wait, and the one button that applies them."""
+    return (f"{pending} change{'s' if pending != 1 else ''} wait{'s' if pending == 1 else ''} for you to press "
+            "Update plan.")
 
 
 def autopilot_command(cfg, kw: dict[str, Any]) -> str:
@@ -156,7 +175,9 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
                     with _busy_lock:
                         _busy.discard(key)
                 try:
-                    hub.reply(agent, msg["id"], text)
+                    sent = hub.reply(agent, msg["id"], text)
+                    if not is_trouble(text):  # a receipt: it doesn't need the owner, so it arrives already read
+                        hub.mark_read(msg["sender"], [sent["id"]])
                 except Exception as e:
                     log(f"remote: couldn't reply: {e}")
 

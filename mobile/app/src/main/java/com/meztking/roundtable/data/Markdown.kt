@@ -199,7 +199,8 @@ data class StatusDoc(
                     cur == null && b is Md.Paragraph && updatedRe.containsMatchIn(b.text) ->
                         updated = updatedRe.find(b.text)!!.groupValues[1].trimEnd('_', '.', ',')
                     cur == null && b is Md.Paragraph -> intro += b.text
-                    cur != null -> cur.add(b)
+                    // next steps, to-dos and plans: no file paths or command lines for the owner (old entries had them)
+                    cur != null -> cur.add(if (b is Md.Item) b.copy(text = StatusText.tidy(b.text)) else b)
                 }
             }
             if (cur != null) sections += Section(curTitle, cur)

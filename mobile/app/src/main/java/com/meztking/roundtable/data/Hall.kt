@@ -136,12 +136,14 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
             )
         }
         val needs = mutableListOf<NeedView>()
-        val mine = s.unread(identity).take(20)
+        val mine = s.unread(identity).take(40)
+        var receipts = 0
         if (mine.isNotEmpty()) {
-            hub.messages(identity, mine, s.readIds[identity].orEmpty()).forEach { m ->
-                needs += NeedView("msg:${m.id}", "message", m.sender, "Letter from ${m.sender}", m.subject,
-                    listOf("read", "reply"), id = m.id, message = m, at = m.created_at)
-            }
+            val letters = hub.messages(identity, mine, s.readIds[identity].orEmpty())
+            // Roundtable's receipts for the owner's own commands don't need them: read at once, shown only in Letters
+            val (done, real) = letters.partition { Letters.isReceipt(it) }
+            if (done.isNotEmpty()) runCatching { hub.markRead(identity, done.map { it.id }) }.onSuccess { receipts = done.size }
+            real.forEach { m -> needs += letterNeed(m) }
         }
         for (seat in seats) {
             val doc = StatusDoc.parse(s.status[seat.id].orEmpty())
@@ -153,25 +155,36 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
         needs.addAll(0, askNeeds(seats.filter { it.hasPlan }))
         lastSeats = seats
         val pilot = autopilot()
-        val marked = seats.map { it.copy(autopilot = pilot?.on == true && it.hasPlan && it.id !in pilot.never) }
+        val marked = seats.map {
+            it.copy(autopilot = pilot?.on == true && it.hasPlan && it.id !in pilot.never,
+                unread = if (it.id == identity) (it.unread - receipts).coerceAtLeast(0) else it.unread)
+        }
         return HallState(sortSeats(marked), needs, Instant.now().toString(), pilot)
     }
 
-    /** The next card of each project with a plan waiting for the owner. */
+    /** Every card waiting on the projects with a plan, one Needs-you item each (cards built from a plan only while it waits). */
     private suspend fun askNeeds(planned: List<SeatView>): List<NeedView> = coroutineScope {
-        planned.map { seat -> async { seat to runCatching { asks(seat) }.getOrDefault(emptyList()) } }.awaitAll()
-            .filter { it.second.isNotEmpty() }
-            .map { (seat, asks) -> askNeed(seat.id, asks) }
+        planned.map { seat -> async { seat.id to runCatching { cards(seat.id, forNeeds = true) }.getOrDefault(emptyList()) } }.awaitAll()
+            .flatMap { (project, asks) -> asks.map { askNeed(project, listOf(it), 1) } }
     }
 
-    override suspend fun asks(seat: SeatView): List<Ask> {
-        val file = hub.asks(seat.id)
-        if (file != null) return Asks.parse(file).map { it.copy(project = seat.id) }
-        val md = hub.plan(seat.id) ?: return emptyList()
-        return Asks.fromPlan(PlanDoc.parse(md), seat.id)
+    private suspend fun cards(project: String, forNeeds: Boolean): List<Ask> {
+        val file = hub.asks(project)
+        if (file != null) return Asks.parse(file).map { it.copy(project = project) }
+        val doc = PlanDoc.parse(hub.plan(project) ?: return emptyList())
+        if (forNeeds && !doc.waitingForOwner) return emptyList()  // an agreed plan's leftovers are on its Plan tab, not Needs you
+        return Asks.fromPlan(doc, project)
     }
+
+    override suspend fun asks(seat: SeatView): List<Ask> = cards(seat.id, forNeeds = false)
 
     override suspend fun answer(ask: Ask, reply: AskReply): String {
+        if (ask.local) {  // built from the plan: the plan's own commands
+            val cmds = Asks.planCommands(ask, reply)
+            if (cmds.isEmpty()) throw IllegalStateException("Pick an answer, or type one.")
+            cmds.forEach { (action, fields) -> hub.command(identity, ask.project, action, fields) }
+            return "Sent. It waits until you press Update plan."
+        }
         hub.command(identity, ask.project, "answer", Asks.commandFields(ask, reply))
         return "Sent. Roundtable will reply in Letters."
     }
@@ -372,6 +385,14 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
         api.projectAction(path, "approve")
         return "Approved: the run starts"
     }
+}
+
+/** A letter that needs the owner, in plain words: what it is, and its first lines. */
+fun letterNeed(m: Message): NeedView {
+    val p = Letters.plain(m)
+    val text = if (p.reply || p.command) p.text else Markdown.plain(m.body).lines().map { it.trim() }.filter { it.isNotEmpty() }.take(3).joinToString("\n")
+    val title = if (p.reply || p.command) p.title else "${m.sender}: ${m.subject.ifBlank { "(no subject)" }}"
+    return NeedView("msg:${m.id}", "message", m.sender, title, text, listOf("read", "reply"), id = m.id, message = m, at = m.created_at)
 }
 
 /** A Needs-you item that is a card to tap: the project's first question, and how many wait. */

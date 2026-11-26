@@ -218,10 +218,10 @@ def test_remote_action_adds_a_reference(tmp_path):
 
     orch, *_ = started(tmp_path, references=())
     text = execute(orch.cfg, orch.project.root, {"action": "reference_add", "text": "https://made-up.example"})
-    assert "1 change(s) waiting" in text
+    assert "1 change waits for you to press Update plan" in text
     assert orch.project.plan_doc()["references"][0]["input"] == "https://made-up.example"
     text = execute(orch.cfg, orch.project.root, {"action": "reference_remove", "id": "R1"})
-    assert "waiting" in text and orch.project.plan_doc()["references"] == []
+    assert "Update plan" in text and orch.project.plan_doc()["references"] == []
 
 
 def _wait(app, job):

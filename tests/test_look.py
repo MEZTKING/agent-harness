@@ -254,7 +254,7 @@ def test_remote_look_actions(tmp_path):
     orch, _, brain = planned(tmp_path, bad_first=False)
     assert "looks" in remote.LONG
     text = remote.execute(orch.cfg, orch.project.root, {"action": "look", "id": "A", "note": "less brown"})
-    assert "1 change(s) waiting" in text
+    assert "1 change waits for you to press Update plan" in text
     doc = orch.project.plan_doc()
     assert doc["look"]["chosen"] == "A" and doc["look"]["note"] == "less brown"
     text = remote.execute(orch.cfg, orch.project.root, {"action": "looks", "text": "a night bus"})

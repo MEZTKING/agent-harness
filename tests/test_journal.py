@@ -184,8 +184,8 @@ def test_harness_writes_project_history(tmp_path):
     assert orch.run() == "blocked"  # rerun must not duplicate the todo
     hub = orch._hub()
     [b] = hub.journal.where("harness", "harness")
-    assert [e["text"] for e in b["open_todos"]] == ["proj: task T1 'hello module' failed; check `roundtable status "
-                                                    f"{orch.project.root}`, then retry or skip it"]
+    assert [e["text"] for e in b["open_todos"]] == ["proj: Task T1 “hello module” didn't pass: try it again or skip it"]
+    assert b["open_todos"][0]["details"] == f"roundtable status {orch.project.root}"
     assert b["open_plans"][0]["text"] == "proj: goal: bakery site"
 
     broken["on"] = False
@@ -194,5 +194,44 @@ def test_harness_writes_project_history(tmp_path):
     [b] = hub.journal.where("harness", "harness")
     assert b["open_todos"] == [] and b["open_plans"] == []
     assert "harness finished goal 'bakery site'" in b["last_session"]["text"]
+    steps = b["last_session"]["next"]
+    assert steps == ["Look at what was built and say what you think",
+                     "Rate the tasks in the app (good or bad), so Roundtable learns"]
+    assert not any("/" in s or "roundtable " in s for s in steps)  # no paths or commands for the owner
+    assert "roundtable feedback" in b["last_session"]["details"]
     done = [e["text"] for e in hub.journal.entries("harness", kinds=["done"])]
     assert "proj: [T1] hello module" in done and "proj: [T3] tests" in done
+
+
+def test_finished_goal_leaves_future_plans(tmp_path):
+    """The plan entry closes even when the project got its own hub project between planning and finishing
+    (it was written to the shared harness journal), and a stray "goal: …" entry for the same goal closes too."""
+    from .test_harness import RAW as HRAW, make as make_harness
+
+    hub_cfg = tmp_path / "hub.yaml"
+    hub_raw = json.loads(json.dumps(RAW))
+    hub_raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
+    hub_raw["agents"]["harness"] = {"description": "project runner"}
+    hub_cfg.write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
+    raw = json.loads(json.dumps(HRAW))
+    raw["hub"] = {"config": str(hub_cfg), "agent": "harness"}
+
+    orch, *_ = make_harness(tmp_path, raw=raw)
+    orch.start("bakery site", require_approval=True)
+    assert orch.run() == "awaiting_approval"
+    [b] = orch._hub().journal.where("harness", "harness")
+    assert b["open_plans"][0]["text"] == "proj: goal: bakery site"
+
+    hub_raw["agents"]["proj"] = {"description": "the bakery"}  # the project joins the hub as itself
+    hub_cfg.write_text(yaml.safe_dump(hub_raw), encoding="utf-8")
+    orch._hub_cache = None
+    hub = orch._hub()
+    assert orch._hub_agent() == "proj"
+    hub.journal.add("proj", "plan", "goal: bakery site")  # e.g. written by another session
+    hub.journal.add("proj", "plan", "a shop later")  # someone else's plan stays
+
+    orch.approve()
+    assert orch.run() == "done"
+    assert hub.journal.where("harness", "harness")[0]["open_plans"] == []
+    assert [e["text"] for e in hub.journal.where("proj", "proj")[0]["open_plans"]] == ["a shop later"]
+    assert orch.project.meta()["journal_plans"] == []

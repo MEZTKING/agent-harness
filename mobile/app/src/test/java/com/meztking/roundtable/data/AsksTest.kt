@@ -98,8 +98,54 @@ class AsksTest {
         assertEquals(listOf("A", "B"), asks[0].options.map { it.id }) // recommended first
         assertEquals("A", asks[0].recommended)
         assertEquals("A single chime. · Low", asks[0].options[0].description)
-        assertEquals(emptyList<AskOption>(), asks[1].options) // only the text box
+        assertEquals(listOf("a", "b"), asks[1].options.map { it.id }) // the ready answers to tap
+        assertEquals("Amber", asks[1].options[0].label)
+        assertEquals("a", asks[1].recommended)
         assertEquals("yes", asks[2].options[0].id)
-        assertEquals(emptyList<Ask>(), Asks.fromPlan(PlanDoc.parse(md.replace("waiting for the owner", "approved, building")), "x"))
+        assertTrue(asks.all { it.local })
+        // always tappable: an agreed plan's open questions are still cards (Update plan changes what's left to build)
+        assertEquals(asks.map { it.id }, Asks.fromPlan(PlanDoc.parse(md.replace("waiting for the owner", "approved, building")), "x").map { it.id })
+    }
+
+    @Test fun planCardsAnswerWithThePlansOwnCommands() {
+        val md = """
+            _Plan status: approved, building · updated 2026-11-25T22:41:05Z by Roundtable Hold_
+
+            # Plan v2: A made-up music box
+
+            ## Decisions
+            ### Which screen first? [C6]
+            - The library (recommended): Your songs in a list. {A}
+            - The player: One big play button. {B}
+
+            ## Questions for the owner
+            - Who is it for? {Q1}
+            - Which colour? {Q2}
+              Answers (any of): Amber (recommended) {a}; Blue {b}
+
+            ## Ideas
+            - [open] A sleep timer (handy at night) {I1}
+        """.trimIndent()
+        val asks = Asks.fromPlan(PlanDoc.parse(md), "music-box")
+        val (c6, q1, q2, i1) = asks
+        assertEquals(listOf("choose" to mapOf("decision" to "C6", "option" to "B")), Asks.planCommands(c6, AskReply(listOf("B"))))
+        val withNote = Asks.planCommands(c6, AskReply(listOf("A"), "but dark"))
+        assertEquals("note", withNote[1].first)
+        assertTrue((withNote[1].second["text"] as String).endsWith("the owner says: but dark"))
+        assertEquals(listOf("answer" to mapOf("question" to "Q1", "text" to "My family", "chosen" to null)),
+            Asks.planCommands(q1, AskReply(emptyList(), " My family ")))
+        assertTrue(q2.multi)
+        assertEquals(mapOf("question" to "Q2", "text" to "Amber; Blue; and green", "chosen" to listOf("a", "b")),
+            Asks.planCommands(q2, AskReply(listOf("a", "b"), "and green")).single().second)
+        assertEquals(listOf("idea" to mapOf("id" to "I1", "accept" to false)), Asks.planCommands(i1, AskReply(listOf("no"))))
+        assertEquals(mapOf("id" to "I1", "accept" to true), Asks.planCommands(i1, AskReply(listOf("yes"))).single().second)
+        assertEquals(emptyList<Pair<String, Map<String, Any?>>>(), Asks.planCommands(asks[0].copy(kind = "money"), AskReply(listOf("x"))))
+    }
+
+    @Test fun everyCardSaysWhatTappingDoes() {
+        val kinds = listOf("decision", "question", "idea", "look", "profile", "approve", "money", "failed", "something")
+        kinds.forEach { k -> assertTrue(k, Asks.hint(Ask("x", k)).isNotBlank()) }
+        assertTrue(Asks.hint(Ask("x", "question")).startsWith("Type your answer"))
+        assertTrue(Asks.hint(Ask("x", "decision"), planAgreed = true).contains("already agreed"))
     }
 }

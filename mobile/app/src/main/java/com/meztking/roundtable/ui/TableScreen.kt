@@ -37,6 +37,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -71,6 +75,8 @@ import com.meztking.roundtable.data.HallState
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.NeedView
+import com.meztking.roundtable.data.NeedsOrder
+import com.meztking.roundtable.data.Letters
 import com.meztking.roundtable.data.SeatView
 import com.meztking.roundtable.data.ago
 import com.meztking.roundtable.ui.theme.Hall
@@ -100,12 +106,15 @@ fun TableScreen(
     onShowNeeds: (Boolean) -> Unit,
     onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
     onAutopilot: (on: Boolean, until: String, cap: Double?) -> Unit = { _, _, _ -> },
+    onMarkAllRead: (List<NeedView>) -> Unit = {},
 ) {
     val data = hall.data
     var showAutopilot by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     val seats = data?.seats.orEmpty()
     val needs = data?.needs.orEmpty()
+    // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
+    val waits = remember(needs) { NeedsOrder.organise(needs).associate { it.project to it.summary } }
     Column(Modifier.fillMaxSize()) {
         Header(whereLabel, mode, hall.loading, onRefresh)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
@@ -125,17 +134,17 @@ fun TableScreen(
                     }
                     seats.size > TABLE_MAX -> {
                         item { CentreBanner(needs.size) { onShowNeeds(true) } }
-                        items(seats, key = { it.id }) { SeatRow(it) { onOpen(it) } }
+                        items(seats, key = { it.id }) { SeatRow(it, waits[it.id]) { onOpen(it) } }
                     }
                     else -> {
                         item {
-                            RoundTable(seats, needs.size, selected, Modifier.fillMaxWidth(),
+                            RoundTable(seats, needs.size, selected, Modifier.fillMaxWidth(), waits = waits,
                                 onSeat = { s -> if (selected == s.id) onOpen(s) else selected = s.id },
                                 onCentre = { onShowNeeds(true) })
                         }
                         item {
                             val s = seats.firstOrNull { it.id == selected }
-                            if (s != null) SeatSummary(s) { onOpen(s) }
+                            if (s != null) SeatSummary(s, waits[s.id]) { onOpen(s) }
                             else Text("Tap a seat to see where it stands. Tap it again to open it.", color = Hall.muted,
                                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         }
@@ -149,7 +158,8 @@ fun TableScreen(
     if (showNeeds) {
         ModalBottomSheet(onDismissRequest = { onShowNeeds(false) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
             containerColor = Hall.panel, contentColor = Hall.text) {
-            NeedsList(needs, mode, busy, onAct, onOpenNeed, Modifier.padding(horizontal = 16.dp), onClose = { onShowNeeds(false) }, onAnswer = onAnswer)
+            NeedsList(needs, mode, busy, onAct, onOpenNeed, Modifier.padding(horizontal = 16.dp), onClose = { onShowNeeds(false) }, onAnswer = onAnswer,
+                onMarkAllRead = onMarkAllRead)
         }
     }
     if (showAutopilot) {
@@ -208,7 +218,7 @@ fun TableMark(modifier: Modifier = Modifier) {
 @Composable
 fun RoundTable(
     seats: List<SeatView>, needCount: Int, selected: String?, modifier: Modifier = Modifier,
-    onSeat: (SeatView) -> Unit, onCentre: () -> Unit,
+    onSeat: (SeatView) -> Unit, onCentre: () -> Unit, waits: Map<String, String> = emptyMap(),
 ) {
     BoxWithConstraints(modifier) {
         val w = maxWidth.coerceAtMost(460.dp)
@@ -248,11 +258,11 @@ fun RoundTable(
                 Column(
                     Modifier.offset(x - label / 2, y - ring / 2).width(label)
                         .clickable(remember { MutableInteractionSource() }, indication = null) { onSeat(s) }
-                        .semantics { contentDescription = "${s.id}, ${s.statusText}" + (if (s.badge > 0) ", ${s.badge} waiting" else "") + if (s.autopilot) ", on autopilot" else "" },
+                        .semantics { contentDescription = "${s.id}, ${s.statusText}" + (waits[s.id]?.let { ", waiting: $it" } ?: if (s.badge > 0) ", ${s.badge} waiting" else "") + if (s.autopilot) ", on autopilot" else "" },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box {
-                        SeatRing(s, s.id == selected, ring)
+                        SeatRing(s, s.id == selected, ring, waits[s.id])
                         if (s.autopilot) AutopilotDot(Modifier.align(Alignment.TopStart))
                     }
                     Spacer(Modifier.height(3.dp))
@@ -268,7 +278,7 @@ fun RoundTable(
 
 /** A seat: a ring (filled as tasks finish, in PC mode) with the initials and a badge. */
 @Composable
-fun SeatRing(s: SeatView, selected: Boolean, size: Dp) {
+fun SeatRing(s: SeatView, selected: Boolean, size: Dp, badgeTip: String? = null) {
     val color = Hall.status(s.status)
     val waiting = s.status == "waiting"
     val flicker = if (waiting) com.meztking.roundtable.ui.theme.candleFlicker().value else 0f
@@ -287,10 +297,15 @@ fun SeatRing(s: SeatView, selected: Boolean, size: Dp) {
             if (selected) drawCircle(Hall.text, r + stroke * 1.2f, style = Stroke(1.5.dp.toPx()))
         }
         Text(s.initials, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.32f).sp, color = Hall.text)
-        if (s.badge > 0) {
-            Box(Modifier.align(Alignment.TopEnd).offset(4.dp, (-2).dp).size(20.dp).background(Hall.ember, CircleShape)
-                .border(1.5.dp, Hall.bg, CircleShape), contentAlignment = Alignment.Center) {
-                Text(if (s.badge > 9) "9+" else "${s.badge}", fontSize = 10.sp, color = Hall.on(Hall.ember), fontWeight = FontWeight.Bold)
+        val count = badgeTip?.let { Regex("\\d+").findAll(it).sumOf { m -> m.value.toInt() } } ?: s.badge
+        if (count > 0) {
+            // long-press the badge: what waits, in words ("2 questions, 1 to-do")
+            TooltipBox(TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(badgeTip ?: "$count waiting") } },
+                state = rememberTooltipState(), modifier = Modifier.align(Alignment.TopEnd)) {
+                Box(Modifier.offset(4.dp, (-2).dp).size(20.dp).background(Hall.ember, CircleShape)
+                    .border(1.5.dp, Hall.bg, CircleShape), contentAlignment = Alignment.Center) {
+                    Text(if (count > 9) "9+" else "$count", fontSize = 10.sp, color = Hall.on(Hall.ember), fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -298,7 +313,7 @@ fun SeatRing(s: SeatView, selected: Boolean, size: Dp) {
 
 /** The card under the table for the seat that is tapped. */
 @Composable
-fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
+fun SeatSummary(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
     Panel(Modifier.fillMaxWidth(), highlight = s.status == "waiting") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).background(Hall.status(s.status), CircleShape))
@@ -314,6 +329,10 @@ fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
         if (s.description.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(s.description, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (!waits.isNullOrBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text("Waits for you: $waits", style = MaterialTheme.typography.bodyMedium, color = Hall.candle, fontWeight = FontWeight.SemiBold)
         }
         if (s.leftOff.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
@@ -347,14 +366,16 @@ fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
 
 /** B's roll call: one row per project, for when there are too many seats for the table. */
 @Composable
-fun SeatRow(s: SeatView, onOpen: () -> Unit) {
+fun SeatRow(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Hall.panel)
         .border(if (s.status == "waiting") 2.dp else 1.dp, if (s.status == "waiting") Hall.candle else Hall.line, RoundedCornerShape(14.dp))
         .clickable(onClick = onOpen).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        SeatRing(s, false, 46.dp)
+        SeatRing(s, false, 46.dp, waits)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(s.id, style = MaterialTheme.typography.titleSmall, color = Hall.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!waits.isNullOrBlank()) Text("Waits for you: $waits", style = MaterialTheme.typography.bodySmall, color = Hall.candle, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
             Text(s.statusText, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (s.high > 0) Chip("${s.high} high", Hall.bad)
@@ -404,19 +425,29 @@ fun CountBadge(n: Int) {
     }
 }
 
-/** The Needs you list: one parchment card per thing, each with its one-tap answers. */
+/**
+ * The Needs you list, organised: a heading per project with its count, then its groups in order (decisions and
+ * questions, money and stopped runs, to-dos, ideas, letters), newest first. Each group folds; it shows three and
+ * "N more". Every card answers in place, so most things are one tap.
+ */
 @Composable
 fun NeedsList(
     needs: List<NeedView>, mode: Mode?, busy: Set<String>, onAct: (NeedView, String) -> Unit, onOpen: (NeedView) -> Unit,
     modifier: Modifier = Modifier, onClose: (() -> Unit)? = null, onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
+    onMarkAllRead: (List<NeedView>) -> Unit = {},
 ) {
-    LazyColumn(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+    val projects = remember(needs) { NeedsOrder.organise(needs) }
+    var folded by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var opened by rememberSaveable { mutableStateOf(setOf<String>()) }
+    val letters = needs.filter { it.kind == "message" && it.message != null }
+    LazyColumn(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("NEEDS YOU", style = Label)
                 Spacer(Modifier.width(8.dp))
                 CountBadge(needs.size)
                 Spacer(Modifier.weight(1f))
+                if (letters.isNotEmpty()) TextButton(onClick = { onMarkAllRead(letters) }) { Text("Mark all read") }
                 if (onClose != null) TextButton(onClick = onClose) { Text("Handle later") }
             }
         }
@@ -424,12 +455,39 @@ fun NeedsList(
             Text("Nothing waits for you. The table will tell you when something does.", color = Hall.muted,
                 modifier = Modifier.padding(vertical = 24.dp))
         }
-        items(needs, key = { it.key }) { n ->
-            val ask = n.ask
-            if (ask != null) Column {
-                AskCard(ask.copy(project = n.project), { onAnswer(n, it) }, busy = n.key in busy)
-                if (n.asks > 1) TextButton({ onOpen(n) }) { Text("${n.asks - 1} more on the plan") }
-            } else NeedCard(n, mode, n.key in busy, onAct, onOpen)
+        projects.forEach { p ->
+            item(key = "p:${p.project}") {
+                Column(Modifier.padding(top = 6.dp)) {
+                    Text("${p.project} · ${p.count}", style = MaterialTheme.typography.titleMedium, color = Hall.goldBright)
+                    Text(p.summary, style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+                }
+            }
+            p.sections.forEach { sec ->
+                val gk = "${p.project}/${sec.group.name}"
+                val shut = gk in folded
+                item(key = "g:$gk") {
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                        .clickable { folded = if (shut) folded - gk else folded + gk }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("${sec.group.label.uppercase()} (${sec.items.size})", style = Label.copy(fontSize = 11.sp), modifier = Modifier.weight(1f))
+                        Text(if (shut) "Show" else "Hide", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+                    }
+                }
+                if (!shut) {
+                    val all = gk in opened
+                    val shown = if (all) sec.items else sec.items.take(3)
+                    items(shown, key = { it.key }) { n ->
+                        val ask = n.ask
+                        if (ask != null) Column {
+                            AskCard(ask.copy(project = n.project), { onAnswer(n, it) }, busy = n.key in busy, showProject = false)
+                            if (n.asks > 1) TextButton({ onOpen(n) }) { Text("${n.asks - 1} more on the plan") }
+                        } else NeedCard(n, mode, n.key in busy, onAct, onOpen)
+                    }
+                    if (sec.items.size > 3 && !all) item(key = "m:$gk") {
+                        TextButton({ opened = opened + gk }) { Text("${sec.items.size - 3} more") }
+                    }
+                }
+            }
         }
     }
 }
@@ -437,19 +495,26 @@ fun NeedsList(
 @Composable
 fun NeedCard(n: NeedView, mode: Mode?, busy: Boolean, onAct: (NeedView, String) -> Unit, onOpen: (NeedView) -> Unit) {
     val seal = when (n.kind) { "message" -> Hall.amber; "todo" -> Hall.good; else -> Hall.ember }
+    val acts = actionsFor(n, mode)
     Parchment(Modifier.fillMaxWidth(), seal = seal) {
         Text(n.title, fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Hall.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(2.dp))
         val sub = when (n.kind) {
-            "message" -> "from ${n.project}" + (if (n.at.isNotBlank()) " · ${ago(n.at)}" else "") + " · \"${n.text}\""
+            "message" -> listOf(n.text, ago(n.at)).filter { it.isNotBlank() }.joinToString("\n")
             else -> n.text.ifBlank { n.project }
         }
-        Text(sub, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(10.dp))
+        Text(sub, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, maxLines = 4, overflow = TextOverflow.Ellipsis)
+        Text(needHint(n, acts), style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+        Spacer(Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val acts = actionsFor(n, mode)
             acts.forEachIndexed { i, (action, label) ->
-                val click = { if (action == "open" || action == "plan" || action == "reply") onOpen(n) else onAct(n, action) }
+                val click = {
+                    when (action) {
+                        "open", "plan", "reply" -> onOpen(n)
+                        "project" -> onOpen(n.copy(kind = "project"))
+                        else -> onAct(n, action)
+                    }
+                }
                 if (i == 0) Button(onClick = click, enabled = !busy, colors = ParchmentButtons.main(), contentPadding = PaddingValues(horizontal = 14.dp)) { Text(label) }
                 else OutlinedButton(onClick = click, enabled = !busy, colors = ParchmentButtons.other(), border = ParchmentButtons.otherBorder,
                     contentPadding = PaddingValues(horizontal = 14.dp)) { Text(label) }
@@ -458,8 +523,26 @@ fun NeedCard(n: NeedView, mode: Mode?, busy: Boolean, onAct: (NeedView, String) 
     }
 }
 
+/** One line under a card: what its buttons do. */
+private fun needHint(n: NeedView, acts: List<Pair<String, String>>): String {
+    val ids = acts.map { it.first }
+    return when {
+        n.kind == "message" && "reply" in ids -> "Read and reply opens the whole letter; Mark as read clears it from here."
+        n.kind == "message" -> "Mark as read clears it from here; Open project shows what happened."
+        n.kind == "todo" && "done" in ids -> "Mark done closes it; Open project shows where it stands."
+        n.kind == "todo" -> "Open project shows where it stands and what to do."
+        "plan" in ids -> "Opens the plan, where you approve it with one tap."
+        else -> "Tap what should happen next."
+    }
+}
+
 private fun actionsFor(n: NeedView, mode: Mode?): List<Pair<String, String>> = when (n.kind) {
-    "message" -> if (n.message != null) listOf("reply" to "Read and reply", "read" to "Mark as read") else listOf("open" to "Read")
+    "message" -> when {
+        n.message == null -> listOf("open" to "Read")
+        // Roundtable's answer to the owner's own command (a refusal or a failure): nothing to reply to
+        Letters.isReply(n.message.subject) -> listOf("read" to "Mark as read", "project" to "Open project")
+        else -> listOf("reply" to "Read and reply", "read" to "Mark as read")
+    }
     "todo" -> if (mode == Mode.PC && n.id != null) listOf("done" to "Mark done", "open" to "Open project") else listOf("open" to "Open project")
     else -> n.actions.mapNotNull {
         when (it) {
