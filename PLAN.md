@@ -29,6 +29,10 @@ What was done when, and why: [DEVLOG.md](DEVLOG.md). Where things stand right no
   do my entire workflow in one place." Each step and where it stands:
   [plans/workflow.md](plans/workflow.md). Repositories and delivery come right after
   Proof, so merges without the owner watching are safe.
+- **Ideas from Munder Difflin and DeepSeek Harness Mobile** (26 November 2026, the
+  owner's pick): evidence on every change, a circuit breaker per agent, CLIs driven
+  through their own hooks, Needs you cards with one-tap answers, answers bound to the
+  connection. Each idea, under its release: [plans/inspiration.md](plans/inspiration.md).
 - **Yardstick:** each release is judged by how far a real project gets unaided. The
   first is a music player for the browser (`plans/music-player.md` in the hub); the
   owner chose web apps and browser games first, then desktop, Android, Minecraft/Java.

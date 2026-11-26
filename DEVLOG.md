@@ -4,6 +4,23 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Ideas from Munder Difflin and DeepSeek Harness Mobile
+
+The owner asked to take inspiration from a Reddit post ("My view when my opencode agents
+are working"; Reddit refuses requests from here, so the post itself wasn't read), from
+github.com/HarnessMD/munder-difflin and from github.com/sorsama/deepseek-harness-mobile.
+
+- Both repositories were read (both MIT; we take ideas, not code).
+- `plans/inspiration.md` (new): the ideas worth borrowing, each under its release –
+  evidence on every change and a scripted-model test of the real server (Proof); webhooks
+  with a trust mode and a key broker (Repositories); Needs you cards, answers bound to
+  the connection, classified notifications, staying connected (Phone); headless CLIs,
+  one table per engine, control through hooks, the owner owns the prompt (Sessions);
+  the circuit breaker, helpers in worktrees, the fleet file (Tandem); the message
+  envelope, batched commits and memory without a model (hub). Plus what not to copy.
+- `PLAN.md`: the decision recorded.
+- Open: build them, release by release.
+
 ## 2026-11-26 – The whole workflow in one place
 
 The owner: "Basically Roundtable should be able to do my entire workflow in one place."
