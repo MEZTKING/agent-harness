@@ -11,7 +11,6 @@ import yaml
 
 from roundtable import sync
 from roundtable.core.config import load_config as load_hub
-from roundtable.core.store import GitStore
 from roundtable.harness.orchestrator import HarnessError
 from roundtable.hub.service import Hub
 from roundtable.phone import phone_allowed
