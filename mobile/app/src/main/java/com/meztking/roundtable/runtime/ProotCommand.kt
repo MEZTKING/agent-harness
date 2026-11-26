@@ -30,6 +30,8 @@ data class ProotCommand(val argv: List<String>, val environment: Map<String, Str
         val launchToken: String,
         /** The names of the app process's own environment, all cleared for the guest. */
         val inherited: Set<String> = emptySet(),
+        /** The owner's choices Roundtable reads at start (ROUNDTABLE_ASK_FIRST); never a secret. */
+        val extra: Map<String, String> = emptyMap(),
     )
 
     companion object {
@@ -101,6 +103,7 @@ data class ProotCommand(val argv: List<String>, val environment: Map<String, Str
                 "PYTHONUNBUFFERED" to "1",
             )
             environment.putAll(record.env)
+            environment.putAll(inputs.extra)
             environment[record.launchTokenEnv] = inputs.launchToken
             // PROOT_NO_SECCOMP makes proot slower and breaks git's rename path; never inherit it.
             val remove = (inputs.inherited + setOf("PROOT_NO_SECCOMP", "LD_PRELOAD")) - environment.keys

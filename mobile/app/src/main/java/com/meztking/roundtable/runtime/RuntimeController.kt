@@ -58,6 +58,8 @@ class RuntimeController(
     private val onActive: () -> Unit = {},
     private val inherited: () -> Set<String> = { System.getenv().keys },
     private val health: OkHttpClient = localHealthClient(),
+    /** The owner's choices handed to Roundtable at each start ([ProotCommand.Inputs.extra]). */
+    private val extraEnv: () -> Map<String, String> = { emptyMap() },
 ) {
     private val _state = MutableStateFlow<RuntimeState>(installer.installed()?.let { RuntimeState.Stopped(it) } ?: RuntimeState.NotInstalled)
     val state: StateFlow<RuntimeState> = _state.asStateFlow()
@@ -212,7 +214,7 @@ class RuntimeController(
                 port = FreePort.pick()
                 val token = LaunchToken.next()
                 launchToken = token
-                val command = ProotCommand.build(ProotCommand.Inputs(nativeLibraryDir(), layout, record, port, token, inherited()))
+                val command = ProotCommand.build(ProotCommand.Inputs(nativeLibraryDir(), layout, record, port, token, inherited(), extraEnv()))
                 supervisor.start(
                     command, layout.root, isReady = { healthy(port, record.healthPath) }, requestedPort = port, secrets = listOf(token),
                     readinessPrefix = record.readinessPrefix,
@@ -264,7 +266,10 @@ class RuntimeController(
             .build()
 
         /** Everything wired for the device. */
-        fun create(context: android.content.Context, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default), onActive: () -> Unit): RuntimeController {
+        fun create(
+            context: android.content.Context, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            extraEnv: () -> Map<String, String> = { emptyMap() }, onActive: () -> Unit,
+        ): RuntimeController {
             val system = AndroidRuntimeSystem(context)
             val layout = RuntimeLayout(File(context.noBackupFilesDir, "runtime"), File(context.cacheDir, "runtime"))
             val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
@@ -286,7 +291,7 @@ class RuntimeController(
             return RuntimeController(
                 layout, installer, supervisor, log, AndroidFsOps,
                 nativeLibraryDir = { system.nativeLibraryDir }, dnsServers = system::dnsServers, cpuCount = { system.cpuCount },
-                scope = scope, onActive = onActive,
+                scope = scope, onActive = onActive, extraEnv = extraEnv,
             )
         }
 

@@ -58,6 +58,11 @@ import com.meztking.roundtable.ui.ProjectScreen
 import com.meztking.roundtable.ui.ProjectUi
 import com.meztking.roundtable.ui.ProjectViewModel
 import com.meztking.roundtable.ui.HarnessScreen
+import com.meztking.roundtable.ui.ConnectionsScreen
+import com.meztking.roundtable.ui.SharedSettingsContent
+import com.meztking.roundtable.ui.SharedSettingsViewModel
+import com.meztking.roundtable.ui.ProjectSettingsContent
+import com.meztking.roundtable.ui.ProjectSettingsViewModel
 import com.meztking.roundtable.ui.SettingsScreen
 import com.meztking.roundtable.ui.ThisPhoneSetupScreen
 import com.meztking.roundtable.ui.SetupScreen
@@ -122,6 +127,33 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                     nav.navigate("home") { popUpTo(0) { inclusive = true } }
                 }, onBack = { nav.popBackStack() })
             }
+            composable("connections") {
+                ConnectionsScreen(onBack = { nav.popBackStack() }, onPhoneSetup = { nav.navigate("thisphone") }, onHarness = { nav.navigate("harness") },
+                    onHub = { nav.navigate("connect") }, onChanged = {
+                        if (!app.store.configured) nav.navigate("setup") { popUpTo(0) { inclusive = true } } else main.reset()
+                    })
+            }
+            composable("shared") {
+                val vm: SharedSettingsViewModel = viewModel()
+                LaunchedEffect(Unit) { vm.load() }
+                val st by vm.settings.collectAsState()
+                val from by vm.from.collectAsState()
+                val saving by vm.saving.collectAsState()
+                Snacked(vm.notice.collectAsState().value, vm::noticeShown) {
+                    SharedSettingsContent(st, from, saving, onBack = { nav.popBackStack() }, onRefresh = vm::load, onSave = vm::save)
+                }
+            }
+            composable("projectsettings/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                val vm: ProjectSettingsViewModel = viewModel()
+                val hall by main.hall.collectAsState()
+                val seat = hall.data?.seats?.firstOrNull { it.id == vm.id }
+                LaunchedEffect(vm.id) { vm.start(seat) }
+                val view by vm.view.collectAsState()
+                val saving by vm.saving.collectAsState()
+                Snacked(vm.notice.collectAsState().value, vm::noticeShown) {
+                    ProjectSettingsContent(vm.id, view, saving, onBack = { nav.popBackStack() }, onRefresh = vm::load, onSave = vm::save)
+                }
+            }
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable(
@@ -145,10 +177,11 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { pad ->
                     Box(Modifier.padding(pad)) {
                         ProjectScreen(
-                            ProjectUi(vm.id, seat, backend?.mode, backend?.identity ?: app.store.identity, status, plan, inbox, sent, asks, live),
+                            ProjectUi(vm.id, seat, backend?.modeFor(seat), backend?.identity ?: app.store.identity, status, plan, inbox, sent, asks, live),
                             ProjectActions(
                                 back = { nav.popBackStack() }, refresh = vm::refresh, command = vm::command, act = vm::act,
                                 opened = vm::opened, reply = vm::reply, send = vm::send, answer = vm::answer,
+                                settings = if (seat?.holder?.isNotBlank() == true) ({ nav.navigate("projectsettings/${android.net.Uri.encode(vm.id)}") }) else null,
                             ),
                             initialTab = entry.arguments?.getInt("tab") ?: 0,
                         )
@@ -169,6 +202,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val letters by main.letters.collectAsState()
     val busy by main.busy.collectAsState()
     val notice by main.notice.collectAsState()
+    val crash by main.crash.collectAsState()
     val snack = remember { SnackbarHostState() }
     var settingsTick by remember { mutableIntStateOf(0) }
     val backend = remember(settingsTick) { app.backend() }
@@ -176,7 +210,14 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); main.noticeShown() } }
     // This phone: start Roundtable here first, so the Table's first load waits for it
     LaunchedEffect(backend) { if (app.usingThisPhone()) app.runtime.startIfNeeded() }
-    val crash by main.crash.collectAsState()
+    // while the app is open, the Table keeps itself fresh: often when a machine answers, gently through the hub
+    LaunchedEffect(backend, crash) {
+        if (backend == null || crash != null) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(if (backend.connected.any { it != com.meztking.roundtable.data.Source.HUB }) 30_000 else 120_000)
+            main.refresh()
+        }
+    }
     LaunchedEffect(backend, crash) { if (backend != null && crash == null) main.refresh() }
     LaunchedEffect(tab, backend) { if (tab == 1 && backend != null && letters.data == null) main.loadLetters() }
 
@@ -191,11 +232,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val identity = backend?.identity ?: app.store.identity
     val needCount = hall.data?.needs?.size ?: 0
     val myUnread = hall.data?.seats?.firstOrNull { it.id == identity }?.unread ?: 0
-    val where = if (app.usingThisPhone()) "This phone" else when (backend?.mode) {
-        Mode.HUB -> "Hub on GitHub · ${app.store.hubRepo}"
-        Mode.PC -> "Paired PC · ${app.store.link?.name ?: "PC"}"
-        null -> "Not connected"
-    }
+    val where = remember(hall.data, backend) { whereLabel(backend) }
     Scaffold(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snack) },
@@ -221,7 +258,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
             }
             when (tab) {
                 0 -> TableScreen(
-                    hall, backend?.mode, where, busy, onRefresh = main::refresh,
+                    hall, if (backend == null) null else backend.mode, where, busy, onRefresh = main::refresh,
                     onOpen = { s -> nav.navigate("project/${android.net.Uri.encode(s.id)}") },
                     onAct = main::act,
                     onOpenNeed = { n ->
@@ -243,12 +280,33 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onRefresh = main::loadLetters, onOpened = main::opened, onSend = main::send, onReply = main::reply,
                     onMarkAllRead = main::markAllRead,
                 )
-                else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onHarness = { nav.navigate("harness") }, onChanged = {
+                else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onHarness = { nav.navigate("harness") },
+                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onChanged = {
                     settingsTick++
                     if (!app.store.configured) nav.navigate("setup") { popUpTo(0) { inclusive = true } } else main.reset()
                 })
             }
         }
+    }
+}
+
+/** The Table's header line: which connections answer ("This phone · your PC · the hub"), and which don't. */
+fun whereLabel(b: com.meztking.roundtable.data.MultiBackend?): String {
+    if (b == null) return "Not connected"
+    val all = b.configured.sortedBy { it.ordinal }
+    val on = all.filter { b.health(it).ok != false }
+    val off = all - on.toSet()
+    val words = on.joinToString(" · ") { it.words.replaceFirstChar { c -> c.uppercase() }.let { w -> if (it == com.meztking.roundtable.data.Source.HUB) "Hub" else w } }
+    return words.ifBlank { "Nothing answers" } + off.joinToString("") { " · ${it.words} is off" }.let { if (it.isBlank()) "" else it }
+}
+
+/** A screen with its own snackbar for short notices. */
+@Composable
+private fun Snacked(notice: String?, shown: () -> Unit, content: @Composable () -> Unit) {
+    val snack = remember { SnackbarHostState() }
+    LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); shown() } }
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { pad ->
+        Box(Modifier.padding(pad)) { content() }
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -91,6 +93,8 @@ class ProjectActions(
     val reply: (Message, String, Done) -> Unit = { _, _, _ -> },
     val send: (String, String, Done) -> Unit = { _, _, _ -> },
     val answer: (Ask, AskReply) -> Unit = { _, _ -> },
+    /** This project's own settings; null when no connected machine has it. */
+    val settings: (() -> Unit)? = null,
 )
 
 @Composable
@@ -105,9 +109,11 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
             Column(Modifier.weight(1f)) {
                 Text(ui.id, style = MaterialTheme.typography.titleLarge, color = Hall.goldBright, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val updated = doc?.updated?.ifBlank { null } ?: ui.seat?.lastActivity?.ifBlank { null }
-                Text(listOfNotNull(ui.seat?.status, updated?.let { "updated ${ago(it)}" }).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+                Text(listOfNotNull(ui.seat?.building?.ifBlank { null } ?: ui.seat?.status, ui.seat?.lives?.ifBlank { null }?.takeIf { ui.seat?.building.isNullOrBlank() },
+                    updated?.let { "updated ${ago(it)}" }).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            a.settings?.let { open -> TipIcon("This project's settings", open) { Icon(Icons.Filled.Settings, "This project's settings", tint = Hall.gold) } }
             IconButton(onClick = a.refresh) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
         }
         val desc = ui.seat?.description?.ifBlank { null } ?: doc?.description
@@ -231,7 +237,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, u
     else if (hub && !d.waitingForOwner && d.state.isNotBlank()) item {
         Text("This plan is agreed and nothing in it waits for you.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     } else if (!hub) item {
-        Text("Plan choices can be answered from the phone in Hub mode (Settings).", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+        Text("Plan choices are answered through the hub: add it in Settings, Your computers.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     }
     items(d.sections, key = { "S" + it.title }) { s ->
         Column {
@@ -390,5 +396,15 @@ private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
     }
     if (writing) ComposeSheet(listOf(ui.id), ui.identity, ui.id, onDismiss = { writing = false }) { _, s, b, done ->
         a.send(s, b) { ok -> done(ok); if (ok) writing = false }
+    }
+}
+
+/** An icon button with a tooltip saying what it does (long-press). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TipIcon(tip: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+    androidx.compose.material3.TooltipBox(androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(tip) } }, state = androidx.compose.material3.rememberTooltipState()) {
+        IconButton(onClick = onClick) { icon() }
     }
 }

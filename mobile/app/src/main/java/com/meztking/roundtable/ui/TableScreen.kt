@@ -259,7 +259,7 @@ fun RoundTable(
                 Column(
                     Modifier.offset(x - label / 2, y - ring / 2).width(label)
                         .clickable(remember { MutableInteractionSource() }, indication = null) { onSeat(s) }
-                        .semantics { contentDescription = "${s.id}, ${s.statusText}" + (waits[s.id]?.let { ", waiting: $it" } ?: if (s.badge > 0) ", ${s.badge} waiting" else "") + if (s.autopilot) ", on autopilot" else "" },
+                        .semantics { contentDescription = "${s.id}, ${s.statusText}" + (if (s.lives.isNotBlank()) ", ${s.lives}" else "") + (waits[s.id]?.let { ", waiting: $it" } ?: if (s.badge > 0) ", ${s.badge} waiting" else "") + if (s.autopilot) ", on autopilot" else "" },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box {
@@ -327,6 +327,7 @@ fun SeatSummary(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
             Spacer(Modifier.weight(1f))
             if (s.lastActivity.isNotBlank()) Text(ago(s.lastActivity), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
+        if (s.lives.isNotBlank() || s.building.isNotBlank()) Text(whereWords(s), style = MaterialTheme.typography.bodySmall, color = Hall.gold, modifier = Modifier.padding(top = 2.dp))
         if (s.description.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(s.description, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -377,7 +378,8 @@ fun SeatRow(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
             Text(s.id, style = MaterialTheme.typography.titleSmall, color = Hall.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (!waits.isNullOrBlank()) Text("Waits for you: $waits", style = MaterialTheme.typography.bodySmall, color = Hall.candle, maxLines = 1,
                 overflow = TextOverflow.Ellipsis)
-            Text(s.statusText, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(s.statusText, if (s.building.isBlank()) s.lives else "").filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (s.high > 0) Chip("${s.high} high", Hall.bad)
                 if (s.unread > 0) Chip("${s.unread} unread", Hall.amber)
@@ -557,4 +559,11 @@ private fun actionsFor(n: NeedView, mode: Mode?): List<Pair<String, String>> = w
             else -> null
         }
     }.ifEmpty { listOf("open" to "Open project") }
+}
+
+/** "On your PC", "On this phone · also seen through the hub", "Building on your PC". */
+fun whereWords(s: SeatView): String {
+    val head = s.building.ifBlank { s.lives.replaceFirstChar { it.uppercase() } }
+    val also = s.seenIn.mapNotNull { com.meztking.roundtable.data.Source.of(it)?.words }
+    return head + if (also.isNotEmpty()) " · also seen through ${also.joinToString(" and ")}" else ""
 }
