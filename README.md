@@ -38,6 +38,9 @@ The app tells you when a new version is out (**Settings → Updates**, or the ba
 - **Budget / Balanced / Quality** per project, **OpenRouter** and **Openference**, exact costs
   and real balances, and many savings: the cheapest OpenRouter route, Claude's cache through
   gateways, big files read as an outline, DeepSeek's half-price hours (approve to start then).
+- **Autopilot**: a button that answers Roundtable's cards with the recommended choice while you're
+  away, within a spending cap and a time you set; it never raises limits, spends more, deletes or
+  publishes, and logs every decision in "What autopilot did".
 - **Safer runs**: real-money limits, pausing when an account is empty, stronger checks after a
   rejection, tasks split when too big, "accept as it is", and model switches learned after
   each run (written in the journal with the reason).

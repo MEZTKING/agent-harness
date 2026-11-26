@@ -4,6 +4,13 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – 0.7.0's installer build stopped: a second version number
+
+The app workflow refused `release_tag: v0.7.0` because `roundtable.__version__` still said 0.6.0
+(only `pyproject.toml` had been raised). Fixed; `test_the_two_version_numbers_match` keeps the two
+equal; CLAUDE.md's release steps name both. Nothing had been published, so 0.7.0 now also carries
+autopilot (merged meanwhile; README "What's new").
+
 ## 2026-11-26 – Autopilot: decisions while the owner is away
 
 The owner: "Add an autopilot button so you'll automatically make decisions while I'm off my
