@@ -6,6 +6,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **The phone app's release build fails** (26 November): `./gradlew assembleRelease` stops in R8
+  (code shrinking: "Compilation failed to complete"); test builds (debug) work. Fix the keep rules
+  before the phone release (release 4).
+
 - **A run can start above the estimate the owner saw** (26 November): the music player's
   packaging was estimated at $3.45 by the planner, after the owner had been told $0.50–1.50;
   nothing stopped to ask. A run should pause and ask when its plan's estimate is above the
