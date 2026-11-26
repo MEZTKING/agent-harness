@@ -4,6 +4,14 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Hub ids always move forward (Windows clock)
+
+CI on Windows failed `test_commands_through_the_hub`: "revise" and "approve" sent one after the other
+got the same timestamp (Windows' clock ticks about every 16 ms), so their order came from the random
+suffix and "approve" could run first (and be refused while changes waited). `core/models.new_id`
+now keeps the timestamp moving forward within the process; `test_ids_made_one_after_another_sort_in_order`
+uses a frozen clock. 294 pass.
+
 ## 2026-11-26 – Release 0.7.1
 
 The owner chose to ship the live view and the phone crash fix. `pyproject.toml` and

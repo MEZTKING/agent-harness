@@ -215,3 +215,20 @@ def test_offline_reads_fall_back_to_local_copy(tmp_path):
     _git("remote", "set-url", "origin", str(tmp_path / "unreachable.git"), cwd=tmp_path / "c")
     assert hub.get_card("frontend", "backend")["status"] == "cached"
     assert hub.store.last_sync_error
+
+
+def test_ids_made_one_after_another_sort_in_order(monkeypatch):
+    from datetime import datetime, timezone
+
+    from roundtable.core import models
+
+    frozen = datetime(2026, 11, 26, 15, 0, 0, tzinfo=timezone.utc)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen  # a clock that doesn't move between calls, like Windows' within a tick
+
+    monkeypatch.setattr(models, "datetime", Clock)
+    ids = [models.new_id() for _ in range(50)]
+    assert ids == sorted(ids) and len(set(i.split("-")[0] for i in ids)) == 50

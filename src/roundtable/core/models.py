@@ -7,8 +7,9 @@ human-readable and diff-friendly in git.
 from __future__ import annotations
 
 import secrets
+import threading
 from dataclasses import asdict, dataclass, field, fields
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 MAX_RECENT_CHANGES = 20
@@ -18,10 +19,22 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_last_stamp: list[datetime] = []
+_stamp_lock = threading.Lock()
+
+
 def new_id() -> str:
-    """Sortable, collision-resistant id: UTC timestamp + random suffix."""
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    return f"{ts}-{secrets.token_hex(3)}"
+    """Sortable, collision-resistant id: UTC timestamp + random suffix.
+
+    The timestamp always moves forward within this process, even when the clock doesn't (Windows'
+    clock ticks about every 16 ms), so ids made one after another sort in the order they were made.
+    """
+    with _stamp_lock:
+        now = datetime.now(timezone.utc)
+        if _last_stamp and now <= _last_stamp[0]:
+            now = _last_stamp[0] + timedelta(microseconds=1)
+        _last_stamp[:] = [now]
+    return f"{now.strftime('%Y%m%dT%H%M%S%fZ')}-{secrets.token_hex(3)}"
 
 
 def _from_dict(cls, data: dict[str, Any]):
