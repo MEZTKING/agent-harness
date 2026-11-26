@@ -4,6 +4,22 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Openference as a provider
+
+The owner has an API key for Openference (openference.com): one OpenAI- and
+Anthropic-compatible service in front of 55 models from 15 makers.
+
+- The key is saved through the credential form for `api.openference.com` (the proxy adds
+  it; nothing in files). A real call through `roundtable ask` worked.
+- `providers/catalog.py`: the `openference` preset (`https://api.openference.com/v1`,
+  `OPENFERENCE_API_KEY`). `harness/config.py` `DEFAULT_PRICING`: Openference's prices for
+  the models we're likely to use (its model ids, as `GET /v1/models` gives them).
+- The owner's key is limited to one model (`DeepSeek-V4.1-Flash-1017`); asking for
+  Claude Haiku 5.5 was refused (`model_not_allowed_for_key`). Widening it is the owner's
+  choice, in Openference's dashboard (plans/owner-todo.md).
+- Openference has no balance endpoint; its replies carry `X-Quota-Cost` and
+  `X-Quota-Remaining` (plan units). Open: read those for the real-cost check.
+
 ## 2026-11-26 – A look of its own: the Look stage
 
 The owner: "I want the UI to be unique for whatever application I make, so how can I

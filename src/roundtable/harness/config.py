@@ -23,6 +23,14 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
     "claude-opus-5-5": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
     "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
+    # Openference's names for some of its models (its prices, checked 26 November 2026)
+    "DeepSeek-V4.1-Flash-1017": {"input": 0.30, "output": 1.20, "cache_read": 0.01},
+    "DeepSeek-V4-Pro": {"input": 1.32, "output": 3.96, "cache_read": 0.13},
+    "GLM-5.3": {"input": 1.40, "output": 4.40, "cache_read": 0.26},
+    "GLM-5.3-Flash": {"input": 0.15, "output": 0.50, "cache_read": 0.03},
+    "Claude Opus 5.5": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
+    "Claude Sonnet 5.5": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
+    "Claude Haiku 5.5": {"input": 0.10, "output": 0.50, "cache_read": 0.01},
 }
 
 PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "plugin", "scripted",

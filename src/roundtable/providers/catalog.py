@@ -36,6 +36,9 @@ PRESETS: dict[str, dict] = {
              "api_key_env": "DASHSCOPE_API_KEY", "category": "chat", "docs": "https://dashscope.console.aliyun.com"},
     "perplexity": {"name": "Perplexity", "type": "openai_compat", "base_url": "https://api.perplexity.ai",
                    "api_key_env": "PERPLEXITY_API_KEY", "category": "chat", "docs": "https://www.perplexity.ai/settings/api"},
+    "openference": {"name": "Openference (55 models from 15 makers, one key: Claude, GPT, Gemini, GLM, Kimi, Qwen, DeepSeek)",
+                    "type": "openai_compat", "base_url": "https://api.openference.com/v1",
+                    "api_key_env": "OPENFERENCE_API_KEY", "category": "chat", "docs": "https://docs.openference.com"},
     # -- hosts for open models ---------------------------------------------------------------
     "openrouter": {"name": "OpenRouter (hundreds of models, one key)", "type": "openai_compat",
                    "base_url": "https://openrouter.ai/api/v1", "api_key_env": "OPENROUTER_API_KEY",
