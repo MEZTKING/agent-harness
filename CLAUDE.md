@@ -92,9 +92,11 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
 | `src/roundtable/improve/` | The lab: proposals, replay tests, the learned overlay, model health probes |
 | `src/roundtable/providers/` | Anthropic, OpenAI-compatible (DeepSeek and others), images, Retro Diffusion, scripted (tests), the catalog |
 | `src/roundtable/remote.py` | Commands through the hub: the owner's `roundtable:` requests (from the phone) done by the desktop app's auto-sync or `roundtable remote --watch` |
-| `src/roundtable/phone.py` | The paired, pinned-TLS phone server (`PHONE_ROUTES`); hidden in the app (`SHOW_PHONE = false`) until the phone release |
+| `src/roundtable/phone.py` | The paired, pinned-TLS phone server (`PHONE_ROUTES`); pairing in the desktop's Settings → Your phone |
+| `src/roundtable/onphone.py`, `runtime/` | Roundtable running on the phone itself ("This phone"): `roundtable phone serve --local`, the signed Linux download |
+| `src/roundtable/sync.py`, `ui/syncapi.py` | The phone and the PC as one Roundtable: machine seats, claims, live sessions, shared settings, carry on |
 | `src/roundtable/connect.py` | `roundtable connect`: Claude Code sessions in other repositories join the hub (MCP + SessionStart/Stop/SessionEnd hooks) |
-| `src/roundtable/ui/` | The desktop command centre: `server.py` (JSON API, jobs), `roundtable.py` (seats, feed, auto-sync), `static/` (vanilla JS, no build step) |
+| `src/roundtable/ui/` | The desktop command centre: `server.py` (JSON API, jobs), `roundtable.py` + `hall.py` (seats, Needs you, feed, auto-sync), `static/` (vanilla JS modules, no build step; design in `docs/desktop-design.md`) |
 | `mobile/` | Roundtable Mobile (Kotlin, Compose): Hub mode through the GitHub API with a fine-grained token; PC mode over the phone server (not yet tried on a real PC) |
 | `packaging/` | The Windows build (PyInstaller spec, installer); `.github/workflows/app.yml` builds and, with a `release_tag`, publishes |
 | `tests/` | `python -m pytest tests` – no network, no keys (scripted providers) |

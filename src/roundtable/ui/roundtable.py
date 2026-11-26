@@ -282,7 +282,7 @@ def build(app) -> dict[str, Any]:
                           "actions": ["read"], "at": ""})
         elif app.agent in unread and unread[app.agent] and app.agent in seats:
             needs.append({"kind": "messages", "project": app.agent, "name": seats[app.agent]["name"],
-                          "text": f"{unread[app.agent]} unread message(s)", "actions": ["read"], "at": ""})
+                          "text": f"{unread[app.agent]} unread letter{'s' if unread[app.agent] > 1 else ''}", "actions": ["read"], "at": ""})
 
     # harness runs on this computer: merged into the seat with the same name, else a seat of their own
     spend_today = 0.0

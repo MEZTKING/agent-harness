@@ -27,6 +27,20 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.9.0
+
+- **A new desktop app**, rebuilt from scratch: the Hall shows every project as a seat with its own name
+  and what it's doing in words; **Needs you** comes first and is answered with one tap; each project
+  has Overview, Plan, Watch, App, Journal and Settings; **Models** lets you choose who does every job
+  from a list; Settings covers keys (with a Test that really checks them), the recommended setup,
+  spending, the hub, your phone, backups, plugins and updates – nothing sends you out of the app.
+- **The phone and the PC as one Roundtable**: the phone is a seat of its own; one machine builds a
+  project at a time; watch a build on either; spending limits, autopilot and who does which job are
+  shared; "carry on" goes to the machine that has the project; pair the phone with the PC by QR code.
+- **Claude Opus 5.5 codes by default** (medium effort), with DeepSeek V4 Flash as its backup.
+- **Fixes**: keys for OpenRouter and Openference load at start; DeepSeek V4 Pro is switched to Flash;
+  the hub's project list stays up to date on every computer.
+
 ### What's new in 0.8.0
 
 - **Your existing apps** (first part of "your repositories"): point Roundtable at one of your apps'

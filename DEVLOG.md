@@ -4,6 +4,45 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – 0.9.0: the desktop rebuilt, the phone and PC as one, Opus codes
+
+Asked by the owner: "check the app for more errors … the roundtable hall was supposed to show all my
+projects … fix the homepage, the UI layout is not great"; "why is Claude Sonnet the coder and why can't I
+change it"; "I'm not supposed to ever leave the app"; "rebuild the whole desktop app … use my references
+as a guide"; "make Opus 5.5 the default coder and DeepSeek Flash the backup"; "do the phone and PC sync";
+"MSE Studio should be Opus only" then "leave MSE Studio". Built by helpers (Opus, medium effort, as asked).
+
+- **PC set-up fixes** (`3f726fb`): `desktop.KNOWN_KEYS` + `provider_key_names` (a custom provider's key
+  loaded at start: the OpenRouter key showed "missing"), `key_label`; `balance.check_key`,
+  `manage.test_provider` (Test checks the key, not the public model list); new template = the owner's
+  split, no V4 Pro; `recommended.py` (Use the recommended setup); `desktop.migrate_configs` (V4 Pro →
+  Flash, old templates replaced, a journal decision line).
+- **Opus codes by default**: template, recommended setup and the phone's first start: coder
+  `anthropic/claude-opus-5-5` (effort medium) → `deepseek/deepseek-v4-flash`; Budget keeps Flash.
+- **Hall data** (`73adaaf`): the hub repository's hub.yaml is re-read on every sync (agents added later
+  never reached the PC: `connect_hub` copied them once); `ui/hall.py` seat model (every project a seat with
+  a friendly name, Roundtable-built projects out from under "harness", "My notes"); `/api/hub/plan`,
+  `/api/hub/command`; plan-ready to-dos get Open the plan / Approve.
+- **Desktop rebuilt** (`desktop-rebuild`, 8 commits): `static/` as ES modules (app, core, asks, autopilot,
+  hall, needs, projects, project, plan, watch, journal, letters, activity, models, settings, machines);
+  `routing.py` (`/api/routing`: change who does every job, per set); `/api/features`; design in
+  `docs/desktop-design.md`. Every audit item fixed (ids, jargon, raw paths and variable names, empty
+  states, layout at 1000–1920 px).
+- **Sync, Roundtable side** (`c9acff9`, `b775f7d`): `sync.py` (machine seats in hub.yaml, `project_key`,
+  claims with heartbeats and takeover, live sessions in `sessions/<key>/<run>.jsonl`, `machines/<seat>.json`,
+  `settings/shared.yaml`), `ui/syncapi.py` (`/api/machines`, `/api/hub/session`, `/api/settings/shared`,
+  `/api/hub/carry_on`), `limits.max_usd_per_day`, remote commands addressed by `machine`, git pulls that
+  settle clashes file by file. The owner's own machine seats (role: machine) may send commands.
+- **Sync, phone side** (`aaee145`): `data/MultiBackend.kt`, `data/Sync.kt` (several connections at once,
+  seats merged, commands routed), Your computers (Join my hub, pairing), watch a build from anywhere,
+  shared and per-project settings, a runtime update check.
+- **MSE Studio**: switched to Opus through OpenRouter at the owner's word, then left at the owner's word
+  before anything was built; its plan is paused in the hub and nothing was pushed.
+
+Open: everything here needs a run on the owner's real PC and phone (a folder shared through Remote
+Control, the phone by USB); "Ask me first" on the phone isn't wired; a change to one model set isn't
+shared between machines (only the base choices and the default set are).
+
 ## 2026-11-26 – 0.8.0: the phone in plain words, its updater, This phone (beta), existing apps
 
 Asked by the owner, in this order: "I dont understand anything i cant click the ideas or questions";

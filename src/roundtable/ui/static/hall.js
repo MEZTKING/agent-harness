@@ -85,7 +85,7 @@ export async function viewHall() {
         h("a", { class: "spacer-left", href: "#/needs" }, "See all")),
       needCard(first, null, { compact: true }),
       rest.length ? h("section", { class: "card next-up" }, h("h3", { class: "label" }, "Also waiting"),
-        h("ul", { class: "plain" }, rest.slice(0, 8).map((i) => h("li", {}, h("a", { href: `#/needs` }, dot(i.project), h("b", {}, S.rt.seats.find((s) => s.id === i.project)?.name || i.project),
+        h("ul", { class: "plain" }, rest.slice(0, 8).map((i) => h("li", {}, h("a", { href: `#/needs` }, dot(i.project), h("b", {}, i.name || i.need?.name || S.rt.seats.find((s) => s.id === i.project)?.name || i.project),
           " · ", i.ask ? i.ask.question : i.need ? i.need.text : "")))),
         rest.length > 8 ? h("a", { href: "#/needs" }, `and ${rest.length - 8} more`) : null) : null];
     });

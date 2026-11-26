@@ -272,6 +272,7 @@ main { padding: 22px clamp(16px, 2.4vw, 36px) 60px; outline: none; }
 .hall-table { position: relative; min-width: 0; }
 .table-top { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 0; width: min(46%, 400px); aspect-ratio: 1; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--color-on-wood); pointer-events: none;
+  /* the owner (26 November): "keep the artwork from before" – the carved table, in every layout */
   background: var(--table-art) center / 100% no-repeat, radial-gradient(circle at 45% 40%, #8a5a33, #5a3519 58%, #3a210f 72%);
   box-shadow: 0 0 0 10px color-mix(in srgb, #3a210f 85%, transparent), 0 24px 70px rgba(0, 0, 0, .35), 0 0 120px 10px color-mix(in srgb, var(--color-candle-glow) 18%, transparent);
   text-shadow: 0 1px 3px rgba(0, 0, 0, .8), 0 0 16px rgba(0, 0, 0, .5); }
@@ -280,14 +281,19 @@ main { padding: 22px clamp(16px, 2.4vw, 36px) 60px; outline: none; }
 .flame { display: block; width: 12px; height: 18px; margin-bottom: 6px; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
   background: radial-gradient(circle at 50% 70%, #fff3d6, var(--color-candle-glow) 60%); box-shadow: 0 0 18px 6px color-mix(in srgb, var(--color-candle-glow) 55%, transparent);
   animation: flicker 2.6s ease-in-out infinite; }
-.ring { position: relative; height: 640px; }
+.ring { position: relative; height: 640px; isolation: isolate; }
 .ring::before { content: ""; position: absolute; inset: 4% 8%; border-radius: 50%; z-index: -1; background: var(--hall-art) center / cover no-repeat;
-  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 40%, transparent 72%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 40%, transparent 72%); opacity: .7; }
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 45%, transparent 75%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 45%, transparent 75%); opacity: .9; }
 .ring > .seat { position: absolute; width: clamp(160px, 13vw, 200px); transform: translate(-50%, -50%); z-index: 1; }
 .ring > .seat:hover, .ring > .seat:focus-visible { z-index: 3; }
 .ring.empty-hall { height: 360px; }
-.table-band { position: relative; height: 256px; }
-.table-band .table-top { width: 210px; }
+.table-band { position: relative; height: 380px; isolation: isolate; }
+/* the owner (26 November): "keep the artwork from before" – the carved hall behind the table in every layout */
+.table-band::before { content: ""; position: absolute; inset: 0 12%; z-index: -1; background: var(--hall-art) center / cover no-repeat;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 45%, transparent 75%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 45%, transparent 75%); opacity: .85; }
+:root[data-theme="dark"] .table-top, .hall-art-on .table-top { background: transparent; box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .table-top { background: transparent; box-shadow: none; } }
+.table-band .table-top { width: 320px; }
 .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
 .seat { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--color-oak-line); background: var(--color-surface);
   color: var(--color-text); box-shadow: var(--shadow); min-width: 0; transition: border-color var(--fade), transform var(--fade); }
