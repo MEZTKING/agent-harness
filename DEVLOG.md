@@ -4,6 +4,19 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Switch freely, ask Fable about the big things
+
+The owner: "You can switch freely, you don't have to ask questions, however anything super
+important ask Fable and note them down so I can read it later."
+
+- CLAUDE.md: the rule, and what counts as super important.
+- `plans/notes-for-owner.md` (new): the notes the owner reads later, newest first.
+- `Orchestrator._learn_after_run` (new, `improve.after_each_run`): after every run the
+  improvement cycle runs with rules only (no model calls, tests or probes) and applies what
+  `improve.auto_apply` allows; each switch goes in the journal as a decision with its reason
+  and undo command. Test: `test_learning_after_each_run_applies_rule_backed_switches`; 166 pass.
+- The lab: `improve: {after_each_run: true, auto_apply: low}`.
+
 ## 2026-11-26 – The music player is finished; the first real Look step
 
 The owner topped up DeepSeek; the last pieces were built with the token saver on.

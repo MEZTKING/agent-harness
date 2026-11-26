@@ -1064,10 +1064,37 @@ class Orchestrator(LookStage):
         self._balance_start = start
         self._last_real_check = time.time()
         try:
-            return self._run(max_tasks)
+            status = self._run(max_tasks)
         finally:
             if start:
                 self._note_balance("end", start)
+        if status != "awaiting_approval":
+            self._learn_after_run()
+        return status
+
+    def _learn_after_run(self) -> None:
+        """improve.after_each_run: look at what the runs showed and apply what the policy allows.
+
+        Rules only (no model calls, no replay tests, no probes), so it costs nothing; what changed goes
+        into the journal as a decision, so the owner can read later what was switched and why.
+        """
+        if not self.base_cfg.improve.get("after_each_run") or not self.base_cfg.lab_dir:
+            return
+        try:
+            from ..improve.lab import Lab
+            from ..improve.loop import cycle
+
+            lab = Lab(self.base_cfg.lab_dir)
+            report = cycle(self.base_cfg.variant(), lab, use_llm=False, test=False, probe=False)
+        except Exception as e:  # learning is a bonus; never fail a run over it
+            self.emit("learn_failed", {"error": str(e)[:300]})
+            return
+        for a in report.get("applied", []):
+            p = next((x for x in lab.proposals() if x.id == a["id"]), None)
+            why = p.rationale if p else ""
+            self.emit("improved", {"id": a["id"], "version": a["version"], "summary": a["summary"]})
+            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why} "
+                                      f"(undo: roundtable improve rollback {a['version']})")
 
     REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
 

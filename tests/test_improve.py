@@ -267,3 +267,11 @@ def test_rule_spots_a_fallback_that_keeps_rescuing_a_cheap_primary(tmp_path):
     assert "41%" in props[0].rationale and "$0.19" in props[0].rationale and "$0.28" in props[0].rationale
     ds.stats[("coder", "b/coder2")].cost = 4 * 2.0  # rescuing, but dearer per finished task: not this rule
     assert all("finished only" not in p.rationale for p in rule_proposals(cfg, ds))
+
+
+def test_learning_after_each_run_applies_rule_backed_switches(tmp_path):
+    cfg, lab = make_cfg(tmp_path)
+    cfg.improve.update({"after_each_run": True, "auto_apply": "low"})
+    run_projects(cfg, tmp_path, 2)  # coder rejected every time, coder2 approved: a routing rule fires
+    overlay, _ = lab.learned()
+    assert overlay["roles"]["coder"]["model"] == "b/coder2"

@@ -37,6 +37,16 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
 - **Branches:** develop on the session's branch; `main` is what's installed (`pip
   install git+…@main` and the app's updater follow it). Merge through a pull request
   once CI is green; never force-push; merge instead of rebasing pushed work.
+- **Switch freely; ask Fable about the big things, and write them down** (owner,
+  26 November 2026: "You can switch freely, you don't have to ask questions, however
+  anything super important ask Fable and note them down so I can read it later").
+  Model and routing switches, fixes and other reversible choices: just do them and log
+  them. Anything super important (spending well past an estimate, deleting or
+  publishing, a change of direction, a security or privacy question): ask Fable (a
+  sub-agent on the strongest model) for advice, act on it, and note the question, the
+  advice and what was done in [plans/notes-for-owner.md](plans/notes-for-owner.md),
+  newest first. Roundtable does the same for its own switches
+  (`improve.after_each_run`: decisions in the journal).
 - **Money is the owner's.** A real run costs the owner's API credit. Show the estimate
   before a build, stop and ask when a run goes well past it, and check the provider's
   real balance when Roundtable's own count may be wrong.
