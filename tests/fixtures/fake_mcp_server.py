@@ -57,7 +57,11 @@ if __name__ == "__main__":
     log = os.environ.get("FAKE_MCP_LOG")
     if log:
         Path(log).write_text("started\n", encoding="utf-8")
-    server.run(transport="stdio")
+    port = os.environ.get("FAKE_MCP_PORT")  # set: serve over HTTP at http://127.0.0.1:<port>/mcp, like Unreal
+    if port:
+        server.run(transport="streamable-http", host="127.0.0.1", port=int(port))
+    else:
+        server.run(transport="stdio")
     if log:
         with open(log, "a", encoding="utf-8") as f:
             f.write("stopped\n")

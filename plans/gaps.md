@@ -6,6 +6,12 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **MCP tool servers: only workers use them, and only from harness.yaml** (26 November): planning,
+  asks and the run report get no MCP tools, there's no page in the app to add or check a server
+  (`roundtable mcp list` only), and nothing has been tried against a real Unreal editor yet. An
+  "Unreal game" kind (plans/kinds.md) would set the roles, the server and pictures of the game
+  running. → release 2 (a real try on the owner's PC), kinds after.
+
 - **Autopilot can't approve a plan with pictures** (26 November): the estimate doesn't price picture
   models (an image role's cost comes out unknown), so autopilot leaves those plans for the owner.
   Pricing pictures per image in `plandoc.estimate` would let it decide. → release 2.

@@ -27,6 +27,14 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.7.2
+
+- **Tool servers (MCP) for your roles**: a role can use the tools of any MCP server, such as the
+  Unreal Engine editor's own (Unreal 5.8 and later), so models can build Blueprints, levels and
+  assets in the open editor. Add the server under `mcp_servers:` in `harness.yaml`, give it to a role
+  with `mcp: [name]`, and check it with `roundtable mcp list`. How: [docs/mcp.md](docs/mcp.md);
+  making a game in Unreal: [docs/unreal.md](docs/unreal.md).
+
 ### What's new in 0.7.1
 
 - **See what's being made**: after every approved task Roundtable starts the app and takes pictures
@@ -690,6 +698,15 @@ with Roundtable's full access**: Roundtable shows what it says it will do and as
 adding it, but can't hold it to that, so only add plugins from people you trust. A plugin
 that goes wrong is switched off for the rest of the run, and the run carries on. How to
 write one, the hooks and the permissions: [docs/plugins.md](docs/plugins.md).
+
+### Tool servers (MCP)
+
+A role can also use the tools of an MCP server: a program, often inside another app, that
+offers tools to AI models (Unreal Engine's editor, Blender, a database). List the server under
+`mcp_servers:` in `harness.yaml`, add `mcp: [its name]` to the roles that should use it, and
+run `roundtable mcp list` to see that it answers. A server that isn't running never stops a
+run: its tools are left out and the run's events say why. Details: [docs/mcp.md](docs/mcp.md);
+Unreal Engine: [docs/unreal.md](docs/unreal.md).
 
 ---
 

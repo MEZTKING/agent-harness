@@ -226,3 +226,32 @@ def test_worker_calls_an_mcp_tool_and_finishes(tmp_path):
     assert calls and calls[0]["error"] is False
     assert orch._mcp is None  # closed when the run ended
     assert wait_for(lambda: "stopped" in log.read_text(encoding="utf-8"))
+
+
+def test_a_server_over_http_like_unreal(tmp_path):
+    """The fake editor served over streamable HTTP, the way Unreal's editor serves its tools."""
+    import os
+    import socket
+    import subprocess
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = {**os.environ, "FAKE_MCP_PORT": str(port), "PYTHONIOENCODING": "utf-8"}
+    proc = subprocess.Popen([sys.executable, FAKE], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        def answering():
+            with socket.socket() as c:
+                return c.connect_ex(("127.0.0.1", port)) == 0
+        assert wait_for(answering, 20), "the fake HTTP server didn't start"
+        pool = MCPPool({"unreal": {"url": f"http://127.0.0.1:{port}/mcp", "timeout": 30}})
+        try:
+            tools = {t.spec.name: t for t in pool.tools_for(["unreal"])}
+            assert "mcp__unreal__spawn_actor" in tools
+            assert tools["mcp__unreal__spawn_actor"].fn({"name": "Door"}) == "spawned Door at (0.0, 0.0)"
+            assert "héllo" in tools["mcp__unreal__get_blueprint"].fn({"path": "/Game/BP_Door"})
+        finally:
+            pool.close()
+    finally:
+        proc.terminate()
+        proc.wait(10)
