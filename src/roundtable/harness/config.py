@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime, timedelta, timezone
 import os
+import re
 from dataclasses import dataclass, field, replace
 from importlib import resources
 from pathlib import Path
@@ -102,6 +103,7 @@ class RoleSpec:
     options: dict[str, Any] = field(default_factory=dict)  # provider-specific (effort, temperature...)
     review: bool = True  # have the reviewer check this role's work
     tools: list[str] | None = None  # restrict workspace tools; None = role default
+    mcp: list[str] = field(default_factory=list)  # MCP servers (mcp_servers:) whose tools this role gets
 
 
 @dataclass
@@ -146,6 +148,8 @@ class HarnessConfig:
     token_saver: SaverConfig = field(default_factory=SaverConfig)  # slims big tool results (saver.py)
     # plugins: {id: {enabled, settings, path, permissions, ...}} from harness.yaml and custom.yaml
     plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # MCP servers: {name: {command, args, env, cwd} or {url, headers}, plus tools, timeout, enabled}
+    mcp_servers: dict[str, dict[str, Any]] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
     _shared: dict[str, Any] = field(default_factory=dict, repr=False)  # shared by variants (the plugin host)
 
@@ -405,11 +409,85 @@ def find_config(explicit: str | None = None) -> Path:
     raise FileNotFoundError("No harness config found. Pass --config, set HARNESS_CONFIG, or run `roundtable init`.")
 
 
+def _str_list(value: Any, what: str) -> list[str]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not all(isinstance(v, (str, int, float)) for v in value):
+        raise ValueError(f"{what} must be a list, e.g. [\"one\", \"two\"]")
+    return [str(v) for v in value]
+
+
+def _str_map(value: Any, what: str) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be a mapping of names to values, e.g. {{NAME: value}}")
+    return {str(k): "" if v is None else str(v) for k, v in value.items()}
+
+
+def _mcp_servers(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """mcp_servers: {name: {command, args, env, cwd} | {url, headers}, tools, timeout, enabled}, checked."""
+    servers = raw.get("mcp_servers") or {}
+    if not isinstance(servers, dict):
+        raise ValueError("mcp_servers must be a mapping of a short name to the server, e.g. "
+                         "unreal: {url: \"http://127.0.0.1:8000/mcp\"}")
+    out: dict[str, dict[str, Any]] = {}
+    for name, spec in servers.items():
+        name = str(name)
+        where = f"mcp_servers: {name!r}"
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", name):
+            raise ValueError(f"{where}: a server's name may only have letters, digits, - and _ (at most 40)")
+        if not isinstance(spec, dict):
+            raise ValueError(f"{where} needs either command: (a program to run) or url: (an address)")
+        unknown = set(spec) - {"command", "args", "env", "cwd", "url", "headers", "tools", "timeout", "enabled",
+                               "description"}
+        if unknown:
+            raise ValueError(f"{where}: unknown setting(s) {', '.join(sorted(map(str, unknown)))}; "
+                             "use command, args, env, cwd, url, headers, tools, timeout or enabled")
+        if ("command" in spec) == ("url" in spec):
+            raise ValueError(f"{where} needs exactly one of command: (a program to run) or url: (an address)")
+        entry: dict[str, Any] = {"enabled": True, "timeout": 120.0}
+        if "command" in spec:
+            if not isinstance(spec["command"], str) or not spec["command"].strip():
+                raise ValueError(f"{where}: command must be the program to run, e.g. command: uvx")
+            entry["command"] = spec["command"]
+            entry["args"] = _str_list(spec.get("args") or [], f"{where}: args")
+            entry["env"] = _str_map(spec.get("env") or {}, f"{where}: env")
+            if spec.get("cwd") is not None:
+                entry["cwd"] = str(Path(str(spec["cwd"])).expanduser())
+            if "headers" in spec:
+                raise ValueError(f"{where}: headers are only for a server with url:")
+        else:
+            url = spec["url"]
+            if not isinstance(url, str) or not re.match(r"https?://", url):
+                raise ValueError(f"{where}: url must start with http:// or https://, e.g. http://127.0.0.1:8000/mcp")
+            entry["url"] = url
+            entry["headers"] = _str_map(spec.get("headers") or {}, f"{where}: headers")
+            for key in ("args", "env", "cwd"):
+                if key in spec:
+                    raise ValueError(f"{where}: {key} is only for a server with command:")
+        if spec.get("tools") is not None:
+            entry["tools"] = _str_list(spec["tools"], f"{where}: tools")
+        try:
+            entry["timeout"] = float(spec.get("timeout", 120))
+        except (TypeError, ValueError):
+            raise ValueError(f"{where}: timeout must be a number of seconds, e.g. timeout: 300") from None
+        if entry["timeout"] <= 0:
+            raise ValueError(f"{where}: timeout must be more than 0 seconds")
+        enabled = spec.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ValueError(f"{where}: enabled must be true or false")
+        entry["enabled"] = enabled
+        if spec.get("description"):
+            entry["description"] = str(spec["description"])
+        out[name] = entry
+    return out
+
+
 def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig:
     providers = raw.get("providers") or {}
     for name, spec in providers.items():
         if (spec or {}).get("type") not in PROVIDER_TYPES:
             raise ValueError(f"provider {name!r}: type must be one of {PROVIDER_TYPES}")
+    mcp_servers = _mcp_servers(raw)
 
     roles: dict[str, RoleSpec] = {}
     for name, spec in (raw.get("roles") or {}).items():
@@ -423,6 +501,13 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         kind = spec.get("kind", "chat")
         if kind not in ("chat", "image"):
             raise ValueError(f"role {name!r}: kind must be 'chat' or 'image'")
+        mcp = _str_list(spec.get("mcp") or [], f"role {name!r}: mcp")
+        for server in mcp:
+            if server not in mcp_servers:
+                raise ValueError(f"role {name!r}: mcp lists {server!r}, but there is no such server under "
+                                 f"mcp_servers (have: {', '.join(mcp_servers) or 'none'})")
+        if mcp and kind != "chat":
+            raise ValueError(f"role {name!r}: only chat roles can use MCP servers")
         roles[name] = RoleSpec(
             name=name,
             models=models,
@@ -433,6 +518,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             options=dict(spec.get("options", {})),
             review=bool(spec.get("review", kind == "chat")),
             tools=spec.get("tools"),
+            mcp=mcp,
         )
 
     planner = raw.get("planner_role", "orchestrator")
@@ -501,6 +587,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         default_profile=default_profile,
         token_saver=_token_saver(raw, plugins),
         plugins=plugins,
+        mcp_servers=mcp_servers,
     )
 
 
