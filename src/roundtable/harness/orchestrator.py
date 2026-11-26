@@ -24,6 +24,7 @@ from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, run_agent
 from . import plandoc
+from .lookstage import LookStage
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
@@ -158,7 +159,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator:
+class Orchestrator(LookStage):
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -268,7 +269,7 @@ class Orchestrator:
             doc = self.project.plan_doc()
             if not hub or not doc:
                 return
-            from ..core.store import TextFile
+            from ..core.store import BinaryFile, TextFile
 
             agent = self._hub_agent()
             name = agent if agent == self.project.root.name else f"{agent}--{self.project.root.name}"
@@ -277,9 +278,11 @@ class Orchestrator:
                      else "done" if meta.get("status") == "done" else "waiting for the owner")
             gi = doc.get("goal_index", 0)
             md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
-                  + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi]))
-            hub.store.write_json({f"plans/{name}.md": TextFile(md + "\n")},
-                                 f"plan({name}): v{doc.get('version', 1)} {state}")
+                  + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
+                                            image_base=f"looks/{name}/"))
+            files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n")}
+            files.update({f"plans/looks/{name}/{f}": BinaryFile(b) for f, b in self._look_pictures().items()})
+            hub.store.write_json(files, f"plan({name}): v{doc.get('version', 1)} {state}")
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
 
@@ -340,12 +343,16 @@ class Orchestrator:
     def _roles_text(self) -> str:
         lines = []
         for r in self.cfg.roles.values():
-            if r.name in (self.cfg.planner_role, self.cfg.reviewer_role, self.cfg.critic_role):
+            if r.name in self._not_for_tasks() or r.name == self.cfg.reviewer_role:
                 continue
             kind = (" (image generation: description = the visual prompt; set output_path, and image_options "
                     "for style/size when the role description lists choices)") if r.kind == "image" else ""
             lines.append(f"- {r.name}{kind}: {r.description or 'general work'}")
         return "\n".join(lines)
+
+    def _not_for_tasks(self) -> set[str]:
+        """Roles that plan, critique or design looks: never given a task."""
+        return {r for r in (self.cfg.planner_role, self.cfg.critic_role, self.cfg.design_role) if r}
 
     def _project_context(self, tasks: list[Task], upto: Task | None = None) -> str:
         meta = self.project.meta()
@@ -356,6 +363,9 @@ class Orchestrator:
         plan_text = plandoc.context_text(self.project.plan_doc())
         if plan_text:
             parts.append(plan_text)
+        design = self._design_context()
+        if design:
+            parts.append(design)
         parts.append(f"# Task board\n{board}")
         if done:
             parts.append("# Completed work\n" + "\n".join(done))
@@ -474,7 +484,7 @@ class Orchestrator:
             {
                 "id": {"type": "string", "description": "short unique id like T1, T2"},
                 "title": {"type": "string"},
-                "role": {"type": "string", "enum": sorted(r for r in roles if r not in (self.cfg.planner_role, self.cfg.critic_role))},
+                "role": {"type": "string", "enum": sorted(r for r in roles if r not in self._not_for_tasks())},
                 "description": {"type": "string", "description": "complete, self-contained instructions"},
                 "acceptance": {"type": "string", "description": "how to verify it is done (tests to pass, files to exist...)"},
                 "depends_on": {"type": "array", "items": {"type": "string"}},
@@ -555,7 +565,8 @@ class Orchestrator:
             + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
             + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
               "don't-do list, a short spec, the real decisions with your recommendation, questions only you can't "
-              "answer, worthwhile ideas) and the tasks, each linked to its spec section."
+              "answer, worthwhile ideas), has_ui (true when people will look at its screens) and the tasks, each "
+              "linked to its spec section."
         )
         new, args = self._plan_call(job, existing)
         for t in new:
@@ -567,6 +578,7 @@ class Orchestrator:
         self.project.save_plan_doc(doc, tasks)
         self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": doc["summary"][:500]})
         self._critique()
+        self._look_stage()
         doc = self.project.plan_doc() or doc
         new = [t for t in self.project.tasks() if t.goal_index == goal_index]
         meta = self.project.meta()
@@ -692,13 +704,16 @@ class Orchestrator:
         self.emit("plan_revised", {"version": new_doc["version"], "by": by, **diff})
         if by != "critic":  # the first plan publishes after its critique
             self._publish_plan()
+        if self._look_changed(new_doc):
+            self.apply_look()
         if by == "owner":
             self.project.append("chat.jsonl", {"at": utcnow(), "who": "orchestrator", "text": summary, "steer": False})
         if critique_again:
             self._critique()
         return {"version": new_doc["version"], "summary": summary, **diff}
 
-    PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note")
+    PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note",
+                    "look")
 
     def plan_update(self, action: str, **kw: Any) -> dict[str, Any]:
         """The owner edits the plan. Edits wait in `pending` until revise_plan applies them (one model call)."""
@@ -761,6 +776,8 @@ class Orchestrator:
                     raise HarnessError("no such scope item")
                 doc[key].remove(text)
                 note(f"No longer {'out of' if kw.get('out') else 'in'} scope: {text}", f"{key}:{text[:40]}")
+        elif action == "look":
+            self._choose_look(doc, kw, note)
         elif action == "note":
             text = str(kw.get("text", "")).strip()[:2000]
             if not text:
@@ -845,7 +862,8 @@ class Orchestrator:
             f"# Acceptance criteria\n{task.acceptance or '(use judgement)'}\n\n"
             f"# Worker's summary\n{worker_summary}\n\n"
             + (f"{self._guidance_text()}\n\n" if self._guidance_text() else "")
-            + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "") +
+            + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "")
+            + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
             "Verify the work (read files, run tests if relevant), then call submit_review."
         )

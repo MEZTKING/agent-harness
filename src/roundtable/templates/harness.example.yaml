@@ -43,7 +43,11 @@ roles:
   reviewer:                         # checks every task against its acceptance criteria
     model: anthropic/claude-opus-5-5
     options: {effort: medium}
-  designer:                         # pixel-art game assets; model = default style
+  designer:                         # designs the app's looks to choose from (a model that can see pictures)
+    model: anthropic/claude-opus-5-5
+    fallback: [deepseek/deepseek-v4-pro]
+    max_tokens: 32000                 # three mockup pages in one answer
+  artist:                           # pixel-art game assets; model = default style
     kind: image
     model: retrodiffusion/rd_lite__default
     options: {width: 64, height: 64}
@@ -64,6 +68,8 @@ roles:
 planner_role: orchestrator
 reviewer_role: reviewer             # remove to skip reviews
 critic_role: critic                 # remove to skip the plan critique
+design_role: designer               # who designs the looks (default: a chat role named designer, else the planner)
+look_stage: auto                    # auto: offer three looks when the plan is an app with screens; off: only when asked
 # prompts_dir: ./prompts            # override built-in prompts (orchestrator.md, coder.md, ...)
 
 # USD per 1M tokens. Claude prices are built in; add the rest from each

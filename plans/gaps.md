@@ -6,13 +6,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
-- **Every app looks the same.** The music player came out in a generic "clean" style
-  (system font, plain blue), because nothing in the plan says what this app should look
-  like. The owner (26 November 2026): "I want the UI to be unique for whatever
-  application I make." → release 2: a Look stage in the plan (three mockups to choose
-  from), a design file per project that every task follows, a check of the screenshots
-  against it, and no two projects with the same look unless asked.
-
 - **The estimate's defaults are guesses.** With no history it assumes 60,000 input and
   8,000 output tokens per attempt. In real money the music player's estimate was about
   right once the cost count was fixed (below), but the defaults should come from real
@@ -35,6 +28,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Fixed
 
+- **Every app looks the same** (26 November): an app with screens now gets a Look step in
+  its plan – three different looks with pictures, the chosen one written as
+  `design/DESIGN.md` and `design/tokens.css` that every task and review follows, a check
+  for colours and fonts outside it, and never the look of another project unless asked.
 - **The cost count was about ten times too high** (26 November): text a model had
   already seen was charged at the full input price. Task 2 of the music player was
   counted at $0.27; the DeepSeek balance went down by about 2–3 cents. Cache hits are now

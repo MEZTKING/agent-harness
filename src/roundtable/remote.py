@@ -10,7 +10,9 @@ are obeyed. Anyone who can write to the hub repository could already change ever
 this adds no new access; it only makes the owner's intent actionable.
 
 Actions: the plan edits (choose, answer, dont_add, dont_remove, idea, section, scope_add,
-scope_remove, note), revise, approve (then run), run, retry, skip, steer, ask.
+scope_remove, note, look: choose a look by its id, with an optional note), revise, approve (then
+run), run, retry, skip, steer, ask, looks (make new looks to choose from; ``text`` is the owner's
+starting point).
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 PREFIX = "roundtable:"
-LONG = {"revise", "approve", "run", "retry", "skip", "ask"}
+LONG = {"revise", "approve", "run", "retry", "skip", "ask", "looks"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -54,6 +56,10 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     kw = {k: v for k, v in cmd.items() if k != "action"}
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
+    if action == "looks":
+        r = orch.look(kw.get("text", ""))
+        names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
+        return f"New looks to choose from: {names}. They're in the plan in the hub; send 'look' with your pick."
     if action in orch.PLAN_ACTIONS:
         r = orch.plan_update(action, **kw)
         return f"Done. {r['pending']} change(s) waiting: send 'revise' (Update plan) to apply them."

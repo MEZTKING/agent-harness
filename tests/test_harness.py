@@ -93,7 +93,8 @@ def test_template_config_is_valid():
     raw = yaml.safe_load(resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text())
     cfg = parse_config(raw)
     assert cfg.roles["coder"].models == [ModelRef("deepseek", "deepseek-v4-pro"), ModelRef("anthropic", "claude-sonnet-5-5")]
-    assert cfg.roles["designer"].kind == "image" and cfg.roles["designer"].review is False
+    assert cfg.roles["artist"].kind == "image" and cfg.roles["artist"].review is False
+    assert cfg.design_role == "designer" and cfg.roles["designer"].kind == "chat" and cfg.look_stage == "auto"
     assert cfg.cost(ModelRef("anthropic", "claude-opus-5-5"), Usage(1_000_000, 0)) == 4.0
     assert cfg.cost(ModelRef("deepseek", "deepseek-v4-pro"), Usage(10, 10)) is None
 

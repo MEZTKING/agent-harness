@@ -563,6 +563,8 @@ async function viewPlan(path) {
     questions.length ? [h("h3", {}, "Questions for you"), questions] : null,
     ideas.length ? [h("h3", {}, "Recommended ideas"), ideas] : null) : null;
 
+  const looks = lookSection(doc.look || {}, d.busy, q, edit, startJob);
+
   const cr = doc.critique;
   const critique = cr ? section(`Second opinion · ${cr.model}`,
     h("p", {}, h("span", { class: "pill " + (cr.verdict === "good" ? "good" : "warn") }, cr.verdict === "good" ? "looks good" : "suggested changes"),
@@ -602,7 +604,42 @@ async function viewPlan(path) {
 
   return h("div", { class: "plan-page" }, back, h("h1", {}, `Plan · ${d.name}`),
     h("p", { class: "sub" }, "Read it, choose, answer, cut or add, then Update plan. Nothing is built until you approve."),
-    head, input, critique, scope, spec, history);
+    head, looks, input, critique, scope, spec, history);
+}
+
+// The look: the designer's directions side by side, a "Choose this look" button each, and "Make new looks".
+function lookSection(lk, busy, q, edit, startJob) {
+  const dirs = lk.directions || [];
+  const note = h("input", { class: "grow", placeholder: "Anything to change in the one you choose? (optional), e.g. “warmer colours”" });
+  const brief = h("input", { class: "grow", placeholder: "A starting point for new looks (optional), e.g. “like an old record shop”" });
+  const pics = {};
+  const swatch = (hex, title) => h("span", { class: "swatch", title: `${title} ${hex}`, style: `background:${hex}` });
+  const card = (x) => {
+    const chosen = lk.chosen === x.id, light = x.palette.light;
+    pics[x.id] = h("img", { class: "look-pic", alt: `Look ${x.id}: ${x.name}` });
+    return h("div", { class: "look" + (chosen ? " chosen" : "") }, pics[x.id],
+      h("b", {}, `${x.id} · ${x.name}`, chosen ? h("span", { class: "pill info", style: "margin-left:6px" }, "your choice") : null),
+      h("div", { class: "small" }, x.mood),
+      h("div", { class: "muted small" }, "Signature: ", x.signature),
+      h("div", { class: "row swatches", title: "Its colours (light)" }, ["background", "surface", "text", "accent"].map((k) => swatch(light[k], k)),
+        h("span", { class: "muted small" }, `${x.fonts.display.family} · ${x.fonts.body.family}`)),
+      h("button", { class: chosen ? "" : "primary", disabled: busy, title: "Then Update plan: the look becomes the app's design file",
+        onclick: () => edit({ action: "look", id: x.id, note: note.value }, `Chosen: ${x.name}. Update the plan to apply it.`) },
+      chosen ? "Chosen (choose again to change the note)" : "Choose this look"));
+  };
+  if (dirs.length && Object.keys(lk.pictures || {}).length) {
+    api("GET", `/api/plan/looks?path=${q}`).then((r) => {
+      for (const [id, p] of Object.entries(r.pictures || {})) if (pics[id] && p.desktop) pics[id].src = p.desktop;
+    }).catch(() => { /* the cards still show the words */ });
+  }
+  return section("Look",
+    h("p", { class: "muted small" }, dirs.length ? "Choose how the app looks. Every task then follows the design file of the look you choose."
+      : "No looks yet. Roundtable can design three different looks for the app, with a picture of each, for you to choose from."),
+    dirs.length ? h("div", { class: "looks" }, dirs.map(card)) : null,
+    dirs.length && !Object.keys(lk.pictures || {}).length && lk.render_note ? h("p", { class: "muted small" }, lk.render_note) : null,
+    dirs.length ? h("div", { class: "row" }, note) : null,
+    h("div", { class: "row" }, brief, h("button", { disabled: busy, title: "Asks the designer for new looks (a model call, so it costs a little)",
+      onclick: () => startJob({ action: "looks", text: brief.value }, "Designing new looks…") }, dirs.length ? "Make new looks" : "Make looks")));
 }
 
 async function viewRun(path) {
