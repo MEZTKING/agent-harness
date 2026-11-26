@@ -233,7 +233,7 @@ NO_PRO = {"deepseek/deepseek-v4-pro": FLASH, "openference/DeepSeek-V4-Pro": "ope
 def _template_hash(text: str) -> str:
     import hashlib
 
-    return hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+    return hashlib.sha256(text.replace("\r", "").encode("utf-8")).hexdigest()  # line endings ignored (Windows may add \r\r)
 
 
 def migrate_configs(paths: Paths, today=None) -> list[str]:

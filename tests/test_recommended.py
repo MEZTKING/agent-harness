@@ -201,7 +201,7 @@ def hub_decisions(paths):
 def test_migration_replaces_an_untouched_old_template(paths, monkeypatch):
     old = "roles:\n  orchestrator: {model: anthropic/claude-fable-5-2}\n"  # stands in for an old shipped template
     monkeypatch.setattr(desktop, "OLD_TEMPLATES", desktop.OLD_TEMPLATES | {desktop._template_hash(old)})
-    paths.harness_yaml.write_text(old.replace("\n", "\r\n"), encoding="utf-8")  # as Windows wrote it
+    paths.harness_yaml.write_bytes(old.replace("\n", "\r\n").encode("utf-8"))  # as Windows wrote it
     done = migrate_configs(paths, today=date(2026, 11, 26))
     assert done and paths.harness_yaml.read_text(encoding="utf-8") == recommended.template_text()
     assert (paths.config / "harness.yaml.before-2026-11-26").exists()
