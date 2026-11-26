@@ -4,6 +4,22 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Tap to answer, plugins, and a new look for Roundtable
+
+The owner: Roundtable should ask by "pressing, rather than typing, but obviously give an option
+to type"; "also do a redesign for Roundtable"; and "a plugin system, just like DeepSeek
+Harness, so we can add token saving or whatever else people want".
+
+- Merged the Google Drive backups (`backup.py`, 218 tests pass).
+- Roundtable's Look step designed three looks for Roundtable itself (a hand-made plan for a
+  `roundtable-ui` project in the lab: the Hall, a Needs you card answered by tapping;
+  Claude Sonnet through OpenRouter, $0.15): Candlelit Oak, Ink Stamp Hall, Sea-Glass Dials.
+  The owner chose **A, Candlelit Oak**; its design file is written in that lab project.
+- Two jobs started in parallel worktrees with separate files: `plugins` (the plugin API, the
+  token saver as the first built-in plugin, a cost-log example, `roundtable plugin …`) and
+  `question-cards` (one "ask" shape for everything waiting for the owner, answer by tapping
+  on the desktop and the phone, a new-project wizard of cards). The restyle follows them.
+
 ## 2026-11-26 – Backups (to Google Drive's folder)
 
 The owner asked: "Also add support to back up settings to Google Drive, and anything else

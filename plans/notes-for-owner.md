@@ -9,6 +9,14 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **Roundtable's new look: A, Candlelit Oak** (your choice from three looks Roundtable
+  designed for itself, $0.15). The design file is ready; the restyle of the desktop app and
+  the phone starts once the tap-to-answer cards are finished, because both change the same
+  screens.
+- **Being built now, side by side:** the plugin system (the token saver becomes the first
+  plugin; anyone can add more) and tap-to-answer cards everywhere Roundtable asks you
+  something (with an Other box for typing).
+
 - **The restyle is finished** (your choices: accept step 2 from the pictures, do step 3). Step 3
   (tests and guide) used its whole $0.50 limit and stopped just before its check; the work
   itself passed 396 tests and the guide is right, so I accepted it. **The restyle cost about
