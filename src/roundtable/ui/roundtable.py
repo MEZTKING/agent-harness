@@ -176,6 +176,9 @@ def build(app) -> dict[str, Any]:
             h["state"] = "ok" if h["passed"] == h["total"] else ("warn" if h["passed"] >= h["total"] - 1 else "bad")
             health.append(h)
 
+    pilot = _autopilot(app)
+    for s in seats.values():
+        s["autopilot"] = bool(pilot.get("on") and s.get("path") and s["id"] not in pilot.get("never", []))
     order = {"running": 0, "waiting": 1, "idle": 2, "done": 3}
     # running first, then waiting, idle, done; most recently active first within each group
     seat_list = sorted(seats.values(), key=lambda s: (order.get(s["status"], 9), _age_s(s.get("last_activity") or "")))
@@ -183,7 +186,18 @@ def build(app) -> dict[str, Any]:
         "seats": seat_list, "needs_you": needs, "health": sorted(health, key=lambda h: h["model"]),
         "spend_today": round(spend_today, 6), "synced_at": app.last_auto_sync, "agent": app.agent,
         "running_jobs": sum(j.status == "running" for j in app.jobs.jobs.values()),
+        "autopilot": pilot,
     }
+
+
+def _autopilot(app) -> dict[str, Any]:
+    """Autopilot's switch for the header and the seats; never breaks the table."""
+    try:
+        from ..autopilot import status
+
+        return status(app._backup_home())
+    except Exception:
+        return {"on": False, "never": []}
 
 
 TOOL_MAIN_ARG = ("path", "command", "pattern", "query", "summary", "approved")
@@ -278,6 +292,17 @@ class AutoSync:
     def tick(self) -> None:
         self.daily_backup()
         self.start_cheap_runs()
+        self.sync_hub()
+        self.autopilot()
+
+    def autopilot(self) -> None:
+        """After the other jobs: answer what waits with the recommendations while autopilot is on."""
+        try:
+            self.app.autopilot_tick()
+        except Exception as e:  # never let the tick fail
+            self.app.auto_sync_error = f"autopilot: {e}"[:300]
+
+    def sync_hub(self) -> None:
         if not self.app.hub:
             return
         try:

@@ -15,7 +15,8 @@ link, a GitHub repository or a description to make it like, reference_remove: ``
 run), run, retry, skip, steer, ask, looks (make new looks to choose from; ``text`` is the owner's
 starting point), answer (a tapped card: ``id`` of the ask, ``chosen`` option ids, ``other`` typed
 text, ``confirmed`` after "Are you sure?", ``stamp`` so an old card can't answer a changed question;
-see asks.py; the phone reads the cards from plans/<project>.asks.json).
+see asks.py; the phone reads the cards from plans/<project>.asks.json), autopilot (one switch for every
+project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``never``; see autopilot.py).
 """
 
 from __future__ import annotations
@@ -61,6 +62,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         return f"Couldn't do that: {cmd.get('error')}."
     if action == "answer":
         return _answer(orch, kw)
+    if action == "autopilot":
+        return autopilot_command(cfg, kw)
     if action == "looks":
         r = orch.look(kw.get("text", ""))
         names = ", ".join(f"{x['id']} {x['name']}" for x in r["looks"])
@@ -92,6 +95,24 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "ask":
         return orch.ask(kw.get("text", ""))["reply"]
     return f"Unknown action {action!r}."
+
+
+def autopilot_command(cfg, kw: dict[str, Any]) -> str:
+    """Autopilot from the phone: {"state": "on" | "off" | "status", "until": "08:00", "cap": 2,
+    "project": name, "never": true} (or {"on": true/false}). It's one switch for every project."""
+    from . import autopilot
+
+    mode = kw.get("state") or ({True: "on", False: "off"}.get(kw.get("on")) if "on" in kw else "status")
+    if kw.get("project") and "never" in kw:
+        autopilot.set_never(str(kw["project"]), bool(kw["never"]))
+        return f"{kw['project']} is {'never' if kw['never'] else 'again'} on autopilot."
+    if mode == "on":
+        return f"Autopilot on, {autopilot.turn_on(kw.get('until'), kw.get('cap'), cfg=cfg)['label']}."
+    if mode == "off":
+        autopilot.turn_off("you turned it off from the phone.", cfg=cfg)
+        return "Autopilot off."
+    st = autopilot.status()
+    return f"Autopilot: {st['label']}."
 
 
 def _answer(orch, kw: dict[str, Any]) -> str:

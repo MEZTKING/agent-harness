@@ -131,6 +131,9 @@ class GitHubHub(
     /** The project's questions to tap (plans/<project>.asks.json, written next to the plan); null when there's none. */
     suspend fun asks(project: String): String? = getOrNull("plans/$project.asks.json")
 
+    /** Autopilot's switch and its newest log lines (plans/autopilot.json, written by the PC); null when there's none. */
+    suspend fun autopilot(): String? = getOrNull("plans/autopilot.json")
+
     /** Every file path in the repository with its blob sha (one call). Null when GitHub cut the list short. */
     private suspend fun tree(): Map<String, String>? {
         val t = ApiJson.decodeFromString<Tree>(execute(

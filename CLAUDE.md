@@ -102,7 +102,8 @@ for every role, `roundtable new` / `plan` / `approve` / `run`, and the hub confi
 
 The owner has given standing permission to merge and release the desktop app.
 
-1. Raise `version` in `pyproject.toml` (the phone app reads it too); a line in
+1. Raise `version` in `pyproject.toml` (the phone app reads it too) **and** `__version__` in
+   `src/roundtable/__init__.py` (the installer checks it; a test keeps them equal); a line in
    DEVLOG.md and the README's notes.
 2. Pull request from the session's branch to `main`; wait for CI green; merge.
 3. Run `.github/workflows/app.yml` by hand with `release_tag: v<version>`: it builds the

@@ -567,7 +567,7 @@ class UIApp:
     def asks_post(self, body):
         """Answer a card: {path, id, chosen, other, confirmed, stamp, skip}; or start a project from the
         wizard's answers: {wizard: {kind, idea, like, profile, look}} (each {chosen, other})."""
-        from ..asks import answer_ask, finish
+        from ..asks import answer_ask
         from ..harness.orchestrator import HarnessError, Orchestrator
 
         cfg = self.need_cfg()
@@ -584,15 +584,57 @@ class UIApp:
             raise ApiError(str(e))
         if not r.get("then"):
             return {"reply": r["reply"]}
+        return {"reply": r["reply"], "job": self.start_answer_job(cfg, proj.root, r).view()}
+
+    def start_answer_job(self, cfg, root: Path, r: dict[str, Any], why: str = "") -> Job:
+        """The long step an answer started (a run, a plan update, new looks) as a background job."""
+        from ..asks import finish
+
         kind = "run" if r["then"] == "run" else "plan"
         title = {"run": "run", "revise": "update the plan of", "looks": "new looks for"}[r["then"]]
 
         def run(job: Job):
             job.line(r["reply"])
-            return {"reply": finish(self._orch(cfg, proj.root, job), r)}
+            return {"reply": finish(self._orch(cfg, root, job), r)}
 
-        job = self.jobs.start(kind, f"{title} {proj.root.name}", run, target=str(proj.root)).view()
-        return {"reply": r["reply"], "job": job}
+        return self.jobs.start(kind, f"{title} {root.name}" + (f" ({why})" if why else ""), run, target=str(root))
+
+    # -- autopilot (autopilot.py) ---------------------------------------------------------------------
+    def autopilot_get(self, q=None):
+        """Autopilot's switch and what it did lately (newest first)."""
+        from .. import autopilot
+
+        home = self._backup_home()
+        limit = int(((q or {}).get("limit") or ["40"])[0])
+        return {**autopilot.status(home), "log": autopilot.entries(home, limit)}
+
+    def autopilot_post(self, body):
+        """{action: "on", until, cap} | {action: "off"} | {action: "never", project, never}."""
+        from .. import autopilot
+
+        home, action = self._backup_home(), body.get("action")
+        try:
+            if action == "on":
+                autopilot.turn_on(body.get("until"), body.get("cap"), home, self.cfg())
+            elif action == "off":
+                autopilot.turn_off("you turned it off.", home, self.cfg())
+            elif action == "never":
+                autopilot.set_never(str(body.get("project") or ""), bool(body.get("never", True)), home)
+            else:
+                raise ApiError("Say on, off or never.")
+        except ValueError as e:
+            raise ApiError(str(e))
+        return self.autopilot_get()
+
+    def autopilot_tick(self) -> list[dict[str, Any]]:
+        """One autopilot pass (the auto-sync's tick): long steps start as jobs, busy projects are left alone."""
+        from .. import autopilot
+
+        cfg = self.cfg()
+        if not cfg:
+            return []
+        return autopilot.tick(cfg, home=self._backup_home(), busy=self._busy,
+                              start=lambda c, root, r: self.start_answer_job(c, root, r, why="autopilot"))
 
     def _wizard_start(self, cfg, answers: dict[str, Any]):
         from ..asks import wizard_project
@@ -1131,6 +1173,8 @@ class UIApp:
             ("GET", "/api/plan/looks"): R.plan_looks,
             ("GET", "/api/asks"): R.asks_get,
             ("POST", "/api/asks"): R.asks_post,
+            ("GET", "/api/autopilot"): R.autopilot_get,
+            ("POST", "/api/autopilot"): R.autopilot_post,
             ("GET", "/api/phone"): R.phone_status,
             ("POST", "/api/phone"): R.phone_action,
             ("GET", "/api/backup"): R.backup_status,

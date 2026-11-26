@@ -129,3 +129,14 @@ def test_cached_notice_checks_at_most_daily(monkeypatch):
 def test_notice_never_breaks_commands(monkeypatch):
     monkeypatch.setattr(updater, "install_info", lambda runner=None: (_ for _ in ()).throw(OSError("boom")))
     assert updater.cached_notice() is None
+
+
+def test_the_two_version_numbers_match():
+    """The installer checks roundtable.__version__; pyproject.toml is what pip and the phone read."""
+    import re
+    from pathlib import Path
+
+    import roundtable
+
+    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    assert re.search(r'^version = "([^"]+)"', text, re.M).group(1) == roundtable.__version__

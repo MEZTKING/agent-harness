@@ -12,7 +12,10 @@ Hub & journal (where things stand, across projects and sessions):
     roundtable mcp --agent PROJECT        MCP server for Claude Code and other agents
     roundtable connect [DIR]              join this repo's Claude Code sessions to the hub (MCP + hooks)
     roundtable connect --cloud-script     setup script for Claude Code cloud environments
-    roundtable remote [--watch 60]        do commands sent through the hub (from the phone)
+    roundtable remote [--watch 60]        do commands sent through the hub (from the phone); autopilot too
+    roundtable autopilot on [--until 08:00] [--cap 2] | off | status | log | never PROJECT [--undo]
+                                          answer what waits with the recommendations while you're away
+    roundtable autopilot --watch 60       keep answering (without the desktop app)
 
 Projects (the harness: the best model for each role, working together):
     roundtable new DIR "goal" [--approve] | run DIR | extend DIR "goal" | approve DIR
@@ -85,6 +88,8 @@ def main(argv: list[str] | None = None) -> None:
         return _update(argv, cmd)
     if cmd == "remote":
         return _remote(argv)
+    if cmd == "autopilot":
+        return _autopilot(argv)
     if cmd == "backup":
         from .backup import main as backup_main
 
@@ -164,12 +169,68 @@ def _remote(argv: list[str]) -> None:
     if not cfg.hub:
         sys.exit("roundtable remote: harness.yaml has no hub: section, so there's nowhere to read commands from")
     hub = Hub(load_hub(cfg.hub.get("config"), nearby=True))
+    from .autopilot import tick
+
     while True:
         n = process(cfg, hub)
         if n:
             print(f"did {n} command(s)", flush=True)
+        for e in tick(cfg, hub):  # while autopilot is on, what waits is answered too
+            print(e["text"], flush=True)
         if not args.watch:
             return
+        time.sleep(args.watch)
+
+
+def _autopilot(argv: list[str]) -> None:
+    import argparse
+    import time
+
+    from . import autopilot
+    from .harness.config import load_config
+
+    p = argparse.ArgumentParser(prog="roundtable autopilot", description=(
+        "While you're away, Roundtable answers what waits for you with the recommended answers. It never "
+        "raises a limit, spends past its own limit, or picks anything that asks 'Are you sure?'."))
+    p.add_argument("what", nargs="*", help="on | off | status | log | never PROJECT")
+    p.add_argument("--until", help="when to stop: 08:00, 8am, 1h, tonight (default: when you turn it off)")
+    p.add_argument("--cap", type=float, help=f"how much it may spend, in dollars (default {autopilot.DEFAULT_CAP:.2f})")
+    p.add_argument("--undo", action="store_true", help="with never: let the project back on autopilot")
+    p.add_argument("--watch", type=float, metavar="SECONDS", help="keep answering every SECONDS")
+    p.add_argument("--config", help="harness.yaml (default $HARNESS_CONFIG or ./harness.yaml)")
+    args = p.parse_args(argv)
+    what = [w for w in args.what if w != "autopilot"]
+    word = what[0] if what else ("watch" if args.watch else "status")
+    cfg = None
+    if word in ("on", "off", "watch") or args.watch:
+        try:
+            cfg = load_config(args.config)
+        except Exception as e:
+            if word == "watch" or args.watch:
+                sys.exit(f"roundtable autopilot: couldn't read harness.yaml ({e})")
+    try:
+        if word == "on":
+            print(f"Autopilot on, {autopilot.turn_on(args.until, args.cap, cfg=cfg)['label']}.")
+        elif word == "off":
+            autopilot.turn_off("you turned it off.", cfg=cfg)
+            print("Autopilot off.")
+        elif word == "never":
+            if len(what) < 2:
+                sys.exit("roundtable autopilot never PROJECT: say which project")
+            autopilot.set_never(what[1], not args.undo)
+            print(f"{what[1]} is {'again' if args.undo else 'never'} on autopilot.")
+        elif word == "log":
+            for e in autopilot.entries(limit=40):
+                print(f"{e['at']}  {e.get('project') or '-'}: {e['text']}")
+        elif word in ("status", "watch"):
+            print(f"Autopilot: {autopilot.status()['label']}.")
+        else:
+            sys.exit(f"roundtable autopilot: unknown {word!r}; say on, off, status, log or never")
+    except ValueError as e:
+        sys.exit(f"roundtable autopilot: {e}")
+    while args.watch:
+        for e in autopilot.tick(cfg):
+            print(e["text"], flush=True)
         time.sleep(args.watch)
 
 

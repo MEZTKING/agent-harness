@@ -192,6 +192,7 @@ async function render(auto = false) {
     const badge = document.getElementById("jobs-badge");
     badge.hidden = !OV.running_jobs; badge.textContent = OV.running_jobs;
     document.getElementById("nav-foot").textContent = OV.hub ? `hub: ${OV.hub_path}` : "";
+    if (OV.harness) loadAutopilot(true); else document.getElementById("autopilot").replaceChildren();
     if (!setupChecked) {  // first launch of the desktop app: go to setup
       setupChecked = true;
       try { const st = await api("GET", "/api/setup"); if (st.desktop && !st.setup_done && view !== "setup") { location.hash = "#/setup"; return; } } catch { /* ignore */ }
@@ -366,7 +367,8 @@ async function viewRoundtable() {
       style: `--a:${Math.round((360 * i) / n)}deg`,
       onclick: () => choose(s.id), onkeydown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(s.id); } } },
     h("div", { class: "nm" }, tagDot(s.id), h("span", {}, s.id), s.high ? h("span", { class: "seat-high", title: `${s.high} high priority` }) : null,
-      s.unread ? h("span", { class: "badge", title: `${s.unread} unread` }, s.unread) : null),
+      s.unread ? h("span", { class: "badge", title: `${s.unread} unread` }, s.unread) : null,
+      s.autopilot ? h("span", { class: "ap-mark", title: "Autopilot answers this project's questions while you're away" }, "autopilot") : null),
     h("div", { class: "st" }, h("span", { class: "pill " + cls }, s.status === "running" ? h("i", { class: "cdl" }) : null, label), h("span", {}, count)),
     h("div", { class: "bar" }, total ? [h("i", { style: `width:${(100 * p.done) / total}%` }),
       s.status === "running" && p.done < total ? h("i", { class: "run", style: `width:${100 / total}%` }) : null,
@@ -412,7 +414,7 @@ async function viewRoundtable() {
         h("div", { class: "row rt-acts" }, statusPill(s.status === "waiting" ? (s.failed_task ? "failed" : proj ? proj.meta.status : "waiting") : s.status),
           h("span", { class: "spacer" }), actionButtons(s.path, (s.actions || []).filter((a) => a !== "approve"), s.failed_task, true),
           h("a", { class: "btn icon" + ((s.actions || []).includes("approve") ? " primary" : ""), href: `#/plan/${encodeURIComponent(s.path)}` }, "Open plan"),
-          h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(s.path)}` }, "Open run")),
+          h("a", { class: "btn icon", href: `#/run/${encodeURIComponent(s.path)}` }, "Open run"), neverButton(s)),
         s.detail ? h("div", { class: "small muted rt-detail" }, s.detail) : null,
         h("h3", {}, "Plan"),
         s.goal ? h("div", { class: "goal" }, h("b", {}, "Goal"), s.goal) : null,
@@ -421,6 +423,14 @@ async function viewRoundtable() {
     }
     if (s.brief) out.push(s.path ? h("div", { class: "card" }, h("details", {}, h("summary", {}, `Journal (${s.open_todos || 0} open todo(s))`), h("div", { class: "nested" }, briefCard(s.brief, true)))) : briefCard(s.brief, true));
     return out;
+  }
+
+  function neverButton(s) {  // one project can stay away from autopilot
+    const never = ((data.autopilot || {}).never || []).includes(s.id);
+    return h("button", { class: "icon", title: never ? "Autopilot leaves this project alone. Let it answer here too while you're away."
+      : "Autopilot never answers for this project: every question waits for you.",
+    onclick: (ev) => run(ev.currentTarget, () => api("POST", "/api/autopilot", { action: "never", project: s.id, never: !never }),
+      never ? `Autopilot may answer for ${s.id} again` : `${s.id} is never on autopilot`) }, never ? "Allow autopilot" : "Never on autopilot");
   }
 
   function chatMessages(s) {
@@ -473,6 +483,7 @@ async function viewRoundtable() {
       h("a", { class: "btn primary", href: "#/new", title: "A few questions, then the planner makes a plan for you to check" }, "+ New project")]);
     const today = document.getElementById("today-spend");
     today.hidden = false; today.querySelector("b").textContent = money(data.spend_today);
+    if (data.autopilot) drawAutopilot(data.autopilot, true);
     const n = data.seats.length + 1, waiting = data.seats.filter((x) => x.status === "waiting").length;
     strip.classList.toggle("ring", n <= 8);   // up to seven seats and the empty chair sit around the table; more make a list
     patch(strip, JSON.stringify([rtSel, data.seats.map((x) => ({ ...x, brief: null, last_activity: x.last_activity ? ago(x.last_activity) : "" }))]), () =>
@@ -482,7 +493,7 @@ async function viewRoundtable() {
     patch(needs, JSON.stringify(data.needs_you.map((n) => ({ ...n, at: n.at ? ago(n.at) : "" }))), () => [
       h("div", { class: "card-head" }, h("h2", {}, "Needs you"), data.needs_you.length ? h("span", { class: "cnt" }, data.needs_you.length) : null),
       data.needs_you.length ? h("div", { class: "list" }, data.needs_you.map(needItem)) : h("div", { class: "empty" }, "Nothing is waiting on you.")]);
-    patch(plan, JSON.stringify([s, projPath, proj && proj.tasks, proj && proj.meta.status]), () => planColumn(s));
+    patch(plan, JSON.stringify([s, projPath, proj && proj.tasks, proj && proj.meta.status, (data.autopilot || {}).never]), () => planColumn(s));
     patch(chatHead, JSON.stringify([s && s.id, s && s.path]), () => [h("h2", {}, s && !s.path ? "Chat" : "Chat with the orchestrator"), s ? h("span", { class: "muted small" }, s.id) : null]);
     const atEnd = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 40;
     if (patch(chatLog, JSON.stringify([s && s.id, s && s.path, chat, pending]), () => chatMessages(s)) && atEnd) chatLog.scrollTop = chatLog.scrollHeight;
@@ -1306,6 +1317,91 @@ async function viewSettings() {
         h("button", { onclick: () => render() }, "Check again"))),
     st.desktop ? section("Setup", h("button", { onclick: () => (location.hash = "#/setup") }, "Run the setup again")) : null);
 }
+
+// ---------- autopilot: the header toggle, its card and what it did ----------
+let AP = null, apOpen = false;
+const AP_UNTIL = [
+  ["", "Off when I'm back", "It stays on until you turn it off yourself."],
+  ["1h", "1 hour", "It turns itself off in an hour."],
+  ["tonight", "Tonight", "It turns itself off at 8am tomorrow morning."],
+  ["custom", "Custom", "Pick the time it turns itself off."],
+];
+async function loadAutopilot(soft = false) {
+  try { drawAutopilot(await api("GET", "/api/autopilot?limit=40"), soft); } catch { /* the header can do without it */ }
+}
+function drawAutopilot(st, soft = false) {  // soft: the Hall's refresh; an open card isn't redrawn under the owner's hands
+  const box = document.getElementById("autopilot");
+  if (!box) return;
+  const was = AP && AP.on;
+  AP = { ...(AP || {}), ...st };
+  if (soft && apOpen && box.querySelector(".ap-card") && was === AP.on) {
+    box.querySelector(".ap-toggle").replaceWith(autopilotButton());
+    return;
+  }
+  box.replaceChildren(...[autopilotButton(), apOpen ? autopilotCard() : null].filter(Boolean));
+}
+function autopilotButton() {
+  const on = AP.on;
+  const btn = h("button", { type: "button", class: "ap-toggle" + (on ? " on" : ""), "aria-expanded": String(apOpen), "aria-haspopup": "dialog",
+    title: on ? "Autopilot is answering what waits for you with the recommended answers. Click to see what it did or turn it off."
+      : "Autopilot: while you're away, Roundtable answers what waits for you with the recommended answers. Click to set it up.",
+    onclick: () => { apOpen = !apOpen; drawAutopilot({}); if (apOpen) loadAutopilot(); } },
+  h("i", { class: "ap-dot", "aria-hidden": "true" }), h("b", {}, "Autopilot"), on ? h("span", { class: "ap-label" }, AP.label) : null);
+  return btn;
+}
+function autopilotCard() {
+  const close = () => { apOpen = false; drawAutopilot({}); };
+  const card = h("div", { class: "ap-card", role: "dialog", "aria-label": "Autopilot", onkeydown: (ev) => { if (ev.key === "Escape") close(); } },
+    h("div", { class: "card-head" }, h("h2", {}, "Autopilot"), h("button", { class: "link-btn", type: "button", onclick: close, title: "Close" }, "Close")),
+    AP.on ? autopilotOn() : autopilotOff(),
+    h("h3", {}, "What autopilot did"), autopilotLog());
+  return card;
+}
+function autopilotOn() {
+  const turnOff = h("button", { class: "primary", type: "button", onclick: async () => {
+    try { drawAutopilot(await api("POST", "/api/autopilot", { action: "off" })); toast("Autopilot is off"); } catch (e) { toast(e.message, true); }
+  } }, "Turn off");
+  return [h("p", { class: "ap-now" }, h("b", {}, "On"), ` · ${AP.label}`),
+    h("p", { class: "small muted" }, "It answers with the recommended answer, tries a failed task once more and starts a plan when its cost fits the limit. Money pauses and anything that asks “Are you sure?” wait for you."),
+    h("div", { class: "row" }, turnOff)];
+}
+function autopilotOff() {
+  let until = "";
+  const custom = h("input", { type: "time", value: "08:00", hidden: true, "aria-label": "Turn off at",
+    title: "The time it turns itself off (this computer's time)" });
+  const choices = h("div", { class: "ap-seg", role: "group", "aria-label": "Until" }, AP_UNTIL.map(([v, label, tip]) =>
+    h("button", { type: "button", class: v === until ? "on" : "", title: tip, "aria-pressed": String(v === until), onclick: (ev) => {
+      until = v; custom.hidden = v !== "custom";
+      choices.querySelectorAll("button").forEach((b) => { b.classList.toggle("on", b === ev.currentTarget); b.setAttribute("aria-pressed", String(b === ev.currentTarget)); });
+    } }, label)));
+  const cap = h("input", { type: "number", min: "0.5", max: "1000", step: "0.5", value: Number(AP.spend_cap_usd || 2).toFixed(2), class: "ap-cap",
+    "aria-label": "Spend limit in dollars", title: "The most autopilot may spend while it's on. When it gets there it turns itself off. Real money: checked against your providers' balances where they report one." });
+  const go = h("button", { class: "primary", type: "button", onclick: async () => {
+    go.disabled = true;
+    try {
+      const r = await api("POST", "/api/autopilot", { action: "on", until: until === "custom" ? custom.value : until, cap: Number(cap.value) });
+      drawAutopilot(r); toast(`Autopilot is on, ${r.label}`);
+    } catch (e) { toast(e.message, true); go.disabled = false; }
+  } }, "Turn on");
+  return [h("p", { class: "small muted" }, "While you're away, Roundtable answers what waits for you with the recommended answer and writes down every choice. It never raises a limit, never picks anything that asks “Are you sure?”, and never deletes, publishes or releases anything."),
+    h("label", { class: "stack", title: "When autopilot turns itself off" }, h("span", { class: "small muted" }, "Until"), choices, custom),
+    h("label", { class: "stack ap-capline" }, h("span", { class: "small muted", title: "The most it may spend while it's on, on every project together" }, "Spend limit"),
+      h("span", { class: "row" }, h("b", {}, "$"), cap, h("span", { class: "small muted" }, "then it stops"))),
+    h("div", { class: "row" }, go)];
+}
+function autopilotLog() {
+  const log = AP.log || [];
+  if (!log.length) return h("div", { class: "empty" }, "Nothing yet. Its choices show up here, newest first.");
+  return h("ul", { class: "ap-log" }, log.map((e) => h("li", { class: "ap-" + e.kind },
+    h("time", { title: e.at }, ago(e.at)),
+    e.project ? h("a", { href: e.path ? `#/plan/${encodeURIComponent(e.path)}` : "#/roundtable", title: "Open the project's plan",
+      onclick: () => { apOpen = false; drawAutopilot({}); } }, e.project) : null,
+    h("span", {}, e.text))));
+}
+document.addEventListener("click", (ev) => {  // a click elsewhere closes the card
+  const box = document.getElementById("autopilot");
+  if (apOpen && box && !box.contains(ev.target) && ev.target.isConnected) { apOpen = false; drawAutopilot({}); }
+});
 
 // ---------- updater banner (checked once per page load) ----------
 async function checkUpdate() {

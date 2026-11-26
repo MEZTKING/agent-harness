@@ -99,13 +99,16 @@ fun TableScreen(
     showNeeds: Boolean,
     onShowNeeds: (Boolean) -> Unit,
     onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
+    onAutopilot: (on: Boolean, until: String, cap: Double?) -> Unit = { _, _, _ -> },
 ) {
     val data = hall.data
+    var showAutopilot by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     val seats = data?.seats.orEmpty()
     val needs = data?.needs.orEmpty()
     Column(Modifier.fillMaxSize()) {
         Header(whereLabel, mode, hall.loading, onRefresh)
+        if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -147,6 +150,14 @@ fun TableScreen(
         ModalBottomSheet(onDismissRequest = { onShowNeeds(false) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
             containerColor = Hall.panel, contentColor = Hall.text) {
             NeedsList(needs, mode, busy, onAct, onOpenNeed, Modifier.padding(horizontal = 16.dp), onClose = { onShowNeeds(false) }, onAnswer = onAnswer)
+        }
+    }
+    if (showAutopilot) {
+        ModalBottomSheet(onDismissRequest = { showAutopilot = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Hall.panel, contentColor = Hall.text) {
+            AutopilotSheet(data?.autopilot, mode, Modifier.padding(horizontal = 16.dp)) { on, until, cap ->
+                onAutopilot(on, until, cap); showAutopilot = false
+            }
         }
     }
 }
@@ -237,10 +248,13 @@ fun RoundTable(
                 Column(
                     Modifier.offset(x - label / 2, y - ring / 2).width(label)
                         .clickable(remember { MutableInteractionSource() }, indication = null) { onSeat(s) }
-                        .semantics { contentDescription = "${s.id}, ${s.statusText}" + if (s.badge > 0) ", ${s.badge} waiting" else "" },
+                        .semantics { contentDescription = "${s.id}, ${s.statusText}" + (if (s.badge > 0) ", ${s.badge} waiting" else "") + if (s.autopilot) ", on autopilot" else "" },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    SeatRing(s, s.id == selected, ring)
+                    Box {
+                        SeatRing(s, s.id == selected, ring)
+                        if (s.autopilot) AutopilotDot(Modifier.align(Alignment.TopStart))
+                    }
                     Spacer(Modifier.height(3.dp))
                     Text(s.id, fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Hall.text,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
@@ -293,6 +307,7 @@ fun SeatSummary(s: SeatView, onOpen: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(8.dp))
             Chip(s.status, Hall.status(s.status))
+            if (s.autopilot) { Spacer(Modifier.width(6.dp)); AutopilotMark() }
             Spacer(Modifier.weight(1f))
             if (s.lastActivity.isNotBlank()) Text(ago(s.lastActivity), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
@@ -345,6 +360,7 @@ fun SeatRow(s: SeatView, onOpen: () -> Unit) {
                 if (s.high > 0) Chip("${s.high} high", Hall.bad)
                 if (s.unread > 0) Chip("${s.unread} unread", Hall.amber)
                 if (s.openTodos > 0) Chip("${s.openTodos} to-do", Hall.goldDim)
+                if (s.autopilot) AutopilotMark()
             }
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Hall.goldDim)

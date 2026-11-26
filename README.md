@@ -38,6 +38,9 @@ The app tells you when a new version is out (**Settings → Updates**, or the ba
 - **Budget / Balanced / Quality** per project, **OpenRouter** and **Openference**, exact costs
   and real balances, and many savings: the cheapest OpenRouter route, Claude's cache through
   gateways, big files read as an outline, DeepSeek's half-price hours (approve to start then).
+- **Autopilot**: a button that answers Roundtable's cards with the recommended choice while you're
+  away, within a spending cap and a time you set; it never raises limits, spends more, deletes or
+  publishes, and logs every decision in "What autopilot did".
 - **Safer runs**: real-money limits, pausing when an account is empty, stronger checks after a
   rejection, tasks split when too big, "accept as it is", and model switches learned after
   each run (written in the journal with the reason).
@@ -110,6 +113,50 @@ roundtable backup settings --daily on --keep 10 --encrypt on
 ```
 
 **Restoring** (Settings → Backups → Restore…, or `roundtable backup restore`) shows what's in the backup and what it would replace, and asks first. It saves what's there now as a safety backup next to it, then puts everything back; projects whose folders are gone are made again. Afterwards **type your API keys again** (Settings → API keys) and **pair your phones again**.
+
+### Autopilot
+
+**Autopilot** answers what waits for you while you're away from the screen, with the recommended
+answers, and writes down every choice. Turn it on with the **Autopilot** button at the top of the
+app, next to *Today* (on the phone: the same button on the Table). Pick until when (**Off when I'm
+back**, **1 hour**, **Tonight**: until 8am, or a time of your own) and a **spend limit** (default
+$2.00, for all projects together). While it's on the button glows amber ("until 8am · $0.40 of
+$2.00") and the seats it looks after carry a small *autopilot* mark. A project can be kept away from
+it: **Never on autopilot** on the project's panel in the Hall.
+
+What it decides, through the same cards you tap:
+
+- **Plan choices, questions, the look, the setting and ideas**: the recommended answer. A question
+  with no recommended answer, or an idea the planner didn't recommend, waits for you. Then it asks
+  the planner to update the plan with those answers (at most 3 times a project).
+- **Approving a plan**: only when the plan's estimate fits what's left of autopilot's spend limit
+  and the project's own limit. When the plan's cost isn't known (a picture model with no price) it
+  waits for you. If "start at half price" is offered and that time comes before autopilot stops,
+  it picks that.
+- **A failed task**: tried once more with the same models. Never the stronger model, never
+  "accept as it is", never "skip".
+
+What it never does: raise a limit or spend more after a money pause or an empty account, pick
+anything that asks "Are you sure?", or delete, publish, release or merge anything. It turns itself
+off when its time is up or the spend limit is reached (real money, checked against your providers'
+balances where they report one, else Roundtable's own count), and says why. A run it started
+carries on within its project's own limits.
+
+**What autopilot did:** the button's card lists every choice and everything it left for you,
+newest first, with links to the projects. The same log is in the app's folder
+(`autopilot-log.md`), and each choice is also a *decision* in the project's journal. Answers on a
+plan can still be changed until the plan is approved.
+
+```bash
+roundtable autopilot on --until 08:00 --cap 2   # or --until 1h / tonight; no --until: until you turn it off
+roundtable autopilot status | log | off
+roundtable autopilot never PROJECT [--undo]
+roundtable autopilot --watch 60                 # keep answering without the desktop app
+```
+
+The desktop app does this every minute while it's open; `roundtable remote --watch` does it too.
+From the phone in Hub mode the switch is a hub command (`roundtable: {"action": "autopilot",
+"state": "on", "until": "tonight", "cap": 2}`), done by the PC.
 
 | Part | What it does |
 |---|---|

@@ -54,6 +54,8 @@ data class Seat(
     val goal: String = "",
     val spent_usd: Double = 0.0,
     val brief: Brief? = null,
+    /** Autopilot answers this project's questions while the owner is away. */
+    val autopilot: Boolean = false,
 )
 
 @Serializable
@@ -83,6 +85,7 @@ data class RoundtableData(
     val synced_at: String = "",
     val agent: String? = null,
     val running_jobs: Int = 0,
+    val autopilot: com.meztking.roundtable.data.AutopilotState? = null,
 )
 
 @Serializable

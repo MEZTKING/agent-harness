@@ -6,6 +6,17 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Autopilot can't approve a plan with pictures** (26 November): the estimate doesn't price picture
+  models (an image role's cost comes out unknown), so autopilot leaves those plans for the owner.
+  Pricing pictures per image in `plandoc.estimate` would let it decide. → release 2.
+- **Autopilot doesn't stop a run at its own limit** (26 November): it stops answering when the spend
+  limit is reached, but a run it already started carries on within the project's own limits
+  (`max_cost_usd`, the real-money limit per run). Passing autopilot's remaining money to the run as
+  an extra limit would close it. → release 2.
+- **Autopilot's phone switch in Hub mode waits for the PC** (26 November): the hub command is done
+  by the PC's next sync (about a minute), and the phone shows the new state only after the PC has
+  written `plans/autopilot.json`. → release 4.
+
 - **The phone app's release build fails** (26 November): `./gradlew assembleRelease` stops in R8
   (code shrinking: "Compilation failed to complete"); test builds (debug) work. Fix the keep rules
   before the phone release (release 4).

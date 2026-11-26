@@ -198,6 +198,25 @@ class ScreensTest {
             sent = mapOf("answer:Q1" to "Sent. Roundtable will reply in Letters.")), ProjectActions(), initialTab = 1)
     }
 
+    private val pilot = com.meztking.roundtable.data.AutopilotState(on = true, until = "2026-11-27T08:00:00Z", label = "until 8am · \$0.40 of \$2.00",
+        spent_usd = 0.4, log = listOf(
+            com.meztking.roundtable.data.AutopilotEntry(ago(0), "left", "lantern-app", text = "Left for you: “This project reached its limit of \$5.00. Carry on?” – money pauses always wait for you."),
+            com.meztking.roundtable.data.AutopilotEntry(ago(1), "chose", "quill-notes", text = "Autopilot chose “Pixel art” for “Which logo style?” because it's the recommended answer."),
+            com.meztking.roundtable.data.AutopilotEntry(ago(2), "on", text = "Autopilot on, until 8am · \$0.00 of \$2.00.")))
+
+    @Test fun tableOnAutopilot() = shot("9-table-autopilot") {
+        TableScreen(Load(hall.copy(seats = seats.map { it.copy(autopilot = it.hasPlan || it.id == "lantern-app") }, autopilot = pilot)),
+            Mode.HUB, "Hub on GitHub · example/hub", emptySet(), {}, {}, { _, _ -> }, {}, false, {})
+    }
+
+    @Test fun autopilotOff() = shot("9b-autopilot-off") {
+        AutopilotSheet(com.meztking.roundtable.data.AutopilotState(), Mode.PC, Modifier.padding(16.dp)) { _, _, _ -> }
+    }
+
+    @Test fun autopilotLog() = shot("9c-autopilot-log") {
+        AutopilotSheet(pilot, Mode.PC, Modifier.padding(16.dp)) { _, _, _ -> }
+    }
+
     @Test fun letters() = shot("8-letters") {
         LettersScreen(Load(listOf(letter, letter.copy(id = "2", sender = "lantern-app", subject = "Glow is done", read = true, created_at = ago(30)))),
             "me", seats.map { it.id }, {}, {}, { _, _, _, _ -> }, { _, _, _ -> })

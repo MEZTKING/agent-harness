@@ -13,6 +13,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
@@ -154,7 +157,8 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val backend = remember(settingsTick) { app.backend() }
 
     LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); main.noticeShown() } }
-    LaunchedEffect(backend) { if (backend != null) main.refresh() }
+    val crash by main.crash.collectAsState()
+    LaunchedEffect(backend, crash) { if (backend != null && crash == null) main.refresh() }
     LaunchedEffect(tab, backend) { if (tab == 1 && backend != null && letters.data == null) main.loadLetters() }
 
     // ask once for notifications (Android 13+)
@@ -191,6 +195,11 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
         },
     ) { pad ->
         Box(Modifier.padding(pad)) {
+            crash?.let { details ->
+                // safe mode: the app closed last time; nothing loads until the owner says so
+                CrashCard(details, onSend = main::sendCrash, onTryAgain = main::crashSeen)
+                return@Box
+            }
             when (tab) {
                 0 -> TableScreen(
                     hall, backend?.mode, where, busy, onRefresh = main::refresh,
@@ -207,6 +216,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     },
                     showNeeds = showNeeds, onShowNeeds = { showNeeds = it },
                     onAnswer = main::answer,
+                    onAutopilot = main::autopilot,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),
@@ -220,3 +230,26 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
         }
     }
 }
+
+@Composable
+private fun CrashCard(details: String, onSend: () -> Unit, onTryAgain: () -> Unit) {
+    androidx.compose.foundation.layout.Column(
+        Modifier.fillMaxSize().padding(20.dp).androidx_verticalScroll(),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
+    ) {
+        Text("Roundtable closed unexpectedly last time", color = Hall.text, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+        Text("Sorry about that. To stop it happening again straight away, nothing has loaded yet. " +
+            "Send the details to your PC so it can be fixed, then try again.", color = Hall.muted)
+        androidx.compose.material3.Button(onClick = onSend, modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Hall.gold, contentColor = Hall.onAccent)) {
+            Text("Send the details to my PC")
+        }
+        androidx.compose.material3.OutlinedButton(onClick = onTryAgain, modifier = Modifier.fillMaxWidth()) { Text("Try loading again", color = Hall.text) }
+        Text("What happened (for the fix)", color = Hall.muted, style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+        Text(details.take(3000), color = Hall.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun Modifier.androidx_verticalScroll(): Modifier =
+    this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))
