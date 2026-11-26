@@ -19,6 +19,9 @@ github.com/HarnessMD/munder-difflin and from github.com/sorsama/deepseek-harness
   the circuit breaker, helpers in worktrees, the fleet file (Tandem); the message
   envelope, batched commits and memory without a model (hub). Plus what not to copy.
 - `PLAN.md`: the decision recorded.
+- The owner forked both and chose that their code may be borrowed too (MIT), with
+  credit in `THIRD_PARTY_NOTICES.md`; the forks stay untouched as the reference
+  (CLAUDE.md, `plans/inspiration.md`).
 - Open: build them, release by release.
 
 ## 2026-11-26 – The whole workflow in one place

@@ -11,8 +11,16 @@ The owner (26 November 2026) asked to take inspiration from:
   client for the DeepSeek Harness, with approvals, live replies, a terminal, files,
   changes, rewind and notifications.
 
-We take **ideas, not code**. Each idea is listed under the release it belongs to
-(PLAN.md), and then marked done in the devlog when it's built.
+The owner forked both (`MEZTKING/munder-difflin`, `MEZTKING/deepseek-harness-mobile`)
+and chose, on 26 November 2026, that Roundtable may **borrow their code too**, not only
+ideas: both are MIT. The forks stay untouched, as the reference copy. When code is taken
+(as is, or turned into Python or Kotlin), its licence and copyright line go into
+`THIRD_PARTY_NOTICES.md` and the devlog says which file it came from. Munder Difflin's
+pixel art (LimeZu's tileset) and its character portraits are **not** MIT and are never
+copied.
+
+Each idea is listed under the release it belongs to (PLAN.md), and then marked done in
+the devlog when it's built.
 
 ## Release 2 – Proof it works
 

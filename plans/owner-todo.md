@@ -30,6 +30,9 @@ Newest first. Each item says what to do and where.
 
 ## Decided for you
 
+- Code from your forks of Munder Difflin and DeepSeek Harness Mobile may be used in
+  Roundtable (both MIT), credited in `THIRD_PARTY_NOTICES.md`; the forks stay as they are.
+
 - Answers to a plan's questions can be sent from chat or the phone; nothing is built
   until you approve.
 - The music player: under 1 GB of music, all up-to-date browsers, the planner's

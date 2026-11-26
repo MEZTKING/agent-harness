@@ -49,6 +49,11 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
 - **Wording the owner reads** (the app, the phone, plans, replies, errors): plain, short
   British English for someone who isn't a programmer; a tooltip on anything not
   obvious; errors say what to do next.
+- **Borrowed code is credited.** Code taken from another project (for now the owner's
+  forks `MEZTKING/munder-difflin` and `MEZTKING/deepseek-harness-mobile`, both MIT; see
+  `plans/inspiration.md`) keeps its licence and copyright line in
+  `THIRD_PARTY_NOTICES.md`, and the devlog names the source file. Never copy art or
+  anything not under an open licence.
 - **Nothing is released without the owner saying so** (they have said "you do
   everything" for merging and releasing the desktop app: see Releasing).
 
