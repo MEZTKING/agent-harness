@@ -47,8 +47,8 @@ private suspend fun <T> MutableStateFlow<Load<T>>.fetch(block: suspend () -> T) 
         value = Load(v)
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Exception) {
-        update { it.copy(loading = false, error = friendly(e)) }
+    } catch (e: Throwable) {  // errors too (out of memory, a missing method): show them, don't close the app
+        update { it.copy(loading = false, error = if (e is Exception) friendly(e) else "Something went wrong loading this (${e::class.simpleName}). Try again, or send the details from Settings.") }
     }
 }
 
@@ -56,7 +56,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val rt get() = getApplication<RoundtableApp>()
     val backend: Backend? get() = rt.backend()
 
-    private val _hall = MutableStateFlow(Load(cachedHall()))
+    /** What the app saved when it last crashed; while set, nothing loads by itself (safe mode). */
+    private val _crash = MutableStateFlow(com.meztking.roundtable.data.Crash.last(app))
+    val crash: StateFlow<String?> = _crash.asStateFlow()
+    private val _hall = MutableStateFlow(Load(if (_crash.value != null) null else cachedHall()))
     val hall: StateFlow<Load<HallState>> = _hall.asStateFlow()
     private val _letters = MutableStateFlow(Load<List<Message>>())
     val letters: StateFlow<Load<List<Message>>> = _letters.asStateFlow()
@@ -70,6 +73,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val s = rt.store.cachedHall
         if (s.isBlank()) null else ApiJson.decodeFromString(HallState.serializer(), s)
     }.getOrNull()
+
+    /** Leave safe mode: forget the crash and load as usual. */
+    fun crashSeen() {
+        com.meztking.roundtable.data.Crash.clear(rt)
+        _crash.value = null
+        refresh()
+    }
+
+    /** Send the crash details to the owner's own inbox on the hub (the PC sees them; so does Roundtable). */
+    fun sendCrash() {
+        val b = backend ?: return say("Connect to your hub first, then send it.")
+        val text = _crash.value ?: return
+        viewModelScope.launch {
+            try {
+                b.send("harness", "Roundtable Mobile crashed", text)
+                say("Sent to your hub. Thank you!")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                say("Couldn't send it: ${e.message ?: e::class.simpleName}")
+            }
+        }
+    }
 
     fun noticeShown() { _notice.value = null }
     fun say(text: String) { _notice.value = text }

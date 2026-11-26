@@ -2,6 +2,7 @@ package com.meztking.roundtable
 
 import android.app.Application
 import com.meztking.roundtable.data.Backend
+import com.meztking.roundtable.data.Crash
 import com.meztking.roundtable.data.HubBackend
 import com.meztking.roundtable.data.PcBackend
 import com.meztking.roundtable.data.Store
@@ -29,7 +30,9 @@ class RoundtableApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        Watch.createChannel(this)
-        if (runCatching { store.configured }.getOrDefault(false)) Watch.schedule(this)
+        Crash.install(this, runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?")
+        runCatching { Watch.createChannel(this) }
+        // after a crash, start nothing in the background until the owner has seen the safe-mode card
+        if (Crash.last(this) == null && runCatching { store.configured }.getOrDefault(false)) runCatching { Watch.schedule(this) }
     }
 }
