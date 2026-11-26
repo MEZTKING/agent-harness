@@ -4,6 +4,49 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – 0.8.0: the phone in plain words, its updater, This phone (beta), existing apps
+
+Asked by the owner, in this order: "I dont understand anything i cant click the ideas or questions";
+"as less clicks as possible with the most information … or at least organized and useful"; "use my
+phone as harness itself so I'm not using GitHub … just like DSH Mobile"; "this mobile Roundtable should
+connect with the PC and all sessions should be synced"; "get everything ready for MSE Studio … try that
+out through Roundtable"; "every single repo … configurable in a file … through phone or desktop"; "an
+app updater for both". Built by helpers on their own branches, merged here.
+
+- **Phone in plain words** (`88d9ce3`, `3f9f5b7`): `Asks.fromPlan` builds cards whatever the plan's state
+  and `Asks.planCommands` answers with remote.py's own commands; remote.py's `answer {question,text}` fixed;
+  `data/Plain.kt` (letters as sentences, receipts read at once and grouped), `NeedsOrder.organise` (by
+  project, then questions → money → to-dos → ideas → letters), Mark all read, `StatusText.tidy`, "Letters"
+  tab; orchestrator `_attention(details=)` and `_finish` next steps in plain words; `_close_goal_plans`
+  (the cause of finished goals staying in Future plans: the plan entry lived in another hub journal);
+  planner prompt and `plandoc.PLAIN`: questions for a non-programmer.
+- **Phone updater** (`71a863b`): `update/Releases.kt`, `AppUpdater.kt`, `Installer.kt` (PackageInstaller),
+  `UpdateWorker.kt`, `ui/UpdateCard.kt`; borrowed from DSH Mobile's `update/` (UpdateChecker, Checksums,
+  PackageInstallerGateway, InstallStatus, ResumableDownloader; credited). remote.py `todo_done` and a Done
+  button on to-do cards in Hub mode.
+- **This phone (beta)**, slice 1 (Fable's plan in plans/notes-for-owner.md): Python `onphone.py`
+  (`roundtable phone serve --local`, launch token from the environment, `/api/health`, `/api/keys`,
+  `/api/hub`, first-start DeepSeek-only config, seat `phone-xxxxxx`), `runtime/` (Dockerfile, build,
+  manifest in DSH's schema 1 with xz layers, Ed25519 signing; `runtime/test-key/` is a public TEST key)
+  and `.github/workflows/runtime.yml` (`665bd6c`); Android `runtime/` borrowed from DSH Mobile's
+  `runtime/` (AndroidRuntimeSystem, AppVersion, FsOps, HarnessLog, HarnessProcess, HarnessRuntimeService,
+  HarnessSupervisor, LayerDownloader, ManifestPolicy, ManifestVerifier, ProotCommand, RuntimeInstaller,
+  RuntimeLayout, RuntimeManifest, TarExtractor, with tests; proot binaries byte for byte, GPL-2, source
+  linked), `ThisPhoneScreen`, `HarnessScreen`, `RuntimeViewModel`, `net/ThisPhone.kt` (loopback only)
+  (`beb4d03`). x86_64 layers built and smoke-tested here; arm64 and a real phone not yet.
+- **Existing apps (repository mode)** (`c53d2f4`): `harness/repostage.py` (own branch `roundtable/…`,
+  `.git/info/exclude`, commit guard, the repo's rules in every prompt), `projectsettings.py`
+  (`.harness/project.yaml` over `roundtable.yaml` over defaults; test, env, setup, timeout, branch,
+  rules_files, providers_allowed, profile, limits, look, show_it, notes), `reporules.py`, `checks.py`
+  (baseline, only new failures blamed), `roundtable settings` / `set`, `/api/project/settings` (also on the
+  phone's routes), a Settings card on the desktop project page, `docs/repositories.md`.
+- **MSE Studio set up** for a first try: its tests pass here (686) with the add-ons next to it and Qt's
+  system libraries installed; a DeepSeek-only lab config; planning with `roundtable new … --approve`.
+
+Open: real-phone tests (proot on Android 16/ColorOS, installs, the updater) through the owner's PC once a
+folder is shared; slice 2 (sync with the hub and the PC); the phone screen for project settings; the
+real runtime signing key before the official phone release.
+
 ## 2026-11-26 – Godot games, with Blender (0.7.3)
 
 The owner: "Do one for Godot support as well… I want that to work with Blender and everything… make

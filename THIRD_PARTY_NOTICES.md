@@ -150,3 +150,76 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+## DSH Mobile: the on-phone runtime ("This phone")
+
+- Source: DSH Mobile (the owner's fork `MEZTKING/deepseek-harness-mobile`), MIT.
+- Taken and adapted into `mobile/app/src/main/java/com/meztking/roundtable/runtime/` (package renamed,
+  trimmed: no update coordinator, resume-after-update, Files provider, Termux or relay), each file
+  marked with its source at the top: from `app/src/main/java/com/labteto/dshmobile/runtime/`
+  `AndroidRuntimeSystem.kt`, `AppVersion.kt`, `FsOps.kt`, `HarnessLog.kt`, `HarnessProcess.kt`,
+  `HarnessRuntimeService.kt`, `HarnessSupervisor.kt`, `LayerDownloader.kt`, `ManifestPolicy.kt`,
+  `ManifestVerifier.kt`, `ProotCommand.kt`, `RuntimeInstaller.kt`, `RuntimeLayout.kt`,
+  `RuntimeManifest.kt`, `TarExtractor.kt`; and their tests from `app/src/test/java/com/labteto/dshmobile/runtime/`
+  (`RuntimeTestSupport.kt`, `RuntimeFixture.kt`, `TarExtractorTest.kt`, `LayerDownloaderTest.kt`,
+  `ProotBinariesTest.kt`, `HarnessSupervisorTest.kt`, `ManifestVerifierTest.kt`, `ManifestPolicyTest.kt`,
+  `ProotCommandTest.kt`, `RuntimeInstallerTest.kt`). `mobile/app/third_party/proot/` is DSH's record of
+  the proot binaries, unchanged.
+### DSH Mobile: the in-app updater
+
+- Source: the owner's MIT fork of DSH Mobile, its in-app updater under
+  `app/src/main/java/com/labteto/dshmobile/update/`.
+- Adapted in Roundtable Mobile's updater (`mobile/app/src/main/java/com/meztking/roundtable/update/`):
+  the version compare (`UpdateChecker.kt` `isNewerVersion` → `Releases.kt` `isNewerVersion`), the
+  file hash (`Checksums.kt` `sha256Of` → `Releases.kt` `sha256Of`), the PackageInstaller session and
+  its status receiver (`PackageInstallerGateway.kt` `PackageInstallerGateway.commit`,
+  `UpdateInstallReceiver` → `Installer.kt` `Installer.commit`, `InstallReceiver`), the install
+  failures told apart (`InstallStatus.kt` `mapInstallStatus` → `Installer.kt` `installFailureText`),
+  and the resume rules of the download (`ResumableDownloader.kt` `planResponse` → `AppUpdater.kt`
+  `fetchOnce`, simplified). The wording and the screens are Roundtable's own.
+
+```
+MIT License
+
+Copyright (c) 2026 DSH Mobile contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## proot and talloc (shipped as separate programs in the phone app)
+
+Roundtable Mobile ships `libproot.so` and `libproot-loader.so` for `arm64-v8a` and `x86_64` in
+`mobile/app/src/main/jniLibs/`, byte for byte the ones DSH Mobile ships (prebuilt by
+`sorsama/dsh-mobile-runtime`, release `2026.11.14-1`; hashes and provenance in
+`mobile/app/third_party/proot/`). They are separate executables the app starts; they are not linked
+into the app.
+
+- proot: https://github.com/termux/proot, commit `52d65a4dc140ca554d241a1438ddd4f6b00c9813`
+  (5.1.107.102). Licence: GPL-2.0-or-later.
+- talloc 2.5.0 (linked statically into proot): https://talloc.samba.org. Licence: LGPL-3.0-or-later.
+- Complete corresponding source: `proot-source-52d65a4dc140ca554d241a1438ddd4f6b00c9813.tar.gz` and
+  `talloc-source-2.5.0.tar.gz`, attached to
+  https://github.com/sorsama/dsh-mobile-runtime/releases/tag/2026.11.14-1.
+
+## EdDSA-Java and XZ for Java (phone app dependencies, not vendored)
+
+- EdDSA-Java 0.3.0 (`net.i2p.crypto:eddsa`) checks the runtime manifest's Ed25519 signature on
+  Android 8 to 12. https://github.com/str4d/ed25519-java. Licence: CC0 1.0 (public domain dedication).
+- XZ for Java 1.10 (`org.tukaani:xz`) unpacks the runtime's `.tar.xz` layers. https://tukaani.org/xz/java.html.
+  Licence: 0BSD.

@@ -56,12 +56,25 @@ class Store(context: Context) {
         get() = prefs.getString("identity", "me")!!
         set(v) = prefs.edit().putString("identity", v.trim()).apply()
 
-    /** Which way in is used when both are set up: "hub" or "pc". */
+    /**
+     * "This phone": Roundtable set up to run on the phone itself. A connection of its own, next to the hub and
+     * the PC (not instead of them); the launch token is never stored, the runtime keeps it in memory.
+     */
+    var thisPhone: Boolean
+        get() = prefs.getBoolean("this_phone", false)
+        set(v) = prefs.edit().putBoolean("this_phone", v).apply()
+
+    /** When Roundtable on this phone wants to run a command: "run" (Run it) or "ask" (Ask me first). */
+    var commandChoice: String
+        get() = prefs.getString("command_choice", "")!!
+        set(v) = prefs.edit().putString("command_choice", v).apply()
+
+    /** Which way in is used when more than one is set up: "hub", "pc" or "phone". */
     var mode: String
         get() = prefs.getString("mode", null) ?: if (githubToken != null) "hub" else if (link != null) "pc" else ""
         set(v) = prefs.edit().putString("mode", v).apply()
 
-    val configured: Boolean get() = githubToken != null || link != null
+    val configured: Boolean get() = githubToken != null || link != null || thisPhone
 
     /** The last table we showed, so the app opens with something while it refreshes. */
     var cachedHall: String

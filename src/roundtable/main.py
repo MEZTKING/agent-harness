@@ -45,6 +45,7 @@ Everything else:
     roundtable backup now|list|where|restore FILE   back up settings, learned settings and plans
                                           (to Google Drive's folder or --to PATH; never API keys)
     roundtable app                        open the desktop app (window) from a source install
+    roundtable phone serve --local --port P --home DIR   Roundtable on the phone itself (started by the phone app)
 
 Options: --config FILE (hub.yaml for hub commands, harness.yaml for project commands;
 defaults $HUB_CONFIG / $HARNESS_CONFIG), --agent PROJECT (hub identity, default $HUB_AGENT).
@@ -58,7 +59,7 @@ import sys
 HUB_COMMANDS = {"where", "log", "todo", "close", "session", "history", "agents", "cards", "card", "send",
                 "inbox", "reply", "thread", "subscribe", "mcp", "ui"}
 HARNESS_COMMANDS = {"new", "run", "extend", "approve", "status", "retry", "skip", "metrics", "feedback", "roles",
-                    "ask", "image", "probe", "improve", "providers", "assign", "balance"}
+                    "ask", "image", "probe", "improve", "providers", "assign", "balance", "settings", "set"}
 VALUE_FLAGS = {"--config", "--agent", "--description"}
 
 
@@ -114,6 +115,10 @@ def main(argv: list[str] | None = None) -> None:
         rest = list(argv)
         rest.remove(cmd)
         return plugin_main(rest)
+    if cmd == "phone":
+        from .onphone import main as phone_main
+
+        return sys.exit(phone_main([a for a in argv if a != "phone"]))
     if cmd == "app":
         from .desktop import main as app_main
 

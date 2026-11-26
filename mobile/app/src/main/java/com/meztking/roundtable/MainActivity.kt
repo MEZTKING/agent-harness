@@ -57,12 +57,15 @@ import com.meztking.roundtable.ui.ProjectActions
 import com.meztking.roundtable.ui.ProjectScreen
 import com.meztking.roundtable.ui.ProjectUi
 import com.meztking.roundtable.ui.ProjectViewModel
+import com.meztking.roundtable.ui.HarnessScreen
 import com.meztking.roundtable.ui.SettingsScreen
+import com.meztking.roundtable.ui.ThisPhoneSetupScreen
 import com.meztking.roundtable.ui.SetupScreen
 import com.meztking.roundtable.ui.TableScreen
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.RoundtableTheme
 import com.meztking.roundtable.ui.theme.hallBackground
+import com.meztking.roundtable.update.AppUpdater
 import com.meztking.roundtable.work.Watch
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -75,6 +78,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) openProject.value = intent?.getStringExtra(Watch.EXTRA_PROJECT)
         setContent { RoundtableTheme { Root(openProject) } }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        runCatching { AppUpdater.get(this).checkOnOpen() } // at most every 4 hours
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -102,11 +110,19 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 SetupScreen(onDone = {
                     main.reset()
                     nav.navigate("home") { popUpTo(0) { inclusive = true } }
-                }, onBack = null)
+                }, onBack = null, onThisPhone = { nav.navigate("thisphone") })
             }
             composable("connect") {
-                SetupScreen(onDone = { main.reset(); nav.popBackStack() }, onBack = { nav.popBackStack() })
+                SetupScreen(onDone = { main.reset(); nav.popBackStack() }, onBack = { nav.popBackStack() },
+                    onThisPhone = { nav.navigate("thisphone") })
             }
+            composable("thisphone") {
+                ThisPhoneSetupScreen(onDone = {
+                    main.reset()
+                    nav.navigate("home") { popUpTo(0) { inclusive = true } }
+                }, onBack = { nav.popBackStack() })
+            }
+            composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable(
                 "project/{id}?tab={tab}",
@@ -158,6 +174,8 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val backend = remember(settingsTick) { app.backend() }
 
     LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); main.noticeShown() } }
+    // This phone: start Roundtable here first, so the Table's first load waits for it
+    LaunchedEffect(backend) { if (app.usingThisPhone()) app.runtime.startIfNeeded() }
     val crash by main.crash.collectAsState()
     LaunchedEffect(backend, crash) { if (backend != null && crash == null) main.refresh() }
     LaunchedEffect(tab, backend) { if (tab == 1 && backend != null && letters.data == null) main.loadLetters() }
@@ -173,7 +191,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val identity = backend?.identity ?: app.store.identity
     val needCount = hall.data?.needs?.size ?: 0
     val myUnread = hall.data?.seats?.firstOrNull { it.id == identity }?.unread ?: 0
-    val where = when (backend?.mode) {
+    val where = if (app.usingThisPhone()) "This phone" else when (backend?.mode) {
         Mode.HUB -> "Hub on GitHub · ${app.store.hubRepo}"
         Mode.PC -> "Paired PC · ${app.store.link?.name ?: "PC"}"
         null -> "Not connected"
@@ -217,13 +235,15 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     },
                     showNeeds = showNeeds, onShowNeeds = { showNeeds = it },
                     onAnswer = main::answer,
+                    onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) },
                     onAutopilot = main::autopilot,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),
                     onRefresh = main::loadLetters, onOpened = main::opened, onSend = main::send, onReply = main::reply,
+                    onMarkAllRead = main::markAllRead,
                 )
-                else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onChanged = {
+                else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onHarness = { nav.navigate("harness") }, onChanged = {
                     settingsTick++
                     if (!app.store.configured) nav.navigate("setup") { popUpTo(0) { inclusive = true } } else main.reset()
                 })

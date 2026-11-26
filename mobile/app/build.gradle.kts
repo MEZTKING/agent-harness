@@ -16,6 +16,18 @@ val code = parts.getOrElse(0) { 0 } * 10000 + parts.getOrElse(1) { 0 } * 100 + p
 // Release signing: from CI secrets (ROUNDTABLE_KEYSTORE_*) or a local mobile/signing folder that is
 // never committed. Without either, release builds use the debug key (fine for trying it out, but a
 // later properly signed build can't update it in place).
+// "This phone": the public half of the key the Roundtable runtime download is signed with (base64 of the raw
+// 32-byte Ed25519 key). Test builds trust the test key in runtime/test-key; the official phone release trusts
+// only runtime/release-key, which does not exist yet (plans/owner-todo.md). Without that file the release key
+// is a placeholder that verifies nothing, so an official build refuses every download rather than trust one.
+fun runtimeKey(path: String): String {
+    val f = rootProject.file(path)
+    return if (f.isFile) f.readText().trim() else ""
+}
+// The public TEST key (runtime/test-key/public.b64; also here so the app builds before that file is there).
+val runtimeTestKey = runtimeKey("../runtime/test-key/public.b64").ifBlank { "tvwd6ngxHYEox9BF0fwscb+LDIfen8G2td97hTEmKnc=" }
+val runtimeReleaseKey = runtimeKey("../runtime/release-key/public.b64")
+
 val signingProps = Properties().apply {
     val f = rootProject.file("signing/signing.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -31,6 +43,8 @@ android {
         targetSdk = 35
         versionCode = code
         versionName = appVersion
+        buildConfigField("String", "RUNTIME_REPO", "\"MEZTKING/agent-harness\"")
+        buildConfigField("String", "RUNTIME_RELEASE_KEY", "\"$runtimeReleaseKey\"")
     }
 
     signingConfigs {
@@ -59,12 +73,16 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("String", "RUNTIME_TEST_KEY", "\"\"")
+            buildConfigField("boolean", "RUNTIME_ALLOW_TEST", "false")
             val release = signingConfigs.getByName("release")
             signingConfig = if (release.storeFile?.exists() == true && release.storePassword != null) release
             else signingConfigs.getByName("debug")
         }
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField("String", "RUNTIME_TEST_KEY", "\"$runtimeTestKey\"")
+            buildConfigField("boolean", "RUNTIME_ALLOW_TEST", "true")
         }
     }
     compileOptions {
@@ -79,7 +97,17 @@ android {
         )
     }
     buildFeatures { compose = true; buildConfig = true }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+    packaging {
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        jniLibs {
+            // "This phone" runs proot (libproot.so, libproot-loader.so, borrowed from DSH Mobile) from
+            // nativeLibraryDir, the one place an app may start a program from; that needs the libraries
+            // unpacked at install time, which is what legacy packaging does. Their bytes must stay the ones
+            // third_party/proot/SHA256SUMS records, so strip leaves them alone.
+            useLegacyPackaging = true
+            keepDebugSymbols += listOf("**/libproot.so", "**/libproot-loader.so")
+        }
+    }
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -112,12 +140,16 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // "This phone": the runtime manifest's Ed25519 signature (Android has none below API 33) and the .tar.xz layers.
+    implementation("net.i2p.crypto:eddsa:0.3.0")
+    implementation("org.tukaani:xz:1.10")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.36.0")

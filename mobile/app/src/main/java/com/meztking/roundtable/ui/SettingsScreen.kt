@@ -43,7 +43,7 @@ import com.meztking.roundtable.ui.theme.Panel
 import com.meztking.roundtable.work.Watch
 
 @Composable
-fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit) {
+fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as RoundtableApp
     val store = app.store
@@ -61,17 +61,31 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             Text("WAY IN", style = Label)
             Spacer(Modifier.height(8.dp))
-            val mode = app.backend()?.mode?.name
-            Text(when (mode) { "HUB" -> "Using the hub on GitHub"; "PC" -> "Using your paired PC (${link?.name})"; else -> "Not set up" })
-            if (hasHub && link != null) {
+            val phone = store.thisPhone
+            val mode = if (app.usingThisPhone()) "PHONE" else app.backend()?.mode?.name
+            Text(when (mode) { "HUB" -> "Using the hub on GitHub"; "PC" -> "Using your paired PC (${link?.name})"; "PHONE" -> "Using Roundtable on this phone"; else -> "Not set up" })
+            // Each way in is its own connection; this picks which one the Table shows.
+            val ways = buildList { if (hasHub) add("HUB" to "Hub"); if (link != null) add("PC" to "PC"); if (phone) add("PHONE" to "This phone") }
+            if (ways.size > 1) {
                 Spacer(Modifier.height(8.dp))
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    SegmentedButton(mode == "HUB", { store.mode = "hub"; changed() }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Hub") }
-                    SegmentedButton(mode == "PC", { store.mode = "pc"; changed() }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("PC") }
+                    ways.forEachIndexed { i, (key, name) ->
+                        SegmentedButton(mode == key, { store.mode = if (key == "PHONE") "phone" else key.lowercase(); changed() },
+                            SegmentedButtonDefaults.itemShape(i, ways.size)) { Text(name) }
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = onConnect) { Text(if (hasHub || link != null) "Connect another way, or change" else "Set up") }
+        }
+
+        if (onHarness != null) Panel(Modifier.fillMaxWidth()) {
+            Text("HARNESS ON THIS PHONE", style = Label)
+            Spacer(Modifier.height(8.dp))
+            Text("Running, starting and stopping Roundtable on this phone, its log, storage, and keeping it running.",
+                style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = onHarness) { Text("Open") }
         }
 
         Panel(Modifier.fillMaxWidth()) {
@@ -126,7 +140,7 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             Text("ABOUT", style = Label)
             Spacer(Modifier.height(8.dp))
-            Line("Roundtable Mobile", "version ${BuildConfig.VERSION_NAME}")
+            UpdateAbout()
             Text("Released with Roundtable Hold of the same version.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
         Spacer(Modifier.height(24.dp))

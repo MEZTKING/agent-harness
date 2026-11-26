@@ -78,12 +78,16 @@ class Paths:
 
 # -- API keys --------------------------------------------------------------------------------
 class KeyStore:
-    """API keys in the OS credential store; falls back to a private file if none exists."""
+    """API keys in the OS credential store; falls back to a private file if none exists.
 
-    def __init__(self, paths: Paths, backend=None):
+    `file_only=True` skips the credential store (a headless Linux, e.g. Roundtable on the phone,
+    has no keyring): keys go to `config/keys.json`, readable by this user only.
+    """
+
+    def __init__(self, paths: Paths, backend=None, file_only: bool = False):
         self.paths = paths
         self.backend = backend
-        if self.backend is None:
+        if self.backend is None and not file_only:
             try:
                 import keyring
                 from keyring.backends import fail
@@ -129,11 +133,16 @@ class KeyStore:
             else:
                 keys.pop(name, None)
             self.paths.ensure()
-            self.file.write_text(json.dumps(keys), encoding="utf-8")
+            # created readable by this user only, then replaced in one step (never a half-written file)
+            tmp = self.file.with_suffix(".tmp")
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(json.dumps(keys))
             try:
-                os.chmod(self.file, 0o600)
+                os.chmod(tmp, 0o600)
             except OSError:
                 pass
+            os.replace(tmp, self.file)
         if value:
             os.environ[name] = value
         else:

@@ -28,6 +28,7 @@ from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
 from .lookstage import LookStage
 from .refstage import ReferenceStage, new_reference
+from .repostage import RepoStage
 from .saver import TokenSaver
 from .showstage import ShowStage
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
@@ -187,7 +188,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(LookStage, ReferenceStage, ShowStage):
+class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -196,12 +197,12 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     ):
         self.base_cfg = cfg
         self.project = Project(project_dir)
-        self.cfg = cfg.for_profile(self.profile())
+        self.cfg = self._settle_cfg(cfg.for_profile(self.profile()))
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
         self._listener = on_event
         meta = self.project.meta()
         # the owner can let one project spend more than the limit ("Carry on with $X more")
-        limit = cfg.limits.max_cost_usd + float(meta.get("budget_extra_usd") or 0)
+        limit = self.cfg.limits.max_cost_usd + float(meta.get("budget_extra_usd") or 0)
         self.budget = Budget(limit_usd=limit, spent_usd=meta.get("spent_usd", 0.0))
         # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
         self.budget.on_charge = self._on_charge
@@ -264,6 +265,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def _git_init(self) -> None:
         if not self.cfg.git:
             return
+        if getattr(self, "_repo_found", None):  # one of the owner's apps: its .gitignore stays as it is
+            return self._exclude_harness()
         if not (self.project.root / ".git").exists():
             self._git("init", "-q")
         gi = self.project.root / ".gitignore"
@@ -274,6 +277,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def _git_commit(self, message: str) -> None:
         if not self.cfg.git:
             return
+        self._guard_branch()  # repository mode: only ever on Roundtable's own branch
         self._git("add", "-A")
         if self._git("status", "--porcelain").strip():
             self._git("commit", "-q", "-m", message)
@@ -357,7 +361,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         try:
             hub = self._hub()
             if hub:
-                hub.update_card(self._hub_agent(), change_note=note, status=status)
+                hub.update_card(self._hub_agent(), change_note=note, status=self._card_status(status))
         except Exception as e:  # the hub is optional; never fail a run over it
             self.emit("hub_error", {"error": str(e)})
 
@@ -384,13 +388,16 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         except Exception as e:
             self.emit("hub_error", {"error": str(e)})
 
-    def _attention(self, key: str, text: str) -> None:
-        """Open a high-priority todo for the owner once per issue (no duplicates across reruns)."""
+    def _attention(self, key: str, text: str, details: str = "") -> None:
+        """Open a high-priority todo for the owner once per issue (no duplicates across reruns).
+
+        ``text`` is what the owner reads (the app, the phone): a plain sentence, no file paths or commands;
+        those go in ``details``."""
         meta = self.project.meta()
         open_ = meta.setdefault("journal_todos", {})
         if key in open_:
             return
-        entry = self._journal("todo", text, priority="high")
+        entry = self._journal("todo", text, priority="high", **({"details": details} if details else {}))
         if entry:
             open_[key] = entry
             self.project.save_meta(meta)
@@ -526,6 +533,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         for text in references or []:
             if str(text).strip():
                 refs.append(new_reference(text, refs))
+        self._repo_found = self._detect_repository()
         self._git_init()
         self.project.save_meta({
             "goals": [goal], "status": "planning", "created_at": utcnow(),
@@ -533,6 +541,9 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             "references": refs,
         })
         self.project.save_tasks([])
+        self._ensure_settings_file()
+        if self._repo_found:
+            self._begin_repository(goal, self._repo_found)
         self.emit("goal", {"goal": goal})
         self._register_with_lab()
 
@@ -648,7 +659,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     # -- profiles: budget / balanced / quality ---------------------------------------
     def profile(self) -> str | None:
         """The project's chosen set of models, else the config's default (None: the roles as written)."""
-        chosen = self.project.meta().get("profile") if self.project.exists else None
+        chosen = self._settings_profile() or (self.project.meta().get("profile") if self.project.exists else None)
         return chosen if chosen in self.base_cfg.profiles else self.base_cfg.default_profile
 
     def set_profile(self, name: str) -> dict[str, Any]:
@@ -657,7 +668,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         meta = self.project.meta()
         meta["profile"] = name
         self.project.save_meta(meta)
-        self.cfg = self.base_cfg.for_profile(name)
+        self._remember_profile(name)
+        self.cfg = self._settle_cfg(self.base_cfg.for_profile(name))
         doc = self.project.plan_doc()
         if doc:
             doc["profile"] = name
@@ -673,7 +685,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         out, keep = {}, self.cfg
         try:
             for name in self.base_cfg.profiles:
-                self.cfg = self.base_cfg.for_profile(name)
+                self.cfg = self._settle_cfg(self.base_cfg.for_profile(name))
                 e = self._estimate(self.project.tasks())
                 out[name] = {"cost_usd": e.get("cost_usd"), "minutes": e.get("minutes"), "unpriced": e.get("unpriced", [])}
         finally:
@@ -705,6 +717,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         like = self._references_text()
         job = (
             (f"{like}\n\n" if like else "")
+            + self._repo_plan_note()
             + f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
             + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
             + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
@@ -767,7 +780,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         prompt = (f"{plandoc.render_markdown(doc, goal_tasks)}\n\n# Task details\n"
                   + "\n".join(f"[{t.id}] ({t.role}) {t.title}: {t.description[:600]} | done when: {t.acceptance[:300]}"
                                + (f" | after {', '.join(t.depends_on)}" if t.depends_on else "") for t in goal_tasks)
-                  + "\n\nCritique this plan before any work starts. Look for: missing pieces, wrong order, tasks too big "
+                  + "\n\n" + self._repo_critic_note() + "Critique this plan before any work starts. Look for: missing pieces, wrong order, tasks too big "
                     "or vague to verify, risky or over-engineered choices, choices the owner should make that are "
                     "hidden, and a better recommendation where you'd pick differently. Severity high = the plan "
                     "would fail or waste most of the budget. Be brief; call submit_critique.")
@@ -974,9 +987,10 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     ) -> AgentResult:
         """Run a one-shot role job (planning / summary), trying fallback models on provider errors."""
         last: Exception | None = None
+        self._require_models(role)
         for ref in role.models:
             try:
-                res = run_agent(self.cfg, ref, system, prompt, box, self.budget,
+                res = run_agent(self.cfg, ref, self._with_repo_rules(system), prompt, box, self.budget,
                                 max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
                                 options=role.options, require_terminal=require, on_event=self.emit,
                                 saver=self._saver(), role=role.name)
@@ -1003,6 +1017,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             parts.append("# Results of tasks this depends on\n" + "\n".join(f"- [{d.id}] {d.summary}" for d in deps))
         if feedback:
             parts.append("# Feedback on your previous attempt(s) - address all of it\n" + "\n\n".join(feedback))
+        parts.extend(self._repo_worker_parts())
         parts.append("Work in the project files using your tools. Throwaway scripts you write only to check your work "
                      "go in .harness/scratch/ (never committed or reviewed), or delete them before you finish. When "
                      "finished, call finish_task with a concise summary of what you did and anything the next person "
@@ -1012,6 +1027,9 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def _review(self, task: Task, worker_summary: str, stronger: bool = False) -> tuple[bool, str, AgentResult | None]:
         reviewer = self.cfg.roles.get(self.cfg.reviewer_role or "")
         role = self.cfg.roles[task.role]
+        checks = self._task_checks(task)  # the project's own test command, when it has one
+        if checks and checks["blame"]:
+            return False, checks["feedback"], None
         if not reviewer or not role.review:
             return True, "(review skipped)", None
         if stronger and len(reviewer.models) > 1:
@@ -1044,6 +1062,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "")
             + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
+            + (checks["text"] if checks else "")
             + self._later_tasks_text(task) +
             ("This project is a Godot game: call run_game to start it and see its script errors.\n\n"
                if game is not None else "") +
@@ -1118,6 +1137,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         role = self.cfg.roles.get(task.role)
         if not role:
             raise HarnessError(f"task {task.id}: role {task.role!r} no longer exists in config")
+        self._require_models(role)
         if role.kind == "image":
             return self._run_image_task(task, role)
 
@@ -1150,7 +1170,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             box.add(Tool(ToolSpec("finish_task", "Call when the task is complete.",
                                   _obj({"summary": {"type": "string"}}, ["summary"])), finish_task, terminal=True))
             try:
-                res = run_agent(self.cfg, ref, self.cfg.prompt_text(role.prompt), self._worker_prompt(task, tasks, feedback),
+                res = run_agent(self.cfg, ref, self._with_repo_rules(self.cfg.prompt_text(role.prompt)),
+                                self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
                                 on_event=self.emit, saver=self._saver(), role=task.role)
@@ -1236,8 +1257,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
             p = next((x for x in lab.proposals() if x.id == a["id"]), None)
             why = p.rationale if p else ""
             self.emit("improved", {"id": a["id"], "version": a["version"], "summary": a["summary"]})
-            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why} "
-                                      f"(undo: roundtable improve rollback {a['version']})")
+            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why}",
+                          details=f"undo: roundtable improve rollback {a['version']}")
 
     REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
 
@@ -1337,11 +1358,14 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 meta = self.project.meta()
             if not meta.get("plan_approved"):
                 self._set_status("awaiting_approval")
-                self._attention("approval", f"review the plan, then: roundtable approve {self.project.root} "
-                                            f"&& roundtable run {self.project.root}")
+                self._attention("approval", "The plan is ready: look at it, then approve it to start building",
+                                details=f"roundtable approve {self.project.root} && roundtable run {self.project.root}")
                 return "awaiting_approval"
             self._resolved("approval", "budget", "money", note="run resumed")
             self._set_status("running")
+            stop = self._prepare_run()  # the project's settings, setup and the checks' baseline
+            if stop:
+                return stop
 
             executed = finished_this_run = 0
             while True:
@@ -1357,8 +1381,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                         self._set_status("blocked")
                         for t in tasks:
                             if t.status == "failed":
-                                self._attention(f"failed:{t.id}", f"task {t.id} '{t.title}' failed; check "
-                                                f"`roundtable status {self.project.root}`, then retry or skip it")
+                                self._attention(f"failed:{t.id}", f"Task {t.id} “{t.title}” didn't pass: try it "
+                                                "again or skip it", details=f"roundtable status {self.project.root}")
                         return "blocked"
                     if all(t.status == "done" for t in tasks):
                         self._finish(tasks)
@@ -1414,8 +1438,8 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
                 self._attention("money", f"{e}: top up that account, then run the project again")
                 return "paused"
             self._set_status("paused_budget", reason=str(e), pause="budget")
-            self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
-                                      f"roundtable run {self.project.root}")
+            self._attention("budget", "Paused at this project's spending limit: choose Carry on to give it more",
+                            details=f"{e}; raise limits.max_cost_usd, then roundtable run {self.project.root}")
             return "paused_budget"
 
     def _finish(self, tasks: list[Task]) -> None:
@@ -1437,17 +1461,66 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         self._resolved("approval", "budget", "money", note="the run finished")
         self._publish_plan()
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
-        for plan_id in meta.get("journal_plans", []):
-            self._journal_close(plan_id, "completed by the harness")
-        if meta.get("journal_plans"):
-            meta = self.project.meta()
-            meta["journal_plans"] = []
-            self.project.save_meta(meta)
+        self._close_goal_plans(meta["goals"])
+        meta = self.project.meta()
         first = next((ln.strip("# ").strip() for ln in summary.splitlines() if ln.strip()), "")
+        # the owner reads the next steps on the phone and in the app: plain sentences; the paths and
+        # commands go in the details
         self._journal("session", f"harness finished goal '{meta['goals'][-1][:150]}' ({len(tasks)} tasks, "
                                  f"${self.budget.spent_usd:.2f}). {first[:200]}",
-                      next_steps=[f"review the result and report: {self.project.dir / 'summary.md'}",
-                                  f"rate tasks: roundtable feedback {self.project.root} TASK --good/--bad"])
+                      next_steps=["Look at what was built and say what you think",
+                                  "Rate the tasks in the app (good or bad), so Roundtable learns"],
+                      details=f"Report: {self.project.dir / 'summary.md'}\n"
+                              f"Rate tasks: roundtable feedback {self.project.root} TASK --good/--bad")
+
+    def _close_goal_plans(self, goals: list[str]) -> None:
+        """Close the journal's "Future plans" entries of finished goals.
+
+        The ids kept in ``journal_plans`` are closed in the journal they were written to: the project's own
+        hub project, or the shared harness agent before the project had one (``_hub_agent`` can change
+        between planning and finishing, and closing in the wrong journal used to leave the entry open for
+        good). Open plan entries that read "goal: <a finished goal>" are closed too, so one whose id was lost
+        (or written by another session) doesn't stay under Future plans."""
+        hub = self._hub()
+        if not hub:
+            return
+        agents = list(dict.fromkeys(a for a in (self._hub_agent(), (self.cfg.hub or {}).get("agent")) if a
+                                    and a in hub.config.agents))
+        name = self.project.root.name
+        wanted = {" ".join(f"goal: {g[:300]}".split()) for g in goals}
+        left: list[str] = []
+        try:
+            for plan_id in self.project.meta().get("journal_plans", []):
+                if not any(self._close_in(hub, agent, plan_id) for agent in agents):
+                    left.append(plan_id)
+            for agent in agents:
+                prefix = "" if agent == name else f"{name}: "
+                for e in hub.journal.entries(agent, agent, kinds=["plan"], status="open"):
+                    text = e["text"]
+                    if prefix and not text.startswith(prefix):
+                        continue
+                    if " ".join(text[len(prefix):].split()) in wanted:
+                        self._close_in(hub, agent, e["id"])
+        except Exception as e:  # the hub is optional; never fail a run over it
+            self.emit("hub_error", {"error": str(e)})
+        meta = self.project.meta()
+        if meta.get("journal_plans") or left:
+            meta["journal_plans"] = []  # one that can't be found anywhere is gone already
+            self.project.save_meta(meta)
+
+    def _close_in(self, hub, agent: str, entry_id: str) -> bool:
+        """Close one plan entry in one agent's journal; False when it isn't there (or is closed already)."""
+        from ..hub.journal import JournalError
+
+        try:
+            data = hub.store.read_json(f"journal/{agent}/{entry_id}.json")
+            if not data:
+                return False
+            if data.get("status") == "open":
+                hub.journal.close(agent, entry_id, note="completed by the harness")
+            return True
+        except JournalError:
+            return False
 
     def retry(self, task_id: str, stronger: bool = False) -> None:
         """Try a task again; ``stronger``: with the Quality setting's model for its role."""
@@ -1471,7 +1544,7 @@ class Orchestrator(LookStage, ReferenceStage, ShowStage):
         role = self.cfg.roles.get(task.role)
         if not quality or not role:
             return []
-        strong = self.base_cfg.for_profile(quality).roles.get(task.role)
+        strong = self._settle_cfg(self.base_cfg.for_profile(quality)).roles.get(task.role)
         if not strong or [str(m) for m in strong.models] == [str(m) for m in role.models]:
             return []
         return list(strong.models)

@@ -136,6 +136,17 @@ def harness_event_line(kind: str, d: dict[str, Any]) -> str | None:
         n = len(d.get("pictures") or [])
         return f"   pictures of the app: {n} taken" + (f", {d['errors']} page error(s)" if d.get("errors") else "") \
             + (f" ({d['note']})" if d.get("note") else "")
+    if kind == "repository":
+        return f"Working on your app on its own branch, {d['branch']} (from {d['from'] or 'a detached HEAD'}; never pushed)"
+    if kind == "baseline":
+        return (f"Checks before any change: {d['command']} " + ("passed" if d["passed"] else
+                f"already fails ({d['failing']} test(s)); those won't be blamed on the tasks"))
+    if kind == "checks":
+        return f"   checks: {d['verdict']}" + (f" (new failures: {', '.join(d['new'][:5])})" if d.get("new") else "")
+    if kind == "setup":
+        return f"Set-up command {'worked' if d['passed'] else 'FAILED'}: {d['command']}"
+    if kind == "settings_warning":
+        return f"   settings: {d['warning']}"
     if kind == "provider_error":
         return f"   provider error ({d['model']}): {d['error'][:240]}"
     if kind == "status":
@@ -412,6 +423,30 @@ class UIApp:
             return hub_session(proj.root, proj.root.name, cfg.reviewer_role)
         since = int((q.get("since") or ["0"])[0] or 0)
         return session_view(proj.root, cfg.reviewer_role, since)
+
+    def project_settings_get(self, q):
+        """The project's own settings (.harness/project.yaml over roundtable.yaml): each with its value, where it
+        came from, what it does, its type and choices."""
+        from ..harness import projectsettings as ps
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, (q.get("project") or q.get("path") or [""])[0])
+        return {"path": str(proj.root), **ps.view(proj.root, list(cfg.profiles))}
+
+    def project_settings_post(self, body):
+        """Change settings: {project, changes: {key: value}}; a value of null or "" removes it from project.yaml."""
+        from ..harness import projectsettings as ps
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, body.get("project") or body.get("path") or "")
+        changes = body.get("changes")
+        if not isinstance(changes, dict) or not changes:
+            raise ApiError("send the settings to change as changes: {name: value}")
+        try:
+            out = ps.update(proj.root, changes, list(cfg.profiles))
+        except ValueError as e:
+            raise ApiError(str(e)) from None
+        return {"path": str(proj.root), **out}
 
     def raw(self, kind: str, q) -> tuple[bytes, str, dict[str, str]]:
         """A project's picture or made file, for the page (/raw/shot, /raw/file)."""
@@ -1189,6 +1224,8 @@ class UIApp:
             ("GET", "/api/project"): R.project_detail,
             ("GET", "/api/project/live"): R.project_live,
             ("GET", "/api/project/session"): R.project_session,
+            ("GET", "/api/project/settings"): R.project_settings_get,
+            ("POST", "/api/project/settings"): R.project_settings_post,
             ("POST", "/api/projects"): R.project_new,
             ("POST", "/api/project"): R.project_action,
             ("GET", "/api/probes"): R.probes,

@@ -4,6 +4,10 @@ Newest first. Each item says what to do and where.
 
 ## Now
 
+- **Later, for the official phone release: a signing key for the phone's Roundtable download.**
+  Test builds use a labelled test key. When the phone version is ready to release, I'll make the
+  key and ask you to save it as a repository secret through the secure form (you won't type it).
+
 - **The music player build** (the yardstick): tasks 1 and 2 are done. A task really
   costs about 3 cents of DeepSeek credit; the other 12 should come to well under $1.
   Say whether to carry on.

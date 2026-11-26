@@ -73,6 +73,19 @@ def _questions(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+_CLAIMED_BY_OWNER = re.compile(
+    r"^\s*(?:this (?:was|is) )?(?:settled|decided|chosen|agreed|picked|answered)(?: already)? by the owner[,.:;]?\s*(?:and\s+)?",
+    re.IGNORECASE)
+
+
+def _unclaimed(why: str) -> str:
+    """A planner may not say the owner settled a choice: only the owner's own answer does that.
+
+    (MSE Studio, 26 November: a revision wrote "Settled by the owner" on three choices nobody had made.)"""
+    out = _CLAIMED_BY_OWNER.sub("", why or "").strip()
+    return out[:1].upper() + out[1:] if out else out
+
+
 def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dict[str, Any]:
     """Build the plan document from what the planner submitted (every part is optional)."""
     decisions = []
@@ -86,7 +99,7 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
         rec = str(d.get("recommended") or ids[0])
         decisions.append({"id": str(d.get("id") or f"C{i + 1}"), "question": str(d["question"]), "options": opts,
                           "header": _header(d.get("header")),
-                          "recommended": rec if rec in ids else ids[0], "why": str(d.get("why", "")),
+                          "recommended": rec if rec in ids else ids[0], "why": _unclaimed(str(d.get("why", ""))),
                           "section": str(d.get("section", "")), "chosen": None})
     return {
         "goal": goal, "goal_index": goal_index, "version": 1,
@@ -470,9 +483,16 @@ def _references_context(refs: list[dict[str, Any]]) -> list[str]:
     return L
 
 
+# what every question, decision and idea for the owner must be like (they read it on a phone)
+PLAIN = ("for someone who isn't a programmer: one short plain sentence about what they will see or get, no tool "
+         "names or jargon (adb, Electron, smoke test, API, framework...)")
+
+
 def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:
     """The submit_plan tool's parameters: tasks plus the optional plan document parts."""
     s = {"type": "string"}
+    plain = {**s, "description": PLAIN}
+    option_plain = {**s, "description": "one line: what choosing it means for the owner, in plain words"}
     item = lambda props, req: {"type": "object", "properties": props, "required": req}  # noqa: E731
     return {
         "type": "object",
@@ -486,9 +506,9 @@ def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:
                      "items": item({"id": {**s, "description": "S1, S2..."}, "title": s, "text": s}, ["id", "title", "text"])},
             "decisions": {"type": "array", "description": "real choices the owner may want to make, with your recommendation",
                           "items": item({
-                              "id": {**s, "description": "C1, C2..."}, "question": s,
+                              "id": {**s, "description": "C1, C2..."}, "question": plain,
                               "header": {**s, "description": "a label of at most 12 characters, e.g. Art style"},
-                              "options": {"type": "array", "items": item({"id": s, "label": s, "detail": s,
+                              "options": {"type": "array", "items": item({"id": s, "label": s, "detail": option_plain,
                                                                          "cost": {**s, "description": "effort/cost note"}},
                                                                         ["id", "label"])},
                               "recommended": {**s, "description": "option id"}, "why": s,
@@ -498,16 +518,16 @@ def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:
                                                            "offer 2-4 likely answers to tap, your recommendation first "
                                                            "(the owner can still type their own)",
                           "items": item({
-                              "id": {**s, "description": "Q1, Q2..."}, "text": s, "why": s,
+                              "id": {**s, "description": "Q1, Q2..."}, "text": plain, "why": s,
                               "header": {**s, "description": "a label of at most 12 characters, e.g. Audience"},
                               "options": {"type": "array", "description": "2-4 likely answers, the recommended first",
                                           "items": item({"id": {**s, "description": "a, b, c..."}, "label": s,
-                                                         "detail": {**s, "description": "one line"}}, ["id", "label"])},
+                                                         "detail": option_plain}, ["id", "label"])},
                               "recommended": {**s, "description": "option id (normally the first)"},
                               "multi": {"type": "boolean", "description": "true when more than one answer can apply"}},
                               ["id", "text"])},
             "ideas": {"type": "array", "description": "worthwhile extras beyond the goal, for the owner to accept or not",
-                      "items": item({"id": {**s, "description": "I1, I2..."}, "text": s, "why": s}, ["id", "text"])},
+                      "items": item({"id": {**s, "description": "I1, I2..."}, "text": plain, "why": s}, ["id", "text"])},
             "has_ui": {"type": "boolean", "description": "true when the project is an app or game with screens "
                                                          "people look at (web, desktop, phone); false for a library, "
                                                          "command-line tool or service"},

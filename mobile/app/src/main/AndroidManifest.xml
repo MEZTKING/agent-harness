@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- "This phone": Roundtable runs on the phone in a foreground service (its notification shows while it runs) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- the in-app updater hands new versions to Android's installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -30,5 +36,21 @@
             android:name="com.journeyapps.barcodescanner.CaptureActivity"
             android:screenOrientation="fullSensor"
             tools:replace="screenOrientation" />
+        <!--
+            "This phone": runs Roundtable (proot, started from nativeLibraryDir) and keeps it alive, and covers
+            its download and unpack. Not exported: only the app starts it.
+        -->
+        <service
+            android:name=".runtime.HarnessRuntimeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs Roundtable, a local developer tool server the user started, on 127.0.0.1 inside the app until the user stops it." />
+        </service>
+        <!-- where Android says how an update's install went (only Android answers: not exported) -->
+        <receiver
+            android:name=".update.InstallReceiver"
+            android:exported="false" />
     </application>
 </manifest>

@@ -329,6 +329,16 @@ def test_remote_answer_action(tmp_path):
     assert "answer" in remote.LONG
 
 
+def test_remote_answer_by_question(tmp_path):
+    """The phone's cards built from the plan answer a question with {question, text}, not a card id."""
+    from roundtable import remote
+
+    orch = planned(tmp_path)
+    text = remote.execute(orch.cfg, orch.project.root, {"action": "answer", "question": "Q1", "text": "Crumbs & Co"})
+    assert orch.project.plan_doc()["questions"][0]["answer"] == "Crumbs & Co"
+    assert text.startswith("Answer saved.") and "Update plan" in text and "revise" not in text
+
+
 def test_the_hub_gets_the_cards_next_to_the_plan(tmp_path):
     import yaml
 

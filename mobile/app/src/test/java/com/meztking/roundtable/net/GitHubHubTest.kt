@@ -218,7 +218,8 @@ class GitHubHubTest {
         val need = hall.needs.first()
         assertEquals("ask", need.kind)
         assertEquals("choose:C1", need.ask!!.id)
-        assertEquals(2, need.asks)
+        assertEquals(listOf("choose:C1", "approve"), hall.needs.mapNotNull { it.ask?.id }) // every card is its own item
+        assertEquals(1, need.asks)
         assertEquals("lantern-app", need.ask!!.project)
         val said = backend.answer(need.ask!!, com.meztking.roundtable.data.AskReply(listOf("b"), "warmer"))
         assertTrue(said.startsWith("Sent."))
@@ -226,6 +227,46 @@ class GitHubHubTest {
             Json.parseToJsonElement(puts.single().body.readUtf8()).jsonObject["content"]!!.jsonPrimitive.content))).jsonObject
         assertEquals("roundtable: answer", body["subject"]!!.jsonPrimitive.content)
         assertEquals("""{"action":"answer","id":"choose:C1","chosen":["b"],"other":"warmer","stamp":"st"}""", body["body"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun receiptsDontNeedTheOwner() = runTest {
+        // Roundtable's automatic answers to the owner's commands: a receipt is read at once; a refusal needs the owner
+        files["inbox/me/20261125T120000000000Z-dddddd.json"] = msg("20261125T120000000000Z-dddddd", "me", subject = "Re: roundtable: choose")
+            .replace("Body of 20261125T120000000000Z-dddddd", "Done. 1 change waits for you to press Update plan.")
+        files["inbox/me/20261125T130000000000Z-eeeeee.json"] = msg("20261125T130000000000Z-eeeeee", "me", subject = "Re: roundtable: run")
+            .replace("Body of 20261125T130000000000Z-eeeeee", "Couldn't do 'run': there's no plan yet")
+        val backend = HubBackend(hub(), "me")
+        val hall = backend.hall()
+        val letters = hall.needs.filter { it.kind == "message" }.mapNotNull { it.id }
+        assertEquals(listOf("20261125T110000000000Z-bbbbbb", "20261125T130000000000Z-eeeeee").sorted(), letters.sorted())
+        val refusal = hall.needs.first { it.id == "20261125T130000000000Z-eeeeee" }
+        assertEquals("Roundtable couldn't do it", refusal.title)
+        assertEquals("Roundtable: Couldn't do that: there's no plan yet", refusal.text)
+        assertEquals(2, hall.seats.first { it.id == "me" }.unread) // the receipt isn't counted
+        val state = Json.parseToJsonElement(String(Base64.getDecoder().decode(
+            Json.parseToJsonElement(puts.single().body.readUtf8()).jsonObject["content"]!!.jsonPrimitive.content))).jsonObject
+        assertTrue("20261125T120000000000Z-dddddd" in state["read"].toString())
+    }
+
+    @Test fun cardsFromThePlanWhenThereIsNoAsksFile() = runTest {
+        files["plans/lantern-app.md"] = """
+            _Plan status: approved, building · updated 2026-11-25T22:41:05Z by Roundtable Hold_
+
+            # Plan v1: Light it
+
+            ## Ideas
+            - [open] A sound picker {I1}
+        """.trimIndent()
+        val backend = HubBackend(hub(), "me")
+        assertTrue(backend.hall().needs.none { it.ask != null }) // an agreed plan's leftovers aren't Needs you
+        val cards = backend.asks(com.meztking.roundtable.data.SeatView("lantern-app"))
+        assertEquals(listOf("idea:I1"), cards.map { it.id }) // but they are tappable on its Plan tab
+        puts.clear()
+        assertTrue(backend.answer(cards[0], com.meztking.roundtable.data.AskReply(listOf("yes"))).contains("Update plan"))
+        val body = Json.parseToJsonElement(String(Base64.getDecoder().decode(
+            Json.parseToJsonElement(puts.single().body.readUtf8()).jsonObject["content"]!!.jsonPrimitive.content))).jsonObject
+        assertEquals("roundtable: idea", body["subject"]!!.jsonPrimitive.content)
+        assertEquals("""{"action":"idea","id":"I1","accept":true}""", body["body"]!!.jsonPrimitive.content)
     }
 
     @Test fun markReadKeepsTheRestOfTheStateFile() = runTest {
