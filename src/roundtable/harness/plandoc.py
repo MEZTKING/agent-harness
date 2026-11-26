@@ -73,6 +73,19 @@ def _questions(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+_CLAIMED_BY_OWNER = re.compile(
+    r"^\s*(?:this (?:was|is) )?(?:settled|decided|chosen|agreed|picked|answered)(?: already)? by the owner[,.:;]?\s*(?:and\s+)?",
+    re.IGNORECASE)
+
+
+def _unclaimed(why: str) -> str:
+    """A planner may not say the owner settled a choice: only the owner's own answer does that.
+
+    (MSE Studio, 26 November: a revision wrote "Settled by the owner" on three choices nobody had made.)"""
+    out = _CLAIMED_BY_OWNER.sub("", why or "").strip()
+    return out[:1].upper() + out[1:] if out else out
+
+
 def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dict[str, Any]:
     """Build the plan document from what the planner submitted (every part is optional)."""
     decisions = []
@@ -86,7 +99,7 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
         rec = str(d.get("recommended") or ids[0])
         decisions.append({"id": str(d.get("id") or f"C{i + 1}"), "question": str(d["question"]), "options": opts,
                           "header": _header(d.get("header")),
-                          "recommended": rec if rec in ids else ids[0], "why": str(d.get("why", "")),
+                          "recommended": rec if rec in ids else ids[0], "why": _unclaimed(str(d.get("why", ""))),
                           "section": str(d.get("section", "")), "chosen": None})
     return {
         "goal": goal, "goal_index": goal_index, "version": 1,

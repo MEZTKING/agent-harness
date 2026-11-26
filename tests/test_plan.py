@@ -382,3 +382,13 @@ def test_receipts_and_trouble():
     assert not is_trouble("Plan v3: 3 tasks added. The new plan is ready to look at.")
     for t in ("Couldn't do 'run': no plan", "Unknown action 'x'.", "The run ended as: failed.", "Are you sure? It costs more"):
         assert is_trouble(t)
+
+
+def test_a_planner_cannot_say_the_owner_settled_a_choice():
+    from roundtable.harness.plandoc import doc_from_submission
+    doc = doc_from_submission({"decisions": [{"id": "C1", "question": "Cards first?", "recommended": "a",
+                                              "why": "Settled by the owner. Only the deck-opening path changes.",
+                                              "options": [{"id": "a", "label": "Yes"}, {"id": "b", "label": "No"}]}]},
+                              "goal", 1)
+    d = doc["decisions"][0]
+    assert d["why"] == "Only the deck-opening path changes." and d["chosen"] is None

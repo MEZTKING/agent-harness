@@ -30,3 +30,7 @@ When the owner gave things to make it like ("Things the owner wants it to be lik
 When revising, keep tasks the changes don't affect exactly as they were (same id, role and wording), and change only what the owner's changes require.
 
 When the plan is complete, call submit_plan. If it is rejected, fix the stated problem and call it again.
+
+Never write that the owner settled, chose or agreed something unless the plan document records
+their answer (a chosen option or an answered question). A choice the owner hasn't made stays open,
+with your recommendation.
