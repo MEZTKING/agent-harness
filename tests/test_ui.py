@@ -137,6 +137,16 @@ def test_http_serves_ui_and_guards_writes(server):
     status, body, headers = http(server + "/")
     assert status == 200 and b"Roundtable Hold" in body and "script-src 'self'" in headers["Content-Security-Policy"]
     assert http(server + "/app.js")[0] == 200
+
+    # the Candlelit Oak look: everything it needs is served from here (nothing outside), with the right types
+    for name, ctype in (("style.css", "text/css"), ("theme.js", "javascript"), ("fraunces.woff2", "font/woff2"),
+                        ("nunito-sans.woff2", "font/woff2"), ("hall.webp", "image/webp"), ("table.webp", "image/webp"),
+                        ("emblem.png", "image/png"), ("icon.png", "image/png")):
+        st, data, hd = http(server + "/" + name)
+        assert st == 200 and data and ctype in hd["Content-Type"], name
+    css = http(server + "/style.css")[1].decode()
+    assert "@media (prefers-color-scheme: dark)" in css and ':root[data-theme="dark"]' in css and "prefers-reduced-motion" in css
+    assert "http://" not in css and "https://" not in css
     assert http(server + "/../pyproject.toml")[0] == 404
     assert http(server + "/api/where")[0] == 200
     ok_headers = {"Content-Type": "application/json", "X-Agent-Hub": "1"}

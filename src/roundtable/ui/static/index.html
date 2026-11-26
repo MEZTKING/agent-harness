@@ -3,37 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
   <title>Roundtable Hold</title>
+  <link rel="preload" href="fraunces.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="nunito-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="icon.png">
+  <script src="theme.js"></script>
 </head>
 <body>
   <div class="shell">
     <nav class="sidebar" id="nav">
-      <div class="brand">
-        <svg class="brand-mark" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true" focusable="false">
-          <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="1" opacity=".55"/>
-          <circle cx="24" cy="24" r="12.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
-          <circle cx="24" cy="24" r="8" fill="none" stroke="currentColor" stroke-width=".7" opacity=".6"/>
-          <g fill="currentColor">
-            <circle cx="24" cy="7" r="1.9"/><circle cx="36" cy="12" r="1.9"/><circle cx="41" cy="24" r="1.9"/>
-            <circle cx="36" cy="36" r="1.9"/><circle cx="24" cy="41" r="1.9"/><circle cx="12" cy="36" r="1.9"/>
-            <circle cx="7" cy="24" r="1.9"/><circle cx="12" cy="12" r="1.9"/>
-          </g>
-          <path d="M24 19.5c1.9 2 2.6 3.4 2.6 4.8a2.6 2.6 0 0 1-5.2 0c0-1.4.7-2.8 2.6-4.8z" fill="currentColor"/>
-        </svg>
+      <a class="brand" href="#/roundtable" title="Back to the Hall">
+        <img class="brand-mark" src="emblem.png" width="38" height="38" alt="">
         <span class="brand-name">Roundtable Hold</span>
+      </a>
+      <div class="rooms">
+        <a href="#/roundtable" data-nav="roundtable">Roundtable</a>
+        <a href="#/projects" data-nav="projects">Projects</a>
+        <a href="#/messages" data-nav="messages">Messages</a>
+        <span class="nav-sep" data-harness title="Harness: runs, models and the lab">Harness</span>
+        <a href="#/runs" data-nav="runs" data-harness>Runs</a>
+        <a href="#/models" data-nav="models" data-harness>Models &amp; health</a>
+        <a href="#/improve" data-nav="improve" data-harness>Improve</a>
+        <a href="#/jobs" data-nav="jobs">Jobs <span class="badge" id="jobs-badge" hidden></span></a>
+        <a href="#/settings" data-nav="settings">Settings</a>
       </div>
-      <a href="#/roundtable" data-nav="roundtable">Roundtable</a>
-      <a href="#/projects" data-nav="projects">Projects</a>
-      <a href="#/messages" data-nav="messages">Messages</a>
-      <div class="nav-sep" data-harness>Harness</div>
-      <a href="#/runs" data-nav="runs" data-harness>Runs</a>
-      <a href="#/models" data-nav="models" data-harness>Models &amp; health</a>
-      <a href="#/improve" data-nav="improve" data-harness>Improve</a>
-      <a href="#/jobs" data-nav="jobs">Jobs <span class="badge" id="jobs-badge" hidden></span></a>
-      <a href="#/settings" data-nav="settings">Settings</a>
+      <a class="today" id="today-spend" href="#/runs" title="What the AI work has cost today, on every project" hidden>Today <b></b></a>
       <div class="nav-foot" id="nav-foot"></div>
     </nav>
     <div class="content">

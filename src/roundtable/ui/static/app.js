@@ -96,7 +96,7 @@ function askCard(ask, onAnswer, opts = {}) {
       return h("button", { class: "ask-opt" + (on ? " on" : "") + (o.id === rec ? " rec" : ""), type: "button", disabled: opts.disabled,
         "aria-pressed": ask.multi || ask.answer ? String(on) : null, title: o.confirm ? "You'll be asked to make sure first" : `Press ${i + 1}`, onclick: () => pick(o) },
       o.picture && opts.pictures && opts.pictures[o.picture] ? h("img", { class: "ask-pic", src: opts.pictures[o.picture], alt: o.label }) : null,
-      h("b", {}, ask.multi ? h("i", { class: "tick" + (on ? " on" : "") }) : h("kbd", {}, i + 1), o.label, o.id === rec ? h("span", { class: "rec-mark" }, " (Recommended)") : null),
+      h("b", {}, ask.multi ? h("i", { class: "tick" + (on ? " on" : "") }) : h("kbd", {}, i + 1), o.label, o.id === rec ? h("span", { class: "rec-mark" }, "Recommended") : null),
       o.description ? h("span", {}, o.description) : null);
     });
     const otherBtn = ask.allow_other !== false && !textOnly ? h("button", { class: "ask-opt other", type: "button", disabled: opts.disabled,
@@ -353,13 +353,14 @@ async function viewRoundtable() {
     } else { proj = null; chat = null; projPath = null; }
   }
 
-  function seatCard(s) {
+  function seatCard(s, i, n) {
     const p = s.progress, total = p ? p.total : 0, failed = s.failed_task ? 1 : 0;
-    const label = { running: "running", waiting: "needs you", idle: "idle", done: "done" }[s.status] || s.status;
+    const label = { running: "Running", waiting: "Needs you", idle: "Idle", done: "Done" }[s.status] || s.status;
     const cls = { running: "info", waiting: s.failed_task ? "bad" : "warn", idle: "", done: "good" }[s.status] || "";
     const count = total ? `${p.done}/${total} tasks` : s.open_todos ? `${s.open_todos} todo(s)` : "";
     const now = s.detail || (s.last_session ? s.last_session.text : "") || (s.last_activity ? `last activity ${ago(s.last_activity)}` : s.description || "no activity yet");
     return h("div", { class: `seat ${s.status}${s.id === rtSel ? " on" : ""}`, role: "button", tabindex: "0", "data-seat": s.id, title: `${s.id}: ${label}${s.detail ? " · " + s.detail : ""}`,
+      style: `--a:${Math.round((360 * i) / n)}deg`,
       onclick: () => choose(s.id), onkeydown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(s.id); } } },
     h("div", { class: "nm" }, tagDot(s.id), h("span", {}, s.id), s.high ? h("span", { class: "seat-high", title: `${s.high} high priority` }) : null,
       s.unread ? h("span", { class: "badge", title: `${s.unread} unread` }, s.unread) : null),
@@ -367,8 +368,12 @@ async function viewRoundtable() {
     h("div", { class: "bar" }, total ? [h("i", { style: `width:${(100 * p.done) / total}%` }),
       s.status === "running" && p.done < total ? h("i", { class: "run", style: `width:${100 / total}%` }) : null,
       failed ? h("i", { class: "fail", style: `width:${100 / total}%` }) : null] : null),
-    h("div", { class: "now" }, now));
+    h("div", { class: "now" }, now),
+    total || s.spent_usd ? h("div", { class: "st" }, h("span", {}, total ? `${Math.round((100 * p.done) / total)}% done` : ""), s.spent_usd ? h("b", {}, money(s.spent_usd)) : null) : null);
   }
+  // the empty chair at the table: start a new project
+  const chair = (i, n) => h("a", { class: "seat chair", href: "#/new", style: `--a:${Math.round((360 * i) / n)}deg`,
+    title: "A few questions, then the planner makes a plan for you to check" }, h("b", {}, "+ Pull up a chair"), h("span", {}, "Write a new idea"));
 
   // a waiting project's next card, answered right here; the rest wait on its plan page
   function needAsk(n) {
@@ -461,11 +466,16 @@ async function viewRoundtable() {
         data.health.length ? [h("span", { class: "health" }, data.health.map((x) => h("i", { class: x.state }))),
           h("span", { class: "muted" }, ["ok", "warn", "bad"].map((k) => { const n = data.health.filter((x) => x.state === k).length; return n ? `${n} ${{ ok: "ok", warn: "off", bad: "down" }[k]}` : ""; }).filter(Boolean).join(" · "))]
           : h("span", { class: "muted" }, "not probed yet")),
-      h("span", { class: "stat" }, "Today ", h("b", {}, money(data.spend_today))),
       h("a", { class: "stat", href: "#/messages" }, "Unread ", h("b", {}, unread)),
       h("a", { class: "btn primary", href: "#/new", title: "A few questions, then the planner makes a plan for you to check" }, "+ New project")]);
+    const today = document.getElementById("today-spend");
+    today.hidden = false; today.querySelector("b").textContent = money(data.spend_today);
+    const n = data.seats.length + 1, waiting = data.seats.filter((x) => x.status === "waiting").length;
+    strip.classList.toggle("ring", n <= 8);   // up to seven seats and the empty chair sit around the table; more make a list
     patch(strip, JSON.stringify([rtSel, data.seats.map((x) => ({ ...x, brief: null, last_activity: x.last_activity ? ago(x.last_activity) : "" }))]), () =>
-      [data.seats.length ? data.seats.map(seatCard) : h("div", { class: "empty" }, "Nobody at the table yet."), h("div", { class: "candles" }, h("i", { class: "cdl" }), h("i", { class: "cdl" }), h("i", { class: "cdl" }))]);
+      [h("div", { class: "hall-centre", "aria-hidden": "true" }, h("i", { class: "flame" }), h("b", {}, "The Hall"),
+        h("span", {}, `${data.seats.length} seat${data.seats.length === 1 ? "" : "s"}${waiting ? ` · ${waiting} need${waiting === 1 ? "s" : ""} you` : ""}`)),
+      data.seats.length ? data.seats.map((x, i) => seatCard(x, i, n)) : h("div", { class: "empty" }, "Nobody at the table yet."), chair(n - 1, n)]);
     patch(needs, JSON.stringify(data.needs_you.map((n) => ({ ...n, at: n.at ? ago(n.at) : "" }))), () => [
       h("div", { class: "card-head" }, h("h2", {}, "Needs you"), data.needs_you.length ? h("span", { class: "cnt" }, data.needs_you.length) : null),
       data.needs_you.length ? h("div", { class: "list" }, data.needs_you.map(needItem)) : h("div", { class: "empty" }, "Nothing is waiting on you.")]);
@@ -645,7 +655,7 @@ async function viewNew() {
         ev.currentTarget.disabled = true;
         try { const r = await api("POST", "/api/asks", { wizard: answers }); toast(r.reply); location.hash = `#/job/${r.job.id}`; }
         catch (e) { toast(e.message, true); ev.currentTarget.disabled = false; }
-      } }, h("b", {}, h("kbd", {}, 1), "Make the plan", h("span", { class: "rec-mark" }, " (Recommended)")), h("span", {}, "You'll see it, with its questions, in a minute or two.")),
+      } }, h("b", {}, h("kbd", {}, 1), "Make the plan", h("span", { class: "rec-mark" }, "Recommended")), h("span", {}, "You'll see it, with its questions, in a minute or two.")),
       h("button", { class: "ask-opt", type: "button", onclick: () => { step = 0; draw(); } }, h("b", {}, h("kbd", {}, 2), "Go back"), h("span", {}, "Look at your answers again."))));
   function draw() {
     const kids = w.asks.map((a, i) => {
@@ -1247,6 +1257,23 @@ async function backupsCard() {
   return section("Backups", box);
 }
 
+// Settings > Look: light, dark, or the computer's choice (theme.js applies it before the page draws).
+function lookCard() {
+  let now = "system";
+  try { now = localStorage.getItem("rt-theme") || "system"; } catch { /* storage unavailable */ }
+  const pick = (v) => {
+    try { if (v === "system") localStorage.removeItem("rt-theme"); else localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
+    if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+    card.replaceWith(lookCard());
+  };
+  const choices = [["light", "Light", "Warm parchment and oak"], ["dark", "Dark", "The hall by candlelight"], ["system", "Same as this computer", "Follows the computer's light or dark setting"]];
+  const card = section("Look",
+    h("p", { class: "muted small" }, "How Roundtable looks on this computer."),
+    h("div", { class: "look-pick", role: "group", "aria-label": "Light or dark" }, choices.map(([v, label, tip]) =>
+      h("button", { class: v === now ? "on" : "", type: "button", title: tip, "aria-pressed": String(v === now), onclick: () => pick(v) }, label))));
+  return card;
+}
+
 async function viewSettings() {
   const [st, upd] = await Promise.all([api("GET", "/api/setup"), api("GET", "/api/update").catch(() => ({}))]);
   const editor = async (which) => {
@@ -1260,7 +1287,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), await providersCard(), hubCard(st), await backupsCard(), await pluginsCard(), SHOW_PHONE ? await phoneCard() : null,
+    lookCard(), keysCard(st), await providersCard(), hubCard(st), await backupsCard(), await pluginsCard(), SHOW_PHONE ? await phoneCard() : null,
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),
