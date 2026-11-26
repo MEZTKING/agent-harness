@@ -64,6 +64,16 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
   `plans/inspiration.md`) keeps its licence and copyright line in
   `THIRD_PARTY_NOTICES.md`, and the devlog names the source file. Never copy art or
   anything not under an open licence.
+- **The owner never leaves the app** (owner, 26 November 2026: "for the to-do list I'm not supposed to
+  ever leave the app; you're meant to set up everything so all my agents do it – that's the whole
+  point"). A to-do for the owner is a last resort: anything an agent or Roundtable can do (set-up,
+  settings, keys through the app's own forms, GitHub settings through the GitHub tools, cloud
+  environments through the environment tools, installs on the PC through Remote Control) is done by
+  them, and what truly needs the owner is a one-tap card inside the app (desktop or phone), never
+  "go to GitHub / type this command".
+- **Who builds Roundtable** (owner, 26 November 2026: "rebuild the application from scratch using
+  Claude Opus 5.5 medium"): helpers building Roundtable's own apps run on Opus at medium effort
+  unless the owner says otherwise.
 - **Test on the owner's PC what the cloud can't** (owner, 26 November 2026: "For whatever you
   can't test on the cloud, you should be controlling the person's computer and testing through
   that, as I have the hardware"). Unreal, Godot, Blender, the Windows app and a phone by USB are
