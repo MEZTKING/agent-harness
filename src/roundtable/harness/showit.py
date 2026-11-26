@@ -306,8 +306,8 @@ def take_shots(project_root: Path, task_id: str, render: Callable | None = None)
     """Start the app from its folder, take its pictures, and write ``shots.json``. Never raises."""
     root = Path(project_root)
     out_dir = shots_root(root) / _safe_task(task_id)
-    record: dict[str, Any] = {"task": task_id, "dir": out_dir.name, "at": _now(), "entry": None, "title": "",
-                              "pictures": {}, "errors": [], "note": ""}
+    record: dict[str, Any] = {"task": task_id, "dir": out_dir.name, "at": _now(), "seq": _next_seq(root),
+                              "entry": None, "title": "", "pictures": {}, "errors": [], "note": ""}
     entry = entry_page(root)
     if not entry:
         record["note"] = ("nothing to open yet: no index.html (apps started with a command come in a later "
@@ -356,7 +356,19 @@ def history(project_root: Path, limit: int = 40) -> list[dict[str, Any]]:
             out.append(json.loads(p.read_text(encoding="utf-8")))
         except (OSError, ValueError):
             continue
-    return sorted(out, key=lambda r: r.get("at", ""), reverse=True)[:limit]
+    # the time is to the second; the running number keeps tasks pictured in the same second in order
+    return sorted(out, key=lambda r: (r.get("at", ""), r.get("seq", 0)), reverse=True)[:limit]
+
+
+def _next_seq(project_root: Path) -> int:
+    """One more than the highest running number of the pictures taken so far."""
+    seqs = [0]
+    for p in shots_root(project_root).glob("*/shots.json"):
+        try:
+            seqs.append(int(json.loads(p.read_text(encoding="utf-8")).get("seq", 0)))
+        except (OSError, ValueError, TypeError):
+            continue
+    return max(seqs) + 1
 
 
 # -- the hub ----------------------------------------------------------------------------------

@@ -342,3 +342,14 @@ def test_show_it_setting():
     assert parse_config({**json.loads(json.dumps(RAW)), "show_it": False}).show_it == "off"
     with pytest.raises(ValueError):
         parse_config({**json.loads(json.dumps(RAW)), "show_it": "sometimes"})
+
+
+def test_pictures_taken_in_the_same_second_keep_their_order(tmp_path):
+    from roundtable.harness import showit
+
+    for i, task in enumerate(["W1", "W2", "W3"], 1):
+        d = showit.shots_root(tmp_path) / task
+        d.mkdir(parents=True)
+        (d / "shots.json").write_text(json.dumps({"task": task, "at": "2026-11-26T15:00:00Z", "seq": i}), encoding="utf-8")
+    assert [r["task"] for r in showit.history(tmp_path)] == ["W3", "W2", "W1"]
+    assert showit._next_seq(tmp_path) == 4

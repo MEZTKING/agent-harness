@@ -4,6 +4,12 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Pictures taken in the same second keep their order (Windows)
+
+CI on Windows listed two tasks' pictures oldest first: `shots.json` times are to the second, and ties
+fell to folder order. `showit.take_shots` records a running number (`seq`, `_next_seq`) and `history`
+sorts by time then that number. Test: `test_pictures_taken_in_the_same_second_keep_their_order`.
+
 ## 2026-11-26 – Hub ids always move forward (Windows clock)
 
 CI on Windows failed `test_commands_through_the_hub`: "revise" and "approve" sent one after the other
