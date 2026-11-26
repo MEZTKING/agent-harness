@@ -13,6 +13,7 @@ failure, Ctrl-C) and resume exactly where it left off:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
@@ -975,6 +976,38 @@ class Orchestrator:
 
     def run(self, max_tasks: int | None = None) -> str:
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
+        start = self._note_balance("start")
+        try:
+            return self._run(max_tasks)
+        finally:
+            if start:
+                self._note_balance("end", start)
+
+    def _note_balance(self, phase: str, start: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Note the providers' real balances, so the cost count can be checked against the bill."""
+        if not self.project.exists or os.environ.get("ROUNDTABLE_NO_BALANCE"):
+            return None
+        try:
+            from ..providers.balance import balances
+
+            used = sorted({m.provider for r in self.cfg.roles.values() for m in r.models})
+            now = balances(self.cfg, used)
+        except Exception:
+            return None
+        if not now:
+            return None
+        row: dict[str, Any] = {"at": utcnow(), "phase": phase, "balances": now,
+                               "counted_usd": round(self.project.meta().get("spent_usd", 0.0), 6)}
+        if start:
+            real = sum(start["balances"][p]["amount"] - b["amount"] for p, b in now.items() if p in start["balances"])
+            counted = row["counted_usd"] - start["counted_usd"]
+            row.update(real_usd=round(real, 4), counted_since_start_usd=round(counted, 4))
+            self.emit("real_cost", {"real_usd": row["real_usd"], "counted_usd": row["counted_since_start_usd"]})
+        with (self.project.root / ".harness" / "balance.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+        return row
+
+    def _run(self, max_tasks: int | None = None) -> str:
         if not self.project.exists:
             raise HarnessError("no project here; use `roundtable new`")
         meta = self.project.meta()

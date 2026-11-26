@@ -204,7 +204,9 @@ class HarnessConfig:
         return (
             usage.input_tokens * price.get("input", 0)
             + usage.output_tokens * price.get("output", 0)
-            + usage.cache_read_tokens * price.get("cache_read", price.get("input", 0))
+            # text the model has seen already: most makers (Anthropic, DeepSeek, OpenAI) bill it at
+            # about a tenth of the input price; set cache_read in the pricing when it differs
+            + usage.cache_read_tokens * price.get("cache_read", price.get("input", 0) * 0.1)
             + usage.cache_write_tokens * price.get("cache_write", price.get("input", 0) * 1.25)
         ) / 1_000_000
 

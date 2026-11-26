@@ -6,15 +6,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
-- **Its cost count is probably too high for DeepSeek.** Text a model has already seen
-  (cache hits) is charged at the full input price when the pricing has no `cache_read`
-  line, and DeepSeek's cache hits cost much less. Seen on the music player (tasks
-  counted at $0.20–0.32 each). Being measured against the real balance; then the right
-  `cache_read` prices go into the default pricing and the template. → now.
-- **The estimate before a build was about six times too low** ($0.25 for 14 tasks; two
-  tasks were counted at over $0.50). With no history it assumes 60,000 input and 8,000
-  output tokens per attempt; real tasks resend the whole conversation every step. The
-  defaults should come from steps × context, and be checked after each real run. → now.
+- **The estimate's defaults are guesses.** With no history it assumes 60,000 input and
+  8,000 output tokens per attempt. In real money the music player's estimate was about
+  right once the cost count was fixed (below), but the defaults should come from real
+  runs (steps × context) and be checked after each one. → release 2.
 - **Nothing proves the work runs.** The coder can't open a browser and has no sample
   files, so a task's "done when" (open the page, import three songs) is never checked;
   the critic said so on every version of the music player plan. → release 2 (build,
@@ -33,6 +28,12 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Fixed
 
+- **The cost count was about ten times too high** (26 November): text a model had
+  already seen was charged at the full input price. Task 2 of the music player was
+  counted at $0.27; the DeepSeek balance went down by about 2–3 cents. Cache hits are now
+  charged at a tenth of the input price unless the pricing says otherwise, and every run
+  notes the real balance at its start and end (`.harness/balance.jsonl`, the
+  `real_cost` event, `roundtable balance`) for providers that report one (DeepSeek).
 - **A revision forgot the owner's answers and offered turned-down ideas again**
   (26 November, `01219e3`): settled choices, answers and decided ideas stay on the page;
   a reworded copy of a turned-down idea is dropped.

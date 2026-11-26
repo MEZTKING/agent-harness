@@ -419,6 +419,13 @@ roundtable -v ...                        # show every model turn and tool call
 ```
 
 ### Budget and safety
+
+Roundtable counts each run's cost from the tokens used and the pricing table. To check that count
+against your bill, a run notes the provider's real balance at its start and end where the provider
+reports one (DeepSeek does): see `.harness/balance.jsonl` in the project, or run `roundtable balance`.
+Text a model has already seen (a cache hit) is counted at a tenth of the input price unless you set
+`cache_read` in `pricing:`.
+
 - `limits.max_cost_usd` pauses a project when reached; `roundtable run` continues after you raise it. Claude prices are built in. **Add `pricing:` for the other providers**, or their calls are counted as "unpriced" and don't count toward the budget.
 - `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
 - `hub:` in `harness.yaml` reports project progress to the Hub, so your repo agents can see what the harness is building.

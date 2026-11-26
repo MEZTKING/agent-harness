@@ -129,6 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("path", nargs="?", default="harness.yaml")
     s.add_argument("--force", action="store_true")
     sub.add_parser("roles")
+    sub.add_parser("balance", help="the money left with providers that report it (DeepSeek)")
     s = sub.add_parser("ask")
     s.add_argument("role")
     s.add_argument("prompt")
@@ -545,6 +546,15 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"{r.name:12} {r.kind:5} {chain}{tag}")
                 if r.description:
                     print(f"{'':18} {r.description}")
+            return
+        if args.cmd == "balance":
+            from .providers.balance import balances
+
+            found = balances(cfg)
+            for name, b in found.items():
+                print(f"{name:12} {b['amount']:.2f} {b['currency']}")
+            if not found:
+                print("None of your providers reports a balance (DeepSeek does, once its key is set).")
             return
         if args.cmd == "improve":
             return _improve(args, cfg)

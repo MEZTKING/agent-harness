@@ -30,15 +30,14 @@ A browser music player built only from the owner's answers (web app, no framewor
 config.
 
 Run so far: task 1 done and approved; task 2 ran out of steps (fixed in `2e1b1ba`) and
-is being run again on its own, with the DeepSeek balance checked before (2.97 USD) and
-after, to learn the real cost per task. Roundtable's count says about $1.34 spent in
-all, which is probably too high (plans/gaps.md). **Ask the owner before building the
-rest**, with the true total.
+was run again on its own and approved. The DeepSeek balance went from 2.97 to 2.94 USD
+for it: about 3 cents a task, not the $0.27 Roundtable counted (fixed: cache hits were
+priced as new input). The rest (12 tasks) should cost well under $1. **Ask the owner
+before building the rest.**
 
 ## 4. What to do next
 
-1. Finish the cost check; put DeepSeek's real `cache_read` prices into the defaults and
-   the template; fix the estimate's defaults (plans/gaps.md).
-2. Tell the owner the true total and carry on with the music player if they agree.
+1. Carry on with the music player if the owner agrees (`run` notes the real balance).
+2. Fix the estimate's defaults from real runs (plans/gaps.md).
 3. Release 2, "Proof it works" (PLAN.md), shaped by what the music player run shows.
 4. Then merge the branch and release (CLAUDE.md, "Releasing").

@@ -4,6 +4,24 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The real cost: balance checks and a fairer price for cache hits
+
+The owner chose to run one task and check the real cost before building the rest.
+
+- Task 2 of the music player was run again on its own and approved. Roundtable counted
+  $0.27; the DeepSeek balance went from 2.97 to 2.94 USD (it updates a little late).
+  The count was about ten times too high: text the model had already seen was priced
+  as new input.
+- `harness/config.py` `cost`: a cache hit costs a tenth of the input price unless
+  `cache_read` is set.
+- `providers/balance.py` (new): reads a provider's balance (DeepSeek's `/user/balance`,
+  or a provider's own `balance_url`). `Orchestrator.run` notes it at the start and the
+  end (`_note_balance`, `.harness/balance.jsonl`, the `real_cost` event);
+  `roundtable balance` prints it.
+- Tests: `test_cache_hits_cost_a_tenth_unless_priced`,
+  `test_real_balance_noted_at_start_and_end`; 126 pass.
+- Open: the estimate's defaults should come from real runs (plans/gaps.md).
+
 ## 2026-11-26 – The docs follow the owner's layout; "use Roundtable, and grow it"
 
 The owner asked: "If you find anything that you can't do, using the roundtable of course

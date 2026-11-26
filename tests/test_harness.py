@@ -396,3 +396,29 @@ def test_out_of_steps_without_fallback_carries_on_once(tmp_path):
     assert orch.run() == "done"
     t1 = orch.project.tasks()[0]
     assert [x["outcome"] for x in t1.attempts] == ["max_steps", "approved"]
+
+
+def test_cache_hits_cost_a_tenth_unless_priced():
+    cfg = parse_config(json.loads(json.dumps(RAW)))
+    assert cfg.cost(ModelRef("a", "coder"), Usage(0, 0, cache_read_tokens=1_000_000)) == pytest.approx(0.1)
+    cfg.pricing["a/coder"]["cache_read"] = 0.5
+    assert cfg.cost(ModelRef("a", "coder"), Usage(0, 0, cache_read_tokens=1_000_000)) == pytest.approx(0.5)
+
+
+def test_real_balance_noted_at_start_and_end(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    assert balance.balance_url({"base_url": "https://api.deepseek.com/v1"}) == "https://api.deepseek.com/user/balance"
+    assert balance.balance_url({"base_url": "https://example.com"}) is None
+    assert balance.parse({"balance_infos": [{"currency": "USD", "total_balance": "2.96"}]}) == {
+        "amount": 2.96, "currency": "USD"}
+    left = iter([3.00, 2.95])
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left), "currency": "USD"}})
+    orch, *_ = make(tmp_path)
+    orch.start("goal")
+    events = []
+    orch._listener = lambda k, d: events.append((k, d))
+    assert orch.run() == "done"
+    rows = [json.loads(x) for x in (orch.project.root / ".harness/balance.jsonl").read_text().splitlines()]
+    assert [r["phase"] for r in rows] == ["start", "end"] and rows[1]["real_usd"] == pytest.approx(0.05)
+    assert any(k == "real_cost" for k, _ in events)

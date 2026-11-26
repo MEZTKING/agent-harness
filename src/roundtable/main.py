@@ -19,6 +19,7 @@ Projects (the harness: the best model for each role, working together):
     roundtable status DIR | retry DIR TASK | skip DIR TASK | metrics DIR
     roundtable feedback DIR TASK --good|--bad ["note"]
     roundtable roles | ask ROLE "prompt" | image ROLE "prompt"
+    roundtable balance                     money left with providers that report it (DeepSeek)
 
 Providers (any AI API):
     roundtable providers presets | list | add PRESET | remove ID | test ID | models ID
@@ -47,7 +48,7 @@ import sys
 HUB_COMMANDS = {"where", "log", "todo", "close", "session", "history", "agents", "cards", "card", "send",
                 "inbox", "reply", "thread", "subscribe", "mcp", "ui"}
 HARNESS_COMMANDS = {"new", "run", "extend", "approve", "status", "retry", "skip", "metrics", "feedback", "roles",
-                    "ask", "image", "probe", "improve", "providers", "assign"}
+                    "ask", "image", "probe", "improve", "providers", "assign", "balance"}
 VALUE_FLAGS = {"--config", "--agent", "--description"}
 
 
