@@ -77,6 +77,8 @@ def _printer(verbose: bool):
             print(f"  provider error ({d['model']}): {d['error'][:300]}", flush=True)
         elif kind == "status":
             print(f"[status: {d['status']}]", flush=True)
+        elif kind == "plugin_error":
+            print(f"  ! {d['message']}", flush=True)
 
     return on_event
 

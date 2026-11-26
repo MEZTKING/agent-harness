@@ -124,6 +124,11 @@ workspace:
 #   min_bytes: 1400                 # smaller results are left alone
 #   keep_ratio_max: 0.72            # only replace when at least 28% smaller
 
+# Plugins (docs/plugins.md): usually set with `roundtable plugin ...` or the app, which
+# write them to custom.yaml. The token saver is the plugin `token-saver`.
+# plugins:
+#   cost-log: {enabled: true}       # each model call's tokens and cost in a CSV file
+
 # Optional: report progress to the agent hub (Part 1)
 # hub:
 #   config: ~/agent-hub-data/hub.yaml

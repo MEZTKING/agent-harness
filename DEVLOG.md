@@ -4,6 +4,55 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Plugins
+
+The owner asked: "Of course, a plugin system, just like DeepSeek Harness as well. So we can
+add in token saving or whatever else people would want to add."
+
+- New package `src/roundtable/plugins/`:
+  - `api.py`: `API_VERSION = 1`, the `Plugin` base class (do-nothing hooks), `PluginContext`
+    (settings, `data_dir` = `<app home>/plugins/<id>/`, `log`, `project_root`, `role`,
+    `state`, `shared`, `emit`, `cost_of`), `HOOKS`, `PERMISSIONS` and `permission_words`.
+  - `manifest.py`: `roundtable-plugin.toml` or `[tool.roundtable.plugin]` in pyproject
+    (`find_manifest` looks in the folder, `src/` and one package down, where pip puts it),
+    `parse_manifest` (id, name, version, description, author, licence, homepage, entry,
+    api, hooks, permissions, settings schema), `check_api`, `Setting.coerce`.
+  - `loader.py`: `load_object("module:object")`, now also used by `type: plugin` providers
+    (`HarnessConfig._load_plugin`), so both load code the same way under the same trust rule.
+  - `host.py`: `PluginHost` (built-ins first, then installed ones), `Conversation`
+    (`tools`, `on_tool_result`, `before_model_call`, `after_model_call`), `notify` and
+    `begin_run` for the orchestrator, `route` and `commands`. A hook that raises or returns
+    the wrong type: caught, written to the plugin's `errors.log`, the plugin switched off
+    until the next run, a `plugin_error` event in plain words.
+  - `manage.py`: `list_plugins`, `set_enabled`, `get_settings`/`set_settings`, `add_plugin`
+    (folder, git link or pip package; shows the manifest and asks first; records the
+    permissions said yes to), `remove_plugin`, and `api()` for the app's `/api/plugins`.
+  - `cli.py`: `roundtable plugin list|add|remove|enable|disable|settings` and
+    `roundtable <plugin-id> COMMAND` (`main.py`: `plugin` command, `_plugin_command`).
+  - `builtin/token_saver.py`: the token saver behind the plugin API (`TokenSaverPlugin`;
+    `on_tool_result`, `tools` for `expand_output`); `builtin/cost_log.py`: the example
+    (`after_model_call` writes `calls.csv`; route `GET summary`).
+- `harness/agent.py` `run_agent`: new `role` and `project_root` arguments; plugin tools join
+  the toolbox (never replacing one), `before_model_call` can change what is sent (the kept
+  conversation isn't changed), `after_model_call` after each call, tool results go through
+  `on_tool_result` with the token saver first. `harness/config.py`: `HarnessConfig.plugins`
+  (state), `plugin_host()` (shared with profile variants through `_shared`),
+  `merge_custom` carries `plugins:`, `_token_saver` lays `plugins: token-saver:` over
+  `token_saver:`. `harness_cli._printer` prints `plugin_error`.
+- Decided: installed plugins' code is kept in `<app home>/plugin-code/<id>/` and loaded from
+  there (added at the end of `sys.path`, so the app's own packages win). A folder is copied
+  rather than installed editable because the Windows app has no pip; a git link is cloned
+  then copied; a pip package is downloaded as a wheel first (a zip, reading it runs nothing)
+  so the owner sees its permissions before anything is installed. Permissions can't be
+  enforced in Python: the install step says so plainly. A plugin that later asks for more
+  stays off until the owner says yes again. Built-ins can be switched off, not removed.
+- Docs: `docs/plugins.md` (new: using, trust, writing one step by step, hooks, ctx,
+  permissions, versions), README "Plugins", the template's `plugins:` comment,
+  THIRD_PARTY_NOTICES (the shape follows DeepSeek Harness's plugins; no code copied).
+- Tests: `tests/test_plugins.py` (23); `tests/test_saver.py` unchanged and passing. 241 pass.
+- Open: the orchestrator, the app's server and its Settings card still need their few lines
+  (the hand-over lists them); a plugin catalogue and sandboxing are in plans/gaps.md.
+
 ## 2026-11-26 – Backups (to Google Drive's folder)
 
 The owner asked: "Also add support to back up settings to Google Drive, and anything else

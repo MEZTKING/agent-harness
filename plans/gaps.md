@@ -6,6 +6,17 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Plugins can't be held to their permissions** (26 November): a plugin is Python running
+  inside Roundtable, so `network`, `files` and `shell` are what it says, not what it's
+  allowed. Running plugins in a separate process with no network and only their own folder
+  would make them real. → release 3.
+- **No plugin catalogue** (26 November): plugins are added by folder, git link or pip name.
+  A list of known plugins to browse and add from the app (and a check for new versions)
+  → release 3.
+- **Plugins from pip need Python on the computer** (26 November): the Windows app has no pip,
+  so `plugin add <pip name>` needs a Python installed; folders and git links work without.
+  Fetching a wheel ourselves would close it, for plugins with no compiled parts.
+
 - **Backups can't upload to Google Drive by themselves** (26 November): backups go into
   Google Drive for desktop's folder, which then syncs them; with no Drive app, a folder of
   the owner's choosing. Sending them straight to Drive through its API needs a Google Cloud

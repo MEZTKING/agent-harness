@@ -110,7 +110,18 @@ class HarnessConfig:
     # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
     prompt_overrides: dict[str, str] = field(default_factory=dict)
     token_saver: SaverConfig = field(default_factory=SaverConfig)  # slims big tool results (saver.py)
+    # plugins: {id: {enabled, settings, path, permissions, ...}} from harness.yaml and custom.yaml
+    plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
+    _shared: dict[str, Any] = field(default_factory=dict, repr=False)  # shared by variants (the plugin host)
+
+    def plugin_host(self):
+        """The plugins for this config (built once, shared with its profile variants)."""
+        if "plugin_host" not in self._shared:
+            from ..plugins.host import PluginHost
+
+            self._shared["plugin_host"] = PluginHost.from_config(self)
+        return self._shared["plugin_host"]
 
     def _listed_price(self, ref: ModelRef) -> dict[str, float] | None:
         """A price the provider publishes itself (OpenRouter's model list), when none is configured."""
@@ -187,25 +198,15 @@ class HarnessConfig:
         Python path. The class must implement Provider.chat (and list_models) or
         ImageProvider.generate. Plugins are your own code and run with full access.
         """
-        import importlib
-        import importlib.util
-        import sys
+        from ..plugins.loader import load_object
 
         target = spec.get("class", "")
         if ":" not in target:
             raise ProviderError(f"provider {name!r}: plugin needs class: 'module_or_file.py:ClassName'")
-        modname, clsname = target.rsplit(":", 1)
+        clsname = target.rsplit(":", 1)[1]
         plugins_dir = (self.path.parent / "plugins") if self.path else Path.cwd() / "plugins"
         try:
-            candidate = plugins_dir / modname if modname.endswith(".py") else plugins_dir / f"{modname}.py"
-            if candidate.is_file():
-                mod_spec = importlib.util.spec_from_file_location(f"roundtable_plugin_{name}", candidate)
-                module = importlib.util.module_from_spec(mod_spec)
-                sys.modules[mod_spec.name] = module
-                mod_spec.loader.exec_module(module)
-            else:
-                module = importlib.import_module(modname.removesuffix(".py"))
-            cls = getattr(module, clsname)
+            cls = load_object(target, file_dirs=[plugins_dir], module_alias=f"roundtable_plugin_{name}")
         except Exception as e:
             raise ProviderError(f"provider {name!r}: could not load plugin {target!r} ({type(e).__name__}: {e})") from e
         if not (isinstance(cls, type) and issubclass(cls, (Provider, ImageProvider))):
@@ -316,7 +317,43 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
     out["roles"] = roles
     if custom.get("limits"):
         out["limits"] = {**(raw.get("limits") or {}), **custom["limits"]}
+    if custom.get("plugins"):
+        out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
     return out
+
+
+def merge_plugin_state(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """plugins: from harness.yaml with custom.yaml's choices on top (settings merged key by key)."""
+    out = {k: dict(v or {}) for k, v in base.items()}
+    for pid, spec in over.items():
+        entry = out.setdefault(pid, {})
+        settings = {**(entry.get("settings") or {}), **((spec or {}).get("settings") or {})}
+        entry.update(spec or {})
+        if settings:
+            entry["settings"] = settings
+    return out
+
+
+def _plugin_state(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    state = raw.get("plugins") or {}
+    if not isinstance(state, dict) or not all(isinstance(v, (dict, type(None))) for v in state.values()):
+        raise ValueError("plugins must be a mapping of plugin id to its settings, e.g. cost-log: {enabled: true}")
+    return {str(k): dict(v or {}) for k, v in state.items()}
+
+
+def _token_saver(raw: dict[str, Any], plugins: dict[str, dict[str, Any]]) -> SaverConfig:
+    """token_saver: in harness.yaml, then the token-saver plugin's own choices (custom.yaml) on top."""
+    base = raw.get("token_saver")
+    mine = plugins.get("token-saver") or {}
+    if not mine:
+        return SaverConfig.parse(base)
+    merged = {"enabled": base} if isinstance(base, bool) else dict(base or {}) if isinstance(base, dict) else base
+    if not isinstance(merged, dict):
+        return SaverConfig.parse(base)  # raises the usual message
+    merged.update(mine.get("settings") or {})
+    if "enabled" in mine:
+        merged["enabled"] = bool(mine["enabled"])
+    return SaverConfig.parse(merged)
 
 
 def find_config(explicit: str | None = None) -> Path:
@@ -381,6 +418,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     if default_profile and default_profile not in profiles:
         raise ValueError(f"default_profile {default_profile!r} isn't one of the profiles: {', '.join(profiles) or 'none'}")
 
+    plugins = _plugin_state(raw)
     lim = raw.get("limits") or {}
     base = path.parent if path else Path.cwd()
     prompts_dir = raw.get("prompts_dir")
@@ -414,7 +452,8 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         remote=dict(raw.get("remote") or {}),
         profiles=profiles,
         default_profile=default_profile,
-        token_saver=SaverConfig.parse(raw.get("token_saver")),
+        token_saver=_token_saver(raw, plugins),
+        plugins=plugins,
     )
 
 
