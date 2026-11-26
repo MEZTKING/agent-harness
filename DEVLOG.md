@@ -4,6 +4,11 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Release 0.7.1
+
+The owner chose to ship the live view and the phone crash fix. `pyproject.toml` and
+`roundtable.__version__` 0.7.1; README "What's new in 0.7.1".
+
 ## 2026-11-26 – The phone crash: Android's regex engine
 
 The owner's phone (Android 16) closed Roundtable Mobile on every start after the hub token. The new

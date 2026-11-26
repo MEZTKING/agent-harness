@@ -27,6 +27,16 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.7.1
+
+- **See what's being made**: after every approved task Roundtable starts the app and takes pictures
+  (computer, phone, dark); each project page has a **Live** tab (the app itself, running) and a
+  **Session** tab that reads like a Claude Code session (every step, with the changes in colour and
+  the outputs, pictures and files shown as they are); the Hall's seats show the app's picture; the
+  phone has a Live tab too.
+- **Phone fix**: Roundtable Mobile no longer closes on start (Android's text-pattern engine); if it
+  ever crashes again it opens in safe mode with "Send the details to my PC".
+
 ### What's new in 0.7.0
 
 - **Answer by tapping**: everything Roundtable asks you is a card with ready answers (the
