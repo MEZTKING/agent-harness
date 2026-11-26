@@ -4,6 +4,51 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Autopilot: decisions while the owner is away
+
+The owner: "Add an autopilot button so you'll automatically make decisions while I'm off my
+screen." The spirit is the coordinator's own rule: reversible choices are made freely and written
+down; anything important waits for the owner.
+
+- `src/roundtable/autopilot.py` (new): the state in the app's settings (`<app home>/config/app.json`,
+  key `autopilot`: on, until, spend_cap_usd 2.00, started_at, spent_usd, never), `turn_on` /
+  `turn_off` / `set_never` / `status` / `parse_until` ("1h", "tonight" = 8am, "08:00", ISO), the log
+  (`autopilot-log.jsonl` and `autopilot-log.md`, newest first; `entries`), `decide` (the guard rails)
+  and `tick(cfg, hub, home, start, busy, now)`: every project's `open_asks` answered one at a time
+  through `asks.answer_ask` (no second way of changing things); a long step it starts goes to
+  `start` (the desktop app: `UIApp.start_answer_job`; the command line: `finish_now`). Rules in code:
+  the recommendation for plan choices, questions, look, setting and ideas (none: left open);
+  approve only when the estimate fits what's left of the cap and the project's own limit and the
+  cost is known, preferring "start at half price" when it starts before `until`; a failed task
+  retried once with the same models (`autopilot_retried` in the project's meta); money pauses
+  left; never an option with `confirm` or one that deletes, publishes, releases or merges
+  (`_safe`); at most 3 plan updates per project per session (`MAX_REVISES`, no endless loops); it
+  turns itself off at `until` or the cap (`_should_stop`; spent = Roundtable's count since
+  started_at, or the providers' real balance drop when larger). A card left for the owner is
+  logged once per question. Each choice is a journal `decision` ("Autopilot chose … because …");
+  on/off go in the harness's hub journal; `plans/autopilot.json` in the hub carries the state and
+  newest log lines for the phone in Hub mode (`_publish`). A tick saves only its own fields
+  (`_keep`), so the owner's switch made meanwhile wins.
+- `asks.py`: an idea the planner marks `recommended: false` has no recommendation.
+- `ui/server.py`: `/api/autopilot` (GET status and log, POST on / off / never),
+  `start_answer_job` (shared with `/api/asks`), `autopilot_tick`. `ui/roundtable.py`:
+  `AutoSync.tick` runs autopilot after the backup, the cheap runs and the hub sync; seats carry
+  `autopilot`, the table carries the switch. `phone.py`: `/api/autopilot` in `PHONE_ROUTES`.
+  `remote.py`: the `autopilot` hub command (`autopilot_command`). `main.py`: `roundtable autopilot
+  on|off|status|log|never|--watch`; `roundtable remote --watch` ticks autopilot too.
+- Desktop (`static/`): the **Autopilot** button next to Today (outlined off, lit amber on with
+  "until 8am · $0.40 of $2.00"), its card (until: Off when I'm back / 1 hour / Tonight / Custom; the
+  spend limit; tooltips), **What autopilot did** with links to the plans, the seats' *autopilot*
+  mark, **Never on autopilot** on the project's panel. The header's end (`.hdr-end`) holds Today and
+  Autopilot; on a narrow window the name hides so they fit.
+- Phone: `data/Autopilot.kt`, `ui/AutopilotSheet.kt` (toggle, sheet, log, seat marks), the
+  `Backend.autopilot` / `setAutopilot` pair (Hub: reads `plans/autopilot.json`, sends the hub
+  command to the project the PC reads; PC: `/api/autopilot`).
+- Tests: `tests/test_autopilot.py` (17), `AutopilotTest`, three screenshots in `ScreensTest`.
+- Decided: an unknown plan cost (an unpriced picture model) waits for the owner rather than being
+  guessed; a run autopilot started isn't stopped at the cap (its project's limits apply), noted in
+  plans/gaps.md.
+
 ## 2026-11-26 – Release 0.7.0
 
 The owner chose to release. `pyproject.toml` 0.7.0; README "What's new in 0.7.0"; Settings no
