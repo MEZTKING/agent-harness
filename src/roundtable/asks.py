@@ -139,8 +139,8 @@ def _idea_ask(i: dict[str, Any]) -> dict[str, Any]:
     opts = [{"id": "yes", "label": "Yes, add it", "description": "The planner adds it to the plan."},
             {"id": "no", "label": "No thanks", "description": "It won't be suggested again."}]
     state = {"accepted": ["yes"], "rejected": ["no"]}.get(i.get("state", ""))
-    return _answered(_ask(f"idea:{i['id']}", "idea", "Idea", f"Add this? {i['text']}", opts, recommended="yes",
-                          detail=i.get("why") or "", other_hint="Yes, but… (say what to change)",
+    return _answered(_ask(f"idea:{i['id']}", "idea", "Idea", f"Add this? {i['text']}", opts,
+                          recommended=None if i.get("recommended") is False else "yes", detail=i.get("why") or "", other_hint="Yes, but… (say what to change)",
                           source={"idea": i["id"]}), state)
 
 
