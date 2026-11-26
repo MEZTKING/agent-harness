@@ -43,3 +43,25 @@ def test_todo_done_from_the_phone(tmp_path):
         assert text.startswith("Couldn't mark it done") and is_trouble(text)
     assert "refresh" in missing.lower() and "refresh" in empty.lower()
     assert again  # closing a closed to-do is harmless: it replies either way
+
+
+def test_the_owners_own_machines_may_send_commands(tmp_path):
+    """A command from the phone's own Roundtable (a seat registered as role: machine) counts as the owner's;
+    any other project's seat still doesn't."""
+    orch = _orch(tmp_path)
+    hub = orch._hub()
+    agent = orch._hub_agent()
+    hub_yaml = tmp_path / "hub.yaml"
+    raw = yaml.safe_load(hub_yaml.read_text(encoding="utf-8"))
+    raw["agents"]["phone-abc123"] = {"title": "Phone (Test)", "role": "machine"}
+    raw["agents"]["stranger"] = {}
+    hub_yaml.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    hub = orch._hub()
+    hub.refresh_config() if hasattr(hub, "refresh_config") else None
+    one = hub.journal.add(agent, "todo", "Water the plants")
+    two = hub.journal.add(agent, "todo", "Feed the cat")
+    hub.send("stranger", agent, "roundtable: command", json.dumps({"action": "todo_done", "id": two["id"]}), kind="request")
+    hub.send("phone-abc123", agent, "roundtable: command", json.dumps({"action": "todo_done", "id": one["id"]}), kind="request")
+    assert process(orch.cfg, hub, log=lambda s: None) == 1
+    status = {e["id"]: e["status"] for e in hub.journal.entries(agent, agent)}
+    assert status[one["id"]] == "done" and status[two["id"]] == "open"

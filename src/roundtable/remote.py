@@ -197,6 +197,9 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
     from .sync import this_machine
 
     allowed = set((getattr(cfg, "remote", None) or {}).get("owners") or ["me"])
+    # the owner's own machines (seats registered in the hub as role: machine) speak for the owner too,
+    # so a command sent from the phone's own Roundtable reaches the PC
+    allowed |= {a for a, spec in hub.config.agents.items() if getattr(spec, "role", None) == "machine"}
     me = this_machine()["id"]
     done = 0
     hub.store.sync()
