@@ -4,6 +4,23 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Cards and plugins merged and wired; the APK and EXE finished by hand
+
+- Merged `question-cards` (tap-to-answer cards everywhere: `asks.py`, `/api/asks`, the desktop
+  cards and wizard, the phone's `AskCard`, the hub `answer` action) and wired the plugin system
+  into the parts it couldn't touch: `orchestrator.emit` → `plugins_notify`, `run` →
+  `plugins_begin_run`, roles passed to `run_agent`; `/api/plugins` in `ui/server.py`;
+  Settings → Plugins (`pluginsCard` in `app.js`). 254 tests pass.
+- The music player's APK and EXE: Roundtable's run spent its $1.51 limit with one of four tasks
+  done (the copy script); the planner had estimated $3.45, above the $0.50–1.50 the coordinator
+  had told the owner. Fable advised stopping the paid run and finishing by hand (notes for the
+  owner). The Android app Roundtable had half written built after one fix (a wrong
+  `shouldInterceptRequest` signature); the Electron wrapper was written by hand, built for
+  Windows x64 on Linux without Wine, and checked by starting the same app code under a virtual
+  screen. Both sent to the owner; neither tried on a real phone or Windows yet.
+- Gaps: a run must stop and ask when its estimate is above what the owner was shown; workers
+  read big files whole.
+
 ## 2026-11-26 – Answer by tapping: question cards
 
 The owner asked: "Roundtable question and answer based mainly, just like the way you ask me

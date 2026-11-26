@@ -6,6 +6,11 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **A run can start above the estimate the owner saw** (26 November): the music player's
+  packaging was estimated at $3.45 by the planner, after the owner had been told $0.50–1.50;
+  nothing stopped to ask. A run should pause and ask when its plan's estimate is above the
+  amount the owner agreed to. → release 2.
+
 - **Question cards: no "Are you sure?" for deleting** (26 November): no card deletes anything yet, so
   only spending asks twice. A card that removes something (a reference, a don't) should set
   `confirm` on its option the same way. → release 2.

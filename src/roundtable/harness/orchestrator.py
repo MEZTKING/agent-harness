@@ -28,6 +28,7 @@ from . import plandoc
 from .lookstage import LookStage
 from .refstage import ReferenceStage, new_reference
 from .saver import TokenSaver
+from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
@@ -196,6 +197,7 @@ class Orchestrator(LookStage, ReferenceStage):
     def emit(self, kind: str, data: dict[str, Any]) -> None:
         row = {"at": utcnow(), "event": kind, **data}
         self.project.append("events.jsonl", row)
+        plugins_notify(self.cfg, kind, data, self.project.root, self.emit)
         if self._listener:
             self._listener(kind, data)
 
@@ -911,7 +913,7 @@ class Orchestrator(LookStage, ReferenceStage):
                 res = run_agent(self.cfg, ref, system, prompt, box, self.budget,
                                 max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
                                 options=role.options, require_terminal=require, on_event=self.emit,
-                                saver=self._saver())
+                                saver=self._saver(), role=role.name)
                 self._save_spend()
                 if done is None or done() or res.stop != "refusal":
                     return res
@@ -1074,7 +1076,7 @@ class Orchestrator(LookStage, ReferenceStage):
                 res = run_agent(self.cfg, ref, self.cfg.prompt_text(role.prompt), self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
-                                on_event=self.emit, saver=self._saver())
+                                on_event=self.emit, saver=self._saver(), role=task.role)
                 self._save_spend()
             except ProviderError as e:
                 if getattr(e, "out_of_credit", False):
@@ -1122,6 +1124,7 @@ class Orchestrator(LookStage, ReferenceStage):
 
     def run(self, max_tasks: int | None = None) -> str:
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
+        plugins_begin_run(self.cfg)
         start = self._note_balance("start")
         self._balance_start = start
         self._last_real_check = time.time()

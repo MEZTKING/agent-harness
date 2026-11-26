@@ -1132,6 +1132,56 @@ async function phoneCard() {
 
 // ---------- Settings → Backups ----------
 function fileSize(n) { const u = ["bytes", "KB", "MB", "GB"]; let i = 0; while (n >= 1024 && i < 3) { n /= 1024; i++; } return i ? `${n.toFixed(1)} ${u[i]}` : `${n} bytes`; }
+// Settings → Plugins: switch them on and off, change their settings, add one (after showing what it may do).
+async function pluginsCard() {
+  let st;
+  try { st = await api("GET", "/api/plugins"); } catch (e) { return section("Plugins", h("p", { class: "muted" }, e.message)); }
+  const trust = "A plugin is someone's program: it runs with the same access as Roundtable Hold. Roundtable can't hold it to what it says, so only add plugins from people you trust.";
+  const post = async (body, ok) => {
+    try {
+      const r = await api("POST", "/api/plugins", body);
+      if (r && r.needs_ok) {
+        const perms = (r.needs_ok.permissions || []).map((p) => `• ${p.words}`).join("\n");
+        if (!confirm(`${r.message || "This plugin asks for:"}\n\n${perms || "• nothing special"}\n\n${trust}\n\nAdd it?`)) return;
+        return post({ ...body, confirmed: (r.needs_ok.permissions || []).map((p) => p.id) }, ok);
+      }
+      if (ok) toast(ok);
+      render();
+    } catch (e) { toast(e.message, true); }
+  };
+  const rows = st.plugins.map((p) => {
+    const fields = (p.settings || []).map((f) => {
+      const input = f.type === "boolean"
+        ? h("input", { type: "checkbox", checked: !!f.value, title: f.description })
+        : h("input", { class: "grow", value: f.value ?? "", title: f.description, placeholder: String(f.default ?? "") });
+      input.dataset.key = f.key;
+      input.dataset.type = f.type;
+      return h("label", { class: "row small", title: f.description }, h("span", { class: "muted" }, f.key), input);
+    });
+    const saveSettings = () => {
+      const values = {};
+      for (const el of fields.map((l) => l.querySelector("input"))) values[el.dataset.key] = el.type === "checkbox" ? el.checked : el.value;
+      post({ action: "settings", id: p.id, values }, "Saved");
+    };
+    return h("div", { class: "card plugin" },
+      h("div", { class: "card-head" },
+        h("b", {}, p.name || p.id), h("span", { class: "muted small" }, ` ${p.version || ""}${p.builtin ? " · built in" : ""}`),
+        h("label", { class: "small", title: p.enabled ? "Switch it off" : "Switch it on" },
+          h("input", { type: "checkbox", checked: p.enabled, onchange: (ev) => post({ action: ev.target.checked ? "enable" : "disable", id: p.id }, ev.target.checked ? "Switched on" : "Switched off") }),
+          " on")),
+      h("p", { class: "small" }, p.description || ""),
+      p.problem ? h("p", { class: "small warn" }, p.problem) : null,
+      (p.permissions || []).length ? h("p", { class: "small muted", title: trust }, "May: " + p.permissions.map((x) => x.words).join("; ")) : null,
+      fields.length ? h("details", { class: "small" }, h("summary", {}, "Settings"), ...fields, h("button", { onclick: saveSettings }, "Save settings")) : null,
+      p.builtin ? null : h("button", { class: "small", onclick: () => confirm(`Remove ${p.name || p.id}?`) && post({ action: "remove", id: p.id }, "Removed") }, "Remove"));
+  });
+  const source = h("input", { class: "grow", placeholder: "a folder, a GitHub link or a Python package name", title: "Where the plugin comes from. You'll see what it may do before anything is installed." });
+  return section("Plugins",
+    h("p", { class: "muted small" }, "Extra abilities for Roundtable, like the token saver. ", h("span", { title: trust }, "Only add plugins from people you trust.")),
+    ...rows,
+    h("div", { class: "row" }, source, h("button", { onclick: () => source.value.trim() && post({ action: "add", source: source.value.trim() }, "Plugin added") }, "Add a plugin")));
+}
+
 async function backupsCard() {
   let st;
   try { st = await api("GET", "/api/backup"); } catch (e) { return section("Backups", h("p", { class: "muted" }, e.message)); }
@@ -1210,7 +1260,7 @@ async function viewSettings() {
   const editors = await Promise.all(["harness", "hub"].map(editor));
   return h("div", {}, h("h1", {}, "Settings"),
     h("p", { class: "sub" }, `Roundtable Hold ${st.version}`, st.home ? ` · data in ${st.home}` : ""),
-    keysCard(st), await providersCard(), hubCard(st), await backupsCard(), SHOW_PHONE ? await phoneCard() : null,
+    keysCard(st), await providersCard(), hubCard(st), await backupsCard(), await pluginsCard(), SHOW_PHONE ? await phoneCard() : null,
     section("Config files (advanced)", editors),
     section("Updates",
       h("p", {}, upd.message || upd.error || "…"),

@@ -9,6 +9,12 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **Asked Fable: finish the APK and EXE through Roundtable, or by hand?** The run had spent
+  $1.51 with one task of four done, and I had told you $0.50–1.50 while Roundtable's planner
+  said $3.45. My mistake, not Roundtable's. Fable: stop the paid run, finish the two small
+  wrappers by hand (no API cost), keep Roundtable's copy script, and record the gap. **Done:**
+  both built and sent; please try the APK on your phone and the EXE on Windows.
+
 - **Asked Fable: a Roundtable that reshapes itself for each kind of software?** Fable: the goal
   is right, but not by Roundtable rewriting its own code. Use **kinds**: a recipe card per sort
   of software (roles, models, prompts, tools, **proof that it works**, build targets, the Look

@@ -1146,6 +1146,14 @@ class UIApp:
             if not job:
                 raise ApiError("no such job", 404)
             return job.view(int((q.get("since") or ["0"])[0]))
+        if parts[:2] == ["api", "plugins"]:
+            from ..plugins.manage import api as plugins_api
+
+            status, data = plugins_api(method, "/".join(parts[2:]), q, body,
+                                       harness_path=self.harness_config_path, cfg=self.cfg())
+            if status >= 400:
+                raise ApiError(data.get("error", "plugin error"), status)
+            return data
         raise ApiError(f"no route {method} {path}", 404)
 
 
