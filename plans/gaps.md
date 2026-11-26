@@ -108,8 +108,21 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   runs (steps × context) and be checked after each one. → release 2.
 - **Nothing proves the work runs.** The coder can't open a browser and has no sample
   files, so a task's "done when" (open the page, import three songs) is never checked;
-  the critic said so on every version of the music player plan. → release 2 (build,
-  test, start, screenshot, a model that can see).
+  the critic said so on every version of the music player plan. → release 2. *Partly
+  done (26 November): "Show it" takes pictures of a web app's page after every approved
+  task and shows them, with the app live, in the desktop app and on the phone.* Still to
+  do, all release 2:
+  - **A model that can see judges the pictures** (against the task's "done when" and the
+    design file) and the reviewer reads its verdict; today nobody looks but the owner.
+  - **Apps that start with a command** (`npm start`, `npm run dev`, a Python server): only
+    their static `index.html` is shown, or nothing. Roundtable should start the command,
+    wait for its port, take the pictures and stop it.
+  - **Android and desktop apps**: no pictures yet (an emulator or Robolectric drawing for
+    Android; a window capture for an EXE).
+  - **Games**: play for a minute (a scripted input or random keys) and take pictures and a
+    short clip, with the console's errors.
+  - **The Live frame only works on the same computer**: the app's own server listens on
+    127.0.0.1, so `roundtable ui --host` from another machine shows only the pictures.
 - **Tasks are planned too big.** Splitting after the fact now works (below), but the
   planner should size tasks up front (a rough step budget each). → release 2.
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
