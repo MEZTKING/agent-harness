@@ -66,6 +66,9 @@ data class NeedItem(
     val task: String? = null,
     val id: String? = null,
     val at: String = "",
+    /** The next question to tap, and how many wait in all (asks.py). */
+    val ask: com.meztking.roundtable.data.Ask? = null,
+    val asks: Int = 0,
 )
 
 @Serializable

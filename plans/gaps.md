@@ -6,6 +6,19 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Question cards: no "Are you sure?" for deleting** (26 November): no card deletes anything yet, so
+  only spending asks twice. A card that removes something (a reference, a don't) should set
+  `confirm` on its option the same way. → release 2.
+- **Question cards: the phone can't run the new-project wizard** (26 November): the wizard's cards
+  are served by `/api/asks?wizard=1` and work on the PC; the phone still uses its plain form in PC
+  mode and has no way to start a project in Hub mode. → release 4 (the phone).
+- **Question cards: the look's pictures aren't on the phone's card** (26 November): the card names
+  each look and its mood; the pictures are in the hub (`plans/looks/...`) but the phone doesn't
+  load them into the card yet. → release 4.
+- **Question cards: a reworded question loses its typed answer only in Hub mode** (26 November):
+  a card answered from the phone is refused when the question changed since (its `stamp`); the
+  reply says so, but the phone doesn't fetch the new card until the next refresh. → release 4.
+
 - **Backups can't upload to Google Drive by themselves** (26 November): backups go into
   Google Drive for desktop's folder, which then syncs them; with no Drive app, a folder of
   the owner's choosing. Sending them straight to Drive through its API needs a Google Cloud

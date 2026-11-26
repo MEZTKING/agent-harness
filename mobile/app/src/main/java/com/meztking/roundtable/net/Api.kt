@@ -86,6 +86,17 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         })
     }
 
+    /** The questions waiting on one project, as cards (asks.py). */
+    suspend fun asks(path: String): List<com.meztking.roundtable.data.Ask> =
+        com.meztking.roundtable.data.Asks.parse(call("GET", "/api/asks?path=${q(path)}"))
+
+    /** Answer a card; returns Roundtable's reply in plain words. */
+    suspend fun answer(ask: com.meztking.roundtable.data.Ask, r: com.meztking.roundtable.data.AskReply): String {
+        val text = call("POST", "/api/asks", com.meztking.roundtable.data.Asks.requestBody(ask, r))
+        return runCatching { (ApiJson.parseToJsonElement(text) as JsonObject)["reply"]?.let { (it as JsonPrimitive).content } }
+            .getOrNull() ?: "Done"
+    }
+
     suspend fun newProject(dir: String, goal: String, approveFirst: Boolean = true) {
         call("POST", "/api/projects", obj { put("dir", dir); put("goal", goal); put("approve", approveFirst) })
     }

@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.meztking.roundtable.data.HallState
 import com.meztking.roundtable.data.Mode
+import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.NeedView
 import com.meztking.roundtable.data.SeatView
 import com.meztking.roundtable.data.ago
@@ -94,6 +95,7 @@ fun TableScreen(
     onOpenNeed: (NeedView) -> Unit,
     showNeeds: Boolean,
     onShowNeeds: (Boolean) -> Unit,
+    onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
 ) {
     val data = hall.data
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
@@ -141,7 +143,7 @@ fun TableScreen(
     if (showNeeds) {
         ModalBottomSheet(onDismissRequest = { onShowNeeds(false) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
             containerColor = Hall.panel, contentColor = Hall.text) {
-            NeedsList(needs, mode, busy, onAct, onOpenNeed, Modifier.padding(horizontal = 16.dp), onClose = { onShowNeeds(false) })
+            NeedsList(needs, mode, busy, onAct, onOpenNeed, Modifier.padding(horizontal = 16.dp), onClose = { onShowNeeds(false) }, onAnswer = onAnswer)
         }
     }
 }
@@ -403,7 +405,7 @@ fun CountBadge(n: Int) {
 @Composable
 fun NeedsList(
     needs: List<NeedView>, mode: Mode?, busy: Set<String>, onAct: (NeedView, String) -> Unit, onOpen: (NeedView) -> Unit,
-    modifier: Modifier = Modifier, onClose: (() -> Unit)? = null,
+    modifier: Modifier = Modifier, onClose: (() -> Unit)? = null, onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
 ) {
     LazyColumn(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -419,7 +421,13 @@ fun NeedsList(
             Text("Nothing waits for you. The table will tell you when something does.", color = Hall.muted,
                 modifier = Modifier.padding(vertical = 24.dp))
         }
-        items(needs, key = { it.key }) { n -> NeedCard(n, mode, n.key in busy, onAct, onOpen) }
+        items(needs, key = { it.key }) { n ->
+            val ask = n.ask
+            if (ask != null) Column {
+                AskCard(ask.copy(project = n.project), { onAnswer(n, it) }, busy = n.key in busy)
+                if (n.asks > 1) TextButton({ onOpen(n) }) { Text("${n.asks - 1} more on the plan") }
+            } else NeedCard(n, mode, n.key in busy, onAct, onOpen)
+        }
     }
 }
 

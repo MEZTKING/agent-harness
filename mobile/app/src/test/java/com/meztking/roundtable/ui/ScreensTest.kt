@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.meztking.roundtable.data.Ask
+import com.meztking.roundtable.data.AskOption
 import com.meztking.roundtable.data.HallState
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.NeedView
@@ -149,6 +151,27 @@ class ScreensTest {
     @Test fun projectMessages() = shot("7-project-messages") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(), Load(listOf(letter, letter.copy(id = "2", read = true, subject = "Hub check")))),
             ProjectActions(), initialTab = 2)
+    }
+
+    private val cards = listOf(
+        Ask("task:T1", "failed", "lantern-app", header = "Task failed", question = "T1 “Scaffold the page” didn't pass after 3 tries. What now?",
+            detail = "Last note: the chime doesn't play", recommended = "retry", stamp = "s1", options = listOf(
+                AskOption("retry", "Retry", "Try again, with the reviewer's notes."),
+                AskOption("stronger", "Retry with the stronger model", "Uses the Quality setting for this task.", confirm = "It costs more. Retry?"),
+                AskOption("accept", "Accept as it is", "Keep the work; it counts as done."),
+                AskOption("skip", "Skip it", "Leave it out and carry on."))),
+        Ask("answer:Q2", "question", "lantern-app", header = "Pages", question = "Which pages matter most?", multi = true, stamp = "s2",
+            recommended = "a", options = listOf(AskOption("a", "Timer"), AskOption("b", "Settings"), AskOption("c", "History"))),
+    )
+
+    @Test fun needsYouCards() = shot("4b-needs-you-cards") {
+        NeedsList(cards.map { com.meztking.roundtable.data.askNeed("lantern-app", listOf(it), 3) }, Mode.PC, emptySet(), { _, _ -> }, {},
+            Modifier.padding(16.dp), onClose = {})
+    }
+
+    @Test fun projectPlanCards() = shot("6b-project-plan-cards") {
+        ProjectScreen(ProjectUi("lantern-app", seats[0], Mode.PC, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
+            asks = Load(cards)), ProjectActions(), initialTab = 1)
     }
 
     @Test fun letters() = shot("8-letters") {

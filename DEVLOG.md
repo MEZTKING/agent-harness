@@ -4,6 +4,56 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Answer by tapping: question cards
+
+The owner asked: "Roundtable question and answer based mainly, just like the way you ask me
+questions and I have to answer by pressing. More pressing of those rather than typing, but
+obviously give an option to type as well."
+
+- New `src/roundtable/asks.py`: one card shape for everything that waits for the owner
+  (`id, kind, header ≤ 12, question, detail, options [{id, label, description, confirm?,
+  picture?}], recommended (first), multi, allow_other, other_hint, stamp, answer, source`).
+  `open_asks(orch, answered=False)` builds them in order: money pause, failed tasks, then
+  (until approved) decisions, questions, the look, the setting, ideas, approval. `answer_ask`
+  applies an answer through the existing actions only (`plan_update` choose/answer/idea/look/
+  note, `set_profile`, `approve`, `retry`, `accept`, `skip`, `steer`) and returns `then`
+  (run, revise, looks) for the caller to start; `finish` does that in the foreground (hub).
+  `stamp` refuses an answer to a question that changed; `confirm` options need `confirmed`
+  ("Are you sure?"); `skip` keeps a card away until it changes (`asks_dismissed` in
+  project.json). `wizard_asks`/`wizard_project`/`slug`: the new-project cards.
+- `harness/plandoc.py`: questions carry `options` (2–4), `recommended`, `multi` and a
+  `header`; decisions a `header` (`_questions`, `_header`, the submission schema,
+  `_question_markdown` writes "Answers: …" under each question). Old plans without them still
+  work (a text box only). `prompts/orchestrator.md` asks for likely answers, recommendation first.
+- `harness/orchestrator.py`: `Task.stronger` and `retry(task, stronger=True)` with
+  `stronger_models` (the Quality setting's models for the role); `raise_budget` (a per-project
+  `budget_extra_usd`, so "Carry on with $X more" doesn't change other projects); why a run
+  paused is kept as `pause` (budget, money, money_nothing_done, credit); `plan_update("answer")`
+  records the tapped `chosen` ids; `_publish_plan` also writes `plans/<project>.asks.json`
+  (`_asks_json`), and `_attention` publishes so the phone sees a new card.
+  `harness/lookstage.py`: the wizard's look answer (`look_step`, `look_brief`) wins over the config.
+- `ui/server.py`: `GET /api/asks` (`?path=`, `?answered=1`, `?wizard=1`) and `POST /api/asks`
+  (an answer, or `{wizard: …}` to start a project with the chosen setting, references and look);
+  `phone.py` lets the phone use both. `ui/roundtable.py`: each waiting project's Needs you item
+  carries its next card (`ask`, `asks`).
+- `ui/static/app.js`: `askCard(ask, onAnswer, opts)` (chip, question, big options with the
+  recommended first and marked, ticks and Done, Other… with a text box, number keys and Enter,
+  the second "Are you sure?" card, Not now) and `answerAsk`; used on the Hall's Needs you, the
+  plan page (Your input, with Answered folded away; the look card has the pictures, the Look
+  section keeps the details) and the new `#/new` wizard (`viewNew`); the old form stays under
+  "Or type the folder and the goal yourself". `style.css`: `.ask*` using the theme's variables.
+- `remote.py`: the `answer` action (`_answer`) so phones and other machines answer the same way.
+- Phone: `data/Asks.kt` (`Ask`, `AskReply`, `Asks.parse`, `fromPlan` for a hub without the
+  asks file, `commandFields`, `requestBody`), `ui/AskCard.kt`, cards on Needs you
+  (`NeedsList`/`TableScreen` `onAnswer`, `askNeed`) and the Plan tab (`ProjectUi.asks`,
+  `ProjectActions.answer`); `Backend.asks`/`answer` (Hub: the asks file and the `answer` command,
+  lists sent as JSON arrays; PC: `/api/asks`); `PlanDoc` no longer mistakes "Answers:" for the
+  owner's answer.
+- Tests: `tests/test_asks.py` (12); Android `AsksTest` (5), `GitHubHubTest.cardsInHubMode`,
+  two new screen drawings. Screenshots in the session scratchpad (`cards-shots/`).
+- Open: see plans/gaps.md (deleting cards, the wizard on the phone, look pictures on the phone).
+  The app is dark only, so the wizard looks the same in a light-scheme browser.
+
 ## 2026-11-26 – Backups (to Google Drive's folder)
 
 The owner asked: "Also add support to back up settings to Google Drive, and anything else

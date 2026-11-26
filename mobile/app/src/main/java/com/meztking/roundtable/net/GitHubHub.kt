@@ -128,6 +128,9 @@ class GitHubHub(
     /** The project's current plan as markdown, or null when it has none. */
     suspend fun plan(project: String): String? = getOrNull("plans/$project.md")
 
+    /** The project's questions to tap (plans/<project>.asks.json, written next to the plan); null when there's none. */
+    suspend fun asks(project: String): String? = getOrNull("plans/$project.asks.json")
+
     /** Every file path in the repository with its blob sha (one call). Null when GitHub cut the list short. */
     private suspend fun tree(): Map<String, String>? {
         val t = ApiJson.decodeFromString<Tree>(execute(
@@ -261,6 +264,7 @@ class GitHubHub(
                 null -> {}
                 is Boolean -> put(k, v)
                 is Number -> put(k, v)
+                is List<*> -> put(k, JsonArray(v.filterNotNull().map { JsonPrimitive(it.toString()) }))
                 else -> put(k, v.toString())
             }
         }.toString()

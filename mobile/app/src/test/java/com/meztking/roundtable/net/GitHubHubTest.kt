@@ -209,6 +209,25 @@ class GitHubHubTest {
         assertEquals("""{"action":"idea","id":"I1","accept":true}""", bodies[1]["body"]!!.jsonPrimitive.content)
     }
 
+    @Test fun cardsInHubMode() = runTest {
+        files["plans/lantern-app.asks.json"] = """{"asks": [{"id": "choose:C1", "kind": "decision", "header": "Logo", "question": "Which logo?",
+            "options": [{"id": "a", "label": "Pixel art"}, {"id": "b", "label": "Watercolour"}], "recommended": "a", "stamp": "st"},
+            {"id": "approve", "kind": "approve", "header": "Plan", "question": "Start building?", "options": [{"id": "approve", "label": "Approve and start"}]}]}"""
+        val backend = HubBackend(hub(), "me")
+        val hall = backend.hall()
+        val need = hall.needs.first()
+        assertEquals("ask", need.kind)
+        assertEquals("choose:C1", need.ask!!.id)
+        assertEquals(2, need.asks)
+        assertEquals("lantern-app", need.ask!!.project)
+        val said = backend.answer(need.ask!!, com.meztking.roundtable.data.AskReply(listOf("b"), "warmer"))
+        assertTrue(said.startsWith("Sent."))
+        val body = Json.parseToJsonElement(String(Base64.getDecoder().decode(
+            Json.parseToJsonElement(puts.single().body.readUtf8()).jsonObject["content"]!!.jsonPrimitive.content))).jsonObject
+        assertEquals("roundtable: answer", body["subject"]!!.jsonPrimitive.content)
+        assertEquals("""{"action":"answer","id":"choose:C1","chosen":["b"],"other":"warmer","stamp":"st"}""", body["body"]!!.jsonPrimitive.content)
+    }
+
     @Test fun markReadKeepsTheRestOfTheStateFile() = runTest {
         hub().markRead("me", listOf("20261125T110000000000Z-bbbbbb", "20261125T100000000000Z-aaaaaa"))
         val payload = Json.parseToJsonElement(puts.single().body.readUtf8()).jsonObject
