@@ -231,6 +231,14 @@ class LookStage:
         acc = ("No colour codes or font names outside design/tokens.css (the design check finds none in the "
                "changed files); every screen uses the look's colours, fonts and corners; the app works as before.")
         open_ = next((t for t in tasks if t.title == RESTYLE_TITLE and t.status in ("pending", "failed")), None)
+        planned = [t for t in tasks if t.title != RESTYLE_TITLE and t.status in ("pending", "running")
+                   and (d["name"].lower() in f"{t.title} {t.description}".lower()
+                        or "design/tokens" in t.description)]
+        if planned:  # the planner already turned the look into tasks; a second restyle would repeat them
+            if open_:
+                open_.status = "skipped"
+                self.project.save_tasks(tasks)
+            return None
         if open_:
             open_.description, open_.acceptance, open_.status = desc, acc, "pending"
         else:

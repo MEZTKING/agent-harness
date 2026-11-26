@@ -350,3 +350,19 @@ def test_a_real_picture(tmp_path, monkeypatch):
     r = looklib.render_mockups(tmp_path, ["A"])
     assert r["pictures"] == {"A": ["A.png", "A-phone.png"]}, r["note"]
     assert (tmp_path / "A.png").read_bytes().startswith(b"\x89PNG")
+
+
+def test_no_second_restyle_when_the_planner_already_planned_the_look(tmp_path):
+    from roundtable.harness.lookstage import RESTYLE_TITLE
+    from roundtable.harness.orchestrator import Task
+
+    orch, a, brain = planned(tmp_path, bad_first=False)
+    tasks = orch.project.tasks()
+    tasks[0].status = "done"
+    tasks.append(Task(id="T99", title="Wire the Night Bus Neon tokens", role="coder",
+                      description="link design/tokens.css everywhere", acceptance="ok"))
+    orch.project.save_tasks(tasks)
+    (orch.project.root / "index.html").write_text("<style>body { color: #123456; }</style>\n")
+    d = {"name": "Night Bus Neon", "signature": "a glow"}
+    assert orch._restyle_task(d) is None
+    assert not any(t.title == RESTYLE_TITLE for t in orch.project.tasks())

@@ -4,6 +4,17 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – One restyle, not two
+
+Choosing look A for the music player and updating the plan gave both the planner's own
+restyle tasks (T15–T17) and the Look stage's "Restyle the app in the chosen look" (L1),
+so the same work would be done twice.
+
+- `lookstage._restyle_task`: no restyle task when a pending or running task already names
+  the look or works on `design/tokens`; an open one is skipped. Test:
+  `test_no_second_restyle_when_the_planner_already_planned_the_look`; 180 pass.
+- Merged the "Make it like this" branch (references read by a scout); see its entry below.
+
 ## 2026-11-26 – Make it like this: references
 
 The owner: "I'll make an option so that you can input ideas that already exist, and you can
