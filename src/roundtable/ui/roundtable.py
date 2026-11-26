@@ -85,10 +85,26 @@ def run_seat(app, path: Path) -> dict[str, Any]:
         status, detail, actions = "idle", "stopped part-way: resume when ready", ["resume"]
     return {
         "id": path.name, "path": str(path), "kind": "run", "status": status, "detail": detail, "actions": actions,
+        "shot": _seat_shot(path),
         "failed_task": failed[0]["id"] if failed else None,
         "progress": {"done": done, "total": len(tasks)}, "goal": (meta.get("goals") or [""])[-1],
         "spent_usd": meta.get("spent_usd", 0), "last_activity": last_at,
     }
+
+
+def _seat_shot(path: Path) -> dict[str, str] | None:
+    """The newest desktop picture of the project's app, for the seat's thumbnail."""
+    from urllib.parse import urlencode
+
+    from ..harness.showit import latest
+
+    rec = latest(path)
+    if not rec or "desktop" not in (rec.get("pictures") or {}):
+        return None
+    d = rec.get("dir") or rec.get("task", "")
+    pic = "desktop.jpg" if (path / ".harness" / "shots" / d / "desktop.jpg").is_file() else "desktop.png"
+    return {"url": "/raw/shot?" + urlencode({"path": str(path), "task": d, "name": pic}),
+            "task": rec.get("task", ""), "at": rec.get("at", "")}
 
 
 ASK_STATES = ("awaiting_approval", "blocked", "paused", "paused_budget")

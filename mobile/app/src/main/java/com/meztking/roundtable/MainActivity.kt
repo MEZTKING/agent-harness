@@ -121,6 +121,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 val inbox by vm.inbox.collectAsState()
                 val sent by vm.sent.collectAsState()
                 val asks by vm.asks.collectAsState()
+                val live by vm.live.collectAsState()
                 val notice by vm.notice.collectAsState()
                 val snack = remember { SnackbarHostState() }
                 LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); vm.noticeShown() } }
@@ -128,7 +129,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { pad ->
                     Box(Modifier.padding(pad)) {
                         ProjectScreen(
-                            ProjectUi(vm.id, seat, backend?.mode, backend?.identity ?: app.store.identity, status, plan, inbox, sent, asks),
+                            ProjectUi(vm.id, seat, backend?.mode, backend?.identity ?: app.store.identity, status, plan, inbox, sent, asks, live),
                             ProjectActions(
                                 back = { nav.popBackStack() }, refresh = vm::refresh, command = vm::command, act = vm::act,
                                 opened = vm::opened, reply = vm::reply, send = vm::send, answer = vm::answer,

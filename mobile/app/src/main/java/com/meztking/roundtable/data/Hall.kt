@@ -98,6 +98,8 @@ interface Backend {
     suspend fun autopilot(): AutopilotState?
     /** Turn autopilot on (until, spend limit in dollars) or off. Returns a short line to show. */
     suspend fun setAutopilot(on: Boolean, until: String = "", cap: Double? = null): String
+    /** The newest pictures of the project's app and its latest task's steps (the Live tab). */
+    suspend fun live(seat: SeatView): LiveView
 }
 
 class HubBackend(private val hub: GitHubHub, override val identity: String) : Backend {
@@ -217,6 +219,13 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
     @Volatile private var lastSeats: List<SeatView> = emptyList()
 
     override suspend fun autopilot(): AutopilotState? = runCatching { Autopilot.parse(hub.autopilot()) }.getOrNull()
+
+    override suspend fun live(seat: SeatView): LiveView = coroutineScope {
+        val session = async { Live.parseSession(hub.session(seat.id)) }
+        val shots = Live.parseShots(hub.shots(seat.id))
+        val images = shots?.pictures.orEmpty().map { (kind, name) -> async { hub.shot(seat.id, name)?.let { kind to it } } }
+        LiveView(shots, images.awaitAll().filterNotNull().toMap(), session.await())
+    }
 
     override suspend fun setAutopilot(on: Boolean, until: String, cap: Double?): String {
         val to = Autopilot.commandTarget(autopilot(), lastSeats)
@@ -342,6 +351,13 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
     }
 
     override suspend fun autopilot(): AutopilotState? = runCatching { api.autopilot() }.getOrNull()
+
+    override suspend fun live(seat: SeatView): LiveView = coroutineScope {
+        val path = seat.path ?: return@coroutineScope LiveView()
+        val session = async { Live.parseSession(api.session(path)) }
+        val (shots, images) = Live.parsePc(api.live(path))
+        LiveView(shots, images, session.await())
+    }
 
     override suspend fun setAutopilot(on: Boolean, until: String, cap: Double?): String {
         val st = api.setAutopilot(on, until, cap)

@@ -62,9 +62,13 @@ class FileStore(Store):
         return json.loads(p.read_text(encoding="utf-8"))
 
     def _write_files(self, items: dict[str, Any]) -> list[str]:
+        """Write each file; a value of None removes that file (pruning old pictures)."""
         written = []
         for rel, data in items.items():
             p = self._path(rel)
+            if data is None:
+                p.unlink(missing_ok=True)
+                continue
             p.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".tmp-")
             if isinstance(data, BinaryFile):
@@ -202,11 +206,17 @@ class GitStore(FileStore):
 
     def _write_json_locked(self, items: dict[str, Any], message: str) -> None:
         self.sync(force=True)
+        removed = [rel for rel, data in items.items() if data is None]
+        tracked = self._git("ls-files", "--", *removed).split() if removed else []
         written = self._write_files(items)
-        self._git("add", "--", *written)
-        if not self._git("status", "--porcelain", "--", *written).strip():
+        if written:
+            self._git("add", "--", *written)
+        if tracked:
+            self._git("rm", "-q", "--cached", "--ignore-unmatch", "--", *tracked)
+        paths = written + tracked
+        if not paths or not self._git("status", "--porcelain", "--", *paths).strip():
             return  # nothing changed
-        self._git("commit", "-m", message, "--", *written)
+        self._git("commit", "-m", message, "--", *paths)
         if not (self._has_remote and self.push_enabled):
             return
         delay = 1.0

@@ -266,6 +266,7 @@ def start_server(paths: Paths, keystore: KeyStore, port: int | None = None):
     app.start_auto_sync()
     httpd = ThreadingHTTPServer(("127.0.0.1", port or free_port()), make_handler(app, token=None, allow_remote=False))
     app.phone.start()  # phone access, if it was turned on in Settings
+    app.preview.start()  # the projects' own apps, for their Live tabs
     threading.Thread(target=httpd.serve_forever, daemon=True, name="ui-server").start()
     return httpd, app
 

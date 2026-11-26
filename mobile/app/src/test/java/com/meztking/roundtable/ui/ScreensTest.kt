@@ -10,6 +10,11 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.meztking.roundtable.data.Ask
 import com.meztking.roundtable.data.AskOption
 import com.meztking.roundtable.data.HallState
+import com.meztking.roundtable.data.LiveShots
+import com.meztking.roundtable.data.LiveView
+import com.meztking.roundtable.data.SessionStep
+import com.meztking.roundtable.data.SessionSummary
+import com.meztking.roundtable.data.SessionTask
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.NeedView
 import com.meztking.roundtable.data.PlanDoc
@@ -124,6 +129,43 @@ class ScreensTest {
         }
     }
 
+    /** A made-up app's picture, drawn here: a header, a blue card and four tiles. */
+    private fun appPicture(w: Int, h: Int, dark: Boolean = false): ByteArray {
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val paint = android.graphics.Paint()
+        c.drawColor(if (dark) 0xFF0F1A21.toInt() else 0xFFF4F1EA.toInt())
+        paint.color = 0xFF2F6F8F.toInt()
+        c.drawRect(w * 0.05f, h * 0.15f, w * 0.6f, h * 0.35f, paint)
+        paint.color = if (dark) 0xFF18262F.toInt() else 0xFFFFFFFF.toInt()
+        for (i in 0 until 4) c.drawRect(w * (0.05f + i * 0.14f), h * 0.4f, w * (0.17f + i * 0.14f), h * 0.52f, paint)
+        paint.color = if (dark) 0xFFE6EEF2.toInt() else 0xFF1D2A33.toInt()
+        c.drawRect(w * 0.05f, h * 0.05f, w * 0.35f, h * 0.1f, paint)
+        val out = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        return out.toByteArray()
+    }
+
+    private val live = LiveView(
+        LiveShots("T2", ago(0), "Harbour Tides", mapOf("desktop" to "latest-desktop.jpg", "phone" to "latest-phone.jpg", "dark" to "latest-dark.jpg"),
+            errors = listOf("Uncaught TypeError: tides is undefined")),
+        mapOf("desktop" to appPicture(640, 400), "phone" to appPicture(195, 422), "dark" to appPicture(640, 400, dark = true)),
+        SessionSummary("harbour-tides", ago(0), SessionTask("T2", "Dark mode", "coder", "done", 0.0012, "done", listOf(
+            SessionStep("say", "The colours live in four variables, so dark mode only needs a second set."),
+            SessionStep("tool", "● Edit style.css · +3 −0"), SessionStep("tool", "● Search `#fff`"),
+            SessionStep("tool", "● Run `npm test` · failed (exit 1)", error = true), SessionStep("tool", "● Edit style.css · +1 −1"),
+            SessionStep("finish", "Finished: T2 done, the page opens"), SessionStep("review", "✓ Approved: every check met."),
+            SessionStep("shots", "Pictures taken (3)")))),
+    )
+
+    @Test fun projectLive() = shot("10-project-live") {
+        ProjectScreen(ProjectUi("harbour-tides", seats[0], Mode.HUB, "me", Load(status), Load(), Load(), live = Load(live)), ProjectActions(), initialTab = 3)
+    }
+
+    @Test fun projectLiveEmpty() = shot("10b-project-live-empty") {
+        ProjectScreen(ProjectUi("harbour-tides", seats[0], Mode.PC, "me", Load(status), Load(), Load(), live = Load(LiveView())), ProjectActions(), initialTab = 3)
+    }
+
     @Test fun table() = shot("1-table") {
         TableScreen(Load(hall), Mode.HUB, "Hub on GitHub · example/hub", emptySet(), {}, {}, { _, _ -> }, {}, false, {})
     }
@@ -196,6 +238,11 @@ class ScreensTest {
     @Test fun projectPlanDark() = shot("6-project-plan-dark") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
             sent = mapOf("answer:Q1" to "Sent. Roundtable will reply in Letters.")), ProjectActions(), initialTab = 1)
+    }
+
+    @Config(qualifiers = "+night")
+    @Test fun projectLiveDark() = shot("10-project-live-dark") {
+        ProjectScreen(ProjectUi("harbour-tides", seats[0], Mode.HUB, "me", Load(status), Load(), Load(), live = Load(live)), ProjectActions(), initialTab = 3)
     }
 
     private val pilot = com.meztking.roundtable.data.AutopilotState(on = true, until = "2026-11-27T08:00:00Z", label = "until 8am · \$0.40 of \$2.00",

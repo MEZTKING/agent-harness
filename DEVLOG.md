@@ -13,6 +13,66 @@ the class failed to initialise because Android's ICU regex refuses a bare `}` (a
 accepts (`trailingBraceId`, `checkRe` in Markdown.kt; three more in PlanDoc.kt). The JVM tests never
 saw it. All five escaped; `tests/test_mobile_regex.py` scans every `Regex("…")` in the Kotlin sources
 so it can't come back.
+## 2026-11-26 – See what's being made: Show it, the Live and Session tabs
+
+The owner: "You should be able to visually see what each session is making. If they're making an
+app or anything, you should be able to see the app being made … You should be able to see
+everything, not just text. Follow the Claude Code CLI; we want it to be very similar to that."
+
+- **Show it** (`harness/showit.py`, new): after each approved task, when the plan has `has_ui` or
+  the project has an `index.html` (`entry_page`: the top, `public/`, `www/`, `dist/` …),
+  `take_shots` serves the folder on a local `StaticServer` (127.0.0.1, a free port, the folder only:
+  `safe_path` refuses `..`, absolute paths, hidden parts and links out; `content_type`) and
+  `render_pages` takes desktop 1280×800, phone 390×844 and, when the app uses
+  `prefers-color-scheme` (`supports_dark`), dark pictures, with console and page errors and the
+  title, through Playwright for Python or Node (as `look.py`; requests outside the app and Google
+  Fonts are blocked). Saved to `.harness/shots/<task>/{desktop,phone,dark}.png` (+ `.jpg`) and
+  `shots.json`, plus `shots/latest.json`. Never fatal: no Playwright is a note, a crash is `failed`.
+  A `package.json` start command is noted (`start_command`), the static page shown.
+- `harness/showstage.py` (new, a mixin like the Look stage): `_after_task` runs `_show_it` (emits
+  `shots`) and `_publish_live`: `plans/shots/<project>/session.json` after every task, and with new
+  pictures `showit.hub_files`: `latest-{desktop,phone,dark}.jpg`, `<task>-desktop.jpg` for each
+  finished task (at most `HUB_KEEP` = 20, the oldest removed) and `latest.json`. Pictures go to the
+  hub as JPEG (Playwright writes both; a PNG only when under 300 KB), so the names end in `.jpg`.
+  `_hub_name` is shared with `_publish_plan`. Config `show_it: auto|off`.
+- `core/store.py`: a value of `None` in `write_json` removes that file (FileStore unlinks; GitStore
+  `git rm --cached` for tracked ones).
+- `harness/tools.py`: `file_change` (a unified diff, trimmed to 8 KB, with lines added and removed);
+  `Workspace.last_change` after each write or edit; `Toolbox.take_change`. `harness/agent.py`:
+  `_tool_event` keeps that diff and the end of a command's output in the `tool_call` event;
+  `model_turn` carries the role.
+- `harness/session.py` (new): `tasks_from_events` turns events.jsonl into each task run's steps
+  (`tool_step`: Read / Write / Edit with diff / Run passed or failed / Search / Finished; the
+  model's words with the turn's cost; attempts, reviews, pictures, errors), `outputs` (pictures and
+  apk/zip/exe… by the task that wrote them, else by time), `redact` (backup's key patterns),
+  `hub_session` (the latest task's last 40 steps as lines), `cursor` (the event log's size).
+- Desktop: `ui/live.py` (new): `LivePreview`, a second read-only web server on another port for
+  the apps themselves (`/<project key>/<file>`, its own CSP: no internet, `frame-ancestors` the app);
+  another port is another origin, so `sandbox="allow-scripts allow-same-origin allow-forms"` can't
+  reach Roundtable's pages or API. `live`, `session_view`, `raw` (pictures inline under a sandbox
+  CSP, everything else as a download, never as a page). `ui/server.py`: `/api/project/live`
+  (`inline=1`: data addresses for the phone), `/api/project/session` (`since` cursor; `compact=1`),
+  `/raw/shot` and `/raw/file`, `frame-src` the preview's origin, the `shots` line; `serve()` and
+  `desktop.py` start the preview. `ui/roundtable.py`: the seat's `shot`. `phone.py`: both routes in
+  `PHONE_ROUTES`.
+- `static/app.js`: the project page's tabs (`runTabs`, `#/run/<path>?tab=live|session`),
+  `liveTab` (the frame with Computer/Phone width, Reload, Open in browser; the newest pictures and
+  the Earlier strip; `enlarge`), `sessionTab` (a terminal transcript: `stepNode`, `diffView`,
+  `outputList`; follows live and keeps to the newest step until the owner scrolls up), `follow`,
+  the seat's thumbnail. `style.css`: the Live and Session styles (`--term-*`, dark oak in both looks).
+- Phone: `data/Live.kt` (`LiveShots`, `SessionSummary`, `Live.parse*`, `dataUrl`),
+  `ui/LiveTab.kt` (pictures, tap for full screen with pinch to zoom, the steps), the project's
+  **Live** tab (index 3), `Backend.live` (Hub: `GitHubHub.shots` / `session` / `shot` bytes; PC:
+  `Api.live` / `session`).
+- Tests: `tests/test_show_it.py` (15), `LiveTest` (3), `ScreensTest` +3 (`10-project-live`, dark,
+  empty). Screenshots of a made-up "harbour tides" page built by a scripted run (Live and Session,
+  light and dark, the seat, the enlarged picture, the phone frame) looked at.
+- Decided: the iframe app runs on its own port rather than the same origin (with
+  `allow-same-origin` on the same origin a model-written app could call Roundtable's API and run
+  commands); hub pictures as JPEG, not PNG, to stay small.
+- Open (plans/gaps.md): a model that can see judging the pictures; start commands for apps that
+  aren't a static page; screenshots of Android and desktop apps; games played for a minute; the
+  Live frame only works on this computer (not through `roundtable ui --host`).
 
 ## 2026-11-26 – 0.7.0's installer build stopped: a second version number
 

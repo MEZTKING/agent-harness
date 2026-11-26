@@ -131,6 +131,7 @@ class HarnessConfig:
     design_role: str | None = None  # makes the app's looks (default: a chat role "designer", else the planner)
     scout_role: str | None = None  # reads the owner's references (default: a chat role "scout", else the planner)
     look_stage: str = "auto"  # auto: offer looks when the plan is for an app with screens; off: only on request
+    show_it: str = "auto"  # auto: pictures of the app's own screens after every approved task; off: never
     prompts_dir: Path | None = None
     hub: dict[str, Any] | None = None
     lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
@@ -453,6 +454,10 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     look_stage = {False: "off", True: "auto"}.get(look_stage, str(look_stage).lower())  # YAML reads off as false
     if look_stage not in ("auto", "off"):
         raise ValueError("look_stage must be 'auto' or 'off'")
+    show_it = raw.get("show_it", "auto")
+    show_it = {False: "off", True: "auto"}.get(show_it, str(show_it).lower())  # YAML reads off as false
+    if show_it not in ("auto", "off"):
+        raise ValueError("show_it must be 'auto' or 'off'")
 
     profiles = _profiles(raw, providers, roles)
     default_profile = raw.get("default_profile")
@@ -486,6 +491,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         design_role=design,
         scout_role=scout,
         look_stage=look_stage,
+        show_it=show_it,
         prompts_dir=(base / prompts_dir) if prompts_dir else None,
         hub=raw.get("hub"),
         lab_dir=_lab_dir(raw, base, path),

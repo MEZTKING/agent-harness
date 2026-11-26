@@ -248,6 +248,9 @@ class ProjectViewModel(app: Application, saved: SavedStateHandle) : AndroidViewM
     private val _asks = MutableStateFlow(Load<List<Ask>>())
     /** The questions waiting on this project, as cards to tap. */
     val asks: StateFlow<Load<List<Ask>>> = _asks.asStateFlow()
+    private val _live = MutableStateFlow(Load<com.meztking.roundtable.data.LiveView>())
+    /** The newest pictures of the app and the latest task's steps. */
+    val live: StateFlow<Load<com.meztking.roundtable.data.LiveView>> = _live.asStateFlow()
 
     fun noticeShown() { _notice.value = null }
 
@@ -260,6 +263,7 @@ class ProjectViewModel(app: Application, saved: SavedStateHandle) : AndroidViewM
         val b = rt.backend() ?: return
         viewModelScope.launch { _status.fetch { b.status(id) } }
         viewModelScope.launch { _inbox.fetch { b.inbox(id) } }
+        viewModelScope.launch { _live.fetch { b.live(_seat.value ?: SeatView(id)) } }
         loadPlan()
     }
 

@@ -29,6 +29,7 @@ from . import plandoc
 from .lookstage import LookStage
 from .refstage import ReferenceStage, new_reference
 from .saver import TokenSaver
+from .showstage import ShowStage
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
@@ -186,7 +187,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(LookStage, ReferenceStage):
+class Orchestrator(LookStage, ReferenceStage, ShowStage):
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -305,8 +306,7 @@ class Orchestrator(LookStage, ReferenceStage):
                 return
             from ..core.store import BinaryFile, TextFile
 
-            agent = self._hub_agent()
-            name = agent if agent == self.project.root.name else f"{agent}--{self.project.root.name}"
+            name = self._hub_name()
             meta = self.project.meta()
             state = ("approved, building" if meta.get("plan_approved") and meta.get("status") != "done"
                      else "done" if meta.get("status") == "done" else "waiting for the owner")
@@ -1364,7 +1364,8 @@ class Orchestrator(LookStage, ReferenceStage):
                     self._git_commit(f"[{task.id}] {task.title}")
                     self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
                     self._resolved(f"failed:{task.id}", note="task completed")
-                elif self._split_if_too_big(task):
+                self._after_task(task, ok)
+                if not ok and self._split_if_too_big(task):
                     continue  # the planner replaced it with smaller tasks; carry on with those
                 executed += 1
         except BudgetExceeded as e:
