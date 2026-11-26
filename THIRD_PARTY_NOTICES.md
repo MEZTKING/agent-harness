@@ -16,6 +16,11 @@ project's licence. Roundtable Hold itself is MIT.
   (`buildCandidate`), spill-before-replace, the cross-turn dedupe and the expand tool
   (`save_token_expand`, here `expand_output`), with the plugin's default settings
   (`cordis.patch.yml`). Its dashboard and its compaction trigger were not taken.
+- The plugin system (`src/roundtable/plugins/`) follows the shape of DeepSeek Harness's
+  plugins as seen in this package (a hook on tool results, hooks around model calls,
+  registered tools, web routes, settings with defaults); no code was copied for it. The
+  token saver now runs behind it as the built-in plugin `token-saver`
+  (`plugins/builtin/token_saver.py`).
 
 ```
 MIT License

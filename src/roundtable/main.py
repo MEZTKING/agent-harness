@@ -29,6 +29,10 @@ Models & self-improvement:
     roundtable probe [--role R] [--images]   regression / boost detector
     roundtable improve analyze|propose|list|show|test|apply|reject|rollback|status|cycle
 
+Plugins (extra pieces: token saving, cost logs, tools...):
+    roundtable plugin list | add SOURCE | remove ID | enable ID | disable ID | settings ID [key=value]
+    roundtable PLUGIN-ID COMMAND ...      a plugin's own commands
+
 Everything else:
     roundtable ui [--port 8765]           web UI for all of the above
     roundtable init                       write starter hub.yaml and harness.yaml
@@ -93,6 +97,12 @@ def main(argv: list[str] | None = None) -> None:
         rest = list(argv)
         rest.remove(cmd)
         return connect_main(cmd, rest)
+    if cmd == "plugin":
+        from .plugins.cli import main as plugin_main
+
+        rest = list(argv)
+        rest.remove(cmd)
+        return plugin_main(rest)
     if cmd == "app":
         from .desktop import main as app_main
 
@@ -109,6 +119,8 @@ def main(argv: list[str] | None = None) -> None:
                 i = argv.index("--agent")
                 del argv[i:i + 2]
             return harness_main(argv)
+        if _plugin_command(argv, cmd):
+            return
         sys.exit(f"roundtable: unknown command {cmd!r}. Run `roundtable help`.")
     finally:
         if cmd not in ("mcp", "ui") and sys.stderr.isatty():
@@ -117,6 +129,20 @@ def main(argv: list[str] | None = None) -> None:
             notice = cached_notice()
             if notice:
                 print(f"\n{notice}", file=sys.stderr)
+
+
+def _plugin_command(argv: list[str], cmd: str) -> bool:
+    """`roundtable <plugin-id> ...`: a command a plugin adds (False when no plugin has that id)."""
+    from .plugins.cli import run_plugin_command
+
+    rest = list(argv)
+    config = None
+    if "--config" in rest:
+        i = rest.index("--config")
+        config = rest[i + 1] if i + 1 < len(rest) else None
+        del rest[i:i + 2]
+    rest.remove(cmd)
+    return run_plugin_command(cmd, rest, config)
 
 
 def _remote(argv: list[str]) -> None:

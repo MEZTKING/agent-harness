@@ -534,6 +534,27 @@ To turn it off, put `token_saver: false` in `harness.yaml`. Its settings (when t
 and how much to keep) go under `token_saver:` – see `THIRD_PARTY_NOTICES.md` for where it
 comes from.
 
+#### Plugins
+
+Plugins add things to Roundtable without changing it: token saving, cost logs, extra tools
+for the workers, commands of their own. Two come built in: the **token saver** (above; on)
+and **cost log** (each model call's tokens and cost in a CSV file; off until you switch it
+on).
+
+```
+roundtable plugin list
+roundtable plugin add ./my-plugin          # or a git link, or a pip package
+roundtable plugin enable cost-log
+roundtable plugin settings token-saver min_bytes=2000
+roundtable plugin remove my-plugin
+```
+
+Choices are kept in `custom.yaml` under `plugins:`. **A plugin is someone's program and runs
+with Roundtable's full access**: Roundtable shows what it says it will do and asks before
+adding it, but can't hold it to that, so only add plugins from people you trust. A plugin
+that goes wrong is switched off for the rest of the run, and the run carries on. How to
+write one, the hooks and the permissions: [docs/plugins.md](docs/plugins.md).
+
 ---
 
 ## Part 3: Self-improvement

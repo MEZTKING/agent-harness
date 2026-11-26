@@ -22,6 +22,9 @@ providers:
     type: openai_compat
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GEMINI_API_KEY
+  openrouter_images:                # picture models through OpenRouter (GPT Image, Nano Banana), exact cost per picture
+    type: chat_images
+    api_key_env: OPENROUTER_API_KEY
   openference:                      # one key for 55 models from 15 makers (Claude, GPT, Gemini, GLM, Kimi...)
     type: openai_compat
     base_url: https://api.openference.com/v1
@@ -66,7 +69,12 @@ roles:
       sprites), rd_core__topdown, rd_core__isometric, rd_plus__item_sheet, rd_plus__ui_element,
       rd_tile__single_tile (16-64px tiles), rd_plus__skill_icon, rd_core__fantasy; width/height in
       pixels (usually 32-128); remove_bg true for sprites, tile_x/tile_y for seamless backgrounds.
-  # illustrator:                    # non-pixel images
+  illustrator:                      # pictures: art, backgrounds, icons (best ranked in November 2026: GPT Image 2)
+    kind: image
+    model: openrouter_images/openai/gpt-5.4-image-2
+    fallback: [openrouter_images/google/gemini-3.1-flash-image]
+    options: {aspect_ratio: "16:9"}
+  # illustrator (OpenAI direct):    # non-pixel images
   #   kind: image
   #   model: openai_images/gpt-image-1
   #   options: {size: 1024x1024}
@@ -123,6 +131,11 @@ workspace:
 # token_saver:
 #   min_bytes: 1400                 # smaller results are left alone
 #   keep_ratio_max: 0.72            # only replace when at least 28% smaller
+
+# Plugins (docs/plugins.md): usually set with `roundtable plugin ...` or the app, which
+# write them to custom.yaml. The token saver is the plugin `token-saver`.
+# plugins:
+#   cost-log: {enabled: true}       # each model call's tokens and cost in a CSV file
 
 # Optional: report progress to the agent hub (Part 1)
 # hub:
