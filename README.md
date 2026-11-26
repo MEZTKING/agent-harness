@@ -536,6 +536,27 @@ Text a model has already seen (a cache hit) is counted at a tenth of the input p
 - `limits.max_cost_usd` pauses a project when reached; `roundtable run` continues after you raise it. Claude prices are built in. **Add `pricing:` for the other providers**, or their calls are counted as "unpriced" and don't count toward the budget.
 - `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
 - `hub:` in `harness.yaml` reports project progress to the Hub, so your repo agents can see what the harness is building.
+- **A real-money limit per run**: `limits.max_real_usd_per_run` (e.g. `1.0`) pauses a run once your
+  providers' real balances fell by that much since it started, checked between tasks and inside long
+  ones. A run also pauses at half its limit if nothing has passed yet, and when an account says it's
+  out of credit (the task goes back in the queue; a "money" card asks you to top up).
+- **Cheaper hours**: DeepSeek charges half outside its peak hours (reported as 01:00–04:00 and
+  06:00–10:00 UTC). Roundtable counts the right price at each hour, and when you approve a plan during
+  peak hours the card offers "Approve, start at HH:MM UTC"; the desktop app starts it then.
+- **Cheaper routes**: through OpenRouter, Roundtable asks for the cheapest company that runs the model
+  (`routing: throughput | latency | none` on the provider changes that); Claude through any gateway
+  uses its cache; files over 400 lines are read as an outline plus the parts needed, not whole.
+- **When a task goes wrong**: a task that keeps running out of steps is split into smaller ones by the
+  planner (once); after a rejection a stronger reviewer model gives the next verdict; reviewers are
+  told what later tasks will do; and you can **accept a task as it is** (`accept` on the failed-task
+  card, or the hub command) when the work is right but was rejected for the wrong reason.
+- **Learning after each run**: with `improve: {after_each_run: true, auto_apply: low}`, Roundtable
+  looks at the numbers after every run and switches the order of models when they clearly say so
+  (for example a cheap model that keeps failing while its backup finishes for less per task). Each
+  switch is written in the hub journal with the reason and the undo command.
+- **Pictures**: an image role (`kind: image`) can use picture models through OpenRouter
+  (`type: chat_images`: GPT Image 2, Nano Banana) with the exact cost of each picture, or Retro
+  Diffusion for pixel art.
 
 #### Token saver
 
