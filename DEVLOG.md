@@ -4,6 +4,28 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The DeepSeek account ran empty: pause, don't fail
+
+The last music player run (V4 Pro first) finished half of the crossfade task (the task
+was split in two) and then hit "Insufficient Balance": the DeepSeek account is at $0.06.
+That run spent $1.11 of real money although its limit was $1, because the limit was only
+checked between tasks.
+
+- `ProviderError.out_of_credit` (set on a 402 by `openai_compat`) and `agent.OutOfCredit`:
+  a run remembers the providers that ran out (`Orchestrator._broke`), skips their models
+  for the rest of the run, and when no model of a role is left it pauses (status
+  `paused`, a "money" Needs you note) with the task back to pending and its credit errors
+  dropped, instead of failing it.
+- `Orchestrator._on_charge`: the real-money limit is also checked inside a long task, at
+  most once a minute (`REAL_CHECK_SECONDS`), from the run's second minute.
+- Tests: `test_out_of_credit_pauses_the_run_instead_of_failing_the_task`,
+  `test_real_money_limit_is_checked_inside_a_long_task`; 151 pass.
+- The owner's "no DeepSeek Pro for now": the lab's learned version 1 rolled back, and
+  V4 Pro replaced by GLM-5.3 through OpenRouter (cheap: about $0.07 / $1.40 per million)
+  in every setting.
+- Open: the music player's last pieces (the rest of crossfade, tests, the how-to) wait
+  for the owner: top up DeepSeek, or finish on OpenRouter.
+
 ## 2026-11-26 – The suggestion applied; learned order inside a setting
 
 The owner: apply Roundtable's suggestion (V4 Pro codes first) and finish the music player,

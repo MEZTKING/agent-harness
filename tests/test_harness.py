@@ -462,3 +462,35 @@ def test_run_pauses_when_real_spend_reaches_its_limit(tmp_path, monkeypatch):
     orch.start("goal")
     assert orch.run() == "paused"
     assert sum(t.status == "done" for t in orch.project.tasks()) == 1
+
+
+def test_out_of_credit_pauses_the_run_instead_of_failing_the_task(tmp_path):
+    class Broke(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools):
+                raise ProviderError("a: out of credit for coder - top up your balance with a", out_of_credit=True)
+            return super().__call__(model, system, messages, tools)
+
+    brain = Broke(plan=PLAN[:1])
+    orch, *_ = make(tmp_path, brain=brain, b_brain=brain)
+    orch.start("goal")
+    assert orch.run() == "paused"
+    t1 = orch.project.tasks()[0]
+    assert t1.status == "pending" and t1.attempts == []
+    assert orch.project.meta()["status"] == "paused"
+
+
+def test_real_money_limit_is_checked_inside_a_long_task(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00] + [1.50] * 50)  # start, the check before the task, then inside it
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["limits"]["max_real_usd_per_run"] = 1.0
+    orch, *_ = make(tmp_path, raw=raw, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal")
+    orch.plan()
+    orch.approve()
+    orch.REAL_CHECK_SECONDS = 0  # look at the balance on every charge
+    assert orch.run() == "paused_budget"
+    assert orch.project.tasks()[0].status == "pending"

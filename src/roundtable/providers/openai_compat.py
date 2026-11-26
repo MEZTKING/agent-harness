@@ -114,7 +114,7 @@ def _wrap_errors(openai, provider_id: str, model: str, api_key_env: str | None, 
     except openai.APIStatusError as e:
         if e.status_code == 402:
             raise ProviderError(f"{provider_id}: out of credit for {model} - top up your balance with "
-                                f"{provider_id} ({_said(e)})") from e
+                                f"{provider_id} ({_said(e)})", out_of_credit=True) from e
         raise ProviderError(f"{provider_id}: API error {e.status_code} ({_said(e)})", retryable=e.status_code >= 500) from e
     except openai.APIConnectionError as e:
         raise ProviderError(f"{provider_id}: connection error ({e})", retryable=True) from e

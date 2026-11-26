@@ -27,6 +27,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Fixed
 
+- **An empty account failed tasks, and a long task ran past the real-money limit**
+  (26 November): out of credit now pauses the run and asks for a top-up; the limit is
+  checked inside long tasks too.
+
 - **Self-improvement missed a cheap model that mostly failed** (26 November): it compared
   cost per attempt and wanted 5 tries of the fallback. It now also compares the cost per
   finished task and spots a fallback that keeps rescuing the primary.

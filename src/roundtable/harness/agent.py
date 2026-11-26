@@ -20,6 +20,10 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+class OutOfCredit(BudgetExceeded):
+    """A provider said the account has no money left; the run pauses until the owner tops up."""
+
+
 @dataclass
 class Budget:
     limit_usd: float

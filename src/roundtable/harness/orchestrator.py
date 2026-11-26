@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
-from .agent import AgentResult, Budget, BudgetExceeded, run_agent
+from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
 from .lookstage import LookStage
 from .config import HarnessConfig, ModelRef, RoleSpec
@@ -174,8 +174,9 @@ class Orchestrator(LookStage):
         meta = self.project.meta()
         self.budget = Budget(limit_usd=cfg.limits.max_cost_usd, spent_usd=meta.get("spent_usd", 0.0))
         # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
-        self.budget.on_charge = lambda cost: self.project.append(
-            "spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
+        self.budget.on_charge = self._on_charge
+        self._broke: set[str] = set()  # providers that said "out of credit" during this run
+        self._last_real_check = 0.0
 
     # -- logging -------------------------------------------------------------
     def emit(self, kind: str, data: dict[str, Any]) -> None:
@@ -975,7 +976,11 @@ class Orchestrator(LookStage):
         rejections_on_model = 0
         ran_out_once = False
         for attempt in range(1, self.cfg.limits.max_attempts_per_task + 1):
+            while model_idx < len(role.models) and role.models[model_idx].provider in self._broke:
+                model_idx += 1  # that account is empty: no point trying it again this run
             if model_idx >= len(role.models):
+                if all(m.provider in self._broke for m in role.models):
+                    raise OutOfCredit("no credit left with " + ", ".join(sorted({m.provider for m in role.models})))
                 break
             ref = role.models[model_idx]
             self.emit("attempt", {"task": task.id, "attempt": attempt, "model": str(ref)})
@@ -995,6 +1000,8 @@ class Orchestrator(LookStage):
                                 on_event=self.emit)
                 self._save_spend()
             except ProviderError as e:
+                if getattr(e, "out_of_credit", False):
+                    self._broke.add(ref.provider)
                 self.emit("provider_error", {"task": task.id, "model": str(ref), "error": str(e)})
                 task.attempts.append({"model": str(ref), "outcome": "error", "error": str(e)})
                 self._metric(task, ref, "error", None)
@@ -1038,11 +1045,23 @@ class Orchestrator(LookStage):
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
         start = self._note_balance("start")
         self._balance_start = start
+        self._last_real_check = time.time()
         try:
             return self._run(max_tasks)
         finally:
             if start:
                 self._note_balance("end", start)
+
+    REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
+
+    def _on_charge(self, cost: float) -> None:
+        self.project.append("spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
+        # the real-money limit is also checked inside a long task, at most once a minute
+        if self.cfg.limits.max_real_usd_per_run and time.time() - self._last_real_check >= self.REAL_CHECK_SECONDS:
+            self._last_real_check = time.time()
+            if self._real_spend_over_limit():
+                raise BudgetExceeded(f"this run reached its real-money limit of "
+                                     f"${self.cfg.limits.max_real_usd_per_run:.2f}")
 
     def _real_spend_over_limit(self) -> bool:
         """True when the providers' real balances fell by the run's limit (limits.max_real_usd_per_run)."""
@@ -1175,8 +1194,14 @@ class Orchestrator(LookStage):
             for t in tasks:
                 if t.status == "running":
                     t.status = "pending"
+                    if isinstance(e, OutOfCredit):  # the money ran out, the task didn't fail
+                        t.attempts = [a for a in t.attempts if a.get("outcome") != "error"]
             self.project.save_tasks(tasks)
             self._save_spend()
+            if isinstance(e, OutOfCredit):
+                self._set_status("paused", reason=str(e))
+                self._attention("money", f"{e}: top up that account, then run the project again")
+                return "paused"
             self._set_status("paused_budget", reason=str(e))
             self._attention("budget", f"paused at the budget limit ({e}); raise limits.max_cost_usd, then "
                                       f"roundtable run {self.project.root}")
