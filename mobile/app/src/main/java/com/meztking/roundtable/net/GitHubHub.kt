@@ -134,6 +134,28 @@ class GitHubHub(
     /** Autopilot's switch and its newest log lines (plans/autopilot.json, written by the PC); null when there's none. */
     suspend fun autopilot(): String? = getOrNull("plans/autopilot.json")
 
+    /** The newest pictures of the project's app (plans/shots/<project>/latest.json); null when there are none. */
+    suspend fun shots(project: String): String? = getOrNull("plans/shots/$project/latest.json")
+
+    /** The latest task's steps as short lines (plans/shots/<project>/session.json); null when there are none. */
+    suspend fun session(project: String): String? = getOrNull("plans/shots/$project/session.json")
+
+    /** A picture from plans/shots/<project>/ as bytes; null when it isn't there. */
+    suspend fun shot(project: String, name: String): ByteArray? = withContext(Dispatchers.IO) {
+        val path = "plans/shots/$project/$name"
+        try {
+            client.newCall(request("contents/$path", "application/vnd.github.raw+json").build()).execute().use {
+                if (it.code == 404) return@withContext null
+                if (!it.isSuccessful) throw ApiException(errorText(it.code, it.body?.string().orEmpty()), it.code)
+                it.body?.bytes()
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: IOException) {
+            throw ApiException(networkText(e), 0)
+        }
+    }
+
     /** Every file path in the repository with its blob sha (one call). Null when GitHub cut the list short. */
     private suspend fun tree(): Map<String, String>? {
         val t = ApiJson.decodeFromString<Tree>(execute(
