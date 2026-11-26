@@ -366,3 +366,12 @@ def test_no_second_restyle_when_the_planner_already_planned_the_look(tmp_path):
     d = {"name": "Night Bus Neon", "signature": "a glow"}
     assert orch._restyle_task(d) is None
     assert not any(t.title == RESTYLE_TITLE for t in orch.project.tasks())
+
+
+def test_design_check_ignores_throwaway_check_scripts(tmp_path):
+    (tmp_path / "smoke-l1.mjs").write_text("const accent = '#c23b22';\n")
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "check.js").write_text("const c = '#c23b22';\n")
+    (tmp_path / "app.css").write_text("body { color: #c23b22; }\n")
+    files = {f["path"] for f in looklib.check_tokens(tmp_path)}
+    assert files == {"app.css"}

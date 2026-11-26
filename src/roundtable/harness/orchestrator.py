@@ -912,8 +912,10 @@ class Orchestrator(LookStage, ReferenceStage):
             parts.append("# Results of tasks this depends on\n" + "\n".join(f"- [{d.id}] {d.summary}" for d in deps))
         if feedback:
             parts.append("# Feedback on your previous attempt(s) - address all of it\n" + "\n\n".join(feedback))
-        parts.append("Work in the project files using your tools. When finished, call finish_task with a concise summary "
-                     "of what you did and anything the next person must know.")
+        parts.append("Work in the project files using your tools. Throwaway scripts you write only to check your work "
+                     "go in .harness/scratch/ (never committed or reviewed), or delete them before you finish. When "
+                     "finished, call finish_task with a concise summary of what you did and anything the next person "
+                     "must know.")
         return "\n\n".join(parts)
 
     def _review(self, task: Task, worker_summary: str, stronger: bool = False) -> tuple[bool, str, AgentResult | None]:

@@ -9,6 +9,15 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **The restyle stopped again, as Fable said it should.** The first restyle task was rejected
+  twice more ($0.78): once for a gap in its own new tests, then – after the checker said
+  "the product work checks out", 390 tests passing – because a throwaway check script left
+  in the folder by an earlier attempt contained colour codes. That's Roundtable's fault, not
+  the work's: workers now put throwaway scripts in `.harness/scratch/` (never committed or
+  checked), and the design check ignores check scripts. The restyle has cost $1.81 so far;
+  the first of its three tasks is done in the files but not accepted. **Waiting for you**,
+  as Fable advised; my suggestion is in the chat.
+
 - **Asked Fable: carry on with the music player's restyle after $1.03 was spent with nothing
   finished?** Fable: carry on once, with a tight limit, because the owner already chose the
   look and the stop was Roundtable's fault, not a change of mind. Skip the duplicate restyle

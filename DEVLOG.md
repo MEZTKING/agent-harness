@@ -4,6 +4,20 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Throwaway scripts no longer fail reviews
+
+The restyle's T15 was rejected twice more ($0.78): once fairly (its new font test missed a
+case), then for colour codes in `smoke-l1.mjs`, a throwaway check script an earlier attempt
+left untracked in the project, although the reviewer found "the product work checks out".
+
+- `orchestrator._worker_prompt`: throwaway scripts go in `.harness/scratch/` or are deleted;
+  `Workspace.path` lets workers read and write `.harness/scratch/` (the rest of `.harness`
+  stays closed); `look._is_test`: the design check ignores check scripts (`smoke*`,
+  `scratch*`, `tmp-*`, `check-*`, anything under `scripts/`).
+- Tests: `test_design_check_ignores_throwaway_check_scripts`,
+  `test_workers_may_write_throwaway_scripts_in_harness_scratch`; 185 pass.
+- The run stopped as Fable advised; waiting for the owner (plans/notes-for-owner.md).
+
 ## 2026-11-26 – The restyle stalled; Fable's advice; stronger reviews
 
 The restyle to Record Shop Sleeve spent $1.03 and finished nothing: Flash ran out of steps,

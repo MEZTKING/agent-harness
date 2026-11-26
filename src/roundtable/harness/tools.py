@@ -88,6 +88,8 @@ class Workspace:
         if p != self.root and self.root not in p.parents:
             raise ToolError(f"path {rel!r} is outside the project")
         parts = p.relative_to(self.root).parts
+        if parts[:2] == (".harness", "scratch"):  # the workers' own throwaway scripts
+            return p
         if read_spill and parts[:2] == (".harness", "spill"):
             return p  # the token saver's saved originals may be read, never written
         if ".harness" in parts:

@@ -540,3 +540,10 @@ def test_run_stops_at_half_its_money_with_nothing_finished(tmp_path, monkeypatch
     orch.approve()
     assert orch.run() == "paused"
     assert [t.status for t in orch.project.tasks()] == ["failed", "pending"]
+
+
+def test_workers_may_write_throwaway_scripts_in_harness_scratch(tmp_path):
+    ws = Workspace(tmp_path)
+    assert ws.path(".harness/scratch/smoke.mjs") == (tmp_path / ".harness/scratch/smoke.mjs").resolve()
+    with pytest.raises(ToolError):
+        ws.path(".harness/project.json")

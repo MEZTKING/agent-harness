@@ -371,8 +371,10 @@ _FONT = re.compile(r"(font-family\s*:|fontFamily\s*[:=]|FontFamily\()(?![^;\n]*v
 
 
 def _is_test(rel: Path) -> bool:
+    """Tests and throwaway check scripts (smoke-*.mjs, scratch files): they may name colours on purpose."""
     n = rel.name.lower()
-    return any(t in n for t in (".test.", ".spec.", "test_", "_test."))
+    return (any(t in n for t in (".test.", ".spec.", "test_", "_test."))
+            or n.startswith(("smoke", "scratch", "tmp-", "check-")) or "scripts" in rel.parts[:-1])
 
 
 def check_tokens(project_root: str | Path, limit: int = 40) -> list[dict[str, Any]]:
