@@ -4,6 +4,27 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The music player is finished; the first real Look step
+
+The owner topped up DeepSeek; the last pieces were built with the token saver on.
+
+- The rest of crossfade (T14b, T14c), the tests (T7) and the how-to (T8) are done: all 15
+  tasks, 377 of the player's own tests passing, no page errors, the library remembered
+  after a reload. That run cost $0.72 of real money ($0.39 DeepSeek, $0.33 OpenRouter);
+  Roundtable counted $0.69.
+- DeepSeek Flash ran out of 60 steps on all four tasks; GLM-5.3 through OpenRouter (the
+  fallback) finished each in 8–29 steps for $0.06–0.13. The token saver kept about 3,100
+  tokens out of the conversations (the outputs here were mostly small).
+- The whole yardstick so far: about $3.45 of real money for planning (five versions) and
+  building a 15-task web app, including the failed attempts that led to the fixes above.
+- The Look step on the finished player: the designer (Claude Sonnet 5.5 through OpenRouter,
+  because Claude through Openference has no credit) made three looks – Record Shop Sleeve,
+  Phosphor Deck, Riso Poster Pop – with pictures for a computer and a phone, for about
+  $0.26. The pictures went to the hub (`plans/looks/music-player/`). The owner chose A,
+  Record Shop Sleeve; the restyle is building.
+- Open: Roundtable should notice that GLM-5.3 finishes what Flash can't and suggest it
+  first; the lab's designer goes back to Openference's Claude once it has credit.
+
 ## 2026-11-26 – The token saver
 
 The owner: "Add in a plugin for DeepSeek token saver just like the ones that exist, before
