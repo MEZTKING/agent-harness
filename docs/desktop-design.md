@@ -16,10 +16,16 @@ tooltip on anything not obvious; every empty page says what to do next.
 | **Letters** | Letters from projects and agents as sentences ("Pixel Pond asks: …"), reply in place, read ones folded. Write to any project. |
 | **Activity** | Minutes from every project in plain words, filterable by project; **Background work** (what the app is doing now, each with its log). |
 | **Models** | **Who does what**: every job (Planner, Coder, Reviewer…) with its model and backups, for each set (Budget, Balanced, Quality) and the base choice; change any of them from a list; which set is used unless a project picks one. **Health check** and **Learning** (Roundtable's own suggestions) as tabs. |
-| **Settings** | Keys (by maker, with Test), AI services, the recommended setup, the hub, backups, plugins, updates, phone (hidden until its release), look, and an Advanced part. |
+| **Settings** | Keys (by maker, with Test), AI services, the recommended setup, spending limits every machine shares, the hub, your phone (pairing and Your computers), backups, plugins, updates, look, and an Advanced part. |
 
 The header also carries today's spending, the running work (opens Background work) and the
 Autopilot switch with what it did.
+
+The phone and the PC are one Roundtable (sync.py): a seat says which machine builds it ("Building on
+your phone"), the Hall shows Your computers, a build on another machine is watched line by line on the
+project's Watch tab, Carry on reaches the machine that has the files, and the base model choices, the
+default set and the spending limits are shared with every machine. All of it lives in `machines.js`
+(and Settings → Spending), and is only asked for when this copy has those routes (`/api/features`).
 
 ## The project page
 
