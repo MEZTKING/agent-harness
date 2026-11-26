@@ -741,8 +741,8 @@ class Orchestrator:
             i["state"] = "accepted" if kw.get("accept") else "rejected"
             if i["state"] == "accepted":
                 note(f"The owner wants this idea too: {i['text']}", f"idea:{i['id']}")
-            else:
-                pend[:] = [p for p in pend if p.get("key") != f"idea:{i['id']}"]
+            else:  # tell the planner too, or it may suggest the same thing again
+                note(f"The owner doesn't want this idea, don't suggest it again: {i['text']}", f"idea:{i['id']}")
         elif action == "section":
             sec = find(doc["spec"], kw.get("id", ""))
             sec["text"] = str(kw.get("text", "")).strip()[:8000]

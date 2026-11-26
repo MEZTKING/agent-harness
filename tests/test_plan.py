@@ -134,7 +134,7 @@ def test_owner_edits_wait_then_revise_changes_only_affected_tasks(tmp_path):
     assert doc["version"] == 2 and doc["pending"] == []
     assert doc["decisions"][0]["chosen"] == "b"  # the owner's choice survives the revision
     assert any(d["text"] == "use any paid fonts" and d["by"] == "owner" for d in doc["dont"])
-    assert doc["ideas"][0]["state"] == "accepted" and doc["questions"] == []
+    assert doc["ideas"][0]["state"] == "accepted" and [q["answer"] for q in doc["questions"]] == ["Crumbs & Co"]  # kept as a record
     by_id = {t.id: t for t in orch.project.tasks()}
     assert by_id["T1"].status == "done" and by_id["T2"].description == "a watercolour bakery logo"
     assert doc["estimate"]["tasks"] == 2  # only what's left
@@ -277,3 +277,25 @@ def test_revisions_carry_answers_by_wording_not_id():
     assert new["ideas"][0]["state"] == "open"
     assert new["decisions"][0]["chosen"] == "x"  # the owner's Watercolour, under its new id
     assert new["questions"][0]["answer"] == "Crumbs & Co"
+
+
+def test_settled_items_stay_and_turned_down_ideas_dont_come_back():
+    old = plandoc.doc_from_submission(DOC, "g", 0)
+    old["ideas"] = [{"id": "I1", "text": "Add a waveform or peak preview in the seek bar.", "state": "rejected"},
+                    {"id": "I2", "text": "Add a play queue with history.", "state": "accepted"}]
+    old["decisions"][0]["chosen"] = "b"
+    old["questions"][0]["answer"] = "Crumbs & Co"
+    sub = json.loads(json.dumps(DOC))
+    sub["decisions"], sub["questions"] = [], []  # the planner drops what's settled
+    sub["ideas"] = [{"id": "I1", "text": "Add a mini peak/waveform preview in the seek bar."},  # reworded
+                    {"id": "I2", "text": "Add crossfade between tracks."}]
+    new = plandoc.carry_over(plandoc.doc_from_submission(sub, "g", 0), old)
+    texts = {i["text"]: i["state"] for i in new["ideas"]}
+    assert "Add a mini peak/waveform preview in the seek bar." not in texts
+    assert texts["Add crossfade between tracks."] == "open"
+    assert texts["Add a waveform or peak preview in the seek bar."] == "rejected"
+    assert texts["Add a play queue with history."] == "accepted"
+    assert len({i["id"] for i in new["ideas"]}) == len(new["ideas"])
+    assert new["decisions"][0]["chosen"] == "b" and new["questions"][0]["answer"] == "Crumbs & Co"
+    ctx = plandoc.context_text(new)
+    assert "doesn't want: Add a waveform" in ctx and "owner's choice" in ctx

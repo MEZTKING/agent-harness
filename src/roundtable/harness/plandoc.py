@@ -18,6 +18,7 @@ which returns the updated document and tasks, keeping the tasks that the changes
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -95,14 +96,38 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
     states = {norm(i["text"]): i.get("state", "open") for i in old.get("ideas", [])}
     for i in new["ideas"]:
         i["state"] = states.get(norm(i["text"]), "open")
-    used = {i["id"] for i in new["ideas"]} | {x["id"] for x in new["dont"]}
-    if len(used) < len(new["ideas"]) + len(new["dont"]):  # an owner's don't may clash with a new id
-        for n, x in enumerate(new["dont"]):
-            x["id"] = f"D{n + 1}"
+    # The planner drops what's settled; keep the owner's record of it so the page (and the next
+    # revision) still shows it, and never re-offer an idea the owner turned down, even reworded.
+    turned_down = [i["text"] for i in old.get("ideas", []) if i.get("state") == "rejected"]
+    new["ideas"] = [i for i in new["ideas"]
+                    if i["state"] != "open" or not any(_similar(i["text"], t) for t in turned_down)]
+    seen = {norm(i["text"]) for i in new["ideas"]}
+    new["ideas"] += [dict(i) for i in old.get("ideas", []) if i.get("state") in ("accepted", "rejected")
+                     and norm(i["text"]) not in seen]
+    seen = {norm(q["text"]) for q in new["questions"]}
+    new["questions"] += [dict(q) for q in old.get("questions", []) if q.get("answer") and norm(q["text"]) not in seen]
+    seen = {norm(d["question"]) for d in new["decisions"]}
+    new["decisions"] += [dict(d) for d in old.get("decisions", []) if d.get("chosen") and norm(d["question"]) not in seen]
+    for key, items, prefix in (("ideas", new["ideas"], "I"), ("questions", new["questions"], "Q"),
+                               ("decisions", new["decisions"], "C"), ("dont", new["dont"], "D")):
+        if len({x.get("id") for x in items}) < len(items):  # a kept item may clash with a new id
+            for n, x in enumerate(items):
+                x["id"] = f"{prefix}{n + 1}"
     new["version"] = old.get("version", 1) + 1
     new["history"] = old.get("history", [])
     new["critique"] = old.get("critique")
     return new
+
+
+_STOP = set("a an the and or of to in for with on by is be it its this that add show".split())
+
+
+def _similar(a: str, b: str) -> bool:
+    """Roughly the same idea: most of the shorter one's words are in the other."""
+    words = lambda t: {w.rstrip("s") for w in re.findall(r"[a-z0-9]+", t.lower())} - _STOP  # noqa: E731
+    wa, wb = words(a), words(b)
+    small = min(len(wa), len(wb))
+    return small > 0 and len(wa & wb) / small >= 0.5
 
 
 def open_items(doc: dict[str, Any] | None) -> dict[str, int]:
@@ -251,7 +276,9 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None) -> str:
                              + f" {{{i['id']}}}" for i in doc["ideas"]] + [""]
     c = doc.get("critique")
     if c and c.get("points"):
-        L += [f"## Critique by {c.get('model', 'a second model')}"] + [
+        of = c.get("version")
+        older = f" (of version {of}; this version may already answer it)" if of and of != doc.get("version") else ""
+        L += [f"## Critique by {c.get('model', 'a second model')}{older}"] + [
             f"- [{p.get('severity', '?')}] {p.get('text', '')}" for p in c["points"]] + [""]
     if tasks:
         L += ["## Tasks"] + [f"- [{t.id}] {t.status} {t.title} ({t.role})" for t in tasks] + [""]
@@ -280,6 +307,9 @@ def context_text(doc: dict[str, Any] | None) -> str:
     accepted = [i["text"] for i in doc.get("ideas", []) if i.get("state") == "accepted"]
     if accepted:
         L.append("Also wanted: " + "; ".join(accepted))
+    declined = [i["text"] for i in doc.get("ideas", []) if i.get("state") == "rejected"]
+    if declined:
+        L.append("The owner doesn't want: " + "; ".join(declined))
     for s in doc.get("spec", []):
         L.append(f"## {s['title']}\n{s.get('text', '')}")
     return "\n".join(L)
