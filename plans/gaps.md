@@ -6,6 +6,15 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Roundtable doesn't know what this machine can build** (26 November): for the music
+  player's APK and EXE, the build facts (where the Android SDK is, that there's no system
+  Gradle, versions that work, no Wine for Windows builds) had to be written into the goal
+  by hand. A project memory with the machine's tools, checked once, belongs in release 2.
+- **Big files make every step dear** (26 November): the player's `js/app.js` is 188 KB, read
+  in full; GLM-5.3 through OpenRouter has almost no cache discount, so each step of the tests
+  task cost about 2 cents. Workers should read files in parts, and the planner should keep
+  files small. → release 2.
+
 - **The project's counted cap keeps old over-counts** (26 November): `max_cost_usd` adds up
   Roundtable's own count since the project began, including the days it was ten times too
   high, so it stops runs early. It should follow the real spend where a balance is known.

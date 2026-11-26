@@ -9,6 +9,14 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **The restyle is finished** (your choices: accept step 2 from the pictures, do step 3). Step 3
+  (tests and guide) used its whole $0.50 limit and stopped just before its check; the work
+  itself passed 396 tests and the guide is right, so I accepted it. **The restyle cost about
+  $4.18 in all**, more than the $3.45 of building the whole app; most of it went on
+  Roundtable faults that are now fixed (a reviewer rejecting good work, leftover scripts,
+  Claude without its cache).
+- **APK and EXE** (your choice: both, web kept): building through Roundtable with a $1.50 limit.
+
 - **The restyle went past the money you agreed.** Steps 2 and 3 were agreed at $1.50; step 2
   alone used $1.78 (Claude Sonnet through OpenRouter, one attempt). The cause: Claude was
   paying full price on every step, because Roundtable didn't mark what Claude may re-use

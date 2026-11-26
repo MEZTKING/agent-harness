@@ -4,6 +4,17 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The restyle finished; the player becomes an APK and an EXE
+
+- T16 (styling, Claude Sonnet) accepted by the owner from screenshots; T17 (tests, README,
+  GLM-5.3) used its $0.50 limit before its review and was accepted after a hand check
+  (396 tests pass). The restyle cost about $4.18 of real money in all.
+- The owner asked for an Android APK and a Windows EXE as well as the web version: added as
+  a new goal on the project (one code base wrapped twice: a Kotlin WebView app with
+  WebViewAssetLoader, and Electron zipped for Windows without Wine), $1.50 real limit.
+- Two gaps noted: Roundtable doesn't know the machine's build tools; big files make every
+  step dear.
+
 ## 2026-11-26 – Claude through OpenRouter was paying full price on every step
 
 The restyle's styling step (Claude Sonnet 5.5 through OpenRouter) cost $1.78 for one
