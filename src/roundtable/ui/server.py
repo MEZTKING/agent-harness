@@ -118,6 +118,14 @@ def harness_event_line(kind: str, d: dict[str, Any]) -> str | None:
         return "Plan:\n" + "\n".join(f"   {t}" for t in d["tasks"])
     if kind == "planning":
         return f"Planning with {d['model']}..."
+    if kind == "look_start":
+        return f"Designing {d['count']} look(s) with {d['model']}..."
+    if kind == "looks":
+        return f"Looks: {d['error']}" if d.get("error") else "Looks ready: " + ", ".join(d["looks"])
+    if kind == "look_pictures":
+        return f"   {d['note']}"
+    if kind == "look_applied":
+        return f"Look applied: {d['name']}" + (f" (restyle task {d['task']} added)" if d.get("task") else "")
     if kind == "provider_error":
         return f"   provider error ({d['model']}): {d['error'][:240]}"
     if kind == "status":
@@ -493,6 +501,11 @@ class UIApp:
                 return orch.revise_plan(body.get("text", ""), critique_again=bool(body.get("critique")))
 
             return self.jobs.start("plan", f"update the plan of {proj.root.name}", run, target=str(proj.root)).view()
+        if action == "looks":
+            def run(job: Job):
+                return self._orch(cfg, proj.root, job).look(body.get("text", ""))
+
+            return self.jobs.start("plan", f"new looks for {proj.root.name}", run, target=str(proj.root)).view()
         if action == "approve":
             Orchestrator(cfg, proj.root).approve()
 
@@ -505,6 +518,22 @@ class UIApp:
             return Orchestrator(cfg, proj.root).plan_update(action, **kw)
         except HarnessError as e:
             raise ApiError(str(e))
+
+    def plan_looks(self, q):
+        """The look pictures of a project's plan as data addresses (the page's pictures may only be those)."""
+        import base64
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, q.get("path", [""])[0])
+        look = (proj.plan_doc() or {}).get("look") or {}
+        out: dict[str, dict[str, str]] = {}
+        for iid, names in (look.get("pictures") or {}).items():
+            for name in names:
+                p = proj.dir / "look" / name
+                if p.is_file():
+                    kind = "phone" if name.endswith("-phone.png") else "desktop"
+                    out.setdefault(iid, {})[kind] = "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
+        return {"pictures": out}
 
     # -- models & probes ------------------------------------------------------------------------
     def probes(self, q):
@@ -910,6 +939,7 @@ class UIApp:
             ("POST", "/api/update"): R.update_run,
             ("GET", "/api/plan"): R.plan_get,
             ("POST", "/api/plan"): R.plan_post,
+            ("GET", "/api/plan/looks"): R.plan_looks,
             ("GET", "/api/phone"): R.phone_status,
             ("POST", "/api/phone"): R.phone_action,
         }

@@ -296,7 +296,7 @@ roundtable new bakery "A bakery website with an order API, tests and a logo"
               │
               ▼
         task board  ──►  coder: DeepSeek ──► reviewer: Claude ──► approved → git commit
-                         designer: OpenAI images                   rejected → feedback → retry
+                         artist: OpenAI images                     rejected → feedback → retry
                          manager: Claude                           provider down → fallback model
               │
               ▼
@@ -324,6 +324,12 @@ You write the idea; the plan is a page you can argue with before anything is bui
 
 Your edits wait as "changes" until you press **Update plan** (one planner call): the planner revises the document and the tasks, keeping finished work and every task your changes don't touch, and the page shows what was added, changed or removed. **Approve & start** begins the build. Every task and review is told the plan, your choices, answers and don'ts. To add the critic to an existing setup: Settings > Which model does what, role `critic`, any model (a different maker from your planner works best).
 
+#### A look of its own
+
+So that every app you make looks like itself, an app with screens gets a **Look** step in its plan. A designer (the `designer` role: a model that can see pictures) makes three clearly different looks, each with a name, a mood, light and dark colours, fonts, shapes, one signature detail and a list of things it must never do, plus a picture of the app's main screen in that look (on a computer and on a phone). They're never the same as the looks you chose for your other projects, unless you ask. Give a starting point if you like ("like an old record shop") and press **Make new looks** for another three.
+
+Press **Choose this look** (you can add a note, such as "warmer"), then **Update plan**. Roundtable writes the look into the project as `design/DESIGN.md` (in plain words) and `design/tokens.css` (the colours, fonts and corners for light and dark), and every task and review follows it: a check finds colours or fonts written into the code instead of taken from the design file, and the reviewer sends that work back. If screens are already built, a task "Restyle the app in the chosen look" is added. Choosing a look never blocks **Approve & start**; an unchosen look shows under Needs you. From the phone: `look` (choose, with `id` and an optional `note`) and `looks` (new ones). Set `look_stage: off` in harness.yaml to make looks only when you ask. The pictures need Playwright (`pip install playwright && playwright install chromium`); without it you still get the looks and their pages.
+
 Everything is saved in `<project>/.harness/` (`plan.json` and a readable `plan.md` included). A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `roundtable run` resumes where it left off.
 
 ### Setup
@@ -343,7 +349,7 @@ roles:
   orchestrator: {model: anthropic/claude-fable-5-2, fallback: [anthropic/claude-opus-5-5], options: {effort: high}}
   coder:        {model: deepseek/deepseek-v4-pro, fallback: [anthropic/claude-sonnet-5-5], description: writes and tests code}
   reviewer:     {model: anthropic/claude-opus-5-5}
-  designer:     {kind: image, model: openai_images/gpt-image-1, description: logos and illustrations}
+  artist:       {kind: image, model: openai_images/gpt-image-1, description: logos and illustrations}
 ```
 
 The `description` tells the planner when to use a role. You can add any role, such as `writer`, `researcher` or `devops`, and give it its own prompt file through `prompts_dir`.
@@ -355,9 +361,9 @@ The `description` tells the planner when to use a role. You can add any role, su
 - `retrodiffusion`: **pixel-art game assets** ([Retro Diffusion](https://www.retrodiffusion.ai)). The planner picks a style per task (platformer, top-down, isometric, tiles, items, UI…), plus the size and a transparent background. The exact per-image charge is counted in the budget.
 
 ```bash
-roundtable image designer --styles                                   # browse styles
-roundtable image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --cost-only
-roundtable image designer "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
+roundtable image artist --styles                                   # browse styles
+roundtable image artist "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --cost-only
+roundtable image artist "a knight with a blue cape" --style rd_lite__platformer --size 64x64 --remove-bg --out knight.png
 ```
 
 ### Adding any provider

@@ -82,6 +82,8 @@ class HarnessConfig:
     planner_role: str = "orchestrator"
     reviewer_role: str | None = "reviewer"
     critic_role: str | None = None  # a second model that critiques each new plan (ideally another maker's)
+    design_role: str | None = None  # makes the app's looks (default: a chat role "designer", else the planner)
+    look_stage: str = "auto"  # auto: offer looks when the plan is for an app with screens; off: only on request
     prompts_dir: Path | None = None
     hub: dict[str, Any] | None = None
     lab_dir: Path | None = None  # self-improvement lab (proposals, learned settings, versions)
@@ -319,6 +321,13 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     critic = raw.get("critic_role", "critic" if "critic" in roles else None)
     if critic and critic not in roles:
         critic = None
+    design = raw.get("design_role")
+    if not (design in roles and roles[design].kind == "chat"):
+        design = "designer" if "designer" in roles and roles["designer"].kind == "chat" else planner
+    look_stage = raw.get("look_stage", "auto")
+    look_stage = {False: "off", True: "auto"}.get(look_stage, str(look_stage).lower())  # YAML reads off as false
+    if look_stage not in ("auto", "off"):
+        raise ValueError("look_stage must be 'auto' or 'off'")
 
     lim = raw.get("limits") or {}
     base = path.parent if path else Path.cwd()
@@ -342,6 +351,8 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         planner_role=planner,
         reviewer_role=reviewer,
         critic_role=critic,
+        design_role=design,
+        look_stage=look_stage,
         prompts_dir=(base / prompts_dir) if prompts_dir else None,
         hub=raw.get("hub"),
         lab_dir=_lab_dir(raw, base, path),

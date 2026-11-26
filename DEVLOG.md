@@ -4,6 +4,61 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – A look of its own: the Look stage
+
+The owner: "I want the UI to be unique for whatever application I make, so how can I
+integrate that." They chose a Look step in Roundtable, tried next on the music player.
+
+- `harness/look.py` (new): the `submit_looks` schema and its strict checks
+  (`validate_looks`: hex colours, every part present, two to four word names, a CSS length
+  for corners, no external scripts in the mockup, different names, display fonts and accent
+  colours, and readable contrast by `contrast` – text 4.5:1 on background and surface, text
+  on the accent 4.5:1, muted text 3:1); `render_mockups` (desktop 1280x800 and phone
+  390x844 pictures with Playwright for Python or Node, only Google Fonts let through,
+  skipped with a note when neither is installed); `design_markdown` and `tokens_css` (the
+  design file and CSS custom properties for light and dark); `check_tokens` /
+  `findings_text` (hard-coded colours and fonts in .css/.html/.js/.ts/.kt files outside
+  `design/tokens.css`, ignoring node_modules, .git, .harness and test files); `ui_files`.
+- `harness/lookstage.py` (new): the `LookStage` mixin of the Orchestrator – `look(brief,
+  count)` (one designer call, mockups saved to `.harness/look/<id>.html`, pictures next to
+  them, `doc["look"]`), `_used_looks` (the looks chosen in the lab's other projects go in the
+  prompt, not to be reused unless the brief asks), `_choose_look` (plan action `look`),
+  `apply_look` (writes and commits `design/DESIGN.md` and `design/tokens.css`, adds task
+  "Restyle the app in the chosen look" for the coder when screens are already built),
+  `_adjust_look`, `_design_context`, `_design_findings`, `_look_pictures`.
+- `harness/orchestrator.py`: `Orchestrator(LookStage)`; `plan()` runs `_look_stage()` after
+  the critique; `revise_plan` calls `apply_look` when the chosen look changed;
+  `PLAN_ACTIONS` gains `look`; `_project_context` (so every task) and `_review` include the
+  design file, the review also the check's findings; `_publish_plan` copies the pictures to
+  the hub as `plans/looks/<project>/<id>.png` (and `-phone.png`); the design role never gets
+  tasks (`_not_for_tasks`).
+- `harness/plandoc.py`: `has_ui` in the plan submission and document; `carry_over` keeps
+  the looks and `has_ui`; `look_open`; an unchosen look counts as a choice in `open_items`
+  and shows as "a look to choose" in `summary_line` (Needs you); `render_markdown` has a
+  Look section (`{A}` ids, "(chosen)", picture links, `image_base`); `context_text` names
+  the chosen look.
+- `harness/config.py`: `design_role` (default: a chat role named `designer`, else the
+  planner) and `look_stage` (`auto` or `off`; YAML's bare `off` is read as off).
+- `core/store.py`: `BinaryFile`, so the hub store can write pictures.
+- `remote.py`: actions `look` (choose, through the plan edits) and `looks` (new looks, long).
+- `ui/server.py`: plan action `looks` as a background job, `GET /api/plan/looks` (the
+  pictures as data addresses, which the page's rules allow), log lines for the look events.
+  `ui/static/app.js` `lookSection` in the plan page (pictures side by side, Choose this look
+  with an optional note, Make new looks with a starting point); `style.css`.
+- `prompts/designer.md` (new); `prompts/orchestrator.md`: `has_ui`.
+- `templates/harness.example.yaml`: a chat `designer` role (Opus-class with a DeepSeek
+  fallback, 32,000 tokens for three mockups), `design_role`, `look_stage`; the pixel-art
+  image role is now called `artist` (README updated to match).
+- README: "A look of its own" under The living plan.
+- Tests: `tests/test_look.py` (15, one renders a real picture when Playwright is there);
+  141 pass. A hand-written direction rendered to a picture on desktop and phone sizes.
+- Decided: a note with the choice ("the second, but warmer") gets one designer call that
+  changes that direction before it's applied, and the note is also written in the design
+  file; if that call fails the chosen direction is applied as it was. Approve isn't blocked
+  by an unchosen look. The check flags every hard-coded colour or font in the project, not
+  only the task's lines; the reviewer is told to reject when they're part of the task.
+- Open: the phone side of the Look section (`mobile/`); the screenshot check of finished
+  screens against the look (release 2's Proof); trying it on the music player.
 ## 2026-11-26 – A real-money limit per run
 
 The owner chose to carry on with Flash first and V4 Pro taking over, and to stop at $1.

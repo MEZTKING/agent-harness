@@ -7,6 +7,7 @@
 * decisions: a question, options, the planner's recommendation and why, and the owner's choice;
 * questions for the owner, and ideas the planner recommends beyond the goal;
 * a critique of the plan by a second model (ideally from another maker);
+* the look: visual directions for an app with screens, and the one the owner chose (``look.py``);
 * an estimate of cost and time before anything runs;
 * pending owner changes (choices, answers, edits) until the plan is revised with them;
 * a history of versions and what changed.
@@ -62,6 +63,7 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
     return {
         "goal": goal, "goal_index": goal_index, "version": 1,
         "summary": str(args.get("summary") or args.get("notes") or ""),
+        "has_ui": bool(args["has_ui"]) if isinstance(args.get("has_ui"), bool) else None,
         "in_scope": [str(x) for x in args.get("in_scope") or [] if str(x).strip()],
         "out_of_scope": [str(x) for x in args.get("out_of_scope") or [] if str(x).strip()],
         "dont": [{**x, "by": "planner"} for x in _items(args.get("dont"), "D", ("text", "why"))],
@@ -113,6 +115,10 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
         if len({x.get("id") for x in items}) < len(items):  # a kept item may clash with a new id
             for n, x in enumerate(items):
                 x["id"] = f"{prefix}{n + 1}"
+    if new.get("has_ui") is None:
+        new["has_ui"] = old.get("has_ui")
+    if old.get("look"):
+        new["look"] = old["look"]  # the looks aren't the planner's: they stay as they were
     new["version"] = old.get("version", 1) + 1
     new["history"] = old.get("history", [])
     new["critique"] = old.get("critique")
@@ -130,11 +136,17 @@ def _similar(a: str, b: str) -> bool:
     return small > 0 and len(wa & wb) / small >= 0.5
 
 
+def look_open(doc: dict[str, Any] | None) -> bool:
+    """There are looks to choose from and the owner hasn't chosen one."""
+    look = (doc or {}).get("look") or {}
+    return bool(look.get("directions")) and not look.get("chosen")
+
+
 def open_items(doc: dict[str, Any] | None) -> dict[str, int]:
     if not doc:
         return {"choices": 0, "questions": 0, "ideas": 0, "pending": 0}
     return {
-        "choices": sum(1 for d in doc.get("decisions", []) if not d.get("chosen")),
+        "choices": sum(1 for d in doc.get("decisions", []) if not d.get("chosen")) + look_open(doc),
         "questions": sum(1 for q in doc.get("questions", []) if not q.get("answer")),
         "ideas": sum(1 for i in doc.get("ideas", []) if i.get("state") == "open"),
         "pending": len(doc.get("pending", [])),
@@ -144,8 +156,11 @@ def open_items(doc: dict[str, Any] | None) -> dict[str, int]:
 def summary_line(doc: dict[str, Any] | None) -> str:
     o = open_items(doc)
     bits = []
-    if o["choices"]:
-        bits.append(f"{o['choices']} choice{'s' * (o['choices'] > 1)}")
+    choices = o["choices"] - look_open(doc)
+    if choices:
+        bits.append(f"{choices} choice{'s' * (choices > 1)}")
+    if look_open(doc):
+        bits.append("a look to choose")
     if o["questions"]:
         bits.append(f"{o['questions']} question{'s' * (o['questions'] > 1)}")
     if o["pending"]:
@@ -237,10 +252,28 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None) -> 
 
 
 # -- reading it -------------------------------------------------------------------------------
-def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None) -> str:
+def _look_markdown(look: dict[str, Any], image_base: str) -> list[str]:
+    L = ["## Look", "Choose the look of the app: send `look` with its id (a note may say what to change).", ""]
+    pics = look.get("pictures") or {}
+    for d in look.get("directions", []):
+        mark = " (chosen)" if look.get("chosen") == d["id"] else ""
+        light, dark = d["palette"]["light"], d["palette"]["dark"]
+        L += [f"### {d['name']}{mark} {{{d['id']}}}", d.get("mood", ""),
+              f"Signature: {d.get('signature', '')}",
+              f"Accent: {light['accent']} (light), {dark['accent']} (dark) · Fonts: {d['fonts']['display']['family']}"
+              f" and {d['fonts']['body']['family']}"]
+        if d["id"] in pics:
+            L.append(f"![{d['id']}: {d['name']}]({image_base}{d['id']}.png)")
+        L.append("")
+    if look.get("chosen") and look.get("note"):
+        L += [f"The owner's note: {look['note']}", ""]
+    return L
+
+
+def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_base: str = "look/") -> str:
     """Readable plan. Items end with their id in braces ({C1}-style ids for options {a}, questions {Q1},
-    ideas {I1}, don'ts {D1}; decisions and spec sections carry [C1]/[S1] in their heading) so a phone
-    can send commands about them."""
+    ideas {I1}, don'ts {D1}, looks {A}; decisions and spec sections carry [C1]/[S1] in their heading) so a
+    phone can send commands about them. ``image_base`` is where the look pictures are, relative to the page."""
     L = [f"# Plan v{doc.get('version', 1)}: {doc.get('goal', '')}", ""]
     if doc.get("summary"):
         L += [doc["summary"], ""]
@@ -267,6 +300,8 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None) -> str:
             if d.get("why"):
                 L.append(f"Why: {d['why']}")
             L.append("")
+    if (doc.get("look") or {}).get("directions"):
+        L += _look_markdown(doc["look"], image_base)
     if doc.get("questions"):
         L += ["## Questions for the owner"] + [
             f"- {q['text']} {{{q['id']}}}" + (f"\n  Answer: {q['answer']}" if q.get("answer") else "")
@@ -310,6 +345,10 @@ def context_text(doc: dict[str, Any] | None) -> str:
     declined = [i["text"] for i in doc.get("ideas", []) if i.get("state") == "rejected"]
     if declined:
         L.append("The owner doesn't want: " + "; ".join(declined))
+    look = doc.get("look") or {}
+    chosen = next((d for d in look.get("directions", []) if d["id"] == look.get("chosen")), None)
+    if chosen:
+        L.append(f"Look (owner's choice): {chosen['name']}, see design/DESIGN.md")
     for s in doc.get("spec", []):
         L.append(f"## {s['title']}\n{s.get('text', '')}")
     return "\n".join(L)
@@ -342,6 +381,9 @@ def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:
                           "items": item({"id": {**s, "description": "Q1, Q2..."}, "text": s, "why": s}, ["id", "text"])},
             "ideas": {"type": "array", "description": "worthwhile extras beyond the goal, for the owner to accept or not",
                       "items": item({"id": {**s, "description": "I1, I2..."}, "text": s, "why": s}, ["id", "text"])},
+            "has_ui": {"type": "boolean", "description": "true when the project is an app or game with screens "
+                                                         "people look at (web, desktop, phone); false for a library, "
+                                                         "command-line tool or service"},
             "tasks": {"type": "array", "items": task_schema},
             "notes": s,
         },

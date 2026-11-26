@@ -390,4 +390,10 @@ ul.tree ul li::after { content: ""; position: absolute; left: -11px; top: 23px; 
 .plan-page .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .plan-page .spec { border-top: 1px solid var(--line, rgba(255,255,255,.08)); padding-top: 8px; margin-top: 8px; }
 .plan-page .pre { white-space: pre-wrap; }
-@media (max-width: 720px) { .plan-page .grid2 { grid-template-columns: 1fr; } }
+.plan-page .looks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 10px; }
+.plan-page .look { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line, rgba(255,255,255,.08)); border-radius: 8px; padding: 10px; }
+.plan-page .look.chosen { border-color: var(--accent, #d9a441); box-shadow: 0 0 0 1px var(--accent, #d9a441) inset; }
+.plan-page .look-pic { width: 100%; aspect-ratio: 1280 / 800; object-fit: cover; border-radius: 6px; background: rgba(127,127,127,.12); }
+.plan-page .swatches { gap: 4px; align-items: center; flex-wrap: wrap; }
+.plan-page .swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(127,127,127,.4); display: inline-block; }
+@media (max-width: 720px) { .plan-page .grid2, .plan-page .looks { grid-template-columns: 1fr; } }

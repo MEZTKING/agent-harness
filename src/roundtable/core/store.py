@@ -25,6 +25,10 @@ class TextFile(str):
     """Marks a value to be written as raw text (e.g. Markdown) instead of JSON."""
 
 
+class BinaryFile(bytes):
+    """Marks a value to be written as raw bytes (e.g. a PNG picture)."""
+
+
 class Store:
     def sync(self, force: bool = False) -> None:  # pull latest state (no-op for local stores)
         pass
@@ -63,6 +67,12 @@ class FileStore(Store):
             p = self._path(rel)
             p.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".tmp-")
+            if isinstance(data, BinaryFile):
+                with os.fdopen(fd, "wb") as f:
+                    f.write(bytes(data))
+                os.replace(tmp, p)
+                written.append(rel)
+                continue
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 if isinstance(data, TextFile):
                     f.write(str(data))
