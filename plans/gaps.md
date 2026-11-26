@@ -6,6 +6,12 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Reviews can still reject for the wrong reasons** (Fable, 26 November, from the music
+  player's restyle): a rejection should quote the line of the task it breaks or not count;
+  tasks that split one piece of work should say what's left for the next; a model that runs
+  out of steps should hand its partial work on; the run summary should show "spent with
+  nothing finished". → release 2.
+
 - **References: the phone can't add one from its own screen yet.** The hub command works
   (`reference_add` with `text`, `reference_remove` with `id`), but Roundtable Mobile has no
   "Make it like this" box or "Like these" view. → release 4.
@@ -47,6 +53,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **A cheap reviewer rejected good work and money went with nothing finished** (26 November):
+  reviewers see the later tasks and judge only theirs; after a rejection the next reviewer
+  model judges; a run stops at half its real-money limit when nothing has passed.
 
 - **An empty account failed tasks, and a long task ran past the real-money limit**
   (26 November): out of credit now pauses the run and asks for a top-up; the limit is

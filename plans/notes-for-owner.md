@@ -9,6 +9,21 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **Asked Fable: carry on with the music player's restyle after $1.03 was spent with nothing
+  finished?** Fable: carry on once, with a tight limit, because the owner already chose the
+  look and the stop was Roundtable's fault, not a change of mind. Skip the duplicate restyle
+  task; undo the favicon colour change (that rejection was fair); GLM-5.3 codes the token and
+  test tasks, Claude Sonnet 5.5 the visual styling; GPT-6.1 Terra reviews; $1.50 real-money
+  limit, one retry per task; if a task is rejected again for another task's work, stop at
+  once. **Done:** all of that, plus four Roundtable changes Fable suggested (below). With
+  this run the restyle will have cost about $2.50, against $3.45 for the whole app.
+- **Roundtable changes from Fable's advice:** reviewers are told which later tasks exist
+  and judge only the task in front of them; after one rejection the next, stronger reviewer
+  model gives the verdict; a run stops when half its money is spent with nothing finished.
+  Not done yet (in plans/gaps.md): a rejection must quote the line of the task it breaks;
+  split tasks say what's left for the next one; a model that runs out of steps hands its
+  partial work on; "spent with nothing finished" shown in the run summary.
+
 - **Model switches are now automatic.** Roundtable looks at every finished run and switches the
   order of models when the numbers clearly say so (for example a cheap model that keeps running
   out of steps while its backup finishes the job for less). Each switch is written in the

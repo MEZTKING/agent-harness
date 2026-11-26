@@ -4,6 +4,22 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The restyle stalled; Fable's advice; stronger reviews
+
+The restyle to Record Shop Sleeve spent $1.03 and finished nothing: Flash ran out of steps,
+then the reviewer (GPT-6 Luna) rejected GLM-5.3's work twice – once fairly (the favicon's
+colours), once for work that was the next task's job – and the run hit its $1 limit.
+
+- Asked Fable (the owner's rule for important things); its advice and what was done are in
+  `plans/notes-for-owner.md`.
+- `orchestrator._review(stronger=)`: after a rejection the next reviewer model gives the
+  verdict; `_later_tasks_text`: reviewers see the tasks still to come and are told to judge
+  only theirs; `_real_spent` / `_real_spend_over_limit(fraction)`: a run pauses at half its
+  real-money limit when nothing has passed. Tests: `test_reviewer_is_told_what_later_tasks_will_do`,
+  `test_after_a_rejection_the_next_reviewer_model_judges`,
+  `test_run_stops_at_half_its_money_with_nothing_finished`; 183 pass.
+- Fable's other points went to `plans/gaps.md`.
+
 ## 2026-11-26 – One restyle, not two
 
 Choosing look A for the music player and updating the plan gave both the planner's own

@@ -495,3 +495,48 @@ def test_real_money_limit_is_checked_inside_a_long_task(tmp_path, monkeypatch):
     orch.REAL_CHECK_SECONDS = 0  # look at the balance on every charge
     assert orch.run() == "paused_budget"
     assert orch.project.tasks()[0].status == "pending"
+
+
+def test_reviewer_is_told_what_later_tasks_will_do(tmp_path):
+    orch, a, *_ = make(tmp_path)
+    orch.start("goal")
+    orch.plan()
+    tasks = orch.project.tasks()
+    text = orch._later_tasks_text(tasks[0])
+    assert "Still to come" in text and "[T3] tests" in text and "[T1]" not in text
+
+
+def test_after_a_rejection_the_next_reviewer_model_judges(tmp_path):
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["reviewer"]["fallback"] = ["b/strong-reviewer"]
+    raw["pricing"]["b/strong-reviewer"] = {"input": 1, "output": 1}
+    orch, a, b, *_ = make(tmp_path, raw=raw, brain=Brain(reject_first=True, plan=PLAN[:1]))
+    orch.start("goal")
+    assert orch.run() == "done"
+    judged_by = [c["model"] for c in a.calls + b.calls if "submit_review" in tool_names(c["tools"] or [])
+                 and c["messages"][-1]["role"] == "user"]
+    assert judged_by == ["reviewer", "strong-reviewer"]
+
+
+def test_run_stops_at_half_its_money_with_nothing_finished(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00, 2.40])  # start, before T1, after T1 failed
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left, 2.4), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["roles"]["coder"].pop("fallback")
+    raw["limits"].update({"max_real_usd_per_run": 1.0, "max_steps_per_task": 1, "split_stuck_tasks": False})
+
+    class Stuck(Brain):
+        def __call__(self, model, system, messages, tools):
+            if "finish_task" in tool_names(tools):
+                return reply(calls=[("write_file", {"path": "x.py", "content": "x\n"})])
+            return super().__call__(model, system, messages, tools)
+
+    two = [PLAN[0], {**PLAN[0], "id": "T9", "title": "other", "depends_on": []}]
+    orch, *_ = make(tmp_path, raw=raw, brain=Stuck(plan=two))
+    orch.start("goal")
+    orch.plan()
+    orch.approve()
+    assert orch.run() == "paused"
+    assert [t.status for t in orch.project.tasks()] == ["failed", "pending"]

@@ -916,11 +916,15 @@ class Orchestrator(LookStage, ReferenceStage):
                      "of what you did and anything the next person must know.")
         return "\n\n".join(parts)
 
-    def _review(self, task: Task, worker_summary: str) -> tuple[bool, str, AgentResult | None]:
+    def _review(self, task: Task, worker_summary: str, stronger: bool = False) -> tuple[bool, str, AgentResult | None]:
         reviewer = self.cfg.roles.get(self.cfg.reviewer_role or "")
         role = self.cfg.roles[task.role]
         if not reviewer or not role.review:
             return True, "(review skipped)", None
+        if stronger and len(reviewer.models) > 1:
+            from dataclasses import replace as _replace
+
+            reviewer = _replace(reviewer, models=reviewer.models[1:] + reviewer.models[:1])
         verdict: dict[str, Any] = {}
 
         def submit_review(args: dict) -> str:
@@ -943,13 +947,23 @@ class Orchestrator(LookStage, ReferenceStage):
             + (f"{plandoc.context_text(self.project.plan_doc())}\n\n" if self.project.plan_doc() else "")
             + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
-            "Verify the work (read files, run tests if relevant), then call submit_review."
+            + self._later_tasks_text(task) +
+            "Verify the work (read files, run tests if relevant), then call submit_review. Judge THIS task "
+            "against its own acceptance criteria: the plan, the design file and later tasks are context, so don't "
+            "reject for work a later task will do, or for small harmless changes the criteria don't forbid."
         )
         res = self._run_with_fallback(reviewer, self.cfg.prompt_text(reviewer.prompt), prompt, box,
                                       require="submit_review", done=lambda: bool(verdict))
         if not verdict:
             return False, f"reviewer gave no verdict ({res.stop}): {res.text[:500]}", res
         return bool(verdict.get("approved")), str(verdict.get("feedback", "")), res
+
+    def _later_tasks_text(self, task: Task) -> str:
+        """The tasks still to come, so a reviewer doesn't ask this one to do their work."""
+        later = [t for t in self.project.tasks() if t.id != task.id and t.status == "pending"]
+        if not later:
+            return ""
+        return "# Still to come (not this task's job)\n" + "".join(f"- [{t.id}] {t.title}\n" for t in later[:20]) + "\n"
 
     def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0,
                 review_saved: int = 0) -> None:
@@ -1060,7 +1074,9 @@ class Orchestrator(LookStage, ReferenceStage):
                 continue
 
             worker_summary = summary.get("summary") or res.text or "(no summary)"
-            approved, fb, rev = self._review(task, worker_summary)
+            # after a rejection, the next verdict comes from the next (stronger) reviewer model
+            approved, fb, rev = self._review(task, worker_summary,
+                                             stronger=any(a.get("outcome") == "rejected" for a in task.attempts))
             review_cost = rev.cost_usd if rev else 0.0
             outcome = "approved" if approved else "rejected"
             task.attempts.append({"model": str(ref), "outcome": outcome, "summary": worker_summary[:1000],
@@ -1127,19 +1143,24 @@ class Orchestrator(LookStage, ReferenceStage):
                 raise BudgetExceeded(f"this run reached its real-money limit of "
                                      f"${self.cfg.limits.max_real_usd_per_run:.2f}")
 
-    def _real_spend_over_limit(self) -> bool:
-        """True when the providers' real balances fell by the run's limit (limits.max_real_usd_per_run)."""
-        limit, start = self.cfg.limits.max_real_usd_per_run, getattr(self, "_balance_start", None)
-        if not limit or not start:
-            return False
+    def _real_spent(self) -> float | None:
+        """Real money spent since the run started, from the providers' balances (None: can't tell)."""
+        start = getattr(self, "_balance_start", None)
+        if not start:
+            return None
         try:
             from ..providers.balance import balances
 
             now = balances(self.cfg, list(start["balances"]))
         except Exception:
-            return False
-        spent = sum(start["balances"][p]["amount"] - b["amount"] for p, b in now.items() if p in start["balances"])
-        return spent >= limit
+            return None
+        return sum(start["balances"][p]["amount"] - b["amount"] for p, b in now.items() if p in start["balances"])
+
+    def _real_spend_over_limit(self, fraction: float = 1.0) -> bool:
+        """True when the run's real spend reached `fraction` of limits.max_real_usd_per_run."""
+        limit = self.cfg.limits.max_real_usd_per_run
+        spent = self._real_spent() if limit else None
+        return spent is not None and spent >= limit * fraction
 
     def _note_balance(self, phase: str, start: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """Note the providers' real balances, so the cost count can be checked against the bill."""
@@ -1204,7 +1225,7 @@ class Orchestrator(LookStage, ReferenceStage):
             self._resolved("approval", "budget", note="run resumed")
             self._set_status("running")
 
-            executed = 0
+            executed = finished_this_run = 0
             while True:
                 tasks = self.project.tasks()
                 by_id = {t.id: t for t in tasks}
@@ -1226,6 +1247,12 @@ class Orchestrator(LookStage, ReferenceStage):
                         return "done"
                     self._set_status("blocked")
                     return "blocked"
+                if not finished_this_run and executed and self._real_spend_over_limit(0.5):
+                    # half the money gone and nothing passed: stop and let the owner look, don't spend the rest
+                    self._set_status("paused")
+                    self._attention("money", "this run has spent half its real-money limit and finished nothing; "
+                                             "look at the failed attempts before running again")
+                    return "paused"
                 if self._real_spend_over_limit():
                     self._set_status("paused")
                     self._attention("money", f"this run has spent ${self.cfg.limits.max_real_usd_per_run:.2f} of real "
@@ -1247,6 +1274,7 @@ class Orchestrator(LookStage, ReferenceStage):
                 self.project.save_tasks(tasks)
                 self.emit("task_end", {"task": task.id, "status": task.status, "summary": task.summary[:500]})
                 if ok:
+                    finished_this_run += 1
                     self._git_commit(f"[{task.id}] {task.title}")
                     self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
                     self._resolved(f"failed:{task.id}", note="task completed")
