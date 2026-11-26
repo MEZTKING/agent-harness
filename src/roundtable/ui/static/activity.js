@@ -109,7 +109,8 @@ async function viewJob(id) {
   const head = h("div", { class: "row" });
   const result = h("div");
   let since = 0, lines = [];
-  const root = page("Background work", null, h("a", { class: "back", href: "#/activity/work" }, "← All background work"), card(head, result, h("details", { open: true }, h("summary", {}, "What it did, step by step"), log)));
+  const steps = h("details", { open: true }, h("summary", {}, "What it did, step by step"), log);
+  const root = page("Background work", null, h("a", { class: "back", href: "#/activity/work" }, "← All background work"), card(head, result, steps));
   return every(root, async () => {
     const j = await get(`/api/jobs/${encodeURIComponent(id)}?since=${since}`);
     lines = lines.concat(j.log); since = j.log_size;
@@ -121,7 +122,10 @@ async function viewJob(id) {
       s ? h("a", { class: "btn small", href: projectHref(s.id, j.kind === "run" ? "watch" : "plan") }, "Open the project") : null]);
     patch(result, JSON.stringify([j.status, j.error, j.result]), () => [
       j.error ? h("p", { class: "err" }, friendlyError(j.error)) : null,
+      j.error && j.kind === "backup" ? h("a", { class: "btn small", href: "#/settings/backups" }, "Open the backup settings") : null,
+      j.error && j.kind === "setup" ? h("a", { class: "btn small", href: "#/settings/hub" }, "Open the hub settings") : null,
       j.status === "done" && j.result ? resultWords(j.result) : null]);
+    if (j.status !== "running") steps.open = false;  // finished: the result says it; the steps fold away
     return j.status === "running";  // finished: keep the page, stop asking
   }, 1500);
 }
