@@ -6,6 +6,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Long tasks have no compaction; the token saver's "compact at 120k" needs it.** The
+  token saver (26 November) slims tool results as they arrive, but a long task's
+  conversation still grows without limit; the plugin it comes from asks the harness to
+  summarise old turns once a conversation passes about 120,000 tokens. → release 5.
 - **The estimate's defaults are guesses.** With no history it assumes 60,000 input and
   8,000 output tokens per attempt. In real money the music player's estimate was about
   right once the cost count was fixed (below), but the defaults should come from real

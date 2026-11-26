@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from ..providers.base import ImageProvider, Provider, ProviderError
+from .saver import SaverConfig
 
 # Anthropic list prices (USD per 1M tokens). Anything else: set `pricing:` in harness.yaml.
 DEFAULT_PRICING: dict[str, dict[str, float]] = {
@@ -106,6 +107,7 @@ class HarnessConfig:
     learned: dict[str, Any] = field(default_factory=dict)  # the lab's learned overlay, as applied
     # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
     prompt_overrides: dict[str, str] = field(default_factory=dict)
+    token_saver: SaverConfig = field(default_factory=SaverConfig)  # slims big tool results (saver.py)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def _listed_price(self, ref: ModelRef) -> dict[str, float] | None:
@@ -405,6 +407,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         remote=dict(raw.get("remote") or {}),
         profiles=profiles,
         default_profile=default_profile,
+        token_saver=SaverConfig.parse(raw.get("token_saver")),
     )
 
 

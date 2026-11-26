@@ -4,6 +4,64 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The token saver
+
+The owner: "Add in a plugin for DeepSeek token saver just like the ones that exist, before
+using it." The one meant is dsh-plugin-save-token 2.1.3 (MIT, Copyright (c) 2026
+PlayWithAI), a DeepSeek Harness plugin. Its algorithms are ported from its `src/index.js`
+as Roundtable's own module; credit and licence in the new `THIRD_PARTY_NOTICES.md`.
+
+- `harness/saver.py`: `TokenSaver.process` runs on every tool result as it enters the
+  conversation in `agent.run_agent` (new `saver=` argument), for every provider. In order:
+  exempt tools (`read_file`, `expand_output`) pass through; `_dedupe` (byte-identical
+  result of the same call within 90 s → a stub, original still spilled); the size
+  threshold (1,400 bytes, 6,000 for error results); `build_candidate` – lossless first
+  (`toon_compress`: a uniform JSON array as `name[N]{k1,k2}:` and CSV-style rows, read
+  back by `toon_decode`), else `compress_json` (structural shortening), else
+  `compress_lines` (table mode: head/tail rows and a stride sample with `L61:` line
+  numbers; otherwise head/tail window plus up to 25 error-like lines); `passes_gate`
+  (≤ 72% of the bytes, ≥ 500 bytes saved, fewer estimated tokens via `est_tokens`);
+  `_spill` writes `.harness/spill/<id>.txt` atomically before anything is replaced – if
+  it fails, nothing is. The notice reads `[saved-output #<id> …]` and names
+  `expand_output` (`TokenSaver.expand`: the full text or a line range) and the file.
+- `SaverConfig` / `HarnessConfig.token_saver`: `token_saver:` in harness.yaml (`false`
+  turns it off; unknown settings are an error); the plugin's defaults; a commented
+  example in `templates/harness.example.yaml`.
+- `Workspace.path(read_spill=True)`: `read_file` may read `.harness/spill/`, nothing may
+  write there.
+- Metering: each replacement emits a `token_saver` event (tool, strategy, bytes before
+  and after, `tokens_saved_est`) into events.jsonl; `AgentResult.saved_tokens_est`;
+  `Orchestrator._metric` writes `saved_tokens_est` (worker plus reviewer) per attempt;
+  `Project.saved_tokens_est()` sums it and `roundtable status` prints it.
+- `Orchestrator._saver()`: one saver per conversation (worker, reviewer, planner, report),
+  so a dedupe stub only ever points at something that model has really seen.
+- Tests: `tests/test_saver.py` (14: each strategy, lossless round trip, error lines,
+  pass-throughs, dedupe inside and after the window, spill failure, exemptions,
+  `expand_output`, settings, and an end-to-end run where the next model call sees the
+  marker and the metrics carry the saving). `test_roundtable.py`'s scripted chat brain
+  now allows `expand_output` among the read-only tools. 165 pass.
+
+Decided, and where it differs from the original:
+- Prompt cache: a result is changed once, as it enters; messages already sent are never
+  rewritten, so DeepSeek's (and Anthropic's) cached prefix stays the same.
+- Truly lossless: the original's CSV cells turned `1` and `"1"`, `null` and `"null"`
+  into the same text. Here strings that could be misread are JSON-quoted, and a bare
+  array's header has no name (`[300]{…}:`), so `toon_decode` gives back equal data.
+- The gate counts the notice too (the original measured the text without it), so a
+  replacement is never more tokens than what it replaced.
+- `L61:` numbers are the line's number in the original output, even after blank runs
+  and repeats were folded (the original numbered the folded lines).
+- Lines with neither pipes nor tabs no longer count as a table shape: in the original a
+  plain log passed as a table and lost its error-line protection.
+- Dedupe is per conversation and hashes the whole text (the original: shared across
+  sessions, first 64 KB).
+- Not taken: the dashboard, the `llm/stream` metering of real billed tokens (Roundtable
+  already counts those), and compaction (Roundtable has none: `plans/gaps.md`).
+
+Open: `run_command` still cuts its output at 12,000 characters before the saver sees
+it, so a very long output's middle is lost before it could be spilled; with the saver on
+that limit could be raised. Not yet tried in a real run.
+
 ## 2026-11-26 – The DeepSeek account ran empty: pause, don't fail
 
 The last music player run (V4 Pro first) finished half of the crossfade task (the task

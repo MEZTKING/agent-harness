@@ -25,7 +25,7 @@ class Recorder(Brain):
         names = tool_names(tools)
         if "finish_task" in names and messages[-1]["role"] == "user":
             self.worker_prompts.append(messages[0]["content"])
-        if not names - {"read_file", "list_files", "search"} and "orchestrator of this software project" in system:
+        if not names - {"read_file", "list_files", "search", "expand_output"} and "orchestrator of this software project" in system:
             return reply("T1 failed because the provider was down; T3 waits on it.")
         return super().__call__(model, system, messages, tools)
 

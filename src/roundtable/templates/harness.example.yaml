@@ -114,6 +114,12 @@ workspace:
   allow_shell: true                 # models may run commands in the project dir (NOT a sandbox)
   git: true                         # commit after every approved task
 
+# Big tool results are slimmed before a model reads them; the full text is kept in
+# .harness/spill and the model can fetch it back. `token_saver: false` turns it off.
+# token_saver:
+#   min_bytes: 1400                 # smaller results are left alone
+#   keep_ratio_max: 0.72            # only replace when at least 28% smaller
+
 # Optional: report progress to the agent hub (Part 1)
 # hub:
 #   config: ~/agent-hub-data/hub.yaml

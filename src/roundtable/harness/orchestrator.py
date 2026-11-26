@@ -6,8 +6,9 @@ failure, Ctrl-C) and resume exactly where it left off:
     project.json   goal(s), status, spend
     tasks.json     the task board
     events.jsonl   everything that happened (human-readable audit log)
-    metrics.jsonl  one row per task attempt: role, model, outcome, cost, tokens
-                   -> input for the Phase 3 self-improvement loop
+    metrics.jsonl  one row per task attempt: role, model, outcome, cost, tokens,
+                   saved_tokens_est -> input for the Phase 3 self-improvement loop
+    spill/         originals of tool results the token saver slimmed (saver.py)
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
 from .lookstage import LookStage
+from .saver import TokenSaver
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
@@ -105,6 +107,14 @@ class Project:
         self.dir.mkdir(parents=True, exist_ok=True)
         with open(self.dir / name, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    def saved_tokens_est(self) -> int:
+        """Tokens the token saver kept out of the task conversations so far (an estimate)."""
+        p = self.dir / "metrics.jsonl"
+        if not p.is_file():
+            return 0
+        rows = (json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip())
+        return sum(int(r.get("saved_tokens_est") or 0) for r in rows)
 
 
 def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Task]) -> list[Task]:
@@ -857,7 +867,8 @@ class Orchestrator(LookStage):
             try:
                 res = run_agent(self.cfg, ref, system, prompt, box, self.budget,
                                 max_steps=self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
-                                options=role.options, require_terminal=require, on_event=self.emit)
+                                options=role.options, require_terminal=require, on_event=self.emit,
+                                saver=self._saver())
                 self._save_spend()
                 if done is None or done() or res.stop != "refusal":
                     return res
@@ -865,6 +876,10 @@ class Orchestrator(LookStage):
                 last = e
                 self.emit("provider_error", {"model": str(ref), "error": str(e)})
         raise HarnessError(f"all models for role {role.name!r} failed: {last}")
+
+    def _saver(self) -> TokenSaver:
+        """A fresh token saver for one conversation; originals spill into .harness/spill."""
+        return TokenSaver(self.cfg.token_saver, self.project.root, on_event=self.emit)
 
     def _worker_prompt(self, task: Task, tasks: list[Task], feedback: list[str]) -> str:
         deps = [t for t in tasks if t.id in task.depends_on]
@@ -916,13 +931,15 @@ class Orchestrator(LookStage):
             return False, f"reviewer gave no verdict ({res.stop}): {res.text[:500]}", res
         return bool(verdict.get("approved")), str(verdict.get("feedback", "")), res
 
-    def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0) -> None:
+    def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0,
+                review_saved: int = 0) -> None:
         self.project.append("metrics.jsonl", {
             "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": outcome,
             "steps": res.steps if res else 0, "seconds": res.seconds if res else 0,
             "input_tokens": res.usage.input_tokens if res else 0,
             "output_tokens": res.usage.output_tokens if res else 0,
             "cost_usd": round((res.cost_usd if res else 0) + review_cost, 6),
+            "saved_tokens_est": (res.saved_tokens_est if res else 0) + review_saved,
         })
 
     def _run_image_task(self, task: Task, role: RoleSpec) -> bool:
@@ -997,7 +1014,7 @@ class Orchestrator(LookStage):
                 res = run_agent(self.cfg, ref, self.cfg.prompt_text(role.prompt), self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
-                                on_event=self.emit)
+                                on_event=self.emit, saver=self._saver())
                 self._save_spend()
             except ProviderError as e:
                 if getattr(e, "out_of_credit", False):
@@ -1028,7 +1045,7 @@ class Orchestrator(LookStage):
             outcome = "approved" if approved else "rejected"
             task.attempts.append({"model": str(ref), "outcome": outcome, "summary": worker_summary[:1000],
                                   "review": fb[:2000], "cost_usd": round(res.cost_usd + review_cost, 6)})
-            self._metric(task, ref, outcome, res, review_cost)
+            self._metric(task, ref, outcome, res, review_cost, rev.saved_tokens_est if rev else 0)
             self.emit("review", {"task": task.id, "approved": approved, "feedback": fb[:500]})
             if approved:
                 task.summary = worker_summary

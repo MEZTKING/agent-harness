@@ -83,17 +83,20 @@ class Workspace:
         self.command_timeout = command_timeout
         self.changed: set[str] = set()
 
-    def path(self, rel: str) -> Path:
+    def path(self, rel: str, read_spill: bool = False) -> Path:
         p = (self.root / rel).resolve()
         if p != self.root and self.root not in p.parents:
             raise ToolError(f"path {rel!r} is outside the project")
-        if ".harness" in p.relative_to(self.root).parts:
+        parts = p.relative_to(self.root).parts
+        if read_spill and parts[:2] == (".harness", "spill"):
+            return p  # the token saver's saved originals may be read, never written
+        if ".harness" in parts:
             raise ToolError("the .harness directory is managed by the harness")
         return p
 
     # -- tool implementations --------------------------------------------
     def read_file(self, a: dict) -> str:
-        p = self.path(a["path"])
+        p = self.path(a["path"], read_spill=True)
         if not p.is_file():
             raise ToolError(f"no such file: {a['path']}")
         text = p.read_text(encoding="utf-8", errors="replace")

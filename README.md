@@ -479,6 +479,28 @@ Text a model has already seen (a cache hit) is counted at a tenth of the input p
 - `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
 - `hub:` in `harness.yaml` reports project progress to the Hub, so your repo agents can see what the harness is building.
 
+#### Token saver
+
+Every message a model reads costs money, and the biggest part is often what its tools
+print: long tables, big lists of data, test logs. The token saver slims those before the
+model reads them, for every model and maker:
+
+- a list of data with the same fields on every line is rewritten as a compact table –
+  shorter, but with nothing taken out;
+- a long table keeps its first and last rows and a sample of the middle with line numbers;
+- a long log keeps its start, its end and every line that looks like an error;
+- the same output twice within a minute and a half is shown once.
+
+Nothing is lost: the full text is saved first in the project's `.harness/spill/` folder,
+and the shortened version tells the model how to get it back (the `expand_output` tool).
+If the full text can't be saved, or the short version wouldn't really be cheaper, the
+model gets the full text as before. `roundtable status` shows roughly how many tokens it
+saved, and each task's line in `.harness/metrics.jsonl` has `saved_tokens_est`.
+
+To turn it off, put `token_saver: false` in `harness.yaml`. Its settings (when to step in
+and how much to keep) go under `token_saver:` – see `THIRD_PARTY_NOTICES.md` for where it
+comes from.
+
 ---
 
 ## Part 3: Self-improvement

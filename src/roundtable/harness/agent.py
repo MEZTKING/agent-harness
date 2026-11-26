@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from ..providers.base import Provider, ProviderError, Usage
 from .config import HarnessConfig, ModelRef
+from .saver import TokenSaver
 from .tools import Toolbox
 
 
@@ -55,6 +56,7 @@ class AgentResult:
     captured: dict[str, Any] = field(default_factory=dict)
     messages: list[dict[str, Any]] = field(default_factory=list)
     seconds: float = 0.0
+    saved_tokens_est: int = 0  # tokens the token saver kept out of this conversation (estimate)
 
 
 def run_agent(
@@ -69,17 +71,27 @@ def run_agent(
     options: dict[str, Any] | None = None,
     require_terminal: str | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    saver: TokenSaver | None = None,
 ) -> AgentResult:
     """Drive one model through a tool loop.
 
     ``require_terminal``: name of a tool the model must call before it is
     done (e.g. ``submit_plan``). If it answers in prose instead, it gets
     nudged (forced tool_choice isn't available on every model).
+
+    ``saver``: a ``TokenSaver`` for this conversation. Each tool result goes through it
+    once, as it enters ``messages``; earlier messages are never rewritten (prompt cache).
+    The model also gets its ``expand_output`` tool.
     """
     provider = cfg.provider(ref.provider)
     if not isinstance(provider, Provider):
         raise ProviderError(f"{ref} is not a chat provider")
     emit = on_event or (lambda *_: None)
+    if saver is not None and saver.cfg.enabled:
+        saver.on_event = saver.on_event or emit
+        if "expand_output" not in toolbox.tools:
+            toolbox.add(saver.tool())
+    saved_at_start = saver.stats.tokens_saved if saver else 0
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     total = Usage()
     cost = 0.0
@@ -108,6 +120,8 @@ def run_agent(
             for tc in resp.tool_calls:
                 out, is_err = toolbox.call(tc.name, tc.arguments)
                 emit("tool_call", {"tool": tc.name, "args": _short(tc.arguments), "error": is_err, "result": out[:300]})
+                if saver is not None:
+                    out = saver.process(tc.name, tc.arguments, out, is_err)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": out, "is_error": is_err})
             if toolbox.done():
                 stop = "terminal"
@@ -135,6 +149,7 @@ def run_agent(
         captured=dict(toolbox.captured),
         messages=messages,
         seconds=round(time.monotonic() - t0, 2),
+        saved_tokens_est=(saver.stats.tokens_saved - saved_at_start) if saver else 0,
     )
 
 

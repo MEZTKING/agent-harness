@@ -86,6 +86,9 @@ def _status(project: Project) -> None:
     print(f"Project: {project.root}")
     print(f"Status:  {meta.get('status')}    Spent: ${meta.get('spent_usd', 0):.4f}"
           + (f" (+{meta['unpriced_calls']} unpriced calls)" if meta.get("unpriced_calls") else ""))
+    saved = project.saved_tokens_est()
+    if saved:
+        print(f"Token saver: about {saved:,} tokens kept out of the models' conversations")
     for i, g in enumerate(meta.get("goals", []), 1):
         print(f"Goal {i}:  {g}")
     print()
