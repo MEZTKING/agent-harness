@@ -27,9 +27,9 @@ sealed interface Inline {
 
 object Markdown {
     private val itemRe = Regex("^(\\s*)(?:([-*+])|(\\d+)[.)])\\s+(.*)$")
-    private val checkRe = Regex("^\\[([ xX])]\\s+(.*)$")
+    private val checkRe = Regex("^\\[([ xX])\\]\\s+(.*)$")
     private val trailingCodeId = Regex("\\s+`([0-9a-f]{4,12})`$")
-    private val trailingBraceId = Regex("\\s+\\{([A-Za-z0-9_:.-]+)}$")
+    private val trailingBraceId = Regex("\\s+\\{([A-Za-z0-9_:.-]+)\\}$")
 
     fun parse(md: String): List<Md> {
         val out = mutableListOf<Md>()

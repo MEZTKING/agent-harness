@@ -31,9 +31,9 @@ data class PlanDoc(
 
     companion object {
         private val statusRe = Regex("^_?Plan status:\\s*(.*?)_?$")
-        private val bracketId = Regex("\\s*\\[([A-Za-z0-9_.-]+)]$")
-        private val costRe = Regex("\\s*\\[([^\\]]+)]$")
-        private val ideaRe = Regex("^\\[(\\w+)]\\s+(.*)$")
+        private val bracketId = Regex("\\s*\\[([A-Za-z0-9_.-]+)\\]$")
+        private val costRe = Regex("\\s*\\[([^\\]]+)\\]$")
+        private val ideaRe = Regex("^\\[(\\w+)\\]\\s+(.*)$")
 
         fun parse(md: String): PlanDoc {
             if (md.isBlank()) return PlanDoc()

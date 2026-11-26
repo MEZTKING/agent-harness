@@ -4,6 +4,16 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – The phone crash: Android's regex engine
+
+The owner's phone (Android 16) closed Roundtable Mobile on every start after the hub token. The new
+crash catcher (`data/Crash.kt`: details saved, safe mode, "Send the details to my PC") delivered the
+trace to the hub: `NoClassDefFoundError: com.meztking.roundtable.data.Markdown` in the Letters list –
+the class failed to initialise because Android's ICU regex refuses a bare `}` (and `]`) that Java
+accepts (`trailingBraceId`, `checkRe` in Markdown.kt; three more in PlanDoc.kt). The JVM tests never
+saw it. All five escaped; `tests/test_mobile_regex.py` scans every `Regex("…")` in the Kotlin sources
+so it can't come back.
+
 ## 2026-11-26 – 0.7.0's installer build stopped: a second version number
 
 The app workflow refused `release_tag: v0.7.0` because `roundtable.__version__` still said 0.6.0
