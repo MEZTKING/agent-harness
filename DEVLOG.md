@@ -4,6 +4,27 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Cheaper OpenRouter: the cheapest route, and no whole big files
+
+The owner: "Find a way to optimise token usage for OpenRouter" (they'll top up the credit).
+
+- OpenRouter sends a model to one of many companies, at prices far apart for the same model:
+  GLM-5.3 from $0.07 to $2.10 per million input tokens; GPT-6.1 Terra has a half-price route.
+  `OpenAICompatProvider(routing=)`: for OpenRouter, requests ask for `provider.sort = "price"`
+  (with `require_parameters`, so tool calls stay supported) unless a provider's config says
+  `routing: throughput | latency | none`; `last_route` records which company answered. Real
+  check: the same GLM-5.3 call cost $0.000295 with OpenRouter's own choice and $0.000116 with
+  price routing (2.5x less; both the same company, a dearer and a cheaper endpoint).
+- `Workspace.read_file`: a file over 400 lines isn't read whole; the model gets its outline
+  (definitions and headings with line numbers) and the first 120 lines, then reads parts of up
+  to 600 lines (`_outline_and_head`, `WHOLE_FILE_LINES`, `MAX_RANGE_LINES`). The music player's
+  188 KB `js/app.js` comes back as 10.6 KB. Every later step re-sends what was read, so this
+  saves on every step after.
+- Claude through gateways already uses its cache (`cache_control`, earlier today); GPT, Gemini,
+  DeepSeek and GLM cache by themselves.
+- Tests: `test_openrouter_asks_for_the_cheapest_route_unless_told_otherwise`,
+  `test_big_files_come_back_as_an_outline_and_a_start`; 256 pass.
+
 ## 2026-11-26 – Cards and plugins merged and wired; the APK and EXE finished by hand
 
 - Merged `question-cards` (tap-to-answer cards everywhere: `asks.py`, `/api/asks`, the desktop

@@ -581,3 +581,17 @@ def test_real_money_is_checked_sooner_when_spending_fast(tmp_path, monkeypatch):
     orch.approve()
     orch.REAL_CHECK_SECONDS = 10 ** 6  # the minute rule alone would never look
     assert orch.run() == "paused_budget"
+
+
+def test_big_files_come_back_as_an_outline_and_a_start(tmp_path):
+    ws = Workspace(tmp_path)
+    body = "\n".join(f"function f{i}() {{ return {i}; }}" if i % 50 == 0 else f"  // line {i}" for i in range(1, 2001))
+    (tmp_path / "big.js").write_text(body)
+    out = ws.read_file({"path": "big.js"})
+    assert "has 2000 lines" in out and "50\tfunction f50()" in out and "# Lines 1-120" in out and len(out) < len(body) / 3
+    part = ws.read_file({"path": "big.js", "start_line": 1000, "end_line": 1005})
+    assert part.startswith("1000\t") and "1005\t" in part
+    capped = ws.read_file({"path": "big.js", "start_line": 1, "end_line": 2000})
+    assert "stopped at line 600 of 2000" in capped
+    (tmp_path / "small.js").write_text("a\nb\n")
+    assert ws.read_file({"path": "small.js"}) == "1\ta\n2\tb"

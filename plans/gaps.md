@@ -50,7 +50,7 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   player's APK and EXE, the build facts (where the Android SDK is, that there's no system
   Gradle, versions that work, no Wine for Windows builds) had to be written into the goal
   by hand. A project memory with the machine's tools, checked once, belongs in release 2.
-- **Big files make every step dear** (26 November): the player's `js/app.js` is 188 KB, read
+- **(Fixed 26 November: big files come back as an outline; see Fixed.) Big files make every step dear** (26 November): the player's `js/app.js` is 188 KB, read
   in full; GLM-5.3 through OpenRouter has almost no cache discount, so each step of the tests
   task cost about 2 cents. Workers should read files in parts, and the planner should keep
   files small. → release 2.
@@ -107,6 +107,9 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **OpenRouter cost more than it needed to** (26 November): requests now ask for the cheapest
+  route, and big files are read as an outline plus the parts needed, not whole.
 
 - **A cheap reviewer rejected good work and money went with nothing finished** (26 November):
   reviewers see the later tasks and judge only theirs; after a rejection the next reviewer

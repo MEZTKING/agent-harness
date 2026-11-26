@@ -199,3 +199,28 @@ def test_claude_through_a_gateway_gets_cache_marks():
     assert marked[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
     assert marked[3]["content"][0]["text"] == "out" and marked[1]["content"] == "task"
     assert msgs[0]["content"] == "rules"  # the original is untouched
+
+
+def test_openrouter_asks_for_the_cheapest_route_unless_told_otherwise():
+    from roundtable.providers.openai_compat import OpenAICompatProvider
+
+    calls = []
+
+    class Fake:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**params):
+                    calls.append(params)
+                    from types import SimpleNamespace as N
+                    return N(choices=[N(message=N(content="ok", tool_calls=None, model_dump=lambda **k: {}), finish_reason="stop")],
+                             usage=None, provider="Wafer", model_extra={}, model="z-ai/glm-5.3")
+
+    for routing, want in ((None, "price"), ("throughput", "throughput"), ("none", None)):
+        p = OpenAICompatProvider("openrouter", api_key_env=None, base_url="https://openrouter.ai/api/v1", routing=routing)
+        p.client = Fake()
+        p.chat("z-ai/glm-5.3", "sys", [{"role": "user", "content": "hi"}])
+        sent = calls[-1]["extra_body"].get("provider")
+        assert (sent or {}).get("sort") == want and p.last_route == "Wafer"
+    plain = OpenAICompatProvider("deepseek", api_key_env=None, base_url="https://api.deepseek.com")
+    assert plain.routing is None

@@ -173,6 +173,7 @@ class HarnessConfig:
             from ..providers.openai_compat import OpenAICompatProvider
 
             inst = OpenAICompatProvider(name, api_key_env=spec.get("api_key_env"), base_url=spec.get("base_url"),
+                                        routing=spec.get("routing"),
                                         **{k: spec[k] for k in CLIENT_OPTS if spec.get(k)})
         elif kind == "chat_images":  # image models answering through a chat endpoint (OpenRouter's)
             from ..providers.chat_images import ChatImagesProvider

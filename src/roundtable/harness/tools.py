@@ -103,10 +103,15 @@ class Workspace:
             raise ToolError(f"no such file: {a['path']}")
         text = p.read_text(encoding="utf-8", errors="replace")
         lines = text.splitlines()
+        ranged = a.get("start_line") or a.get("end_line")
+        if not ranged and len(lines) > WHOLE_FILE_LINES:
+            return _outline_and_head(a["path"], lines)
         start = max(int(a.get("start_line") or 1), 1)
-        end = int(a.get("end_line") or len(lines))
+        end = min(int(a.get("end_line") or len(lines)), start + MAX_RANGE_LINES - 1)
         body = "\n".join(f"{i}\t{line}" for i, line in enumerate(lines[start - 1 : end], start))
-        return _truncate(body or "(empty file)", 40_000)
+        more = (f"\n(stopped at line {end} of {len(lines)}: ask for the next lines with start_line={end + 1})"
+                if end < len(lines) and int(a.get("end_line") or len(lines)) > end else "")
+        return _truncate((body or "(empty file)") + more, 40_000)
 
     def write_file(self, a: dict) -> str:
         p = self.path(a["path"])
@@ -237,6 +242,31 @@ class Workspace:
         if len(listing) > limit:
             listing = listing[:limit] + [f"... ({len(listing) - limit} more)"]
         return "\n".join(listing)
+
+
+# Big files aren't read whole: every later step re-sends what was read, so a 4,000-line file read
+# once costs on every step after it. The model gets the outline and the start, then reads parts.
+WHOLE_FILE_LINES = 400
+MAX_RANGE_LINES = 600
+HEAD_LINES = 120
+_OUTLINE = re.compile(
+    r"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:def |class |function\b|fun |interface |enum |struct |impl |fn "
+    r"|(?:public|private|protected|internal|static|override|suspend)\s+[\w<>, ]*\(?|const \w+\s*=\s*(?:async\s*)?(?:function|\(|\w+\s*=>)"
+    r"|#{1,4} |@media|@font-face|:root|\[[\w.-]+\]\s*$)")
+
+
+def _outline_and_head(rel: str, lines: list[str]) -> str:
+    """For a big file: its outline (definitions and headings with line numbers) and its first lines."""
+    marks = [(i, line.strip()[:120]) for i, line in enumerate(lines, 1) if _OUTLINE.match(line)]
+    if len(marks) > 150:  # keep the outline readable: every n-th mark plus the last
+        step = len(marks) // 150 + 1
+        marks = marks[::step] + [marks[-1]]
+    outline = "\n".join(f"{i}\t{t}" for i, t in marks) or "(no definitions found: use search to find what you need)"
+    head = "\n".join(f"{i}\t{line}" for i, line in enumerate(lines[:HEAD_LINES], 1))
+    return (f"{rel} has {len(lines)} lines, too many to read whole (each later step would re-send it). "
+            f"Here is its outline and its first {HEAD_LINES} lines. Read the parts you need with start_line and "
+            f"end_line (up to {MAX_RANGE_LINES} lines at a time), or find things with search.\n\n"
+            f"# Outline (line\tdefinition)\n{outline}\n\n# Lines 1-{HEAD_LINES}\n{head}")
 
 
 READ_ONLY = ["read_file", "list_files", "search"]

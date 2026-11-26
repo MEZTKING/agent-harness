@@ -149,12 +149,18 @@ class OpenAICompatProvider(Provider):
         api_key_env: str | None = "OPENAI_API_KEY",
         base_url: str | None = None,
         timeout: float = 600.0,
+        routing: str | None = None,
         **client_opts,
     ):
         self.name = provider_id
         self.api_key_env = api_key_env
         # OpenRouter tells the exact charge of each call when asked (usage.include)
         self.reports_cost = "openrouter.ai" in (base_url or "")
+        # OpenRouter sends a model to one of many companies, at prices up to 30x apart for the same model:
+        # by default ask for the cheapest that supports what the request needs ("price"); "throughput"
+        # or "latency" for speed; "none" to leave it to OpenRouter.
+        self.routing = (routing or "price") if self.reports_cost else None
+        self.last_route: str | None = None  # which company answered the last call
         self._openai, self.client = _client(api_key_env, base_url, timeout, **client_opts)
 
     def list_models(self) -> list[str]:
@@ -178,13 +184,17 @@ class OpenAICompatProvider(Provider):
         if options.get("extra_body"):
             params["extra_body"] = options["extra_body"]
         if self.reports_cost:
-            params["extra_body"] = {**params.get("extra_body", {}), "usage": {"include": True}}
+            extra = {**params.get("extra_body", {}), "usage": {"include": True}}
+            if self.routing and self.routing != "none":
+                extra["provider"] = {"sort": self.routing, "require_parameters": True, **extra.get("provider", {})}
+            params["extra_body"] = extra
 
         if _needs_cache_marks(model):
             params["messages"] = _mark_cache(params["messages"])
         resp = _wrap_errors(
             self._openai, self.name, model, self.api_key_env, lambda: self.client.chat.completions.create(**params)
         )
+        self.last_route = getattr(resp, "provider", None) or (getattr(resp, "model_extra", None) or {}).get("provider")
         if not resp.choices:
             raise ProviderError(f"{self.name}: empty response", retryable=True)
         choice = resp.choices[0]
