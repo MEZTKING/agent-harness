@@ -4,7 +4,7 @@
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, dialog, fileSize, plural, jobName, modelName, every, has } from "./core.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let Roundtable use each AI maker"], ["services", "AI services", "Which AI services Roundtable can use, and adding more"],
-  ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
+  ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
   ["phone", "Your phone", "Use Roundtable from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
   ["plugins", "Plugins", "Extra abilities for Roundtable"], ["updates", "Updates", "The newest Roundtable Hold"], ["look", "Look", "Light or dark"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
@@ -14,7 +14,7 @@ export async function viewSettings(section = "keys") {
   const st = S.setup = await get("/api/setup");
   const nav = h("nav", { class: "side-nav", "aria-label": "Settings" }, SECTIONS.map(([k, t, tip]) =>
     h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)));
-  const views = { keys: keysPart, services: servicesPart, recommended: recommendedPart, hub: hubPart, phone: phonePart, backups: backupsPart,
+  const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, hub: hubPart, phone: phonePart, backups: backupsPart,
     plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
   const body = await views[section](st);
   return page("Settings", `Roundtable Hold ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
@@ -121,6 +121,33 @@ async function recommendedPart(st) {
           act(ev.currentTarget, () => post("/api/setup/recommended", {}), "Done: you're using the recommended setup", () => location.reload());
       } }, r.in_use ? "You're using the recommended setup" : "Use the recommended setup"),
       h("a", { class: "btn", href: "#/models" }, "Choose each job yourself")));
+}
+
+// ---------- spending (shared by every machine through the hub) ----------
+const LIMITS = [["max_usd_per_day", "Most for one day, on every project", "When the day's spending reaches this, building stops until tomorrow (or until you raise it)."],
+  ["max_cost_usd", "Most for one project", "A project stops at this and asks you before spending more."],
+  ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."]];
+async function spendingPart() {
+  if (!S.ov.hub || !(await has("/api/settings/shared"))) {
+    return card("Spending", h("p", {}, "Each project has its own limit (on its Settings tab). Connect the hub to set limits every machine shares, your phone included."),
+      h("a", { class: "btn", href: "#/settings/hub" }, "Connect the hub"));
+  }
+  let st;
+  try { st = await get("/api/settings/shared"); } catch (e) { return card("Spending", h("p", {}, e.message)); }
+  const inputs = {};
+  const rows = LIMITS.map(([k, label, tip]) => {
+    inputs[k] = h("input", { type: "number", min: "0", step: "0.5", class: "narrow wide-num", value: st.limits[k] ?? "", placeholder: "no limit", "aria-label": label });
+    return h("div", { class: "setting" }, h("label", { class: "label", title: tip }, label), h("span", { class: "row" }, h("b", {}, "$"), inputs[k]), h("p", { class: "muted small" }, tip));
+  });
+  return card("Spending", h("p", { class: "muted small" }, "Real money from your AI services. These limits are shared: your other computers and your phone follow them too."),
+    rows,
+    st.updated_at ? h("p", { class: "muted small" }, `Last changed ${ago(st.updated_at)}${st.updated_by ? ` on ${st.updated_by}` : ""}.`) : null,
+    h("div", { class: "row" }, h("button", { class: "primary", onclick: (ev) => {
+      const limits = {};
+      for (const [k] of LIMITS) { const v = inputs[k].value.trim(); if (v !== "" && Number(v) !== Number(st.limits[k])) limits[k] = Number(v); }
+      if (!Object.keys(limits).length) return toast("Nothing changed");
+      act(ev.currentTarget, () => post("/api/settings/shared", { changes: { limits } }), "Saved, for every machine", (r) => { st = r; });
+    } }, "Save")));
 }
 
 // ---------- hub ----------

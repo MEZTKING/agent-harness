@@ -1,6 +1,6 @@
 // Models: who does each job (and their backups) for every set of models, the models' health, and what Roundtable
 // has learned from its own runs. Every choice is made from a list; nothing is typed in code.
-import { h, fill, get, post, S, act, card, page, tabs, empty, ago, money, plural, every, patch, jobName, modelName, toast, dialog, seg, readable } from "./core.js";
+import { h, fill, get, post, S, act, card, page, tabs, empty, ago, money, plural, every, patch, jobName, modelName, toast, dialog, seg, readable, has } from "./core.js";
 
 export async function viewModels(tab = "jobs") {
   if (!S.ov.harness) return page("Models", null, card("Roundtable can't build on this computer yet",
@@ -12,6 +12,12 @@ export async function viewModels(tab = "jobs") {
 }
 
 async function loadRouting() { S.routing = await get("/api/routing"); return S.routing; }
+
+// Your other machines and phone follow the base choices and the default set too (shared settings, when the hub is there).
+async function share(changes) {
+  if (!S.ov.hub || !(await has("/api/settings/shared"))) return;
+  try { await post("/api/settings/shared", { changes }); } catch (e) { toast(`Saved here, but your other machines weren't told: ${e.message}`, true); }
+}
 
 // ---------- who does what ----------
 let shownSet = null;
@@ -25,7 +31,7 @@ async function jobs() {
       seg([...sets.map((s) => [s.id, s.name + (s.id === R.default_set ? " (used by default)" : ""), s.about]), ["", "Base choice", "Used when a set doesn't name the job"]],
         shownSet, (v) => { shownSet = v; draw(); }, "Set of models"),
       shownSet && shownSet !== R.default_set ? h("button", { class: "small", title: "Every project uses this set unless it picks its own (on its Settings tab)",
-        onclick: (ev) => act(ev.currentTarget, () => post("/api/routing", { default_set: shownSet }), "Done: projects use this set unless they pick their own", async (r) => { Object.assign(R, r); S.routing = R; draw(); }) }, "Use this set by default") : null) : null;
+        onclick: (ev) => act(ev.currentTarget, async () => { const r = await post("/api/routing", { default_set: shownSet }); await share({ default_profile: shownSet }); return r; }, "Done: projects use this set unless they pick their own", async (r) => { Object.assign(R, r); S.routing = R; draw(); }) }, "Use this set by default") : null) : null;
     const about = shownSet ? (sets.find((s) => s.id === shownSet) || {}).about : "Used for a job when the set a project uses doesn't name it.";
     fill(box, setTabs, about ? h("p", { class: "muted small" }, about[0].toUpperCase() + about.slice(1) + (/[.]$/.test(about) ? "" : ".")) : null,
       card(null, h("div", { class: "jobs-table", role: "table", "aria-label": "Who does each job" },
@@ -88,7 +94,11 @@ function editor(R, j, set, redraw) {
   };
   const draw = () => fill(rows, list.map(picker));
   draw();
-  const save = h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/routing", { role: j.role, models: list, set: set || "", ...(set ? { effort } : {}) }),
+  const save = h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, async () => {
+    const r = await post("/api/routing", { role: j.role, models: list, set: set || "", ...(set ? { effort } : {}) });
+    if (!set) await share({ roles: { [j.role]: list.length === 1 ? list[0] : list } });
+    return r;
+  },
     `${j.name}: saved`, (r) => { Object.assign(R, r); S.routing = R; redraw(); }) }, "Save");
   return h("div", { class: "jt-edit", role: "row" },
     h("div", { class: "jt-edit-head" }, h("b", {}, `Who does the ${j.name} job`), h("span", { class: "muted small" }, set ? `in the ${(R.sets.find((s) => s.id === set) || {}).name} set` : "when a set doesn't say")),

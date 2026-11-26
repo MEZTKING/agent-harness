@@ -1,5 +1,5 @@
 // Watch and App: following the work like a session (every step, changes in colour, pictures) and the app itself.
-import { h, fill, get, every, card, money, ago, jobName, modelName, taskPill, picture, fileSize, q, prose } from "./core.js";
+import { h, fill, get, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q } from "./core.js";
 import { hubSession } from "./machines.js";
 
 const rawUrl = (kind, path, name, task) => `/raw/${kind}?` + new URLSearchParams({ path, name, ...(task ? { task } : {}) });
@@ -11,7 +11,7 @@ export async function watchTab(seat, now) {
   const outs = h("div");
   const details = h("div");
   const open = new Set();
-  let cursor = 0, stick = true;
+  let cursor = 0, stick = true, held = [], runId = null;
   term.addEventListener("scroll", () => { stick = term.scrollHeight - term.scrollTop - term.clientHeight < 40; });
   term.addEventListener("load", () => { if (stick) term.scrollTop = term.scrollHeight; }, true);
   const status = h("span", { class: "muted small" });
@@ -25,8 +25,14 @@ export async function watchTab(seat, now) {
     let d;
     if (path) d = await get(`/api/project/session?${q({ path, since: cursor })}`);
     else {
-      d = await hubSession(s);
+      d = await hubSession(s, "", held.length);
       if (!d) { fill(term, h("p", { class: "t-meta" }, "Another computer builds this project. Its steps show here when that computer shares them through the hub.")); return false; }
+      if (d.run && d.run.run_id !== runId) { runId = d.run.run_id; held = []; if (d.run.since) d = await hubSession(s, runId, 0) || d; }
+      held = held.concat(d.events || []);
+      status.textContent = d.live ? `Following it live${d.claim && d.claim.machine_name ? ` on ${d.claim.machine_name}` : ""}` : d.run ? `The newest build, ${ago(d.run.ended || d.run.started)}` : "";
+      fill(term, held.length ? remoteSteps(held) : h("p", { class: "t-meta" }, d.message || "No build of this project has been watched yet: it shows here once one starts."));
+      if (stick) term.scrollTop = term.scrollHeight;
+      return;
     }
     if (d.changed === false) return;
     cursor = d.cursor || 0;
@@ -40,6 +46,27 @@ export async function watchTab(seat, now) {
     if (stick) term.scrollTop = term.scrollHeight;
     if (path && !details.firstChild) fill(details, await moreDetails(path));
   }, () => (now().status === "running" ? 2500 : 20000));
+}
+
+// a build on another machine, line by line as it shares them (sync.py's session lines)
+const REMOTE_CLASS = { review: (e) => "t-review " + (e.approved ? "ok" : "no"), error: () => "t-review no", change: () => "t-tool", tool: (e) => "t-tool" + (e.error ? " bad" : ""),
+  turn: () => "t-say", cost: () => "t-meta", note: () => "t-meta", status: () => "t-meta", run_started: () => "t-meta", run_done: () => "t-meta", shots: () => "t-meta", task_done: () => "t-meta" };
+function remoteSteps(events) {
+  const out = [];
+  let box = null;
+  for (const e of events) {
+    if (e.kind === "task_started") {
+      box = h("div", { class: "t-task" }, h("div", { class: "t-head" }, h("span", { class: "t-prompt" }, "▶"), h("b", {}, e.title || e.task || "A task"),
+        e.role ? h("span", { class: "t-meta" }, ` · ${jobName(e.role)}`) : null, e.index && e.total ? h("span", { class: "t-meta" }, ` · ${e.index} of ${e.total}`) : null));
+      out.push(box);
+      continue;
+    }
+    if (e.kind === "cost") continue;  // shown with the turn it paid for
+    const line = e.kind === "turn" && e.model && /^Attempt \d+ on /.test(e.line) ? `Working with ${modelName(e.model)}` : e.line;
+    const el = h("div", { class: "t-line " + (REMOTE_CLASS[e.kind] || (() => "t-meta"))(e) }, h("span", {}, line), e.at ? h("span", { class: "t-cost" }, clock(e.at)) : null);
+    (box || (box = (out.push(h("div", { class: "t-task" })), out[out.length - 1]))).append(el);
+  }
+  return out;
 }
 
 function stepNode(path, s, key, open) {

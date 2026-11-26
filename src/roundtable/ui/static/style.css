@@ -286,8 +286,8 @@ main { padding: 22px clamp(16px, 2.4vw, 36px) 60px; outline: none; }
 .ring > .seat { position: absolute; width: clamp(160px, 13vw, 200px); transform: translate(-50%, -50%); z-index: 1; }
 .ring > .seat:hover, .ring > .seat:focus-visible { z-index: 3; }
 .ring.empty-hall { height: 360px; }
-.table-band { position: relative; height: 230px; }
-.table-band .table-top { width: 220px; }
+.table-band { position: relative; height: 256px; }
+.table-band .table-top { width: 210px; }
 .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
 .seat { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--color-oak-line); background: var(--color-surface);
   color: var(--color-text); box-shadow: var(--shadow); min-width: 0; transition: border-color var(--fade), transform var(--fade); }
@@ -652,3 +652,5 @@ div.t-tool { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .task-acts { opacity: .45; transition: opacity var(--fade); }
 .task:hover .task-acts, .task:focus-within .task-acts, .task.failed .task-acts { opacity: 1; }
 .add-entry textarea { flex-basis: 100%; }
+.t-line { display: flex; gap: 10px; align-items: baseline; }
+.t-line > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }

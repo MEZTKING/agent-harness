@@ -2,10 +2,10 @@
 // and Settings. Works for projects on this computer, projects another computer builds (through the hub) and hub
 // projects that keep only a journal.
 import { h, fill, get, post, S, onHall, every, patch, refreshHall, seatOf, projectHref, projectName, money, ago, plural, page, tabs, card, empty,
-  taskPill, jobName, modelName, act, toast, dialog, prose, picture, q, dot, projectState } from "./core.js";
+  taskPill, jobName, modelName, act, toast, dialog, prose, picture, q, dot, features } from "./core.js";
 import { needCard, runButtons } from "./needs.js";
 import { hubCommand } from "./asks.js";
-import { whereWords, loadMachines } from "./machines.js";
+import { whereWords, builtBy, loadMachines } from "./machines.js";
 import { planTab } from "./plan.js";
 import { watchTab, appTab } from "./watch.js";
 import { journalTab, notesPage } from "./journal.js";
@@ -23,13 +23,14 @@ export async function viewProject(id, tab = "overview") {
   let seat = seatOf(id);
   if (!seat) return waitingFor(id);
   await loadMachines();
+  FEAT = await features();
   const local = !!seat.path;
   const hubAgent = (S.ov.agents || []).some((a) => a.id === seat.id);
   const shown = TABS.filter(([k]) => k === "overview" || (k === "plan" && (local || seat.hub_name)) || (k === "watch" && (local || seat.hub_name))
     || (k === "app" && local) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local));
   if (!shown.some(([k]) => k === tab)) tab = "overview";
   const head = h("header", { class: "project-head" });
-  const drawHead = (s) => patch(head, JSON.stringify([s.state, s.status, s.actions, s.goal, s.where, s.waiting_for_you, s.spent_usd, s.progress]), () => {
+  const drawHead = (s) => patch(head, JSON.stringify([s.state, s.status, s.actions, s.goal, s.where, s.waiting_for_you, s.spent_usd, s.progress, s.building_on]), () => {
     const goal = s.goal || s.description;
     return [
       h("a", { class: "back", href: "#/projects" }, "← Projects"),
@@ -37,8 +38,8 @@ export async function viewProject(id, tab = "overview") {
         s.shot ? picture(s.shot.url, `${s.name}: the newest picture`, "ph-shot") : null,
         h("div", { class: "grow" },
           h("h1", {}, dot(s.id), s.name),
-          h("p", { class: "ph-state" }, h("span", { class: "state " + s.status }, h("i", { class: "sdot" }), s.state || "No news yet"),
-            h("span", { class: "muted" }, " · ", whereWords(s)), s.spent_usd ? h("span", { class: "muted", title: "Spent on this project so far" }, " · ", money(s.spent_usd), " spent") : null),
+          h("p", { class: "ph-state" }, h("span", { class: "state " + s.status }, h("i", { class: "sdot" }), builtBy(s) || s.state || "No news yet"),
+            builtBy(s) ? null : h("span", { class: "muted" }, " · ", whereWords(s)), s.spent_usd ? h("span", { class: "muted", title: "Spent on this project so far" }, " · ", money(s.spent_usd), " spent") : null),
           goal ? h("p", { class: "ph-goal" }, goal) : null),
         h("div", { class: "ph-acts" }, moveOn(s)))];
   });
@@ -62,6 +63,7 @@ async function waitingFor(id) {
 }
 
 // the one button (or two) that moves the project on
+let FEAT = new Set();
 function moveOn(s) {
   if (s.path) {
     const out = runButtons({ path: s.path, actions: s.actions || [], task: s.failed_task }, () => refreshHall());
@@ -76,6 +78,8 @@ function moveOn(s) {
       } }, "Add to it"));
     return out;
   }
+  if (s.hub_name && FEAT.has("/api/hub/carry_on") && s.status === "idle" && !/^planned$/i.test(s.state || "")) return [
+    h("button", { class: "primary", title: "Picks up where it stopped, on the machine that has its files", onclick: (ev) => act(ev.currentTarget, () => post("/api/hub/carry_on", { name: s.hub_name }), (r) => r.reply, () => refreshHall()) }, "Carry on")];
   if (s.hub_name && s.status === "waiting") return [
     h("button", { class: "primary", title: "Sends your approval to the computer that builds it; it starts there", onclick: (ev) => act(ev.currentTarget, () => hubCommand(s, "approve")) }, "Approve and start"),
     h("a", { class: "btn", href: projectHref(s.id, "plan") }, "Read the plan")];
