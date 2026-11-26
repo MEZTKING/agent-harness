@@ -35,6 +35,8 @@ data class SeatView(
     val hasPlan: Boolean = false,
     /** PC mode: the harness run's folder, for its task tree and actions. */
     val path: String? = null,
+    /** Autopilot answers this project's questions while the owner is away. */
+    val autopilot: Boolean = false,
 ) {
     val initials: String get() = initialsOf(id)
     val badge: Int get() = unread + high
@@ -61,7 +63,11 @@ data class NeedView(
 )
 
 @Serializable
-data class HallState(val seats: List<SeatView> = emptyList(), val needs: List<NeedView> = emptyList(), val fetchedAt: String = "")
+data class HallState(
+    val seats: List<SeatView> = emptyList(), val needs: List<NeedView> = emptyList(), val fetchedAt: String = "",
+    /** Autopilot's switch and what it did lately; null when the PC or the hub doesn't say. */
+    val autopilot: AutopilotState? = null,
+)
 
 /** What the Plan tab shows: the hub's plan page, or (PC mode) the run's task tree. */
 data class PlanView(val doc: PlanDoc? = null, val tasks: List<Task> = emptyList(), val runStatus: String = "", val canApprove: Boolean = false)
@@ -88,6 +94,10 @@ interface Backend {
     suspend fun answer(ask: Ask, reply: AskReply): String
     /** Hub only: a command through the hub (see GitHubHub.command). */
     suspend fun command(project: String, action: String, fields: Map<String, Any?> = emptyMap()): String
+    /** Autopilot's switch and its log (null when it can't be read). */
+    suspend fun autopilot(): AutopilotState?
+    /** Turn autopilot on (until, spend limit in dollars) or off. Returns a short line to show. */
+    suspend fun setAutopilot(on: Boolean, until: String = "", cap: Double? = null): String
 }
 
 class HubBackend(private val hub: GitHubHub, override val identity: String) : Backend {
@@ -139,7 +149,10 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
             }
         }
         needs.addAll(0, askNeeds(seats.filter { it.hasPlan }))
-        return HallState(sortSeats(seats), needs, Instant.now().toString())
+        lastSeats = seats
+        val pilot = autopilot()
+        val marked = seats.map { it.copy(autopilot = pilot?.on == true && it.hasPlan && it.id !in pilot.never) }
+        return HallState(sortSeats(marked), needs, Instant.now().toString(), pilot)
     }
 
     /** The next card of each project with a plan waiting for the owner. */
@@ -200,6 +213,17 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
         hub.command(identity, project, action, fields)
         return "Sent. Roundtable will reply in Letters."
     }
+
+    @Volatile private var lastSeats: List<SeatView> = emptyList()
+
+    override suspend fun autopilot(): AutopilotState? = runCatching { Autopilot.parse(hub.autopilot()) }.getOrNull()
+
+    override suspend fun setAutopilot(on: Boolean, until: String, cap: Double?): String {
+        val to = Autopilot.commandTarget(autopilot(), lastSeats)
+            ?: throw IllegalStateException("No project of Roundtable's is in the hub yet, so there's nowhere to send this. Start one on your PC first.")
+        hub.command(identity, to, "autopilot", Autopilot.commandFields(on, until, cap))
+        return "Sent. Your PC turns autopilot ${if (on) "on" else "off"} within a minute or so."
+    }
 }
 
 class PcBackend(private val api: Api, override val identity: String) : Backend {
@@ -225,7 +249,7 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
                 description = s.description.ifBlank { s.goal }, repo = s.repo, lastActivity = s.last_activity,
                 leftOff = s.brief?.last_session?.text.orEmpty(), nextSteps = s.brief?.last_session?.next.orEmpty(),
                 openTodos = s.open_todos, high = s.high, unread = s.unread, progress = s.progress, path = s.path,
-                hasPlan = s.path != null,
+                hasPlan = s.path != null, autopilot = s.autopilot,
             )
         }
         val needs = r.needs_you.map { n ->
@@ -245,7 +269,7 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
                 n.project, title, if (n.kind == "todo") "${n.project} · high priority · from the journal" else n.text,
                 n.actions, id = n.id, task = n.task, path = n.path, at = n.at)
         }
-        return HallState(views, needs, Instant.now().toString())
+        return HallState(views, needs, Instant.now().toString(), autopilot() ?: r.autopilot)
     }
 
     override suspend fun status(project: String): StatusDoc {
@@ -315,6 +339,13 @@ class PcBackend(private val api: Api, override val identity: String) : Backend {
             "read" -> api.markRead(identity, api.inbox(identity).filter { !it.read }.map { it.id }).also { return "Marked as read" }
         }
         return ""
+    }
+
+    override suspend fun autopilot(): AutopilotState? = runCatching { api.autopilot() }.getOrNull()
+
+    override suspend fun setAutopilot(on: Boolean, until: String, cap: Double?): String {
+        val st = api.setAutopilot(on, until, cap)
+        return if (st.on) "Autopilot is on, ${st.label}" else "Autopilot is off"
     }
 
     override suspend fun command(project: String, action: String, fields: Map<String, Any?>): String {

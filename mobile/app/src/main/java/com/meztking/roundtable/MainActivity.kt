@@ -207,6 +207,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     },
                     showNeeds = showNeeds, onShowNeeds = { showNeeds = it },
                     onAnswer = main::answer,
+                    onAutopilot = main::autopilot,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),

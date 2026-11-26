@@ -97,6 +97,15 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
             .getOrNull() ?: "Done"
     }
 
+    /** Autopilot's switch and what it did lately. */
+    suspend fun autopilot(): com.meztking.roundtable.data.AutopilotState =
+        ApiJson.decodeFromString(call("GET", "/api/autopilot?limit=30"))
+
+    suspend fun setAutopilot(on: Boolean, until: String = "", cap: Double? = null): com.meztking.roundtable.data.AutopilotState =
+        ApiJson.decodeFromString(call("POST", "/api/autopilot", obj {
+            put("action", if (on) "on" else "off"); put("until", until); if (cap != null) put("cap", cap)
+        }))
+
     suspend fun newProject(dir: String, goal: String, approveFirst: Boolean = true) {
         call("POST", "/api/projects", obj { put("dir", dir); put("goal", goal); put("approve", approveFirst) })
     }

@@ -130,6 +130,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Autopilot on (until, spend limit) or off, from the Table's switch. */
+    fun autopilot(on: Boolean, until: String, cap: Double?) {
+        val b = backend ?: return
+        viewModelScope.launch {
+            try {
+                _notice.value = b.setAutopilot(on, until, cap)
+                refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _notice.value = friendly(e)
+            }
+        }
+    }
+
     fun send(to: String, subject: String, body: String, onDone: Done) {
         val b = backend ?: return
         viewModelScope.launch {
