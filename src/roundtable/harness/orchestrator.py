@@ -977,11 +977,26 @@ class Orchestrator:
     def run(self, max_tasks: int | None = None) -> str:
         """Run until done, blocked, out of budget, awaiting approval, or max_tasks executed."""
         start = self._note_balance("start")
+        self._balance_start = start
         try:
             return self._run(max_tasks)
         finally:
             if start:
                 self._note_balance("end", start)
+
+    def _real_spend_over_limit(self) -> bool:
+        """True when the providers' real balances fell by the run's limit (limits.max_real_usd_per_run)."""
+        limit, start = self.cfg.limits.max_real_usd_per_run, getattr(self, "_balance_start", None)
+        if not limit or not start:
+            return False
+        try:
+            from ..providers.balance import balances
+
+            now = balances(self.cfg, list(start["balances"]))
+        except Exception:
+            return False
+        spent = sum(start["balances"][p]["amount"] - b["amount"] for p, b in now.items() if p in start["balances"])
+        return spent >= limit
 
     def _note_balance(self, phase: str, start: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """Note the providers' real balances, so the cost count can be checked against the bill."""
@@ -1068,6 +1083,11 @@ class Orchestrator:
                         return "done"
                     self._set_status("blocked")
                     return "blocked"
+                if self._real_spend_over_limit():
+                    self._set_status("paused")
+                    self._attention("money", f"this run has spent ${self.cfg.limits.max_real_usd_per_run:.2f} of real "
+                                             "credit, the limit you set; run again to carry on")
+                    return "paused"
                 if max_tasks is not None and executed >= max_tasks:
                     self._set_status("paused")
                     return "paused"

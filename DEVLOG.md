@@ -4,6 +4,17 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – A real-money limit per run
+
+The owner chose to carry on with Flash first and V4 Pro taking over, and to stop at $1.
+
+- `limits.max_real_usd_per_run` (new, default off) and `Orchestrator._real_spend_over_limit`:
+  between tasks the run reads the providers' real balances and pauses (status paused,
+  a "money" Needs you note) once they fell by the limit since the run started.
+- Test: `test_run_pauses_when_real_spend_reaches_its_limit`; 128 pass.
+- The yardstick's config: the coder role falls back to DeepSeek V4 Pro; the run's real
+  limit is $1.
+
 ## 2026-11-26 – The music player's run stopped; tasks too big are now split
 
 The owner said to build the rest of the music player.

@@ -448,3 +448,16 @@ def test_task_that_keeps_running_out_of_steps_is_split_once(tmp_path):
     revise = next(c for c in a.calls if "submit_plan" in tool_names(c["tools"] or [])
                   and "ran out of steps" in c["messages"][0]["content"])
     assert "Replace it with 2 to 4 smaller tasks" in revise["messages"][0]["content"]
+
+
+def test_run_pauses_when_real_spend_reaches_its_limit(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00, 1.90, 1.90])
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left, 1.9), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["limits"]["max_real_usd_per_run"] = 1.0
+    orch, *_ = make(tmp_path, raw=raw)
+    orch.start("goal")
+    assert orch.run() == "paused"
+    assert sum(t.status == "done" for t in orch.project.tasks()) == 1
