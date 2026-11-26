@@ -165,6 +165,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   `ProotBinariesTest.kt`, `HarnessSupervisorTest.kt`, `ManifestVerifierTest.kt`, `ManifestPolicyTest.kt`,
   `ProotCommandTest.kt`, `RuntimeInstallerTest.kt`). `mobile/app/third_party/proot/` is DSH's record of
   the proot binaries, unchanged.
+### DSH Mobile: the in-app updater
+
+- Source: the owner's MIT fork of DSH Mobile, its in-app updater under
+  `app/src/main/java/com/labteto/dshmobile/update/`.
+- Adapted in Roundtable Mobile's updater (`mobile/app/src/main/java/com/meztking/roundtable/update/`):
+  the version compare (`UpdateChecker.kt` `isNewerVersion` → `Releases.kt` `isNewerVersion`), the
+  file hash (`Checksums.kt` `sha256Of` → `Releases.kt` `sha256Of`), the PackageInstaller session and
+  its status receiver (`PackageInstallerGateway.kt` `PackageInstallerGateway.commit`,
+  `UpdateInstallReceiver` → `Installer.kt` `Installer.commit`, `InstallReceiver`), the install
+  failures told apart (`InstallStatus.kt` `mapInstallStatus` → `Installer.kt` `installFailureText`),
+  and the resume rules of the download (`ResumableDownloader.kt` `planResponse` → `AppUpdater.kt`
+  `fetchOnce`, simplified). The wording and the screens are Roundtable's own.
 
 ```
 MIT License

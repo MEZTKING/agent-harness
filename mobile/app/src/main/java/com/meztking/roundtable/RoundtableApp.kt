@@ -11,6 +11,7 @@ import com.meztking.roundtable.net.GitHubHub
 import com.meztking.roundtable.net.LocalAccess
 import com.meztking.roundtable.runtime.HarnessRuntimeService
 import com.meztking.roundtable.runtime.RuntimeController
+import com.meztking.roundtable.update.UpdateWorker
 import com.meztking.roundtable.work.Watch
 
 class RoundtableApp : Application() {
@@ -55,6 +56,7 @@ class RoundtableApp : Application() {
         super.onCreate()
         Crash.install(this, runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?")
         runCatching { Watch.createChannel(this) }
+        runCatching { UpdateWorker.setUp(this) } // even after a crash: an update may be the fix
         // after a crash, start nothing in the background until the owner has seen the safe-mode card
         if (Crash.last(this) == null && runCatching { store.configured }.getOrDefault(false)) runCatching { Watch.schedule(this) }
     }

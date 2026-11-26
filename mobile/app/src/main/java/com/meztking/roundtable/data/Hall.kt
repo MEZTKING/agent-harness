@@ -221,6 +221,8 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
 
     override suspend fun act(need: NeedView, action: String): String = when (action) {
         "read" -> { need.message?.let { markRead(listOf(it)) }; "Marked as read" }
+        // the PC that runs the project ticks it off in its journal and replies in Letters (remote.py todo_done)
+        "done" -> { hub.command(identity, need.project, "todo_done", mapOf("id" to (need.id ?: error("no id")))); "Sent: it's ticked off when your PC next syncs" }
         else -> ""
     }
 

@@ -118,6 +118,7 @@ fun TableScreen(
     Column(Modifier.fillMaxSize()) {
         Header(whereLabel, mode, hall.loading, onRefresh)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
+        UpdateBanner(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -529,7 +530,7 @@ private fun needHint(n: NeedView, acts: List<Pair<String, String>>): String {
     return when {
         n.kind == "message" && "reply" in ids -> "Read and reply opens the whole letter; Mark as read clears it from here."
         n.kind == "message" -> "Mark as read clears it from here; Open project shows what happened."
-        n.kind == "todo" && "done" in ids -> "Mark done closes it; Open project shows where it stands."
+        n.kind == "todo" && "done" in ids -> "Done ticks it off in the project's journal; Open project shows where it stands."
         n.kind == "todo" -> "Open project shows where it stands and what to do."
         "plan" in ids -> "Opens the plan, where you approve it with one tap."
         else -> "Tap what should happen next."
@@ -543,7 +544,7 @@ private fun actionsFor(n: NeedView, mode: Mode?): List<Pair<String, String>> = w
         Letters.isReply(n.message.subject) -> listOf("read" to "Mark as read", "project" to "Open project")
         else -> listOf("reply" to "Read and reply", "read" to "Mark as read")
     }
-    "todo" -> if (mode == Mode.PC && n.id != null) listOf("done" to "Mark done", "open" to "Open project") else listOf("open" to "Open project")
+    "todo" -> if (mode != null && n.id != null) listOf("done" to "Done", "open" to "Open project") else listOf("open" to "Open project")
     else -> n.actions.mapNotNull {
         when (it) {
             "approve" -> "plan" to "Read and approve the plan"

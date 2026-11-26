@@ -65,6 +65,7 @@ import com.meztking.roundtable.ui.TableScreen
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.RoundtableTheme
 import com.meztking.roundtable.ui.theme.hallBackground
+import com.meztking.roundtable.update.AppUpdater
 import com.meztking.roundtable.work.Watch
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -77,6 +78,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) openProject.value = intent?.getStringExtra(Watch.EXTRA_PROJECT)
         setContent { RoundtableTheme { Root(openProject) } }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        runCatching { AppUpdater.get(this).checkOnOpen() } // at most every 4 hours
     }
 
     override fun onNewIntent(intent: Intent) {
