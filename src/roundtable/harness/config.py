@@ -103,6 +103,7 @@ class HarnessConfig:
     # named sets of models per role ("budget", "balanced", "quality"); a project picks one
     profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
     default_profile: str | None = None
+    learned: dict[str, Any] = field(default_factory=dict)  # the lab's learned overlay, as applied
     # prompt name -> text; learned prompts from the lab win over prompts_dir and built-ins
     prompt_overrides: dict[str, str] = field(default_factory=dict)
     _instances: dict[str, Any] = field(default_factory=dict, repr=False)
@@ -122,6 +123,13 @@ class HarnessConfig:
             return self
         c = self.variant()
         apply_overlay(c, self.profiles[name])
+        # What was learned still counts inside a profile when it only reorders that profile's own
+        # models (e.g. "start on the fallback, it finishes more for less").
+        for role, spec in (self.learned.get("roles") or {}).items():
+            if role in c.roles and "model" in spec:
+                order = [spec["model"]] + list(spec.get("fallback") or [])
+                if sorted(order) == sorted(str(m) for m in c.roles[role].models):
+                    c.roles[role].models = [ModelRef.parse(m) for m in order]
         return c
 
     def variant(self) -> "HarnessConfig":

@@ -344,3 +344,17 @@ def test_past_work_is_repriced_for_another_model():
     h = {"model": "a/x", "input": 1000, "output": 1000, "cost": 0.5}
     assert plandoc._reprice(cfg, 0.5, h, ModelRef.parse("a/y")) == pytest.approx(1.5)
     assert plandoc._reprice(cfg, 0.5, h, ModelRef.parse("a/x")) == 0.5
+
+
+def test_learned_order_still_applies_inside_a_profile():
+    from roundtable.harness.config import parse_config
+
+    cfg = parse_config({
+        "providers": {"a": {"type": "scripted"}},
+        "roles": {"orchestrator": {"model": "a/p"}, "coder": {"model": "a/cheap"}},
+        "profiles": {"balanced": {"roles": {"coder": {"model": "a/cheap", "fallback": ["a/strong"]}}},
+                     "other": {"roles": {"coder": {"model": "a/third"}}}},
+    })
+    cfg.learned = {"roles": {"coder": {"model": "a/strong", "fallback": ["a/cheap"]}}}
+    assert [str(m) for m in cfg.for_profile("balanced").roles["coder"].models] == ["a/strong", "a/cheap"]
+    assert [str(m) for m in cfg.for_profile("other").roles["coder"].models] == ["a/third"]  # different models: the profile wins

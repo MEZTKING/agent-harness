@@ -159,6 +159,7 @@ class Lab:
     def apply_learned(self, cfg: HarnessConfig) -> None:
         overlay, prompts = self.learned()
         apply_overlay(cfg, overlay, prompts)
+        cfg.learned = overlay  # kept, so a profile chosen later can still use the learned order
 
     @staticmethod
     def change_overlay(overlay: dict[str, Any], prompts: dict[str, str], p: Proposal, cfg: HarnessConfig) -> None:
