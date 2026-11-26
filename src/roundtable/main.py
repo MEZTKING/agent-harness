@@ -10,6 +10,7 @@ Hub & journal (where things stand, across projects and sessions):
     roundtable agents | cards | card show|set|refresh-git
     roundtable send TO "subject" "body" | inbox | reply ID "text" | thread ID | subscribe PROJECT
     roundtable mcp --agent PROJECT        MCP server for Claude Code and other agents
+    roundtable mcp list                   MCP servers roles can use (Unreal Engine...): do they answer, their tools
     roundtable connect [DIR]              join this repo's Claude Code sessions to the hub (MCP + hooks)
     roundtable connect --cloud-script     setup script for Claude Code cloud environments
     roundtable remote [--watch 60]        do commands sent through the hub (from the phone); autopilot too
@@ -76,6 +77,11 @@ def _command(argv: list[str]) -> str | None:
     return None
 
 
+def _after(argv: list[str], cmd: str) -> str | None:
+    """The first word after the command (skipping options), e.g. "list" in `roundtable mcp list`."""
+    return _command(argv[argv.index(cmd) + 1:]) if cmd in argv else None
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = _command(argv)
@@ -112,12 +118,14 @@ def main(argv: list[str] | None = None) -> None:
         from .desktop import main as app_main
 
         return sys.exit(app_main([a for a in argv if a != "app"]))
+    # `roundtable mcp list`: the MCP servers roles use (harness.yaml), not the hub's own MCP server
+    servers_list = cmd == "mcp" and _after(argv, cmd) == "list"
     try:
-        if cmd in HUB_COMMANDS:
+        if cmd in HUB_COMMANDS and not servers_list:
             from .cli import main as hub_main
 
             return hub_main(argv)
-        if cmd in HARNESS_COMMANDS:
+        if cmd in HARNESS_COMMANDS or servers_list:
             from .harness_cli import main as harness_main
 
             if "--agent" in argv:  # hub identity flag means nothing to project commands

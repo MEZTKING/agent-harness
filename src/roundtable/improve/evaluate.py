@@ -109,6 +109,7 @@ def _replay_once(cfg: HarnessConfig, project: Path, meta: dict, task: dict, all_
     try:
         orch = Orchestrator(cfg, tmp / "project", on_event=on_event)
         orch.budget = budget
+        orch.mcp_allowed = False  # a replay must not change things in a real editor (Unreal...) through MCP
         tasks = orch.project.tasks()
         target = next(t for t in tasks if t.id == task["id"])
         spent0, t0 = budget.spent_usd, time.monotonic()
