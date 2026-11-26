@@ -566,3 +566,18 @@ def test_owner_can_accept_a_rejected_task_as_it_is(tmp_path):
     assert "accepted by the owner" in log
     with pytest.raises(HarnessError):
         orch.accept("T1")
+
+
+def test_real_money_is_checked_sooner_when_spending_fast(tmp_path, monkeypatch):
+    from roundtable.providers import balance
+
+    left = iter([3.00, 3.00] + [1.50] * 50)
+    monkeypatch.setattr(balance, "balances", lambda cfg, names=None: {"a": {"amount": next(left), "currency": "USD"}})
+    raw = json.loads(json.dumps(RAW))
+    raw["limits"]["max_real_usd_per_run"] = 0.000001  # a tenth of it is counted on the first charge
+    orch, *_ = make(tmp_path, raw=raw, brain=Brain(plan=PLAN[:1]))
+    orch.start("goal")
+    orch.plan()
+    orch.approve()
+    orch.REAL_CHECK_SECONDS = 10 ** 6  # the minute rule alone would never look
+    assert orch.run() == "paused_budget"

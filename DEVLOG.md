@@ -4,6 +4,27 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-26 – Claude through OpenRouter was paying full price on every step
+
+The restyle's styling step (Claude Sonnet 5.5 through OpenRouter) cost $1.78 for one
+attempt: about $0.12 a step, because nothing was cached. Claude only reads what it has
+already seen at the cache price when the request marks it (`cache_control`); DeepSeek and
+OpenAI do it by themselves, so this never showed before. The run also went past its real
+limit ($1.36 against $1.08 left), because the balance was only looked at once a minute.
+
+- `providers/openai_compat._needs_cache_marks` / `_mark_cache`: for Claude models through any
+  OpenAI-style gateway, the system prompt and the newest user or tool message carry
+  `cache_control`. Checked with two real calls: the second cost a twelfth of the first.
+- `Orchestrator._on_charge`: the real balance is also checked as soon as a tenth of the
+  run's limit has been counted since the last look.
+- The yardstick lab's counted cap (`max_cost_usd`) was raised from 8 to 15: it had filled up
+  with the earlier over-count; the real limit is what protects the owner.
+- `Orchestrator.accept` and the remote `accept` action: the owner accepts a task's work as it
+  is (used for the restyle's T15).
+- Tests: `test_claude_through_a_gateway_gets_cache_marks`,
+  `test_real_money_is_checked_sooner_when_spending_fast`,
+  `test_owner_can_accept_a_rejected_task_as_it_is`; 188 pass.
+
 ## 2026-11-26 – Throwaway scripts no longer fail reviews
 
 The restyle's T15 was rejected twice more ($0.78): once fairly (its new font test missed a

@@ -1139,8 +1139,13 @@ class Orchestrator(LookStage, ReferenceStage):
     def _on_charge(self, cost: float) -> None:
         self.project.append("spend.jsonl", {"at": utcnow(), "cost_usd": round(cost, 6)})
         # the real-money limit is also checked inside a long task, at most once a minute
-        if self.cfg.limits.max_real_usd_per_run and time.time() - self._last_real_check >= self.REAL_CHECK_SECONDS:
-            self._last_real_check = time.time()
+        limit = self.cfg.limits.max_real_usd_per_run
+        self._counted_since_check = getattr(self, "_counted_since_check", 0.0) + cost
+        # look at the real balance once a minute, or sooner when a dear model is spending fast
+        # (a tenth of the limit counted since the last look)
+        if limit and (time.time() - self._last_real_check >= self.REAL_CHECK_SECONDS
+                      or self._counted_since_check >= limit * 0.1):
+            self._last_real_check, self._counted_since_check = time.time(), 0.0
             if self._real_spend_over_limit():
                 raise BudgetExceeded(f"this run reached its real-money limit of "
                                      f"${self.cfg.limits.max_real_usd_per_run:.2f}")

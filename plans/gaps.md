@@ -6,6 +6,11 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **The project's counted cap keeps old over-counts** (26 November): `max_cost_usd` adds up
+  Roundtable's own count since the project began, including the days it was ten times too
+  high, so it stops runs early. It should follow the real spend where a balance is known.
+  → release 2.
+
 - **Reviews can still reject for the wrong reasons** (Fable, 26 November, from the music
   player's restyle): a rejection should quote the line of the task it breaks or not count;
   tasks that split one piece of work should say what's left for the next; a model that runs

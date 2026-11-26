@@ -44,6 +44,28 @@ def _to_openai_messages(system: str, messages: list[dict[str, Any]], provider_id
     return out
 
 
+def _needs_cache_marks(model: str) -> bool:
+    """Claude only re-uses what it has already read when the request marks it (cache_control); OpenAI and
+    DeepSeek do it by themselves. Through a gateway (OpenRouter, Openference) the marks must be sent."""
+    m = model.lower()
+    return "claude" in m or m.startswith("anthropic/")
+
+
+def _mark_cache(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mark the system prompt and the newest user or tool message as cacheable (2 of Claude's 4 marks):
+    each step then reads everything up to the previous step's mark at the cache price."""
+    out = [dict(m) for m in messages]
+    targets = [i for i, m in enumerate(out) if m["role"] == "system"][:1]
+    last = next((i for i in range(len(out) - 1, -1, -1) if out[i]["role"] in ("user", "tool")), None)
+    if last is not None and last not in targets:
+        targets.append(last)
+    for i in targets:
+        c = out[i].get("content")
+        if isinstance(c, str) and c:
+            out[i]["content"] = [{"type": "text", "text": c, "cache_control": {"type": "ephemeral"}}]
+    return out
+
+
 def _expand(value: str) -> str:
     """Expand ${ENV_VAR} references in configured header/query values."""
     return os.path.expandvars(str(value))
@@ -158,6 +180,8 @@ class OpenAICompatProvider(Provider):
         if self.reports_cost:
             params["extra_body"] = {**params.get("extra_body", {}), "usage": {"include": True}}
 
+        if _needs_cache_marks(model):
+            params["messages"] = _mark_cache(params["messages"])
         resp = _wrap_errors(
             self._openai, self.name, model, self.api_key_env, lambda: self.client.chat.completions.create(**params)
         )

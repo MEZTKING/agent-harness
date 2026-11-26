@@ -186,3 +186,16 @@ def test_openrouter_balance_and_reported_cost():
         model_extra = {"cost": "0.01"}
 
     assert _reported_cost(U()) == 0.00026 and _reported_cost(V()) == 0.01 and _reported_cost(None) is None
+
+
+def test_claude_through_a_gateway_gets_cache_marks():
+    from roundtable.providers.openai_compat import _mark_cache, _needs_cache_marks
+
+    assert _needs_cache_marks("anthropic/claude-sonnet-5.5") and _needs_cache_marks("Claude Opus 5.5")
+    assert not _needs_cache_marks("deepseek-v4-flash") and not _needs_cache_marks("openai/gpt-6.1-terra")
+    msgs = [{"role": "system", "content": "rules"}, {"role": "user", "content": "task"},
+            {"role": "assistant", "content": "", "tool_calls": []}, {"role": "tool", "tool_call_id": "1", "content": "out"}]
+    marked = _mark_cache(msgs)
+    assert marked[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+    assert marked[3]["content"][0]["text"] == "out" and marked[1]["content"] == "task"
+    assert msgs[0]["content"] == "rules"  # the original is untouched

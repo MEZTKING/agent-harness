@@ -9,6 +9,12 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **The restyle went past the money you agreed.** Steps 2 and 3 were agreed at $1.50; step 2
+  alone used $1.78 (Claude Sonnet through OpenRouter, one attempt). The cause: Claude was
+  paying full price on every step, because Roundtable didn't mark what Claude may re-use
+  through OpenRouter. Fixed and checked (the same call now costs a twelfth). I stopped there
+  and spent nothing more; what step 2 made is shown in the chat.
+
 - **The restyle stopped again, as Fable said it should.** The first restyle task was rejected
   twice more ($0.78): once for a gap in its own new tests, then – after the checker said
   "the product work checks out", 390 tests passing – because a throwaway check script left
