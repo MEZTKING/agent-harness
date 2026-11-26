@@ -29,10 +29,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.meztking.roundtable.data.Ask
+import com.meztking.roundtable.data.Asks
 import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.Parchment
@@ -46,7 +48,8 @@ import com.meztking.roundtable.ui.theme.Serif
  * "Are you sure?" card first. [sent] replaces the buttons once answered (what Roundtable said).
  */
 @Composable
-fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifier, busy: Boolean = false, sent: String? = null) {
+fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifier, busy: Boolean = false, sent: String? = null,
+            hint: String = Asks.hint(ask), showProject: Boolean = true) {
     var picked by rememberSaveable(ask.id, ask.stamp) { mutableStateOf(ask.answer?.chosen.orEmpty()) }
     var other by rememberSaveable(ask.id, ask.stamp) { mutableStateOf(ask.answer?.other.orEmpty()) }
     var otherOpen by rememberSaveable(ask.id, ask.stamp) { mutableStateOf(ask.options.isEmpty() || other.isNotBlank()) }
@@ -56,7 +59,7 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
     Parchment(modifier.fillMaxWidth(), seal = if (ask.kind == "money" || ask.kind == "failed") Hall.ember else Hall.amber) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Chip(ask.header.uppercase(), Hall.gold)
-            if (ask.project.isNotBlank()) {
+            if (showProject && ask.project.isNotBlank()) {
                 Spacer(Modifier.width(8.dp))
                 Text(ask.project, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
             }
@@ -75,6 +78,7 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
         }
         Text(ask.question, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 26.sp, color = Hall.ink)
         if (ask.detail.isNotBlank()) Text(ask.detail, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
+        if (sent == null && hint.isNotBlank()) Text(hint, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(8.dp))
         if (sent != null) {
             Text(sent, color = Hall.ink, style = MaterialTheme.typography.bodyMedium)

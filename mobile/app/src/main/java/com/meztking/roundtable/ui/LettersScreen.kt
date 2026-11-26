@@ -1,5 +1,9 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.data.Letters
+import com.meztking.roundtable.data.PlanDoc
+import com.meztking.roundtable.data.ReceiptGroup
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,16 +73,25 @@ fun LettersScreen(
     letters: Load<List<Message>>, identity: String, projects: List<String>,
     onRefresh: () -> Unit, onOpened: (Message) -> Unit,
     onSend: (String, String, String, Done) -> Unit, onReply: (Message, String, Done) -> Unit,
+    onMarkAllRead: (List<Message>) -> Unit = {},
 ) {
     var mineOnly by rememberSaveable { mutableStateOf(true) }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var writing by rememberSaveable { mutableStateOf(false) }
     val all = letters.data.orEmpty()
     val mine = all.filter { it.recipient == identity }
-    val shown = if (mineOnly) mine else all
+    // Roundtable's receipts for the owner's own commands: one line per project, opened on a tap
+    val receipts = Letters.receipts(if (mineOnly) mine else all, if (mineOnly) identity else null)
+    val receiptIds = receipts.flatMap { g -> g.messages.map { it.recipient + "/" + it.id } }.toSet()
+    val shown = (if (mineOnly) mine else all).filter { it.recipient + "/" + it.id !in receiptIds }
+    var openGroups by rememberSaveable { mutableStateOf(setOf<String>()) }
+    val unreadMine = mine.filter { !it.read }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Text("Letters", style = MaterialTheme.typography.headlineSmall, color = Hall.goldBright, modifier = Modifier.padding(start = 16.dp, top = 12.dp))
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Letters", style = MaterialTheme.typography.headlineSmall, color = Hall.goldBright, modifier = Modifier.weight(1f))
+                if (unreadMine.isNotEmpty()) TextButton({ onMarkAllRead(unreadMine) }) { Text("Mark all read", maxLines = 1) }
+            }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(mineOnly, { mineOnly = true }, label = { Text("For me (${mine.count { !it.read }} new)") })
                 FilterChip(!mineOnly, { mineOnly = false }, label = { Text("All inboxes") })
@@ -89,6 +104,15 @@ fun LettersScreen(
                     if (letters.data != null && shown.isEmpty()) item {
                         Text(if (mineOnly) "No letters for you ($identity). Letters your projects send you arrive here." else "No letters in any inbox.",
                             color = Hall.muted, modifier = Modifier.padding(vertical = 24.dp))
+                    }
+                    receipts.forEach { g ->
+                        val on = g.project in openGroups
+                        item(key = "r:${g.project}") {
+                            ReceiptRow(g, on) { openGroups = if (on) openGroups - g.project else openGroups + g.project }
+                        }
+                        if (on) items(g.messages, key = { "r:" + it.recipient + "/" + it.id }) { m ->
+                            LetterRow(m, showTo = !mineOnly) { open = m.recipient + "/" + m.id; onOpened(m) }
+                        }
                     }
                     items(shown, key = { it.recipient + "/" + it.id }) { m ->
                         LetterRow(m, showTo = !mineOnly) { open = m.recipient + "/" + m.id; onOpened(m) }
@@ -107,8 +131,22 @@ fun LettersScreen(
     if (writing) ComposeSheet(projects, identity, null, onDismiss = { writing = false }) { to, s, b, done -> onSend(to, s, b) { ok -> done(ok); if (ok) writing = false } }
 }
 
+/** One line for a project's receipts ("music-player: 12 of your changes done – latest: …"); a tap shows them. */
 @Composable
-fun LetterRow(m: Message, showTo: Boolean, onClick: () -> Unit) {
+fun ReceiptRow(g: ReceiptGroup, open: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Hall.panel)
+        .border(1.dp, Hall.line, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(g.line, style = MaterialTheme.typography.bodyMedium, color = Hall.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text((if (open) "Tap to fold them away" else "Roundtable's receipts: tap to see each one") + " · " + ago(g.at),
+                style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+        }
+    }
+}
+
+@Composable
+fun LetterRow(m: Message, showTo: Boolean, plan: PlanDoc? = null, onClick: () -> Unit) {
+    val p = Letters.plain(m, plan)
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (m.read) Hall.panel else Hall.panelHi)
         .border(1.dp, if (m.read) Hall.line else Hall.lineGold, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(12.dp)) {
         Box(Modifier.padding(top = 6.dp).size(8.dp).background(if (m.read) Hall.line else Hall.amber, CircleShape))
@@ -119,9 +157,9 @@ fun LetterRow(m: Message, showTo: Boolean, onClick: () -> Unit) {
                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(ago(m.created_at), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             }
-            Text(m.subject.ifBlank { "(no subject)" }, fontFamily = Serif, fontWeight = if (m.read) FontWeight.Normal else FontWeight.SemiBold,
-                fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(com.meztking.roundtable.data.Markdown.plain(m.body).replace("\n", " "), style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(p.title, fontFamily = Serif, fontWeight = if (m.read) FontWeight.Normal else FontWeight.SemiBold,
+                fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (p.trouble) Hall.bad else Color.Unspecified)
+            Text(p.text, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -129,17 +167,26 @@ fun LetterRow(m: Message, showTo: Boolean, onClick: () -> Unit) {
 /** One letter, read in full, with a reply box under it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MessageSheet(m: Message, identity: String, onDismiss: () -> Unit, onReply: (String, Done) -> Unit) {
+fun MessageSheet(m: Message, identity: String, plan: PlanDoc? = null, onDismiss: () -> Unit, onReply: (String, Done) -> Unit) {
+    val p = Letters.plain(m, plan)
+    var details by rememberSaveable(m.id) { mutableStateOf(false) }
     var reply by rememberSaveable(m.id) { mutableStateOf("") }
     var sending by rememberSaveable(m.id) { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Hall.panel, contentColor = Hall.text) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding().imePadding().verticalScroll(rememberScrollState())) {
-            Text("${m.sender} → ${m.recipient} · ${m.kind}", style = MaterialTheme.typography.bodySmall, color = Hall.gold)
-            Text(m.subject.ifBlank { "(no subject)" }, style = MaterialTheme.typography.titleLarge, color = Hall.goldBright)
+            Text("${m.sender} → ${m.recipient}", style = MaterialTheme.typography.bodySmall, color = Hall.gold)
+            Text(p.title, style = MaterialTheme.typography.titleLarge, color = Hall.goldBright)
             Text(m.created_at.replace('T', ' ').removeSuffix("Z") + " UTC · " + ago(m.created_at), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             Spacer(Modifier.height(12.dp))
-            SelectionContainer {
+            if (p.command || p.reply) {
+                // a command to Roundtable, or its answer: the sentence; the raw text only when asked for
+                Text(p.text, style = MaterialTheme.typography.bodyLarge)
+                TextButton({ details = !details }) { Text(if (details) "Hide details" else "Show details") }
+                if (details) SelectionContainer {
+                    Text(m.body, style = MaterialTheme.typography.bodySmall, color = Hall.muted, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
+            } else SelectionContainer {
                 MdBlocks(com.meztking.roundtable.data.Markdown.parse(m.body))
             }
             Spacer(Modifier.height(16.dp))

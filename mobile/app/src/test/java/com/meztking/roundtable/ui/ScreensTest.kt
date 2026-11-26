@@ -55,7 +55,7 @@ class ScreensTest {
     private val letter = Message("20261125T110000000000Z-bbbbbb", "quill-notes", "me", "ask", "Export presets: which three first?",
         "I can ship **three** presets first. Which ones?\n\n- Paper\n- Slate\n- Vellum", ago(1))
     private val needs = listOf(
-        NeedView("msg:1", "message", "quill-notes", "Letter from quill-notes", letter.subject, listOf("read", "reply"), message = letter, at = ago(1)),
+        com.meztking.roundtable.data.letterNeed(letter),
         NeedView("todo:a", "todo", "quill-notes", "To do: Check the Windows build", "quill-notes · high priority · from the journal"),
         NeedView("run:x", "run", "lantern-app", "Plan waits for your seal", "plan ready: 7 tasks, about \$0.85", listOf("approve")),
         NeedView("run:y", "run", "stone-bridge", "A task failed", "T3 failed after 3 attempts", listOf("retry", "skip")),
@@ -171,7 +171,7 @@ class ScreensTest {
     }
 
     @Test fun seatCard() = shot("1b-seat-card") {
-        androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) { SeatSummary(seats[0]) {} }
+        androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) { SeatSummary(seats[0], "2 questions, 1 to-do") {} }
     }
 
     @Test fun tableWithManySeats() = shot("2-table-list") {
@@ -264,8 +264,62 @@ class ScreensTest {
         AutopilotSheet(pilot, Mode.PC, Modifier.padding(16.dp)) { _, _, _ -> }
     }
 
+    // the owner's commands and Roundtable's receipts, in plain words (a made-up project)
+    private fun command(id: String, action: String, body: String, h: Long) =
+        Message(id, "me", "quill-notes", "request", "roundtable: $action", body, ago(h))
+    private fun receipt(id: String, body: String, h: Long) = Message(id, "quill-notes", "me", "reply", "Re: roundtable: choose", body, ago(h))
+    private val commands = listOf(
+        command("c1", "choose", "{\"action\": \"choose\", \"decision\": \"C1\", \"option\": \"b\"}", 1),
+        command("c2", "revise", "{\"action\": \"revise\", \"text\": \"Apply the owner's answers\"}", 2),
+        command("c3", "note", "{\"action\":\"note\",\"text\":\"Look: clean and modern\"}", 3),
+    )
+
+    @Test fun projectLettersInPlainWords() = shot("7b-project-letters-plain") {
+        ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan)), Load(commands)), ProjectActions(), initialTab = 2)
+    }
+
+    @Test fun projectPlanFromAnOlderHub() = shot("6c-project-plan-from-plan") {
+        val agreed = PlanDoc.parse(PLAN_AGREED)
+        ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(agreed)), Load(),
+            asks = Load(com.meztking.roundtable.data.Asks.fromPlan(agreed, "quill-notes"))), ProjectActions(), initialTab = 1)
+    }
+
+    @Test fun lettersWithReceipts() = shot("8b-letters-receipts") {
+        val rs = (1..12).map { receipt("r$it", "Done. 1 change waits for you to press Update plan.", 20L + it) } +
+            receipt("r13", "Plan v3: 3 tasks added. The new plan is ready to look at.", 19) +
+            receipt("bad", "Couldn't do 'run': there's no plan yet", 18)
+        LettersScreen(Load(listOf(letter) + rs), "me", seats.map { it.id }, {}, {}, { _, _, _, _ -> }, { _, _, _ -> })
+    }
+
+    @Test fun needsYouOrganised() = shot("4c-needs-you-organised") {
+        val agreed = PlanDoc.parse(PLAN_AGREED)
+        val asks = com.meztking.roundtable.data.Asks.fromPlan(agreed, "quill-notes").map { com.meztking.roundtable.data.askNeed("quill-notes", listOf(it), 1).copy(at = ago(1)) }
+        NeedsList(asks + needs + com.meztking.roundtable.data.letterNeed(receipt("bad", "Couldn't do 'run': there's no plan yet", 1)),
+            Mode.HUB, emptySet(), { _, _ -> }, {}, Modifier.padding(16.dp), onClose = {})
+    }
+
     @Test fun letters() = shot("8-letters") {
         LettersScreen(Load(listOf(letter, letter.copy(id = "2", sender = "lantern-app", subject = "Glow is done", read = true, created_at = ago(30)))),
             "me", seats.map { it.id }, {}, {}, { _, _, _, _ -> }, { _, _, _ -> })
     }
 }
+
+private val PLAN_AGREED = """
+    _Plan status: approved, building · updated 2026-11-25T10:00:00Z by Roundtable Hold_
+
+    # Plan v2: A lantern timer, as a web app.
+
+    ## Decisions
+    ### What happens when time is up? [C1]
+    - Ring once (recommended): A single chime. [Low] {a}
+    - Ring until stopped: Keeps going until you press Stop. [Medium] {b}
+
+    ## Questions for the owner
+    - Who will use it most? {Q1}
+      Answers: Just me (recommended) {a}; My family {b}
+    - Which colour for the lantern? {Q2}
+      Answer: Amber
+
+    ## Ideas
+    - [open] Add a dark mode (night use) {I1}
+""".trimIndent()

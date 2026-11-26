@@ -252,16 +252,18 @@ def test_commands_through_the_hub(tmp_path):
     assert process(orch.cfg, hub, log=lambda s: None) == 2
     assert orch.project.plan_doc()["decisions"][0]["chosen"] == "b"
     assert not orch.project.meta()["plan_approved"]
-    replies = hub.inbox("me", unread_only=True)
+    replies = hub.inbox("me", unread_only=False)
     assert len(replies) == 2 and any("1 change waits for you to press Update plan" in r["body"] for r in replies)
     assert any("isn't valid JSON" in r["body"] for r in replies)
+    # the receipt arrives read; only the refusal waits for the owner
+    assert [r["body"] for r in hub.inbox("me", unread_only=True)] == ["Couldn't do that: the command isn't valid JSON."]
     left = {m["subject"] for m in hub.inbox("proj", unread_only=True)}
     assert left == {"roundtable: command", "hello"}  # the stranger's command and the note
     send("me", json.dumps({"action": "revise"}))
     send("me", json.dumps({"action": "approve"}))
     assert process(orch.cfg, hub, log=lambda s: None) == 2
     assert orch.project.meta()["status"] == "done"
-    assert any("The run ended as: done" in r["body"] for r in hub.inbox("me", unread_only=True))
+    assert any("The run ended as: done" in r["body"] for r in hub.inbox("me", unread_only=False))
     assert process(orch.cfg, hub, log=lambda s: None) == 0  # each command runs once
 
 
@@ -371,3 +373,12 @@ def test_questions_for_the_owner_are_asked_in_plain_words():
         assert "isn't a programmer" in schema[part]["items"]["properties"][field]["description"]
     prompt = (Path(roundtable.__file__).parent / "prompts" / "orchestrator.md").read_text(encoding="utf-8")
     assert "isn't a programmer" in prompt and "no tool names or jargon" in prompt
+
+
+def test_receipts_and_trouble():
+    from roundtable.remote import is_trouble
+
+    assert not is_trouble("Done. 1 change waits for you to press Update plan.")
+    assert not is_trouble("Plan v3: 3 tasks added. The new plan is ready to look at.")
+    for t in ("Couldn't do 'run': no plan", "Unknown action 'x'.", "The run ended as: failed.", "Are you sure? It costs more"):
+        assert is_trouble(t)

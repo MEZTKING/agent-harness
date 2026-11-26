@@ -21,7 +21,8 @@ data class PlanDoc(
 ) {
     data class Option(val id: String?, val label: String, val detail: String, val cost: String, val recommended: Boolean, val chosen: Boolean)
     data class Decision(val id: String?, val question: String, val options: List<Option>, val why: String)
-    data class Question(val id: String?, val text: String, val answer: String)
+    /** [options] are the ready answers to tap ("Answers: …" under the question). */
+    data class Question(val id: String?, val text: String, val answer: String, val options: List<Option> = emptyList(), val multi: Boolean = false)
     data class Idea(val id: String?, val state: String, val text: String, val why: String)
     data class Dont(val id: String?, val text: String)
 
@@ -75,7 +76,13 @@ data class PlanDoc(
                         // later lines: "Answers: …" (the ready answers to tap) and "Answer: …" (the owner's)
                         val answer = item.text.lines().drop(1).map { it.trim() }
                             .firstOrNull { it.startsWith("Answer:") }?.removePrefix("Answer:")?.trim().orEmpty()
-                        questions += Question(item.id ?: text.second, text.first.trim(), answer)
+                        val ready = item.text.lines().drop(1).map { it.trim() }.firstOrNull { it.startsWith("Answers") && ":" in it }
+                        val options = ready?.substringAfter(":")?.split(";")?.map { it.trim() }?.filter { it.isNotEmpty() }?.map { raw ->
+                            val (t, id) = Markdown.splitId(raw)
+                            val rec = t.trim().endsWith("(recommended)")
+                            Option(id, t.trim().removeSuffix("(recommended)").trim(), "", "", rec, false)
+                        }.orEmpty()
+                        questions += Question(item.id ?: text.second, text.first.trim(), answer, options, ready?.contains("(any of)") == true)
                     }
                     "ideas" -> body.filterIsInstance<Md.Item>().forEach { item ->
                         val m = ideaRe.find(item.text)

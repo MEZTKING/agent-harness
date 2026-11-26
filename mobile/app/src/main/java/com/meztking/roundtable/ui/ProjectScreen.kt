@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.Ask
 import com.meztking.roundtable.data.AskReply
+import com.meztking.roundtable.data.Asks
 import com.meztking.roundtable.data.PlanDoc
 import com.meztking.roundtable.data.PlanView
 import com.meztking.roundtable.data.SeatView
@@ -115,10 +116,12 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
         Spacer(Modifier.height(6.dp))
         val unread = ui.inbox.data?.count { !it.read } ?: 0
         PrimaryTabRow(selectedTabIndex = tab, containerColor = Hall.bg) {
-            Tab(tab == 0, { tab = 0 }, text = { Text("Status") })
-            Tab(tab == 1, { tab = 1 }, text = { Text(if (ui.plan.data?.doc?.waitingForOwner == true) "Plan •" else "Plan") })
-            Tab(tab == 2, { tab = 2 }, text = { Text(if (unread > 0) "Messages ($unread)" else "Messages") })
-            Tab(tab == 3, { tab = 3 }, text = { Text("Live") })
+            // one line each, even on a narrow phone ("Letters", as in the bottom bar)
+            val one = @Composable { t: String -> Text(t, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip) }
+            Tab(tab == 0, { tab = 0 }, text = { one("Status") })
+            Tab(tab == 1, { tab = 1 }, text = { one(if (ui.plan.data?.doc?.waitingForOwner == true || !ui.asks.data.isNullOrEmpty()) "Plan •" else "Plan") })
+            Tab(tab == 2, { tab = 2 }, text = { one(if (unread > 0) "Letters •" else "Letters") })
+            Tab(tab == 3, { tab = 3 }, text = { one("Live") })
         }
         Box(Modifier.weight(1f)) {
             when (tab) {
@@ -163,13 +166,16 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (plan.error != null) item { ErrorLine(plan.error, a.refresh) }
             val cards = ui.asks.data.orEmpty()
+            val agreed = plan.data?.doc?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
             if (cards.isNotEmpty()) {
                 item { SectionTitle("Your answers") }
                 item {
                     Text("Tap an answer: the recommended one is first. Or choose Other… to type your own.",
                         style = MaterialTheme.typography.bodySmall, color = Hall.muted)
                 }
-                items(cards, key = { "ask:" + it.id }) { c -> AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"]) }
+                items(cards, key = { "ask:" + it.id }) { c ->
+                    AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false)
+                }
             }
             val p = plan.data
             when {
@@ -194,8 +200,11 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
 
 private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, ui: ProjectUi, a: ProjectActions, carded: Set<String> = emptySet()) {
     val hub = ui.mode == Mode.HUB
-    // what is already a card above is shown here only to read
-    val canAnswer = hub && d.waitingForOwner && carded.isEmpty()
+    // what is a card above (to tap) isn't repeated here; the rest is shown to read (what was chosen or answered)
+    val canAnswer = false
+    val decisions = d.decisions.filter { "choose:${it.id}" !in carded }
+    val questions = d.questions.filter { "answer:${it.id}" !in carded }
+    val ideas = d.ideas.filter { "idea:${it.id}" !in carded }
     item {
         Column {
             if (d.state.isNotBlank()) {
@@ -212,15 +221,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, u
             MdBlocks(d.intro)
         }
     }
-    if (d.decisions.isNotEmpty()) item { SectionTitle("Choices") }
-    items(d.decisions, key = { "C" + (it.id ?: it.question) }) { dec -> DecisionCard(dec, canAnswer, ui.sent, a) }
-    if (d.questions.isNotEmpty()) item { SectionTitle("Questions for you") }
-    items(d.questions, key = { "Q" + (it.id ?: it.text) }) { q -> QuestionCard(q, canAnswer, ui.sent, a) }
-    if (d.ideas.isNotEmpty()) item { SectionTitle("Ideas") }
-    items(d.ideas, key = { "I" + (it.id ?: it.text) }) { i -> IdeaCard(i, canAnswer, ui.sent, a) }
-    if (hub && d.waitingForOwner) item { PlannerBox(ui.sent, a) }
+    if (decisions.isNotEmpty()) item { SectionTitle("Choices") }
+    items(decisions, key = { "C" + (it.id ?: it.question) }) { dec -> DecisionCard(dec, canAnswer, ui.sent, a) }
+    if (questions.isNotEmpty()) item { SectionTitle("Questions for you") }
+    items(questions, key = { "Q" + (it.id ?: it.text) }) { q -> QuestionCard(q, canAnswer, ui.sent, a) }
+    if (ideas.isNotEmpty()) item { SectionTitle("Ideas") }
+    items(ideas, key = { "I" + (it.id ?: it.text) }) { i -> IdeaCard(i, canAnswer, ui.sent, a) }
+    if (hub && (d.waitingForOwner || carded.isNotEmpty())) item { PlannerBox(ui.sent, a, canApprove = d.waitingForOwner) }
     else if (hub && !d.waitingForOwner && d.state.isNotBlank()) item {
-        Text("This plan isn't waiting for you, so it can't be changed from here.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+        Text("This plan is agreed and nothing in it waits for you.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     } else if (!hub) item {
         Text("Plan choices can be answered from the phone in Hub mode (Settings).", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     }
@@ -310,7 +319,7 @@ private fun IdeaCard(i: PlanDoc.Idea, canAnswer: Boolean, sent: Map<String, Stri
 }
 
 @Composable
-private fun PlannerBox(sent: Map<String, String>, a: ProjectActions) {
+private fun PlannerBox(sent: Map<String, String>, a: ProjectActions, canApprove: Boolean = true) {
     var note by rememberSaveable { mutableStateOf("") }
     Panel(Modifier.fillMaxWidth(), highlight = true) {
         Text("TELL THE PLANNER", style = Label)
@@ -326,7 +335,7 @@ private fun PlannerBox(sent: Map<String, String>, a: ProjectActions) {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton({ a.command("revise", "revise", emptyMap()) }, enabled = "revise" !in sent, modifier = Modifier.weight(1f)) { Text("Update plan") }
-            Button({ a.command("approve", "approve", emptyMap()) }, enabled = "approve" !in sent, modifier = Modifier.weight(1f)) { Text("Approve & start") }
+            if (canApprove) Button({ a.command("approve", "approve", emptyMap()) }, enabled = "approve" !in sent, modifier = Modifier.weight(1f)) { Text("Approve & start") }
         }
         (sent["approve"] ?: sent["revise"])?.let { Text(it, color = Hall.good, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
     }
@@ -361,22 +370,23 @@ private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var writing by rememberSaveable { mutableStateOf(false) }
     val inbox = ui.inbox
+    val unread = inbox.data?.count { !it.read } ?: 0
     PullToRefreshBox(inbox.loading && inbox.data != null, a.refresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${ui.id}'s inbox", style = MaterialTheme.typography.bodySmall, color = Hall.muted, modifier = Modifier.weight(1f))
+                    Text("${ui.id}'s inbox" + if (unread > 0) " · $unread new" else "", style = MaterialTheme.typography.bodySmall, color = Hall.muted, modifier = Modifier.weight(1f))
                     TextButton(onClick = { writing = true }) { Text("Write to ${ui.id}") }
                 }
             }
             if (inbox.error != null) item { ErrorLine(inbox.error, a.refresh) }
             if (inbox.data == null && inbox.loading) item { Loading("Fetching the inbox…") }
             if (inbox.data?.isEmpty() == true) item { Text("No messages.", color = Hall.muted, modifier = Modifier.padding(vertical = 24.dp)) }
-            items(inbox.data.orEmpty(), key = { it.id }) { m -> LetterRow(m, showTo = false) { open = m.id; a.opened(m) } }
+            items(inbox.data.orEmpty(), key = { it.id }) { m -> LetterRow(m, showTo = false, plan = ui.plan.data?.doc) { open = m.id; a.opened(m) } }
         }
     }
     inbox.data?.firstOrNull { it.id == open }?.let { m ->
-        MessageSheet(m, ui.identity, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok -> done(ok); if (ok) open = null } })
+        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok -> done(ok); if (ok) open = null } })
     }
     if (writing) ComposeSheet(listOf(ui.id), ui.identity, ui.id, onDismiss = { writing = false }) { _, s, b, done ->
         a.send(s, b) { ok -> done(ok); if (ok) writing = false }

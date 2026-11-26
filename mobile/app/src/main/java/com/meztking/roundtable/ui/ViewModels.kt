@@ -206,6 +206,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** "Mark all read" on Letters and on Needs you: the owner's own letters, in one go. */
+    fun markAllRead(messages: List<Message>) {
+        val b = backend ?: return
+        val mine = messages.filter { !it.read && it.recipient == b.identity }
+        if (mine.isEmpty()) return
+        val ids = mine.map { it.id }.toSet()
+        viewModelScope.launch {
+            try {
+                b.markRead(mine)
+                _letters.update { l -> l.copy(data = l.data?.map { if (it.id in ids) it.copy(read = true) else it }) }
+                _hall.value.data?.let { h -> _hall.value = _hall.value.copy(data = h.copy(needs = h.needs.filter { it.message?.id !in ids })) }
+                _notice.value = if (mine.size == 1) "1 letter marked read" else "${mine.size} letters marked read"
+                refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _notice.value = friendly(e)
+            }
+        }
+    }
+
     /** Opening one of the owner's own letters marks it read (quietly; it is only a convenience). */
     fun opened(m: Message) {
         val b = backend ?: return

@@ -217,11 +217,13 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     },
                     showNeeds = showNeeds, onShowNeeds = { showNeeds = it },
                     onAnswer = main::answer,
+                    onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) },
                     onAutopilot = main::autopilot,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),
                     onRefresh = main::loadLetters, onOpened = main::opened, onSend = main::send, onReply = main::reply,
+                    onMarkAllRead = main::markAllRead,
                 )
                 else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onChanged = {
                     settingsTick++

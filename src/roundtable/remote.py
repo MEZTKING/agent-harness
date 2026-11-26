@@ -22,6 +22,7 @@ project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``
 from __future__ import annotations
 
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Callable
@@ -100,6 +101,15 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     return f"Unknown action {action!r}."
 
 
+TROUBLE = re.compile(r"\b(couldn'?t|could not|can'?t|cannot|refused|failed|blocked|unknown action|isn't|not allowed|"
+                     r"error|are you sure)\b", re.I)
+
+
+def is_trouble(text: str) -> bool:
+    """A reply that reports a refusal or a failure: the owner must see it. Anything else is a receipt."""
+    return bool(TROUBLE.search(text or ""))
+
+
 def _waiting(pending: int) -> str:
     """What the owner reads after a plan change: how many wait, and the one button that applies them."""
     return (f"{pending} change{'s' if pending != 1 else ''} wait{'s' if pending == 1 else ''} for you to press "
@@ -165,7 +175,9 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
                     with _busy_lock:
                         _busy.discard(key)
                 try:
-                    hub.reply(agent, msg["id"], text)
+                    sent = hub.reply(agent, msg["id"], text)
+                    if not is_trouble(text):  # a receipt: it doesn't need the owner, so it arrives already read
+                        hub.mark_read(msg["sender"], [sent["id"]])
                 except Exception as e:
                     log(f"remote: couldn't reply: {e}")
 
