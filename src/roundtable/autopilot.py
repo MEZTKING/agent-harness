@@ -368,7 +368,7 @@ def decide(orch, ask: dict[str, Any], state: dict[str, Any], now: datetime | Non
 def _decide_approve(orch, ask, state, now) -> tuple[list[str] | None, str]:
     ids = [o["id"] for o in ask["options"]]
     if "revise" in ids:
-        if _project_note(orch).get("revises", 0) >= MAX_REVISES:
+        if _revises(orch, state) >= MAX_REVISES:
             return None, f"the plan was already updated {MAX_REVISES} times on autopilot"
         return ["revise"], "the answers it chose have to go into the plan before it can be approved"
     est = (orch.project.plan_doc() or {}).get("estimate") or {}
@@ -400,9 +400,10 @@ def _decide_failed(orch, ask) -> tuple[list[str] | None, str]:
     return ["retry"], "a failed task is tried once more with the same models"
 
 
-def _project_note(orch) -> dict[str, Any]:
-    """Autopilot's own notes on a project for this time it's on (plan updates asked for)."""
-    return orch.project.meta().get("autopilot") or {}
+def _revises(orch, state: dict[str, Any]) -> int:
+    """Plan updates autopilot asked for on this project since it was switched on."""
+    note = orch.project.meta().get("autopilot") or {}
+    return note.get("revises", 0) if note.get("session") == state.get("started_at") else 0
 
 
 def _before_answer(orch, ask: dict[str, Any], chosen: list[str], state: dict[str, Any]) -> None:
@@ -511,7 +512,9 @@ def _project(cfg, root: Path, state, home: Path, start: Starter, now) -> list[di
 
 
 def _decided(orch, root: Path, home: Path, ask, chosen, why, result) -> dict[str, Any]:
-    text = f"Autopilot chose “{_labels(ask, chosen)}” for “{ask['question']}” because {why}: the recommendation."
+    text = f"Autopilot chose “{_labels(ask, chosen)}” for “{ask['question']}” because {why}."
+    if chosen == [ask.get("recommended")] and "recommended" not in why:
+        text += " It's the recommended answer."
     orch._journal("decision", text)
     orch.emit("autopilot", {"ask": ask["id"], "chosen": chosen})
     return _record(home, {"kind": "chose", "project": root.name, "path": str(root), "ask": ask["id"],

@@ -211,6 +211,19 @@ def test_never_an_are_you_sure_or_a_publish(tmp_path, home):
     assert autopilot.decide(orch, {**card(), "kind": "something new"}, state)[0] is None
 
 
+def test_the_plan_is_updated_a_few_times_at_most(tmp_path, home):
+    orch = planned(tmp_path)
+    autopilot.turn_on(home=home)
+    for _ in range(autopilot.MAX_REVISES):
+        orch.plan_update("note", text="one more change")
+        assert ("approve", ["revise"]) in chosen(tick(orch, home))
+    orch.plan_update("note", text="one more change")
+    out = tick(orch, home)
+    assert left(out) == ["approve"] and "already updated 3 times" in out[0]["text"]
+    autopilot.turn_on(home=home, now=datetime.now(timezone.utc) + timedelta(seconds=5))  # on again: it may
+    assert ("approve", ["revise"]) in chosen(tick(orch, home))
+
+
 def test_an_idea_without_a_recommendation_stays_open(tmp_path, home):
     orch = planned(tmp_path)
     doc = orch.project.plan_doc()

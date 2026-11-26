@@ -96,6 +96,41 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   border: 1px solid var(--color-oak-line); background: var(--color-surface); color: var(--color-muted); font-size: 15px; }
 .today b { font: 700 22px/1.1 var(--font-display); color: var(--color-text); }
 a.today:hover { text-decoration: none; border-color: var(--color-accent); }
+/* autopilot: outlined when off, lit amber when on; its card drops down from the header */
+.hdr-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.autopilot { position: relative; }
+.ap-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; border-radius: 999px; font-size: 15px; font-weight: 600;
+  color: var(--color-muted); background: transparent; border: 1px solid var(--color-oak-line); }
+.ap-toggle b { color: var(--color-text); font-weight: 700; }
+.ap-dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--color-muted); }
+.ap-toggle.on { color: var(--color-accent-text); background: var(--color-candle-glow); border-color: var(--color-candle-glow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-candle-glow) 25%, transparent), 0 0 18px color-mix(in srgb, var(--color-candle-glow) 45%, transparent); }
+.ap-toggle.on b { color: var(--color-accent-text); }
+.ap-toggle.on .ap-dot { border-color: var(--color-accent-text); background: var(--color-accent-text); }
+.ap-toggle.on:hover { border-color: var(--color-text); }
+.ap-card { position: absolute; right: 0; top: calc(100% + 10px); z-index: 20; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 110px); overflow-y: auto;
+  padding: 20px 22px; border-radius: var(--radius); background: var(--color-surface); border: 1px solid var(--color-oak-line); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 12px; animation: rt-fade 200ms ease; }
+.ap-card .card-head { margin-bottom: 0; }
+.ap-card p { margin: 0; }
+.ap-card h3 { margin: 6px 0 0; }
+.ap-now b { color: var(--color-candle-glow); }
+.ap-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.ap-seg button { border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+.ap-seg button.on { color: var(--color-accent-text); background: var(--color-accent); border-color: var(--color-accent); }
+.ap-card input[type=time] { width: 9em; }
+.ap-cap { width: 7em; }
+.ap-log { list-style: none; margin: 0; padding: 0; }
+.ap-log li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--color-oak-line); font-size: 13.5px; }
+.ap-log li:first-child { border-top: none; }
+.ap-log time { color: var(--color-muted); grid-row: span 2; font-size: 12.5px; }
+.ap-log a { font-weight: 700; }
+.ap-log span { overflow-wrap: anywhere; }
+.ap-log li.ap-left span { color: var(--color-muted); }
+.ap-log li.ap-on span, .ap-log li.ap-off span { font-weight: 700; }
+.seat .ap-mark { position: absolute; top: -9px; right: 12px; box-shadow: 0 0 0 2px var(--color-surface); }
+.ap-mark { flex-shrink: 0; padding: 0 7px; border-radius: 999px; font: 700 10.5px/17px var(--font-body); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--color-warn); background: var(--color-warn-soft); }
 .content { flex: 1; min-width: 0; }
 main { padding: 26px 28px 64px; max-width: 1320px; margin: 0 auto; min-width: 0; animation: rt-fade 200ms ease; }
 .banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 16px auto 0; padding: 12px 16px; max-width: 1264px;
@@ -468,13 +503,17 @@ ul.tree ul li::after { content: ""; position: absolute; left: -11px; top: 25px; 
   .brand { flex: 1; min-width: 0; margin: 0; }
   .brand-mark { width: 32px; height: 32px; }
   .brand-name { font-size: 18px; white-space: normal; }
-  .today { order: 1; margin-left: 0; padding: 4px 14px; }
+  .hdr-end { order: 1; margin-left: 0; gap: 6px; }
+  .today { margin-left: 0; padding: 4px 14px; }
   .today b { font-size: 19px; }
   .rooms { order: 2; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 12px 10px; scrollbar-width: none; }
   .rooms::-webkit-scrollbar { display: none; }
   .rooms { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 28px), transparent); }
   .rooms a { padding: 6px 12px; font-size: 14px; }
   .nav-sep { display: none; }
+  .ap-toggle { padding: 6px 12px; font-size: 13.5px; }
+  .ap-toggle .ap-label { display: none; }   /* on a phone the lit button says it's on; the card says until when */
+  .ap-card { position: fixed; left: 16px; right: 16px; top: 110px; width: auto; }
   main { padding: 18px 16px 48px; }
   .content > .banner { margin: 12px 16px 0; }
   h1 { font-size: 26px; }
@@ -516,3 +555,4 @@ ul.tree ul li::after { content: ""; position: absolute; left: -11px; top: 25px; 
   .plan-page .grid2, .plan-page .looks { grid-template-columns: 1fr; }
 }
 .rt-strip.ring > .empty { position: absolute; left: 0; right: 0; bottom: 8px; }
+@media (max-width: 430px) { .brand-name { display: none; } }   /* the emblem alone leads home, so the spend and autopilot fit */
