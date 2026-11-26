@@ -4,9 +4,9 @@ Newest first. Each item says what to do and where.
 
 ## Now
 
-- **The music player build** (the yardstick): task 1 is done; task 2 is being run on its
-  own to measure the real cost per task against the DeepSeek balance. Then: carry on,
-  or change the plan, once the true total is known.
+- **The music player build** (the yardstick): tasks 1 and 2 are done. A task really
+  costs about 3 cents of DeepSeek credit; the other 12 should come to well under $1.
+  Say whether to carry on.
 - **Try Roundtable Mobile on your phone** (`RoundtableMobile-test.apk`, sent 25
   November): say what's unclear or missing. It works in Hub mode with a fine-grained
   GitHub token (only `agent-hub-data`, Contents read and write).
