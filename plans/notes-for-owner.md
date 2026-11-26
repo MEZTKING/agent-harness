@@ -9,6 +9,15 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-26
 
+- **Asked Fable: a Roundtable that reshapes itself for each kind of software?** Fable: the goal
+  is right, but not by Roundtable rewriting its own code. Use **kinds**: a recipe card per sort
+  of software (roles, models, prompts, tools, **proof that it works**, build targets, the Look
+  step, a template, plugins, default questions). The planner proposes a kind, you tap to
+  confirm; a project can mix kinds ("a game with a website") and add extras (APK, EXE).
+  First five: web app, browser game, website, the APK/EXE extras, Minecraft/Java mod. All of it,
+  with the full list of kinds of software, is in **plans/kinds.md**; the self-repairing
+  harness is written down in **plans/self-repair.md** for later.
+
 - **Roundtable's new look: A, Candlelit Oak** (your choice from three looks Roundtable
   designed for itself, $0.15). The design file is ready; the restyle of the desktop app and
   the phone starts once the tap-to-answer cards are finished, because both change the same

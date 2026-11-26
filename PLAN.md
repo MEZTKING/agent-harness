@@ -29,6 +29,11 @@ What was done when, and why: [DEVLOG.md](DEVLOG.md). Where things stand right no
   do my entire workflow in one place." Each step and where it stands:
   [plans/workflow.md](plans/workflow.md). Repositories and delivery come right after
   Proof, so merges without the owner watching are safe.
+- **Kinds** (26 November 2026, the owner's idea, Fable's method): Roundtable reshapes itself for
+  each sort of software through "kinds" – recipe cards of roles, prompts, tools, proof, build
+  targets, the Look step, templates, plugins and default questions – not by rewriting its own
+  code. The list of every kind and the first five: [plans/kinds.md](plans/kinds.md). Later: a
+  harness that repairs itself ([plans/self-repair.md](plans/self-repair.md)).
 - **Ideas from Munder Difflin and DeepSeek Harness Mobile** (26 November 2026, the
   owner's pick): evidence on every change, a circuit breaker per agent, CLIs driven
   through their own hooks, Needs you cards with one-tap answers, answers bound to the
