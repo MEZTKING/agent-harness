@@ -178,6 +178,9 @@ function setActive(name) {
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === name ||
     (name === "project" && a.dataset.nav === "projects") || ((name === "run" || name === "new") && a.dataset.nav === "runs") ||
     (name === "job" && a.dataset.nav === "jobs")));
+  // on a phone the rooms scroll sideways: keep the current one in view
+  const rooms = document.querySelector(".rooms"), on = rooms && rooms.querySelector("a.active");
+  if (rooms && on && rooms.scrollWidth > rooms.clientWidth) rooms.scrollLeft = Math.max(0, on.offsetLeft - rooms.offsetLeft - 24);
 }
 async function render(auto = false) {
   clearTimeout(timer);

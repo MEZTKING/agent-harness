@@ -112,6 +112,12 @@ class ScreensTest {
         - [T1] pending Scaffold the page (coder)
     """.trimIndent())
 
+    /** Animations off, as a phone set to reduce motion: the candle glow is drawn steady, so each drawing settles at once. */
+    @org.junit.Before fun steadyCandles() {
+        android.provider.Settings.Global.putFloat(org.robolectric.RuntimeEnvironment.getApplication().contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+    }
+
     private fun shot(name: String, content: @Composable () -> Unit) {
         captureRoboImage("${System.getProperty("screenshots.dir") ?: "build/screenshots"}/$name.png") {
             RoundtableTheme { Box(Modifier.fillMaxSize().hallBackground()) { content() } }
@@ -172,6 +178,24 @@ class ScreensTest {
     @Test fun projectPlanCards() = shot("6b-project-plan-cards") {
         ProjectScreen(ProjectUi("lantern-app", seats[0], Mode.PC, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
             asks = Load(cards)), ProjectActions(), initialTab = 1)
+    }
+
+    // the dark look (the phone's dark theme): the same screens by candlelight
+    @Config(qualifiers = "+night")
+    @Test fun tableDark() = shot("1-table-dark") {
+        TableScreen(Load(hall), Mode.HUB, "Hub on GitHub · example/hub", emptySet(), {}, {}, { _, _ -> }, {}, false, {})
+    }
+
+    @Config(qualifiers = "+night")
+    @Test fun needsYouCardsDark() = shot("4b-needs-you-cards-dark") {
+        NeedsList(cards.map { com.meztking.roundtable.data.askNeed("lantern-app", listOf(it), 3) }, Mode.PC, emptySet(), { _, _ -> }, {},
+            Modifier.padding(16.dp), onClose = {})
+    }
+
+    @Config(qualifiers = "+night")
+    @Test fun projectPlanDark() = shot("6-project-plan-dark") {
+        ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
+            sent = mapOf("answer:Q1" to "Sent. Roundtable will reply in Letters.")), ProjectActions(), initialTab = 1)
     }
 
     @Test fun letters() = shot("8-letters") {

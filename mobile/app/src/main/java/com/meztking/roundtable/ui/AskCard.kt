@@ -55,7 +55,7 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
 
     Parchment(modifier.fillMaxWidth(), seal = if (ask.kind == "money" || ask.kind == "failed") Hall.ember else Hall.amber) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Chip(ask.header.uppercase(), Hall.ink)
+            Chip(ask.header.uppercase(), Hall.gold)
             if (ask.project.isNotBlank()) {
                 Spacer(Modifier.width(8.dp))
                 Text(ask.project, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
@@ -73,7 +73,7 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
             OptionButton("No, go back", "Nothing is changed.", enabled = !busy) { confirming = null }
             return@Parchment
         }
-        Text(ask.question, fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Hall.ink)
+        Text(ask.question, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 26.sp, color = Hall.ink)
         if (ask.detail.isNotBlank()) Text(ask.detail, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
         Spacer(Modifier.height(8.dp))
         if (sent != null) {
@@ -112,22 +112,29 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
 @Composable
 private fun OptionButton(label: String, description: String, recommended: Boolean = false, selected: Boolean = false,
                          enabled: Boolean = true, tick: Boolean? = null, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(6.dp)
+    // the recommended answer is always first and filled in amber; the others are plain oak buttons
+    val shape = RoundedCornerShape(14.dp)
+    val fg = if (recommended) Hall.onAccent else Hall.ink
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 3.dp)
-            .background(if (selected) Hall.gold.copy(alpha = 0.35f) else Hall.ink.copy(alpha = 0.05f), shape)
-            .border(if (recommended || selected) 2.dp else 1.dp, if (selected) Hall.ink else if (recommended) Hall.inkSoft else Hall.inkSoft.copy(alpha = 0.4f), shape)
+        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .background(if (recommended) Hall.gold else Hall.parchment, shape)
+            .border(if (selected) 2.dp else 1.dp, if (selected) Hall.ink else if (recommended) Hall.gold else Hall.line, shape)
             .clickable(enabled = enabled, role = if (tick != null) Role.Checkbox else Role.Button, onClick = onClick)
-            .heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+            .heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (tick != null) {
-            Checkbox(tick, null, colors = CheckboxDefaults.colors(checkedColor = Hall.ink, uncheckedColor = Hall.inkSoft, checkmarkColor = Hall.parchment))
+            Checkbox(tick, null, colors = CheckboxDefaults.colors(checkedColor = fg, uncheckedColor = fg, checkmarkColor = if (recommended) Hall.gold else Hall.parchment))
             Spacer(Modifier.width(6.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(label + if (recommended) " (Recommended)" else "", fontWeight = FontWeight.SemiBold, color = Hall.ink)
-            if (description.isNotBlank()) Text(description, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
+            Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = fg)
+            if (description.isNotBlank()) Text(description, style = MaterialTheme.typography.bodySmall, color = if (recommended) fg else Hall.inkSoft)
+        }
+        if (recommended) {
+            Spacer(Modifier.width(8.dp))
+            Text("RECOMMENDED", Modifier.border(1.dp, fg, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 1.dp),
+                color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
         }
     }
 }

@@ -168,12 +168,13 @@ fun Chip(text: String, color: Color, mono: Boolean = false, filled: Boolean = fa
         text,
         modifier
             .padding(vertical = 1.dp)
-            .background(if (filled) color else color.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+            .background(if (filled) color else color.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(50))
             .padding(horizontal = 6.dp, vertical = 1.dp),
-        color = if (filled) Hall.ink else color,
+        color = if (filled) Hall.on(color) else color,
         fontSize = 11.sp,
-        fontFamily = if (mono) FontFamily.Monospace else Serif,
+        fontFamily = if (mono) FontFamily.Monospace else com.meztking.roundtable.ui.theme.NunitoSans,
+        fontWeight = FontWeight.Bold,
         maxLines = 1,
     )
 }

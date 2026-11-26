@@ -243,8 +243,9 @@ private fun DecisionCard(d: PlanDoc.Decision, canAnswer: Boolean, sent: Map<Stri
         Spacer(Modifier.height(8.dp))
         d.options.forEach { o ->
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                .background(if (o.chosen) Hall.gold.copy(alpha = 0.35f) else Hall.ink.copy(alpha = 0.04f), RoundedCornerShape(5.dp))
-                .border(1.dp, if (o.chosen) Hall.ink else Hall.inkSoft.copy(alpha = 0.4f), RoundedCornerShape(5.dp)).padding(10.dp)) {
+                .background(if (o.chosen) Hall.accentSoft else Hall.parchment, RoundedCornerShape(14.dp))
+                .border(if (o.chosen || o.recommended) 2.dp else 1.dp, if (o.chosen) Hall.ink else if (o.recommended) Hall.gold else Hall.line,
+                    RoundedCornerShape(14.dp)).padding(12.dp)) {
                 FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(styled(o.label, codeBg = Hall.parchmentLo, codeFg = Hall.ink), fontWeight = FontWeight.SemiBold, color = Hall.ink)
                     if (o.recommended) Chip("recommended", Hall.ink)
