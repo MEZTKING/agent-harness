@@ -374,6 +374,7 @@ async function viewRoundtable() {
       s.status === "running" && p.done < total ? h("i", { class: "run", style: `width:${100 / total}%` }) : null,
       failed ? h("i", { class: "fail", style: `width:${100 / total}%` }) : null] : null),
     h("div", { class: "now" }, now),
+    s.shot ? h("img", { class: "seat-shot", src: s.shot.url, alt: "", loading: "lazy", title: `The app after ${s.shot.task}` }) : null,
     total || s.spent_usd ? h("div", { class: "st" }, h("span", {}, total ? `${Math.round((100 * p.done) / total)}% done` : ""), s.spent_usd ? h("b", {}, money(s.spent_usd)) : null) : null);
   }
   // the empty chair at the table: start a new project
@@ -848,6 +849,11 @@ async function viewRun(path) {
   const [d, jobs] = await Promise.all([api("GET", `/api/project?path=${encodeURIComponent(path)}`), api("GET", "/api/jobs")]);
   const job = jobs.find((j) => j.target === d.path && j.status === "running");
   const lastJob = jobs.find((j) => j.target === d.path);
+  const tab = new URLSearchParams(location.hash.split("?")[1] || "").get("tab") || "overview";
+  if (tab === "live" || tab === "session") {  // these follow the work themselves, without redrawing the page
+    return h("div", {}, h("h1", {}, d.name), h("p", { class: "sub" }, d.path), runTabs(d.path, tab, job),
+      tab === "live" ? liveTab(d, () => !!job) : sessionTab(d, !!job));
+  }
   if (job) autoRefresh(2500);
   const st = d.meta.status;
   const post = (body, msg) => act(() => api("POST", "/api/project", { path: d.path, ...body }), msg);
@@ -860,7 +866,7 @@ async function viewRun(path) {
     log = section(job ? "Live run log" : `Last run (${full.status})`, h("pre", { class: "log" }, full.log.slice(-150).join("\n") || "…"));
   }
   return h("div", {},
-    h("h1", {}, d.name), h("p", { class: "sub" }, d.path),
+    h("h1", {}, d.name), h("p", { class: "sub" }, d.path), runTabs(d.path, tab, job),
     h("div", { class: "card" },
       h("div", { class: "row" }, statusPill(job ? "running" : st), h("span", {}, `Spent ${money(d.meta.spent_usd)}`),
         d.meta.unpriced_calls ? h("span", { class: "muted small" }, `+${d.meta.unpriced_calls} unpriced calls`) : null, h("span", { class: "spacer" }),
@@ -890,6 +896,146 @@ async function viewRun(path) {
       d.metrics.map((m) => h("tr", {}, h("td", {}, m.key), h("td", { class: "num" }, m.attempts), h("td", { class: "num" }, m.approved), h("td", { class: "num" }, money(m.cost)))))) : null,
     h("div", { class: "card" }, h("details", {}, h("summary", {}, `Event log (${d.events.length})`), h("pre", { class: "log" }, d.events.map((e) => `${e.at.slice(11, 19)}  ${e.text}`).join("\n")))),
     h("div", { class: "card" }, h("details", {}, h("summary", {}, `Files (${d.files.length})`), h("pre", {}, d.files.join("\n")))));
+}
+
+// ---------- Live and Session: watching a project being made, like a Claude Code session ----------
+const RUN_TABS = [["overview", "Overview", "The tasks, what they cost and the files"],
+  ["live", "Live", "The app itself, and pictures of it after every finished task"],
+  ["session", "Session", "Every step the models took: what they said, read, changed and ran"]];
+function runTabs(path, tab, job) {
+  return h("div", { class: "tabs run-tabs", role: "tablist" }, RUN_TABS.map(([k, label, tip]) =>
+    h("a", { class: "btn" + (k === tab ? " on" : ""), role: "tab", "aria-selected": k === tab ? "true" : "false", title: tip,
+      href: `#/run/${encodeURIComponent(path)}${k === "overview" ? "" : "?tab=" + k}` },
+    label, k === "session" && job ? h("i", { class: "cdl", title: "Working now" }) : null)));
+}
+const rawUrl = (kind, path, name, task) => `/raw/${kind}?` + new URLSearchParams({ path, name, ...(task ? { task } : {}) });
+const shotUrl = (path, rec, kind) => rawUrl("shot", path, (rec.pictures || {})[kind] || `${kind}.png`, rec.dir || rec.task);
+function follow(node, fn, ms) {  // run fn as soon as node is on screen, then every ms while it stays there
+  let seen = false, waits = 0;
+  const tick = async () => {
+    if (!node.isConnected) { if (seen || ++waits > 50) return; setTimeout(tick, 50); return; }
+    seen = true;
+    try { await fn(); } catch (e) { /* the next tick tries again */ }
+    setTimeout(tick, typeof ms === "function" ? ms() : ms);
+  };
+  setTimeout(tick, 0);
+  return node;
+}
+function enlarge(src, label) {  // a picture full size; click or Escape closes it
+  const close = () => { box.remove(); document.removeEventListener("keydown", esc); };
+  const esc = (ev) => { if (ev.key === "Escape") close(); };
+  const box = h("div", { class: "lightbox", role: "dialog", "aria-label": label, onclick: close },
+    h("img", { src, alt: label }), h("p", {}, label, h("span", { class: "muted" }, " · click anywhere to close")));
+  document.addEventListener("keydown", esc);
+  document.body.append(box);
+}
+function picture(src, label, cls = "") {
+  return h("button", { class: "pic " + cls, title: `${label}: click to see it full size`, onclick: () => enlarge(src, label) },
+    h("img", { src, alt: label, loading: "lazy" }));
+}
+const SHOT_NAMES = { desktop: "Computer", phone: "Phone", dark: "Dark mode" };
+
+function liveTab(d, running) {
+  const box = h("div", { class: "live-tab" }, h("p", { class: "muted" }, "Loading…"));
+  let sig = "";
+  return follow(box, async () => {
+    const L = await api("GET", `/api/project/live?path=${encodeURIComponent(d.path)}`);
+    const s = JSON.stringify([L.latest && L.latest.at, L.history.length, L.preview, L.entry]);
+    if (s !== sig) { sig = s; box.replaceChildren(liveApp(L), livePictures(d.path, L)); }
+  }, () => (running() ? 4000 : 15000));
+}
+function liveApp(L) {
+  if (!L.preview) {
+    const why = L.entry ? "The app opens here in the Roundtable Hold desktop app."
+      : "Nothing to open yet: the app's first page (index.html) hasn't been made.";
+    return section("The app", h("p", { class: "muted" }, why), L.start_command ? h("p", { class: "small muted" },
+      `It starts with “${L.start_command}”: Roundtable shows its page as it is for now.`) : null);
+  }
+  const frame = h("iframe", { class: "live-frame", src: L.preview, title: "The app, live", sandbox: "allow-scripts allow-same-origin allow-forms" });
+  const wrap = h("div", { class: "live-wrap" }, frame);
+  const size = (phone) => { wrap.classList.toggle("phone", phone); sizes.querySelectorAll("button").forEach((b) => b.classList.toggle("on", (b.dataset.k === "phone") === phone)); };
+  const sizes = h("div", { class: "ap-seg", role: "group", "aria-label": "Screen size" },
+    h("button", { class: "on", "data-k": "desktop", title: "As wide as this window", onclick: () => size(false) }, "Computer"),
+    h("button", { "data-k": "phone", title: "As wide as a phone (390 points)", onclick: () => size(true) }, "Phone"));
+  return h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", {}, "The app"),
+    h("div", { class: "row" }, sizes,
+      h("button", { class: "icon", title: "Load the app again (after a task changed it)", onclick: () => { frame.src = L.preview; } }, "Reload"),
+      h("a", { class: "btn icon", href: L.preview, target: "_blank", rel: "noopener", title: "Open the app in your web browser" }, "Open in browser"))),
+    h("p", { class: "small muted" }, "The real app, running from its folder. It can't reach the internet or Roundtable itself."),
+    L.start_command ? h("p", { class: "small muted" }, `It also has a start command (“${L.start_command}”); this is its page as it is.`) : null,
+    wrap);
+}
+function livePictures(path, L) {
+  const rec = L.latest;
+  if (!rec) return section("Pictures", h("p", { class: "muted" }, "Roundtable takes pictures of the app after every finished task. None yet."));
+  const kinds = Object.keys(rec.pictures || {});
+  const errs = rec.errors || [];
+  const earlier = (L.history || []).filter((r) => Object.keys(r.pictures || {}).length);
+  return h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", {}, "Pictures"),
+    h("span", { class: "muted small" }, `after [${rec.task}]`, rec.title ? ` · “${rec.title}”` : "", ` · ${ago(rec.at)}`)),
+  kinds.length ? h("div", { class: "shots" }, kinds.map((k) => h("figure", { class: "shot " + k },
+    picture(shotUrl(path, rec, k), `${SHOT_NAMES[k] || k} · after ${rec.task}`), h("figcaption", {}, SHOT_NAMES[k] || k))))
+    : h("p", { class: "muted" }, rec.failed || rec.note || "No pictures this time."),
+  kinds.length && rec.note ? h("p", { class: "small muted" }, rec.note) : null,
+  errs.length ? h("details", { class: "page-errors" }, h("summary", { title: "Errors the page wrote to its console while the pictures were taken" },
+    `The page reported ${errs.length} error${errs.length > 1 ? "s" : ""}`), h("pre", {}, errs.join("\n"))) : null,
+  earlier.length > 1 ? [h("h3", {}, "Earlier"), h("div", { class: "strip" }, earlier.map((r) => h("figure", {},
+    picture(shotUrl(path, r, "desktop"), `After ${r.task}${r.title ? " · " + r.title : ""}`), h("figcaption", {}, r.task, h("span", { class: "muted" }, " " + ago(r.at))))))] : null);
+}
+
+function diffView(text) {
+  return h("pre", { class: "diff" }, String(text || "").split("\n").map((ln) => h("span", { class:
+    ln.startsWith("+++") || ln.startsWith("---") ? "dh" : ln.startsWith("@@") ? "dk" : ln.startsWith("+") ? "da" : ln.startsWith("-") ? "dd" : "" }, ln + "\n")));
+}
+function outputList(path, outs) {
+  const pics = outs.filter((o) => o.kind === "image"), files = outs.filter((o) => o.kind !== "image");
+  return [pics.length ? h("div", { class: "strip outs" }, pics.slice(0, 24).map((o) => h("figure", {},
+    picture(rawUrl("file", path, o.path), o.path), h("figcaption", {}, o.path)))) : null,
+  files.length ? h("ul", { class: "files" }, files.map((o) => h("li", {}, h("a", { href: rawUrl("file", path, o.path), download: o.path.split("/").pop(), title: "Download this file" }, "⤓ ", o.path),
+    h("span", { class: "muted small" }, ` ${fileSize(o.size)}`)))) : null];
+}
+function stepNode(path, s, key, open) {
+  const cost = s.cost ? h("span", { class: "t-cost", title: "What this model turn cost" }, money(s.cost)) : null;
+  if (s.kind === "say") return h("div", { class: "t-say" + (s.who === "reviewer" ? " rev" : "") }, h("span", { class: "t-dot" }, "⏺"),
+    h("div", {}, s.who === "reviewer" ? h("b", {}, "Reviewer  ") : null, s.text), cost);
+  if (s.kind === "attempt") return h("div", { class: "t-meta" }, s.text);
+  if (s.kind === "review") return h("div", { class: "t-review " + (s.approved ? "ok" : "no") }, s.approved ? "✓ Approved" : "✗ Sent back", h("span", {}, "  " + (s.text || "")));
+  if (s.kind === "finish") return h("div", { class: "t-meta" }, "✓ Finished: ", s.text);
+  if (s.kind === "error") return h("div", { class: "t-review no" }, "! ", s.text);
+  if (s.kind === "shots") {
+    const rec = { dir: s.dir || s.task, task: s.task, pictures: {} };
+    return h("div", { class: "t-shots" }, h("div", { class: "t-meta" }, s.pictures.length ? `Pictures of the app${s.errors ? ` · the page reported ${s.errors} error(s)` : ""}` : `No pictures: ${s.note}`),
+      s.pictures.length ? h("div", { class: "strip" }, s.pictures.map((k) => picture(shotUrl(path, rec, k), `${SHOT_NAMES[k] || k} · after ${s.task}`))) : null);
+  }
+  const body = s.diff ? diffView(s.diff) : s.output ? h("pre", { class: "t-out" }, s.output) : null;
+  const line = [h("span", { class: "t-dot" + (s.error ? " bad" : "") }, "●"), h("b", {}, s.label), s.detail ? h("span", { class: "t-detail" + (s.error ? " bad" : "") }, " · " + s.detail) : null, cost];
+  if (!body) return h("div", { class: "t-tool" }, line);
+  const det = h("details", { class: "t-tool", open: open.has(key) }, h("summary", { title: "Show what it did" }, line), body);
+  det.addEventListener("toggle", () => (det.open ? open.add(key) : open.delete(key)));
+  return det;
+}
+function sessionTab(d, running) {
+  const term = h("div", { class: "term", role: "log", "aria-live": "polite" }, h("p", { class: "t-meta" }, "Loading…"));
+  const outs = h("div", {});
+  const open = new Set();
+  let cursor = 0, stick = true;  // stick: keep the newest step in view, like a terminal, until the owner scrolls up
+  term.addEventListener("scroll", () => { stick = term.scrollHeight - term.scrollTop - term.clientHeight < 40; });
+  term.addEventListener("load", () => { if (stick) term.scrollTop = term.scrollHeight; }, true);  // pictures arriving
+  const box = h("div", {}, outs, h("div", { class: "card term-card" }, h("div", { class: "card-head" }, h("h2", {}, "Session"),
+    h("span", { class: "muted small", title: "Updates by itself while a task runs" }, running ? "following live" : "")), term));
+  return follow(box, async () => {
+    const s = await api("GET", `/api/project/session?path=${encodeURIComponent(d.path)}&since=${cursor}`);
+    if (!s.changed) return;
+    cursor = s.cursor;
+    outs.replaceChildren(s.outputs.length ? section("Outputs", h("p", { class: "muted small" }, "Pictures and files the project made, newest first."), outputList(d.path, s.outputs)) : "");
+    term.replaceChildren(...(s.tasks.length ? s.tasks.map((t, i) => h("div", { class: "t-task" },
+      h("div", { class: "t-head" }, h("span", { class: "t-prompt" }, "▶"), h("b", {}, `[${t.id}] ${t.title}`), h("span", { class: "t-meta" }, ` ${t.role}`),
+        h("span", { class: "spacer" }), statusPill(t.status), h("span", { class: "t-cost", title: "What this task cost" }, money(t.cost))),
+      t.steps.map((st, j) => stepNode(d.path, st, `${i}:${j}`, open)),
+      t.outputs && t.outputs.length ? h("div", { class: "t-outs" }, outputList(d.path, t.outputs)) : null))
+      : [h("p", { class: "t-meta" }, "Nothing yet: the steps appear here as soon as the first task starts.")]));
+    if (stick) term.scrollTop = term.scrollHeight;
+  }, running ? 2500 : 20000);
 }
 
 function spark(runs) {
