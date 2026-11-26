@@ -8,6 +8,7 @@ trust the models you route to.
 
 from __future__ import annotations
 
+import difflib
 import fnmatch
 import os
 import re
@@ -19,6 +20,7 @@ from typing import Any, Callable
 from ..providers.base import ToolSpec
 
 MAX_OUTPUT = 12_000
+MAX_CHANGE_DIFF = 8_000  # the diff kept with a write or an edit, for the Session view
 SKIP_DIRS = {".git", ".harness", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".pytest_cache"}
 
 
@@ -44,6 +46,7 @@ class Tool:
 class Toolbox:
     tools: dict[str, Tool] = field(default_factory=dict)
     captured: dict[str, Any] = field(default_factory=dict)  # args of terminal tools
+    source: Any = None  # the Workspace its file tools write through (for take_change)
 
     def add(self, tool: Tool) -> None:
         self.tools[tool.spec.name] = tool
@@ -70,6 +73,25 @@ class Toolbox:
     def done(self) -> bool:
         return any(self.tools[n].terminal for n in self.captured if n in self.tools)
 
+    def take_change(self) -> dict[str, Any] | None:
+        """What the last write or edit changed ({diff, added, removed}), once; None otherwise."""
+        ws = self.source
+        change = getattr(ws, "last_change", None)
+        if ws is not None:
+            ws.last_change = None
+        return change
+
+
+def file_change(rel: str, old: str, new: str) -> dict[str, Any]:
+    """A unified diff of one file's change, trimmed, with the lines added and removed."""
+    lines = list(difflib.unified_diff(old.splitlines(), new.splitlines(), f"a/{rel}", f"b/{rel}", lineterm="", n=2))
+    added = sum(1 for ln in lines[2:] if ln.startswith("+"))
+    removed = sum(1 for ln in lines[2:] if ln.startswith("-"))
+    diff = "\n".join(lines)
+    if len(diff) > MAX_CHANGE_DIFF:
+        diff = diff[:MAX_CHANGE_DIFF] + "\n... (the rest of the change is in the file)"
+    return {"path": rel, "diff": diff, "added": added, "removed": removed, "new_file": not old}
+
 
 def _obj(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required, "additionalProperties": False}
@@ -82,6 +104,7 @@ class Workspace:
         self.allow_shell = allow_shell
         self.command_timeout = command_timeout
         self.changed: set[str] = set()
+        self.last_change: dict[str, Any] | None = None  # the last write or edit, for the Session view
 
     def path(self, rel: str, read_spill: bool = False) -> Path:
         p = (self.root / rel).resolve()
@@ -116,8 +139,10 @@ class Workspace:
     def write_file(self, a: dict) -> str:
         p = self.path(a["path"])
         p.parent.mkdir(parents=True, exist_ok=True)
+        old = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
         p.write_text(a["content"], encoding="utf-8")
         self.changed.add(str(p.relative_to(self.root)))
+        self.last_change = file_change(p.relative_to(self.root).as_posix(), old, a["content"])
         return f"wrote {a['path']} ({len(a['content'])} chars)"
 
     def edit_file(self, a: dict) -> str:
@@ -131,8 +156,10 @@ class Workspace:
             raise ToolError("old_text not found; read the file and copy the text exactly")
         if n > 1 and not a.get("replace_all"):
             raise ToolError(f"old_text occurs {n} times; include more context or set replace_all")
-        p.write_text(text.replace(old, new) if a.get("replace_all") else text.replace(old, new, 1), encoding="utf-8")
+        after = text.replace(old, new) if a.get("replace_all") else text.replace(old, new, 1)
+        p.write_text(after, encoding="utf-8")
         self.changed.add(str(p.relative_to(self.root)))
+        self.last_change = file_change(p.relative_to(self.root).as_posix(), text, after)
         return f"edited {a['path']} ({n if a.get('replace_all') else 1} replacement(s))"
 
     def list_files(self, a: dict) -> str:
@@ -231,7 +258,7 @@ class Workspace:
         }
         if not self.allow_shell:
             all_tools.pop("run_command")
-        box = Toolbox()
+        box = Toolbox(source=self)
         for name, tool in all_tools.items():
             if names is None or name in names:
                 box.add(tool)

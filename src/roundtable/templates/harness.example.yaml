@@ -106,6 +106,7 @@ critic_role: critic                 # remove to skip the plan critique
 design_role: designer               # who designs the looks (default: a chat role named designer, else the planner)
 scout_role: scout                   # who reads references (default: a chat role named scout, else the planner)
 look_stage: auto                    # auto: offer three looks when the plan is an app with screens; off: only when asked
+show_it: auto                       # auto: pictures of the app's own screens after every approved task; off: none
 # prompts_dir: ./prompts            # override built-in prompts (orchestrator.md, coder.md, ...)
 
 # USD per 1M tokens. Claude prices are built in; add the rest from each

@@ -132,6 +132,10 @@ def harness_event_line(kind: str, d: dict[str, Any]) -> str | None:
         return f"   {d['note']}"
     if kind == "look_applied":
         return f"Look applied: {d['name']}" + (f" (restyle task {d['task']} added)" if d.get("task") else "")
+    if kind == "shots":
+        n = len(d.get("pictures") or [])
+        return f"   pictures of the app: {n} taken" + (f", {d['errors']} page error(s)" if d.get("errors") else "") \
+            + (f" ({d['note']})" if d.get("note") else "")
     if kind == "provider_error":
         return f"   provider error ({d['model']}): {d['error'][:240]}"
     if kind == "status":
@@ -165,6 +169,9 @@ class UIApp:
         from ..phone import PhoneAccess
 
         self.phone = PhoneAccess(self, app_home())
+        from .live import LivePreview
+
+        self.preview = LivePreview(self._lab_projects)  # the apps themselves, on a port of their own
         self.cfg()  # validate early so the UI can show config errors
 
     def start_auto_sync(self, every_s: float = 60.0):
@@ -214,6 +221,13 @@ class UIApp:
         if not cfg.lab_dir:
             raise ApiError("no lab directory configured", 503)
         return Lab(cfg.lab_dir)
+
+    def _lab_projects(self) -> list[Path]:
+        cfg = self.cfg()
+        try:
+            return [p.resolve() for p in self.lab(cfg).projects()] if cfg else []
+        except ApiError:
+            return []
 
     def project(self, cfg, path: str):
         """Only registered harness projects can be addressed (no arbitrary paths)."""
@@ -378,6 +392,33 @@ class UIApp:
                 "summary": summary.read_text(encoding="utf-8") if summary.is_file() else "",
                 "metrics": [{"key": k, **v} for k, v in sorted(agg.items())],
                 "files": self._files(proj.root)}
+
+    def project_live(self, q):
+        """The Live tab: the app's address on the preview server, its newest pictures and earlier ones."""
+        from .live import live
+
+        proj = self.project(self.need_cfg(), q.get("path", [""])[0])
+        return live(proj.root, self.preview, inline=(q.get("inline") or ["0"])[0] == "1")
+
+    def project_session(self, q):
+        """The Session tab: each task's steps; ``since`` (the last cursor) answers 'nothing new' cheaply."""
+        from .live import session_view
+
+        cfg = self.need_cfg()
+        proj = self.project(cfg, q.get("path", [""])[0])
+        if (q.get("compact") or ["0"])[0] == "1":  # the phone: the latest task's steps as short lines
+            from ..harness.session import hub_session
+
+            return hub_session(proj.root, proj.root.name, cfg.reviewer_role)
+        since = int((q.get("since") or ["0"])[0] or 0)
+        return session_view(proj.root, cfg.reviewer_role, since)
+
+    def raw(self, kind: str, q) -> tuple[bytes, str, dict[str, str]]:
+        """A project's picture or made file, for the page (/raw/shot, /raw/file)."""
+        from .live import raw
+
+        proj = self.project(self.need_cfg(), q.get("path", [""])[0])
+        return raw(proj.root, kind, (q.get("name") or [""])[0], (q.get("task") or [""])[0])
 
     @staticmethod
     def _files(root: Path, limit: int = 200) -> list[str]:
@@ -1146,6 +1187,8 @@ class UIApp:
             ("GET", "/api/roles"): R.roles,
             ("GET", "/api/projects"): R.projects,
             ("GET", "/api/project"): R.project_detail,
+            ("GET", "/api/project/live"): R.project_live,
+            ("GET", "/api/project/session"): R.project_session,
             ("POST", "/api/projects"): R.project_new,
             ("POST", "/api/project"): R.project_action,
             ("GET", "/api/probes"): R.probes,
@@ -1232,9 +1275,12 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
-            self.send_header("Content-Security-Policy",
-                             "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'")
-            for k, v in (extra or {}).items():
+            extra = dict(extra or {})
+            frames = f"; frame-src {app.preview.origin}" if app.preview.origin else ""
+            self.send_header("Content-Security-Policy", extra.pop("Content-Security-Policy", None) or
+                             "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                             "script-src 'self'" + frames)
+            for k, v in extra.items():
                 self.send_header(k, v)
             self.end_headers()
             self.wfile.write(body)
@@ -1266,6 +1312,8 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                 return
             if url.path.startswith("/api/"):
                 return self._api("GET", url.path, q, {})
+            if url.path in ("/raw/shot", "/raw/file"):
+                return self._raw(url.path[5:], q)
             name = "index.html" if url.path in ("/", "/index.html") else url.path.lstrip("/")
             if "/" in name or name.startswith("."):
                 return self._send(404, b"not found", "text/plain")
@@ -1290,6 +1338,13 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                 return self._json(400, {"error": "invalid JSON"})
             self._api("POST", url.path, {}, body if isinstance(body, dict) else {})
 
+        def _raw(self, kind, q):
+            try:
+                body, ctype, headers = app.raw(kind, q)
+            except (ApiError, FileNotFoundError, ValueError) as e:
+                return self._send(404, str(e).encode(), "text/plain; charset=utf-8")
+            self._send(200, body, ctype, headers)
+
         def _api(self, method, path, q, body):
             try:
                 self._json(200, app.dispatch(method, path, q, body))
@@ -1310,6 +1365,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     token = secrets.token_urlsafe(16) if remote else None
     app.start_auto_sync()
     app.phone.start()
+    app.preview.start()
     httpd = ThreadingHTTPServer((host, port), make_handler(app, token, allow_remote=remote))
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:
