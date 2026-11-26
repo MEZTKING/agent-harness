@@ -102,7 +102,7 @@ function jobsList() {
       h("a", { class: "btn", href: "#/projects" }, "Go to your projects")));
   }, () => 3000);
 }
-export const friendlyError = (e) => String(e || "").replace(/^[A-Z]\w*(Error|Exception): /, "");
+export const friendlyError = (e) => String(e || "").replace(/^[A-Z]\w*(Error|Exception): /, "").replace(/\s*\(https?:[^)]*\)/g, "").replace(/https?:\/\/\S+/g, "the web");
 
 async function viewJob(id) {
   const log = h("pre", { class: "log", role: "log", "aria-live": "polite" });
