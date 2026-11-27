@@ -20,7 +20,8 @@ Munder Difflin's ``src/shared/worktreeFate.ts``: dirty is kept, and "can't tell"
 worktree kept says why in the events (``worktree_kept``).
 
 Stopping: the money limits (per run, per day, the real balance), losing the project's claim (sync.py) and
-a stop asked for by anything else (``stop_all``, e.g. the breaker) stop every task at its next step; the
+a stop asked for from outside (``stop_all``, e.g. the app's Stop) stop every task at its next step (the
+breaker stops only the task it caught, as one attempt, and the others carry on); the
 tasks go back to waiting and their worktrees stay for the next run. Projects without git, or with
 ``max_parallel: 1``, run one task at a time exactly as before.
 
@@ -51,7 +52,7 @@ MAX_WIDTH = 8  # never more tasks at once than this, whatever the setting says
 
 class RunHalted(BudgetExceeded):
     """Raised inside a task's conversation when the run has been told to stop (another task hit a limit,
-    the claim was lost, the breaker): the task goes back to waiting, its worktree stays."""
+    the claim was lost, ``stop_all``): the task goes back to waiting, its worktree stays."""
 
 
 def safe_name(task_id: str) -> str:
@@ -207,7 +208,7 @@ class ParallelStage:
         return section(self.cfg, "parallel")
 
     def stop_all(self, pause: str, text: str = "") -> None:
-        """Stop every running task at its next step (the breaker, the app's Stop): they wait, worktrees kept."""
+        """Stop every running task at its next step (e.g. the app's Stop): they wait, worktrees kept."""
         if self._halt is None:
             self._halt = {"pause": pause, "text": text, "halt": True}
 

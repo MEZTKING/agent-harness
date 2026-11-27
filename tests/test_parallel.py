@@ -285,3 +285,29 @@ def test_a_worktree_baseline_is_the_repositorys_only_from_the_same_commit(tmp_pa
     assert same["baseline"] is repo
     moved = checkslib.prepare_worktree(tmp_path, values, "def", repo)
     assert moved["baseline"]["failing"] == ["tests/test_x.py::test_old"] and moved["baseline"]["worktree"]
+
+
+def test_the_breaker_stops_one_task_and_the_others_carry_on(tmp_path, monkeypatch):
+    from roundtable.harness import orchestrator as orchmod
+    from roundtable.harness.agent import AgentResult
+    from roundtable.providers.base import Usage
+
+    real = orchmod.run_agent
+    tripped = []
+
+    def run_agent(cfg, ref, system, prompt, box, budget, **kw):
+        if "# Your task [T2]" in prompt and not tripped:
+            tripped.append(1)
+            return AgentResult(text="", steps=3, usage=Usage(), cost_usd=0.0, model=str(ref), stop="breaker",
+                               breaker_reason="it kept reading the same file")
+        return real(cfg, ref, system, prompt, box, budget, **kw)
+
+    monkeypatch.setattr(orchmod, "run_agent", run_agent)
+    brain = ParallelBrain(THREE)
+    orch, *_ = make(tmp_path, raw=raw(3), brain=brain)
+    orch.start("three files")
+    assert orch.run() == "done"
+    tasks = {t.id: t for t in orch.project.tasks()}
+    assert [a["outcome"] for a in tasks["T2"].attempts] == ["breaker", "approved"]
+    assert len(tasks["T1"].attempts) == 1 and len(tasks["T3"].attempts) == 1  # not stopped with it
+    assert "stopped by the safety check: it kept reading the same file." in brain.prompts["T2"]

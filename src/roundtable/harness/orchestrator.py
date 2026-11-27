@@ -1234,7 +1234,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
                 rejections_on_model = 0
                 continue
 
-            if res.stop in ("refusal", "max_steps") and not summary:
+            if res.stop in ("refusal", "max_steps", "breaker") and not summary:
                 task.attempts.append({"model": str(ref), "outcome": res.stop, "cost_usd": res.cost_usd})
                 self._metric(task, ref, res.stop, res)
                 if res.stop == "max_steps" and model_idx + 1 >= len(models) and not ran_out_once:
@@ -1243,7 +1243,11 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
                     feedback.append("Your previous attempt ran out of steps before finishing. Its changes are still "
                                     "in the files: check what's there, finish the rest, and call finish_task.")
                     continue
-                feedback.append(f"Previous attempt ended with {res.stop}. Work more efficiently and call finish_task.")
+                if res.stop == "breaker":  # the safety check stopped this task only; others carry on
+                    feedback.append(f"Previous attempt was stopped by the safety check: {res.breaker_reason}.")
+                else:
+                    feedback.append(f"Previous attempt ended with {res.stop}. Work more efficiently and call "
+                                    "finish_task.")
                 model_idx += 1
                 continue
 
