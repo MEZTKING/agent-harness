@@ -129,6 +129,7 @@ def run_agent(
     step = 0
 
     for step in range(1, max_steps + 1):
+        cost += plugins.compact(messages, str(ref), budget.charge, toolbox, step)  # long tasks: older steps summed up
         budget.check()
         sys_sent, msgs_sent = plugins.before_model_call(str(ref), system, messages)
         m0 = clock()

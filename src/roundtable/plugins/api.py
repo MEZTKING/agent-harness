@@ -12,6 +12,9 @@ before_model_call      just before each model call                        (syste
 after_model_call       after each model call                              nothing
 tools                  once per conversation                              list of ``Tool``
 on_event               for each run event (task_start, plan, ...)         nothing (read-only)
+compact                before each model call once the conversation has   the shorter list of
+                       had one (``info``: tokens, model, role, step, task, messages, or None
+                       changed, charge, cfg)                               to leave it as it is
 commands               when ``roundtable <plugin-id> ...`` runs           {name: fn(ctx, argv)}
 routes                 when the app calls ``/api/plugins/<id>/<path>``    {"GET path": fn}
 =====================  =================================================  ==================
@@ -37,7 +40,8 @@ from ..providers.base import ToolSpec  # noqa: F401  (re-exported for plugins)
 
 API_VERSION = 1
 
-HOOKS = ("on_tool_result", "before_model_call", "after_model_call", "tools", "on_event", "commands", "routes")
+HOOKS = ("on_tool_result", "before_model_call", "after_model_call", "tools", "on_event", "commands", "routes",
+         "compact")
 
 # What each permission means, in the words the owner reads before installing.
 PERMISSIONS = {
@@ -111,6 +115,16 @@ class Plugin:
         return []
 
     def on_event(self, ctx: PluginContext, kind: str, data: dict[str, Any]) -> None:
+        return None
+
+    def compact(self, ctx: PluginContext, messages: list[dict[str, Any]],
+                info: dict[str, Any]) -> list[dict[str, Any]] | None:
+        """A shorter conversation to carry on with, or None to keep it as it is.
+
+        Unlike ``before_model_call`` this changes the conversation itself, so do it rarely. The
+        first message (the task) must stay first, an assistant turn's tool calls must stay with
+        their results, and any model call made here is paid through ``info["charge"](cost)``.
+        """
         return None
 
     def commands(self) -> dict[str, Callable[[PluginContext, list[str]], Any]]:

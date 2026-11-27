@@ -267,6 +267,8 @@ class Conversation:
     emit: Emit
     shared: dict[str, Any]
     _ctx: dict[str, PluginContext] = field(default_factory=dict)
+    last_usage: Any = None  # the last model call's usage: how big the conversation was then
+    _sent: int = 0  # how many messages that call was sent
 
     def ctx(self, p: Loaded) -> PluginContext:
         if p.id not in self._ctx:
@@ -296,6 +298,7 @@ class Conversation:
 
     def before_model_call(self, model: str, system: str, messages: list[dict[str, Any]]):
         """The request as the plugins want it sent; the conversation itself isn't changed."""
+        self._sent = len(messages)
         for p in self.host.active("before_model_call"):
             ok, new = self._call(p, "before_model_call", self.role, model, system, list(messages),
                                  check=_is_request, want="(system text, list of messages)")
@@ -304,8 +307,90 @@ class Conversation:
         return system, messages
 
     def after_model_call(self, model: str, response: Any, usage: Any) -> None:
+        self.last_usage = usage
         for p in self.host.active("after_model_call"):
             self._call(p, "after_model_call", self.role, model, response, usage)
+
+
+    def compact(self, messages: list[dict[str, Any]], model: str, charge: Callable[[float | None], None],
+                toolbox: Any = None, step: int = 0) -> float:
+        """Let the ``compact`` plugins shorten ``messages`` (in place); returns what that cost.
+
+        Called by the agent loop before each model call, when every tool call has its result. A
+        model call a plugin makes is paid through ``charge`` (the task's budget). Each change is a
+        ``compacted`` event: tokens before and after (after is an estimate), messages, cost.
+        """
+        active = self.host.active("compact")
+        if not active or self.last_usage is None or not messages:
+            return 0.0
+        spent = [0.0]
+
+        def pay(cost: float | None) -> None:
+            charge(cost)
+            spent[0] += cost or 0.0
+
+        # the last call's size, plus what came in since (its reply is in its output tokens)
+        tokens = context_tokens(self.last_usage) + estimate_tokens(messages[self._sent + 1:])
+        source = getattr(toolbox, "source", None)
+        changed = sorted(str(c).replace("\\", "/") for c in (getattr(source, "changed", None) or ()))
+        for p in active:
+            paid = spent[0]
+            info = {"tokens": tokens, "model": model, "role": self.role, "step": step,
+                    "task": messages[0].get("content", ""), "changed": list(changed), "charge": pay,
+                    "cfg": self.host.cfg}
+            old = list(messages)
+            ok, new = self._call(p, "compact", list(messages), info,
+                                 check=lambda r: r is None or valid_compaction(old, r),
+                                 want="None or a shorter list of messages that starts with the task and keeps "
+                                      "each tool call with its result")
+            if not ok or new is None:
+                continue
+            after = max(0, tokens - estimate_tokens(old) + estimate_tokens(new))
+            messages[:] = new
+            self.emit("compacted", {"plugin": p.id, "role": self.role, "step": step, "tokens_before": tokens,
+                                    "tokens_after": after, "messages_before": len(old), "messages_after": len(new),
+                                    "cost": round(spent[0] - paid, 6)})
+            tokens = after
+        return spent[0]
+
+
+def context_tokens(usage: Any) -> int:
+    """How many tokens the conversation was at the last call: what was read plus what was written."""
+    return sum(int(getattr(usage, k, 0) or 0) for k in
+               ("input_tokens", "cache_read_tokens", "cache_write_tokens", "output_tokens"))
+
+
+def estimate_tokens(messages: list[dict[str, Any]]) -> int:
+    """A rough count (about four characters a token) of what messages hold."""
+    import json
+
+    chars = 0
+    for m in messages:
+        chars += len(str(m.get("content") or ""))
+        if m.get("tool_calls"):
+            chars += len(json.dumps(m["tool_calls"], default=str))
+    return chars // 4
+
+
+def valid_compaction(old: list[dict[str, Any]], new: Any) -> bool:
+    """A compacted conversation: shorter, the task still first, and no tool call parted from its result."""
+    if not isinstance(new, list) or not new or not all(isinstance(m, dict) for m in new):
+        return False
+    if new[0] != old[0] or len(new) >= len(old):
+        return False
+    pending: set[str] = set()
+    for m in new:
+        role = m.get("role")
+        if role == "tool":
+            if m.get("tool_call_id") not in pending:
+                return False  # a result whose call was taken away
+            pending.discard(m.get("tool_call_id"))
+            continue
+        if pending:
+            return False  # a call whose result was taken away
+        if role == "assistant":
+            pending = {str(c.get("id")) for c in (m.get("tool_calls") or []) if isinstance(c, dict)}
+    return not pending
 
 
 def _is_request(r: Any) -> bool:
