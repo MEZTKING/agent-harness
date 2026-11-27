@@ -120,3 +120,24 @@ def test_through_the_app(tmp_path, monkeypatch):
     assert r["per_usd"] == 0.75 and r["source"] == "typed"
     with pytest.raises(server.ApiError):
         app.dispatch("POST", "/api/rates", {}, {"show": "pounds only"})
+
+
+def test_the_desktop_rounds_the_same(tmp_path):
+    """pounds.js's poundsText gives the same words as pounds_text (run by node where it is installed)."""
+    import json
+    import shutil
+    import subprocess
+    from importlib import resources
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed here")
+    js = resources.files("roundtable").joinpath("ui/static/pounds.js").read_text(encoding="utf-8")
+    body = js[js.index("export function poundsText"):js.index('// "≈ £0.95", or')].replace("export ", "")
+    amounts = [0, 0.001, 0.004, 0.005, 0.0062, 0.12, 0.125, 1.005, 1.1875, 3.45, 12.345, 99.994, 99.996, 100.5, 1234.5]
+    rates = [0.79, 0.8, 1.0, 0.7812]
+    script = tmp_path / "check.js"
+    script.write_text(body + f"\nconsole.log(JSON.stringify({json.dumps(amounts)}.flatMap((u) => "
+                      f"{json.dumps(rates)}.map((p) => poundsText(u, p)))));\n", encoding="utf-8")
+    got = json.loads(subprocess.run([node, str(script)], capture_output=True, text=True, check=True).stdout)
+    assert got == [money.pounds_text(u, p) for u in amounts for p in rates]
