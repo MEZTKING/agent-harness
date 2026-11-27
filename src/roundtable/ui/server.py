@@ -45,7 +45,8 @@ def _lines(raw) -> list[str]:
 
 # Feature API modules under roundtable.ui: each has routes(app) -> {(method, path): fn}. A feature added
 # side by side with others appends its module name here (one line each), nothing else in this file.
-FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi")
+FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "filesapi", "whatsnewapi", "tidyapi",
+                                "searchapi", "attachapi")
 
 
 def _feature_routes(app) -> dict:
@@ -484,6 +485,10 @@ class UIApp:
                 raise ApiError(str(e), 404) from None
             ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
             return p.read_bytes(), ctype, {"Cache-Control": "no-cache"}
+        if kind == "pfile":  # any file of a project, for the Files tab (filesapi.py)
+            from .filesapi import raw_file
+
+            return raw_file(self, q)
         proj = self.project(self.need_cfg(), q.get("path", [""])[0])
         return raw(proj.root, kind, (q.get("name") or [""])[0], (q.get("task") or [""])[0])
 
@@ -1504,9 +1509,9 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("X-Frame-Options", "DENY")
             extra = dict(extra or {})
-            frames = f"; frame-src {app.preview.origin}" if app.preview.origin else ""
+            self.send_header("X-Frame-Options", extra.pop("X-Frame-Options", "DENY"))  # a project's PDF: SAMEORIGIN
+            frames = f"; frame-src 'self' {app.preview.origin}" if app.preview.origin else ""
             self.send_header("Content-Security-Policy", extra.pop("Content-Security-Policy", None) or
                              "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                              "script-src 'self'" + frames)
@@ -1542,7 +1547,7 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                 return
             if url.path.startswith("/api/"):
                 return self._api("GET", url.path, q, {})
-            if url.path in ("/raw/shot", "/raw/file", "/raw/hubshot"):
+            if url.path in ("/raw/shot", "/raw/file", "/raw/hubshot", "/raw/pfile"):
                 return self._raw(url.path[5:], q)
             name = "index.html" if url.path in ("/", "/index.html") else url.path.lstrip("/")
             if "/" in name or name.startswith("."):

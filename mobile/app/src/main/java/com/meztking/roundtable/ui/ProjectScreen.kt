@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
+import com.meztking.roundtable.data.ComposerSender
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -42,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -97,6 +100,13 @@ class ProjectActions(
     val answer: (Ask, AskReply) -> Unit = { _, _ -> },
     /** This project's own settings; null when no connected machine has it. */
     val settings: (() -> Unit)? = null,
+    /** The project's files (the Files screen). */
+    val files: (() -> Unit)? = null,
+    /** The message box for "Tell the planner" (photos, files, Speak, @): with the machine that has the project.
+     *  Null in Hub mode, where the note stays text only. */
+    val composer: ComposerSender? = null,
+    /** The project's folder on that machine, for the message box's @. */
+    val path: String? = null,
 )
 
 @Composable
@@ -116,6 +126,7 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
                     updated?.let { "updated ${ago(it)}" }).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            a.files?.let { open -> TipIcon("This project's files", open) { Icon(Icons.Filled.Folder, "This project's files", tint = Hall.gold) } }
             a.settings?.let { open -> TipIcon("This project's settings", open) { Icon(Icons.Filled.Settings, "This project's settings", tint = Hall.gold) } }
             IconButton(onClick = a.refresh) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
         }
@@ -330,7 +341,25 @@ private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: B
                 Icon(Icons.Filled.Edit, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Tell the planner")
             }
         }
-        if (writing) {
+        val box = a.composer
+        if (writing && box != null && a.path != null) {
+            var problem by remember { mutableStateOf<String?>(null) }
+            Composer(
+                key = "note:${a.path}",
+                onSend = { d, read ->
+                    // the words wait in the plan for Update plan; pictures and files go to the planner with them
+                    if (d.text.isBlank()) throw com.meztking.roundtable.data.ComposerProblem("Write what should change first.")
+                    a.command("note:${d.text.hashCode()}", "note", mapOf("text" to d.text.trim()))
+                    if (d.files.isNotEmpty()) box.send(d, a.path, "note", read) else "Noted."
+                },
+                onSent = { writing = false; problem = null; a.refresh() },
+                onProblem = { problem = it },
+                sender = box, project = a.path,
+                placeholder = "What should change?", sendLabel = "Add this note",
+            )
+            problem?.let { Text(it, color = Hall.bad, style = MaterialTheme.typography.bodySmall) }
+            Text("Your notes and answers wait until you press Update plan.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+        } else if (writing) {
             OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth().heightIn(min = 80.dp), placeholder = { Text("What should change?") })
             Spacer(Modifier.height(6.dp))
             OutlinedButton({ a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim())); note = ""; writing = false },

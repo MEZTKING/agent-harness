@@ -27,7 +27,7 @@ def harness(tmp_path):
 def test_catalog_presets_are_complete():
     assert len(PRESETS) >= 18
     for pid, p in PRESETS.items():
-        assert valid_provider_id(pid) and p["type"] in ("anthropic", "openai_compat", "openai_images", "retrodiffusion")
+        assert valid_provider_id(pid) and p["type"] in ("anthropic", "openai_compat", "openai_images", "retrodiffusion", "cli")
         if p["type"] == "openai_compat" and not p.get("custom"):
             assert p["base_url"].startswith(("https://", "http://localhost"))
     assert preset_block("groq") == {"type": "openai_compat", "base_url": "https://api.groq.com/openai/v1",

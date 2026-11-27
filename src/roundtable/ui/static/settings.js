@@ -3,6 +3,7 @@
 // elsewhere, no file to edit.
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, dialog, fileSize, plural, jobName, modelName, every, has } from "./core.js";
 import { notifySettings } from "./notify.js";
+import { tidyCard } from "./tidy.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let Roundtable use each AI maker"], ["services", "AI services", "Which AI services Roundtable can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
@@ -91,7 +92,7 @@ async function servicesPart(st) {
   const hdr = h("input", { placeholder: "Key header, e.g. api-key", "aria-label": "Key header" });
   const qry = h("input", { class: "grow", placeholder: "Extra settings, e.g. api-version=2025-01-01", "aria-label": "Extra settings" });
   const docs = h("a", { class: "btn small", target: "_blank", rel: "noopener", title: "Opens the service's page where you make a key" }, "Get a key");
-  const sync = () => { const p = data.presets[preset.value]; url.value = p.base_url || ""; url.hidden = !p.custom; docs.href = p.docs || "#"; docs.hidden = !p.docs; key.disabled = !data.desktop || (!p.api_key_env && !p.custom); };
+  const sync = () => { const p = data.presets[preset.value]; url.value = p.base_url || ""; url.hidden = !p.custom; docs.href = p.docs || "#"; docs.hidden = !p.docs; key.disabled = !data.desktop || (!p.api_key_env && !p.custom); key.hidden = !p.api_key_env && !p.custom; docs.textContent = key.hidden ? "How it works" : "Get a key"; };
   preset.addEventListener("change", sync); sync();
   const add = h("button", { class: "primary", onclick: (ev) => {
     const query = {};
@@ -360,6 +361,7 @@ async function advancedPart(st) {
   parts.push(card("Settings files", h("p", { class: "muted small" }, "Everything here can be changed on the other pages. These are the files behind them, for when you're asked to look."),
     await editor("harness", "Roundtable's settings", "AI services, who does each job, prices and limits."),
     await editor("hub", "The hub's settings", "The projects in the hub, and who may read or write to whom.")));
+  if (await has("/api/tidy")) parts.push(await tidyCard());
   return parts;
 }
 

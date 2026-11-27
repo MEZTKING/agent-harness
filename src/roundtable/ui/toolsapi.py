@@ -64,6 +64,13 @@ def _wrap(fn, app, *args):
 def view(app, fresh: bool = False) -> dict[str, Any]:
     s = prereq.System.here()
     rows = prereq.status(godot_path=_godot_path(app), fresh=fresh)
+    if getattr(app, "desktop", None):  # this computer's memory learns what it can build with (memory.py)
+        try:
+            from .. import memory
+
+            memory.refresh_machine(app.desktop["paths"].home, rows=rows, os_name=s.os)
+        except Exception:  # memory is a help: the Tools page shows all the same
+            pass
     out: dict[str, Any] = {"os": s.os, "tools": rows, "groups": prereq.GROUPS, "servers": [], "jobs": [],
                            "servers_error": ""}
     try:

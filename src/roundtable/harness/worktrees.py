@@ -211,6 +211,9 @@ class ParallelStage:
         """Stop every running task at its next step (e.g. the app's Stop): they wait, worktrees kept."""
         if self._halt is None:
             self._halt = {"pause": pause, "text": text, "halt": True}
+        from ..providers import cli_engine
+
+        cli_engine.stop_all()  # a coding CLI is closed at once, with everything it started
 
     # -- the budget, shared by several threads ----------------------------------------------------------------
     def _arm_budget(self) -> None:

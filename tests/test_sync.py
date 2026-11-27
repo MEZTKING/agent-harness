@@ -231,7 +231,11 @@ def test_a_run_holds_the_project_and_publishes_its_session(tmp_path, remote, mon
     kinds = [ln["kind"] for ln in run["events"]]
     assert kinds[0] == "run_started" and kinds[-1] == "run_done"
     assert {"task_started", "change", "review", "task_done", "cost"} <= set(kinds)
-    assert all(ln.get("line") for ln in run["events"])  # every line has its text
+    # every line has its text, but for the ones that only say where the time went (Watch skips those)
+    assert all(ln.get("line") or (ln["kind"] in ("turn", "agent_done") and ("ms" in ln or "other_ms" in ln))
+               for ln in run["events"])
+    assert any(ln["kind"] == "agent_done" and "other_ms" in ln for ln in run["events"])
+    assert all(ln.get("task") for ln in run["events"] if ln["kind"] in ("tool", "change"))  # several at once
     started = next(ln for ln in run["events"] if ln["kind"] == "task_started")
     assert started["task"] == "T1" and started["index"] == 1 and started["total"] == 3
     review = next(ln for ln in run["events"] if ln["kind"] == "review")

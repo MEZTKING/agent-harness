@@ -84,6 +84,14 @@ class Toolbox:
             ws.last_change = None
         return change
 
+    def take_waited(self) -> int:
+        """How long (ms) the last command waited for the owner's answer, once; 0 otherwise."""
+        ws = self.source
+        waited = int(getattr(ws, "_waited_ms", 0) or 0)
+        if ws is not None and waited:
+            ws._waited_ms = 0
+        return waited
+
 
 def file_change(rel: str, old: str, new: str) -> dict[str, Any]:
     """A unified diff of one file's change, trimmed, with the lines added and removed."""
@@ -112,6 +120,7 @@ class Workspace:
         self.gate: Gate | None = gate if gate is not None else Gate(self.root)
         self.changed: set[str] = set()
         self.last_change: dict[str, Any] | None = None  # the last write or edit, for the Session view
+        self._waited_ms = 0  # the last command's wait for the owner (Ask me first), for the Session view
 
     def path(self, rel: str, read_spill: bool = False) -> Path:
         p = (self.root / rel).resolve()
@@ -209,7 +218,10 @@ class Workspace:
     def run_command(self, a: dict) -> str:
         if not self.allow_shell:
             raise ToolError("shell commands are disabled in this harness config")
+        w0 = getattr(self.gate, "waited", 0.0) if self.gate is not None else 0.0
         refused = self.gate.check(str(a["command"])) if self.gate is not None else None
+        if self.gate is not None:  # time spent waiting for the owner's yes (Watch: "Waiting for you")
+            self._waited_ms = int(max(0.0, getattr(self.gate, "waited", 0.0) - w0) * 1000)
         if refused:  # the owner said no, didn't answer in time, or it was too long to show them
             raise ToolError(refused)
         timeout = min(int(a.get("timeout") or self.command_timeout), self.command_timeout * 5)

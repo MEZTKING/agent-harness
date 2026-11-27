@@ -10,6 +10,11 @@ Knows how Roundtable Hold was installed (pip writes PEP 610 ``direct_url.json``)
   checkout (refusing if it has uncommitted changes), then ``pip install -e`` so new
   dependencies and commands are picked up.
 
+What's new: ``whats_new(version)`` reads the "What's new in X" sections of the README (beside a source
+checkout, else the copy bundled with the app in ``ui/static/whatsnew.md``, else the release notes saved when
+the update was installed); the desktop shows them once after an update (``ui/whatsnewapi.py``). After
+editing the README's notes, ``python -m roundtable.updater --whatsnew-bundle`` writes the bundled copy again.
+
 A passive check runs at most once a day after a CLI command (2-second timeout)
 and prints a one-line notice. Turn it off with ROUNDTABLE_NO_UPDATE_CHECK=1.
 """
@@ -240,6 +245,7 @@ def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
     with urllib.request.urlopen(url, timeout=300) as r, open(dest, "wb") as f:  # noqa: S310 - GitHub release asset
         while chunk := r.read(1 << 20):
             f.write(chunk)
+    save_release_notes(st.latest, "\n".join(st.changes))
     log(f"starting the installer ({dest.stat().st_size // 1_000_000} MB); Roundtable Hold will close and reopen")
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     subprocess.Popen([str(dest), "/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"], creationflags=flags)
@@ -299,3 +305,135 @@ def status_dict(runner: Runner = _run) -> dict:
         return asdict(st) | {"error": ""}
     except Exception as e:
         return {"available": False, "error": str(e), "message": str(e)}
+
+
+# -- what's new -----------------------------------------------------------------------------
+import re  # noqa: E402
+
+WHATSNEW_HEADING = re.compile(r"^#{2,4}\s+What's new in\s+v?([0-9][0-9A-Za-z.\-]*)\s*$", re.I)
+PACKAGE_DIR = Path(__file__).resolve().parent
+BUNDLE = PACKAGE_DIR / "ui" / "static" / "whatsnew.md"
+NOTES_FILE = STATE_FILE.parent / "release-notes.json"
+BUNDLE_KEEP = 6  # versions in the bundled copy
+
+
+def _plain(text: str) -> str:
+    """Markdown to the plain words the owner reads: no stars, no backticks, links as their text."""
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = text.replace("**", "").replace("__", "").replace("`", "")
+    return " ".join(text.split())
+
+
+def _item(raw: str) -> dict:
+    """One bullet: ``{title, text}`` – the bold opening as the title, the rest as the text."""
+    m = re.match(r"\*\*(.+?)\*\*\s*[:,.–-]?\s*(.*)", raw.strip(), re.S)
+    if m:
+        rest = re.sub(r"^\([^)]*\)\s*[:,.–-]?\s*", "", m.group(2).strip())  # "(a setting): …" -> "…"
+        return {"title": _plain(m.group(1)).rstrip(":"), "text": _plain(rest)}
+    words = _plain(raw)
+    first = re.split(r"(?<=[.:;])\s", words, maxsplit=1)
+    return {"title": first[0].rstrip(".:;")[:120], "text": first[1] if len(first) > 1 else ""}
+
+
+def _bullets(lines: list[str]) -> list[dict]:
+    items: list[str] = []
+    for ln in lines:
+        if re.match(r"^\s{0,1}[-*]\s+", ln):
+            items.append(re.sub(r"^\s{0,1}[-*]\s+", "", ln))
+        elif items and ln.strip() and (ln.startswith("  ") or ln.startswith("\t")):
+            items[-1] += " " + ln.strip()
+        elif ln.strip() and not items:
+            items.append(ln.strip())
+    return [_item(i) for i in items if i.strip()]
+
+
+def whats_new_sections(markdown: str) -> dict[str, list[dict]]:
+    """{version: [{title, text}]} from every "What's new in X" section, newest first as written."""
+    out: dict[str, list[dict]] = {}
+    current: str | None = None
+    lines: list[str] = []
+    for ln in markdown.splitlines() + ["# end"]:
+        m = WHATSNEW_HEADING.match(ln)
+        if m or ln.startswith("#"):
+            if current is not None:
+                out[current] = _bullets(lines)
+            current, lines = (m.group(1), []) if m else (None, [])
+            continue
+        if current is not None:
+            lines.append(ln)
+    return out
+
+
+def _readme() -> Path | None:
+    p = PACKAGE_DIR.parents[1] / "README.md"  # a source checkout: src/roundtable -> the repository
+    return p if p.is_file() else None
+
+
+def save_release_notes(version: str, notes: str) -> None:
+    """Keep the release notes of the version being installed, for the "What's new" card after it starts."""
+    if not version or not notes.strip():
+        return
+    try:
+        data = json.loads(NOTES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    data[version.lstrip("vV")] = notes[:4000]
+    try:
+        NOTES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        NOTES_FILE.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def whats_new(version: str, readme: Path | None = None, bundle: Path | None = None,
+              notes_file: Path | None = None) -> dict:
+    """{version, items: [{title, text}], source} for one version; no items when nothing was written."""
+    version = version.lstrip("vV")
+    sources = [("readme", readme if readme is not None else _readme()), ("bundle", bundle or BUNDLE)]
+    for name, path in sources:
+        try:
+            text = path.read_text(encoding="utf-8") if path else ""
+        except OSError:
+            continue
+        items = whats_new_sections(text).get(version)
+        if items:
+            return {"version": version, "items": items, "source": name}
+    try:
+        notes = json.loads((notes_file or NOTES_FILE).read_text(encoding="utf-8")).get(version) or ""
+    except (OSError, ValueError, AttributeError):
+        notes = ""
+    items = [i for i in _bullets([ln for ln in str(notes).splitlines() if not ln.startswith("#")])
+             if i["title"] and "full changelog" not in i["title"].lower()][:12]
+    return {"version": version, "items": items, "source": "release" if items else ""}
+
+
+def whatsnew_bundle(readme_text: str, keep: int = BUNDLE_KEEP) -> str:
+    """The bundled copy: the newest ``keep`` "What's new" sections of the README, as they are written there."""
+    out: list[str] = []
+    taken = 0
+    inside = False
+    for ln in readme_text.splitlines():
+        if WHATSNEW_HEADING.match(ln):
+            taken += 1
+            inside = taken <= keep
+        elif ln.startswith("#"):
+            inside = False
+        if inside:
+            out.append(ln)
+    head = ("<!-- The README's \"What's new\" sections, bundled with the app for its \"What's new\" card. "
+            "Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->")
+    return head + "\n\n" + "\n".join(out).strip() + "\n"
+
+
+def write_whatsnew_bundle(readme: Path | None = None, bundle: Path | None = None) -> Path:
+    readme = readme or _readme()
+    if not readme:
+        raise UpdateError("no README.md beside this copy (run it from a source checkout)")
+    bundle = bundle or BUNDLE
+    bundle.write_text(whatsnew_bundle(readme.read_text(encoding="utf-8")), encoding="utf-8")
+    return bundle
+
+
+if __name__ == "__main__":  # python -m roundtable.updater --whatsnew-bundle
+    if "--whatsnew-bundle" in sys.argv:
+        print(f"wrote {write_whatsnew_bundle()}")

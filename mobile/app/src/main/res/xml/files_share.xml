@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files in the app: Save a copy and Open hand the phone's share sheet or a viewer one file from the cache's "shared" folder -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>
