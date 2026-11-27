@@ -26,7 +26,7 @@ def proj(tmp_path):
     (root / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 20)
     (root / "guide.pdf").write_bytes(b"%PDF-1.4\n%made up\n")
     (root / "blob.bin").write_bytes(b"\x00\x01\x02")
-    (root / "notes").write_text("plain words\n", encoding="utf-8")
+    (root / "notes").write_bytes(b"plain words\n")
     # what must never show
     (root / ".env").write_text("KEY=proxy-injected\n", encoding="utf-8")
     (root / ".git").mkdir()

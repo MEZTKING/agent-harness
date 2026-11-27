@@ -100,6 +100,8 @@ def test_never_follows_a_link_out_of_the_tidied_folder(tmp_path):
         link.symlink_to(outside.parent, target_is_directory=True)
     except OSError:  # Windows without the right: nothing to check
         return
+    if os.utime not in os.supports_follow_symlinks:  # Windows: a link's own date can't be set
+        return
     os.utime(link, (time.time() - 90 * DAY,) * 2, follow_symlinks=False)
     retention.tidy(None, home=tmp_path / "home", projects=[root])
     assert outside.is_file()

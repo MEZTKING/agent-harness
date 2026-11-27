@@ -118,7 +118,7 @@ def test_a_task_worktree_finds_its_project(tmp_path):
 def test_at_file_attaches_the_files_content(tmp_path):
     root = tmp_path / "proj"
     (root / "src").mkdir(parents=True)
-    (root / "src" / "menu.py").write_text("PRICES = {'bun': 2}\n", encoding="utf-8")
+    (root / "src" / "menu.py").write_bytes(b"PRICES = {'bun': 2}\n")
     assert att.references("Change @src/menu.py, ask me@example.com, see @src/menu.py.") == ["src/menu.py"]
     added, problems = att.attach_references(root, "Make @src/menu.py cheaper; thanks @Sam", att.project_folder(root))
     assert problems == [] and [x["ref"] for x in added] == ["src/menu.py"]
