@@ -10,8 +10,9 @@ import { viewLetters } from "./letters.js";
 import { viewActivity } from "./activity.js";
 import { viewModels } from "./models.js";
 import { viewSettings, viewSetup } from "./settings.js";
+import { viewTools } from "./tools.js";
 
-const ROOMS = { hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
+const ROOMS = { tools: viewTools, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
   activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup };
 const ROOM_OF = { new: "projects", p: "projects", setup: "settings" };
 

@@ -38,6 +38,7 @@ MAX_WAIT_S = 30
 
 # (method, path) -> allowed for paired phones. Parametrised routes are matched by prefix below.
 PHONE_ROUTES = {
+    ("GET", "/api/tools"),
     ("GET", "/api/roundtable"), ("GET", "/api/activity"), ("GET", "/api/chat"), ("POST", "/api/chat"),
     ("GET", "/api/projects"), ("GET", "/api/project"), ("POST", "/api/projects"), ("POST", "/api/project"),
     ("GET", "/api/where"), ("GET", "/api/cards"), ("POST", "/api/send"), ("POST", "/api/reply"),

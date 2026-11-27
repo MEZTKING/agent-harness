@@ -410,6 +410,9 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
     if custom.get("default_profile") and custom["default_profile"] in (raw.get("profiles") or {}):
         out["default_profile"] = custom["default_profile"]  # the profile chosen in the app (shared settings)
+    from ..prereq import merge_custom_tools  # tool servers added in the app, and which jobs use them
+
+    out = merge_custom_tools(out, custom)
     return out
 
 
