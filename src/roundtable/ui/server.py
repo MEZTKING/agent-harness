@@ -43,6 +43,20 @@ def _lines(raw) -> list[str]:
     return [str(x).strip() for x in items if str(x).strip()][:20]
 
 
+# Feature API modules under roundtable.ui: each has routes(app) -> {(method, path): fn}. A feature added
+# side by side with others appends its module name here (one line each), nothing else in this file.
+FEATURE_APIS: tuple[str, ...] = ()
+
+
+def _feature_routes(app) -> dict:
+    import importlib
+
+    out: dict = {}
+    for name in FEATURE_APIS:
+        out.update(importlib.import_module(f"roundtable.ui.{name}").routes(app))
+    return out
+
+
 class ApiError(Exception):
     def __init__(self, message: str, status: int = 400):
         super().__init__(message)
@@ -1436,6 +1450,7 @@ class UIApp:
             ("GET", "/api/backup"): R.backup_status,
             ("POST", "/api/backup"): R.backup_action,
             **syncapi.routes(R),  # the phone and the PC as one Roundtable (sync.py)
+            **_feature_routes(R),  # features that bring their own API module (FEATURE_APIS)
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:

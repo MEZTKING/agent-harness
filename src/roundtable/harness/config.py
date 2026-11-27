@@ -106,6 +106,15 @@ class RoleSpec:
     mcp: list[str] = field(default_factory=list)  # MCP servers (mcp_servers:) whose tools this role gets
 
 
+FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compaction", "memory", "workers",
+                    "parallel", "rewind", "attachments")
+
+
+def section(cfg: Any, name: str) -> dict[str, Any]:
+    """A feature's own settings from harness.yaml (``breaker:``, ``gate:``…), {} when absent."""
+    return dict((getattr(cfg, "sections", None) or {}).get(name) or {})
+
+
 @dataclass
 class Limits:
     max_cost_usd: float = 10.0
@@ -178,6 +187,9 @@ class HarnessConfig:
     token_saver: SaverConfig = field(default_factory=SaverConfig)  # slims big tool results (saver.py)
     # plugins: {id: {enabled, settings, path, permissions, ...}} from harness.yaml and custom.yaml
     plugins: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # sections that a feature module reads for itself (breaker, gate, notify, automation, tools, …):
+    # one key per feature, so features added side by side never edit this file
+    sections: dict[str, dict[str, Any]] = field(default_factory=dict)
     # MCP servers: {name: {command, args, env, cwd} or {url, headers}, plus tools, timeout, enabled}
     mcp_servers: dict[str, dict[str, Any]] = field(default_factory=dict)
     godot: GodotSettings = field(default_factory=GodotSettings)  # checking Godot games (harness/godot.py)
@@ -627,6 +639,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         plugins=plugins,
         mcp_servers=mcp_servers,
         godot=_godot_settings(raw.get("godot"), base),
+        sections={k: dict(v) for k, v in raw.items() if k in FEATURE_SECTIONS and isinstance(v, dict)},
     )
 
 
