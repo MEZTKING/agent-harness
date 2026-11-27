@@ -214,7 +214,8 @@ def test_the_stubs_do_nothing_yet(tmp_path):
     assert streamlog.sink(tmp_path, "T1")("text", "hi") is None
     assert streamlog.tail(tmp_path, "T1") == {"text": "", "thinking": "", "at": 0, "done": True}
     assert not (tmp_path / ".harness").exists()  # a stub writes nothing
-    assert reach.standup(None) == {} and reach.poll_hooks(None, {}) == [] and reach.beat(None, {}) is None
+    # reach is filled (p1-reach; its own tests in tests/test_reach.py): with nothing to look at it does nothing
+    assert reach.poll_hooks(None, {}) == [] and reach.beat(None, {}) is None
     shot = winshot.window_picture(1, tmp_path / "w.png")
     assert shot["ok"] is False and shot["file"] is None and shot["why"]
     r = emulator.ready([], "linux")
@@ -236,8 +237,10 @@ def test_automation_knows_the_new_kinds_and_the_stand_up():
     a = automation.normalise({"kind": "schedule", "when": {"kind": "weekly", "days": ["mon"], "time": "09:00"},
                               "do": {"what": "standup"}})
     assert a["do"] == {"what": "standup"} and a["name"] == "Stand-up" and automation.what_words(a)
+    hooks = {"events": {"repo": "acme/shop", "events": ["push"]}, "poll": {"url": "https://example.com/s"},
+             "local": {"secret": "made-up-secret-long-enough-0123456789"}}
     for kind in ("events", "poll", "local"):
-        h = automation.normalise({"kind": kind, "make": "idea", "hook": {"x": 1}})
+        h = automation.normalise({"kind": kind, "make": "idea", "hook": hooks[kind]})
         assert h["kind"] == kind and h["name"] and automation.what_words(h)
 
 
@@ -253,7 +256,7 @@ def test_the_new_kinds_call_the_reach_stubs_and_do_nothing_yet(tmp_path, monkeyp
     monkeypatch.setattr(reach, "poll_hooks", lambda ctx, a: calls.append(a["kind"]) or [])
     monkeypatch.setattr(reach, "standup", lambda ctx: calls.append("standup") or {})
     cfg = parse_config({**json.loads(json.dumps(RAW)), "automation": {"list": [
-        {"id": "h1", "kind": "poll", "make": "idea"},
+        {"id": "h1", "kind": "poll", "make": "idea", "hook": {"url": "https://example.com/s"}},
         {"id": "s1", "kind": "schedule", "when": {"kind": "once", "at": "2026-11-27T09:00"},
          "do": {"what": "standup"}}]}})
     from datetime import datetime, timezone
@@ -267,7 +270,8 @@ def test_a_hook_item_is_acted_on_once(tmp_path, monkeypatch):
     item = {"key": "ev-1", "what": "idea", "title": "From outside", "text": "a quoted event"}
     monkeypatch.setattr(reach, "poll_hooks", lambda ctx, a: [item])
     started = []
-    cfg = parse_config({**json.loads(json.dumps(RAW)), "automation": {"list": [{"id": "h1", "kind": "local", "make": "idea"}]}})
+    cfg = parse_config({**json.loads(json.dumps(RAW)), "automation": {"list": [{"id": "h1", "kind": "local", "make": "idea",
+                                                                            "hook": {"secret": "made-up-secret-long-enough-0123456789"}}]}})
     start = lambda kind, title, target, fn: started.append(kind)  # noqa: E731
     automation.tick(cfg, home=tmp_path, start=start, projects_dir=tmp_path / "projects")
     automation.tick(cfg, home=tmp_path, start=start, projects_dir=tmp_path / "projects")

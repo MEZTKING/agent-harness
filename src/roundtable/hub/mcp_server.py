@@ -89,9 +89,11 @@ def build_server(hub: Hub, agent: str) -> MCPServer:
 
     @server.tool()
     def hub_send(to: list[str], subject: str, body: str, kind: str = "ask") -> str:
-        """Send a message to one or more agents. kind: ask | notify | request."""
+        """Send a message to one or more agents, or to ["everyone"] (every other agent, in one thread; replies come
+        back to you only). kind: ask | notify | request."""
         sent = hub.send(agent, to, subject, body, kind=kind)
-        return _dump({"sent": [{"id": m["id"], "to": m["recipient"]} for m in sent]})
+        return _dump({"sent": [{"id": m["id"], "to": m["recipient"]} for m in sent],
+                      "thread_id": sent[0].get("thread_id") if sent else None})
 
     @server.tool()
     def hub_inbox(unread_only: bool = True, mark_read: bool = True, limit: int = 20) -> str:
