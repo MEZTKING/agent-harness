@@ -1,0 +1,10 @@
+import inspect
+
+import shop
+
+assert hasattr(shop, "line_total"), "no line_total"
+assert shop.line_total(10.0, 2) == 20.0
+assert shop.line_total(10.0, 2, 0.5) == 10.0
+for name in ("order_total", "invoice_total"):
+    assert "line_total(" in inspect.getsource(getattr(shop, name)), name + " does not use line_total"
+print("ok")

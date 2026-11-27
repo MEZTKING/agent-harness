@@ -1,0 +1,21 @@
+import copy
+import json
+import os
+
+
+def _merge(base, extra):
+    out = copy.deepcopy(base)
+    for k, v in extra.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _merge(out[k], v)
+        else:
+            out[k] = copy.deepcopy(v)
+    return out
+
+
+def load(path, defaults):
+    if not os.path.exists(path):
+        return copy.deepcopy(defaults)
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return _merge(defaults, data)

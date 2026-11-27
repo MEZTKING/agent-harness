@@ -1,0 +1,13 @@
+id: r06-leap-fault
+version: 1
+job: reviewer
+tags:
+- python
+- dates
+title: Fix leap years
+description: 'is_leap(year) in dates.py treats 1900 as a leap year. Fix it for centuries: 1900 is not
+  a leap year and 2000 is.'
+acceptance: is_leap(1900) is False and is_leap(2000) is True
+summary: Centuries are no longer leap years.
+truth: reject
+planted: return year % 4 == 0 and year % 100 != 0

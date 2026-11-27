@@ -1,0 +1,20 @@
+id: b05-refactor-shop
+version: 1
+job: builder
+tags:
+- python
+- refactor
+- tests
+title: One place for the line total
+description: In shop.py, order_total and invoice_total both work out price * quantity * (1 - discount)
+  by themselves. Move that into one function line_total(price, quantity, discount=0.0) and make both use
+  it. run_tests.py must still pass.
+acceptance: line_total exists; order_total and invoice_total call it; python run_tests.py passes
+check:
+- run:
+  - '{python}'
+  - run_tests.py
+- run:
+  - '{python}'
+  - check_refactor.py
+max_steps: 14

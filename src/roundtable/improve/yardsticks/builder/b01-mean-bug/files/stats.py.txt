@@ -1,0 +1,3 @@
+def mean(numbers):
+    """The average of a list of numbers."""
+    return sum(numbers) / (len(numbers) - 1)

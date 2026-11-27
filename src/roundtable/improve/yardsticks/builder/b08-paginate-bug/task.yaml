@@ -1,0 +1,16 @@
+id: b08-paginate-bug
+version: 1
+job: builder
+tags:
+- python
+- bug
+title: Fix the pages
+description: pages.py has page(items, number, size) where pages are numbered from 1. page(list(range(1,
+  11)), 1, 3) should give [1, 2, 3] but gives the second page. Fix it; a page past the end is an empty
+  list, and number below 1 raises ValueError.
+acceptance: page(..., 1, 3) is the first three items; the last page is short; past the end is []
+check:
+- run:
+  - '{python}'
+  - check_pages.py
+max_steps: 12

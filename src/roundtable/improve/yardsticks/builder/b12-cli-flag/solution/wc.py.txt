@@ -1,0 +1,17 @@
+import sys
+
+
+def counts(text):
+    return len(text.splitlines()), len(text.split()), len(text)
+
+
+def main(argv):
+    only_lines = "--lines" in argv
+    path = [a for a in argv if a != "--lines"][0]
+    with open(path, encoding="utf-8") as f:
+        lines, words, chars = counts(f.read())
+    print(lines if only_lines else f"{lines} {words} {chars}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

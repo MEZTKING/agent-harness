@@ -1,0 +1,21 @@
+id: b03-js-chunk
+version: 1
+job: builder
+tags:
+- javascript
+- feature
+title: A chunk function in JavaScript
+description: Create chunk.js with a function chunk(items, size) that splits an array into arrays of at
+  most size items, in order (chunk([1,2,3,4,5], 2) gives [[1,2],[3,4],[5]]). Export it with module.exports
+  = { chunk }. A size below 1 throws an Error.
+acceptance: chunk.js defines chunk(items, size) and exports it with module.exports
+check:
+- file_exists: chunk.js
+- contains:
+    path: chunk.js
+    text:
+    - (function\s+chunk\s*\(|(const|let|var)\s+chunk\s*=)
+    - module\.exports
+    - throw\s+new\s+\w*Error
+    - \.slice\(|\.push\(
+max_steps: 10

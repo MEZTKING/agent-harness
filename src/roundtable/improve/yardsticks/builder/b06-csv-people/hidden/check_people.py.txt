@@ -1,0 +1,10 @@
+import tempfile
+from pathlib import Path
+
+from people import read_people
+
+p = Path(tempfile.mkdtemp()) / "people.csv"
+p.write_text('name,age\nAda,36\n\n"Smith, Jo",34\nLee,7\n', encoding="utf-8")
+got = read_people(str(p))
+assert got == [{"name": "Ada", "age": 36}, {"name": "Smith, Jo", "age": 34}, {"name": "Lee", "age": 7}], got
+print("ok")

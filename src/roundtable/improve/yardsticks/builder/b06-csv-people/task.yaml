@@ -1,0 +1,17 @@
+id: b06-csv-people
+version: 1
+job: builder
+tags:
+- python
+- data
+- csv
+title: Read the people file
+description: 'Write read_people(path) in people.py. The file is CSV with a header line name,age. Return
+  a list of dicts {"name": str, "age": int} in file order. Names may hold commas inside double quotes;
+  blank lines are skipped.'
+acceptance: read_people returns names and whole-number ages, handles quoted commas and blank lines
+check:
+- run:
+  - '{python}'
+  - check_people.py
+max_steps: 12

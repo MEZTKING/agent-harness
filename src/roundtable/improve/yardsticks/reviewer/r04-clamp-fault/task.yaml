@@ -1,0 +1,11 @@
+id: r04-clamp-fault
+version: 1
+job: reviewer
+tags:
+- python
+title: Add clamp
+description: 'Add clamp(value, low, high) to limits.py: value kept between low and high.'
+acceptance: clamp(5, 0, 10) == 5, clamp(-1, 0, 10) == 0, clamp(11, 0, 10) == 10
+summary: Added clamp to limits.py with max and min.
+truth: reject
+planted: return max(low, min(value, low))

@@ -1,0 +1,23 @@
+id: p02-photo-renamer
+version: 1
+job: planner
+tags:
+- cli
+- files
+title: A command-line tool that renames photos by the date they were taken
+goal: A command-line tool that renames photos by the date they were taken. Never delete a photo.
+dont:
+- Never delete a photo.
+description: A command-line tool that renames photos by the date they were taken.
+acceptance: a plan with done-when lines and stages, nothing from the don't list
+check:
+- shape:
+    min_tasks: 2
+    max_tasks: 14
+    acceptance: true
+    stages: true
+    forbidden:
+    - \bdelet\w*
+    must_mention:
+    - (?i)date
+max_steps: 8

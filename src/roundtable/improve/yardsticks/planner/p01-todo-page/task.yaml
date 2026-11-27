@@ -1,0 +1,24 @@
+id: p01-todo-page
+version: 1
+job: planner
+tags:
+- web
+title: A to-do list web page that keeps its items after the page is reloaded
+goal: A to-do list web page that keeps its items after the page is reloaded. Don't add accounts or a log-in.
+dont:
+- Don't add accounts or a log-in.
+description: A to-do list web page that keeps its items after the page is reloaded.
+acceptance: a plan with done-when lines and stages, nothing from the don't list
+check:
+- shape:
+    min_tasks: 2
+    max_tasks: 14
+    acceptance: true
+    stages: true
+    forbidden:
+    - \blog-?in\b
+    - \bsign[ -]?in\b
+    - \baccounts?\b
+    must_mention:
+    - (?i)(local ?storage|saved?|keeps?)
+max_steps: 8

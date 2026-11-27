@@ -1,0 +1,25 @@
+id: p03-platformer
+version: 1
+job: planner
+tags:
+- game
+- godot
+title: A small 2D platformer in Godot with three levels
+goal: A small 2D platformer in Godot with three levels. No online or multiplayer play.
+dont:
+- No online or multiplayer play.
+description: A small 2D platformer in Godot with three levels.
+acceptance: a plan with done-when lines and stages, nothing from the don't list
+check:
+- shape:
+    min_tasks: 2
+    max_tasks: 14
+    acceptance: true
+    stages: true
+    forbidden:
+    - \bmultiplayer\b
+    - \bonline\b
+    - \bnetwork\w*
+    must_mention:
+    - (?i)level
+max_steps: 8

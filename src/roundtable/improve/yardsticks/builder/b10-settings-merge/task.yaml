@@ -1,0 +1,18 @@
+id: b10-settings-merge
+version: 1
+job: builder
+tags:
+- python
+- bug
+- config
+title: Settings keep their defaults
+description: settings.load(path, defaults) reads a JSON file and lays it over the defaults. Today a nested
+  section in the file wipes out the defaults' other keys in that section. Merge nested dictionaries key
+  by key, return a copy of the defaults when the file is missing, and never change the defaults passed
+  in.
+acceptance: nested sections merge key by key; a missing file gives the defaults; defaults unchanged
+check:
+- run:
+  - '{python}'
+  - check_settings.py
+max_steps: 12
