@@ -1,0 +1,12 @@
+from stats import mean
+
+assert mean([2, 4, 6]) == 4, mean([2, 4, 6])
+assert mean([5]) == 5
+assert abs(mean([1, 2]) - 1.5) < 1e-9
+try:
+    mean([])
+except ValueError:
+    pass
+else:
+    raise SystemExit("mean([]) did not raise ValueError")
+print("ok")

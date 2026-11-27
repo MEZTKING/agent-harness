@@ -1,0 +1,17 @@
+id: b02-slugify
+version: 1
+job: builder
+tags:
+- python
+- feature
+title: Add slugify
+description: Add a function slugify(text) to textutil.py. It lower-cases the text, turns every run of
+  characters that are not ASCII letters or digits into a single hyphen, and removes hyphens at the start
+  and end. Keep title_case as it is.
+acceptance: slugify('Hello, World!') == 'hello-world'; slugify('  Many   spaces ') == 'many-spaces'; title_case
+  still works
+check:
+- run:
+  - '{python}'
+  - check_slug.py
+max_steps: 12

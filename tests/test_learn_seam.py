@@ -275,7 +275,9 @@ def test_the_stubs_keep_their_frozen_answers(tmp_path):
     assert wallet.AllowanceUsed.pause == "learning"
     cfg.improve["allowance_usd_per_week"] = 2
     assert wallet.budget(cfg, lab, "test", most=0.5).limit_usd == 0.5
-    assert yardstick.available(cfg, "coder") == 0 and yardstick.run(cfg, lab, p, None) is None
+    # filled by d4-evidence: an image role has no yardstick (0 tasks, run gives None); a builder has some
+    assert yardstick.available(cfg, "designer") == 0 and yardstick.available(cfg, "coder") >= 12
+    assert yardstick.run(cfg, lab, _p("routing", {"models": ["img/pic"]}, role="designer"), None) is None
     assert canary.check(cfg, lab) == [] and share.tick(None) == {}
     assert issubclass(sandbox.SandboxError, PluginError) and sandbox.supported()["guard"] is True
     with pytest.raises(sandbox.SandboxError):

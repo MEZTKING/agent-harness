@@ -1,0 +1,7 @@
+import json
+
+
+def load(path, defaults):
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return {**defaults, **data}

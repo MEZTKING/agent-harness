@@ -1,0 +1,6 @@
+from dates import days_in_month, is_leap
+
+assert is_leap(2000) and is_leap(2024) and is_leap(1996)
+assert not is_leap(1900) and not is_leap(2023) and not is_leap(2100)
+assert days_in_month(1900, 2) == 28 and days_in_month(2000, 2) == 29 and days_in_month(2023, 4) == 30
+print("ok")

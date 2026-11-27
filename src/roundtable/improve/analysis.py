@@ -5,6 +5,10 @@ Two sources of proposals:
           (e.g. "the fallback model gets approved far more often: promote it")
 * llm   - an analyst model reads the stats, reviewers' rejection feedback and
           the owner's ratings, and proposes prompt / routing / option changes
+
+Wave 7 adds the panel's ledger (``.harness/reviews.jsonl``): how often each checker is overruled or
+rejects without quoting what is broken (rule 4), and the per-tag numbers (rule 5). The analyst only sees a
+project's rejection texts and titles when that project allows the analyst's maker (``makers.allowed``).
 """
 
 from __future__ import annotations
@@ -15,10 +19,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..harness import makers
+from ..harness import projectsettings as ps
 from ..harness.agent import Budget, run_agent
 from ..harness.config import HarnessConfig
 from ..harness.tools import Tool, Toolbox, _obj
 from ..providers.base import ToolSpec
+from . import charter
 from .lab import PROPOSAL_KINDS, RISKS, Lab, Proposal
 
 QUALITY_OUTCOMES = ("approved", "rejected", "refusal", "max_steps")
@@ -73,9 +80,34 @@ class TagStats(ModelStats):
 
 
 @dataclass
+class CheckerStats:
+    """One checker model's record in the panel's ledger (reviews.jsonl)."""
+
+    model: str
+    verdicts: int = 0
+    approved: int = 0
+    rejected: int = 0
+    unquoted: int = 0  # rejections that counted without quoting what they break
+    not_counted: int = 0  # verdicts that did not count (an unquoted rejection someone else decided)
+    decided: int = 0  # verdicts with a decision to compare against
+    overruled: int = 0  # the decision went the other way
+    by_builder: dict[str, dict[str, int]] = field(default_factory=dict)  # builder's maker -> {verdicts, overruled}
+
+    @property
+    def overruled_share(self) -> float:
+        return self.overruled / self.decided if self.decided else 0.0
+
+    @property
+    def unquoted_share(self) -> float:
+        """Of its rejections, how many quoted nothing (counted as unquoted, or not counted at all)."""
+        return (self.unquoted + self.not_counted) / self.rejected if self.rejected else 0.0
+
+
+@dataclass
 class Dataset:
     stats: dict[tuple[str, str], ModelStats] = field(default_factory=dict)
     by_tag: dict[tuple[str, str, str], TagStats] = field(default_factory=dict)  # (role, model, tag)
+    checkers: dict[str, CheckerStats] = field(default_factory=dict)  # checker model -> its record (wave 7)
     rejections: list[dict[str, Any]] = field(default_factory=list)
     owner_feedback: list[dict[str, Any]] = field(default_factory=list)
     projects: list[Path] = field(default_factory=list)
@@ -172,6 +204,40 @@ def strengths(ds: Dataset | dict, min_n: int = 5) -> dict[str, dict[str, list[di
     return out
 
 
+def count_reviews(ds: Dataset, rows: list[dict[str, Any]]) -> None:
+    """Add one project's reviews.jsonl to ``ds.checkers``. A decision row follows its verdicts with the same
+    task and time, so each verdict is compared with the decision it led to."""
+    groups: dict[tuple[Any, Any], dict[str, Any]] = {}
+    for row in rows:
+        g = groups.setdefault((row.get("task"), row.get("at")), {"verdicts": [], "decision": None})
+        if row.get("kind") == "decision":
+            g["decision"] = row
+        elif row.get("kind") == "verdict":
+            g["verdicts"].append(row)
+    for g in groups.values():
+        decision = g["decision"]
+        for v in g["verdicts"]:
+            model = str(v.get("model") or "?")
+            st = ds.checkers.setdefault(model, CheckerStats(model))
+            st.verdicts += 1
+            ok = bool(v.get("approved"))
+            st.approved += ok
+            if not ok:
+                st.rejected += 1
+                if v.get("counted") == "unquoted":
+                    st.unquoted += 1
+                elif v.get("counted") is False:
+                    st.not_counted += 1
+            builder = str(v.get("builder_maker") or "?")
+            mine = st.by_builder.setdefault(builder, {"verdicts": 0, "overruled": 0})
+            mine["verdicts"] += 1
+            if decision is not None and v.get("counted") is not False:
+                st.decided += 1
+                if ok != bool(decision.get("approved")):
+                    st.overruled += 1
+                    mine["overruled"] += 1
+
+
 def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
     ds = Dataset()
     seen = set()
@@ -191,7 +257,7 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
                     st.owner_good += 1
                 elif row.get("rating") == "bad":
                     st.owner_bad += 1
-                ds.owner_feedback.append({**row, "project": proj.name,
+                ds.owner_feedback.append({**row, "project": proj.name, "root": str(proj),
                                           "title": tasks.get(row.get("task"), {}).get("title", "")})
                 continue
             count_row(st, row, firsts, ())
@@ -200,13 +266,30 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
         for t in tasks.values():
             for a in t.get("attempts", []):
                 if a.get("outcome") == "rejected" and a.get("review"):
-                    ds.rejections.append({"project": proj.name, "task": t["id"], "title": t["title"],
+                    ds.rejections.append({"project": proj.name, "root": str(proj), "task": t["id"],
+                                          "title": t["title"],
                                           "role": t["role"], "model": a.get("model"), "feedback": a["review"][:800]})
+        count_reviews(ds, _read_jsonl(proj / ".harness/reviews.jsonl"))
     return ds
 
 
-def stats_table(ds: Dataset, by_tag: bool = False) -> str:
-    """The table of how each model did per role; ``by_tag``: one line per kind of work too (the tag column)."""
+def checkers_table(ds: Dataset) -> str:
+    """How each checker did in the panel: verdicts, rejections, how many quoted nothing, how often the
+    decision went the other way, and per builder's maker."""
+    lines = [f"{'checker':38} {'verdicts':>8} {'ok':>4} {'no':>4} {'unquoted':>8} {'overruled':>9}  by builder"]
+    for model, s in sorted(ds.checkers.items()):
+        uq = f"{s.unquoted_share:.0%}" if s.rejected else "-"
+        ov = f"{s.overruled_share:.0%}" if s.decided else "-"
+        who = ", ".join(f"{m} {b['overruled']}/{b['verdicts']}" for m, b in sorted(s.by_builder.items()))
+        lines.append(f"{model:38} {s.verdicts:8} {s.approved:4} {s.rejected:4} {uq:>8} {ov:>9}  {who}")
+    return "\n".join(lines)
+
+
+def stats_table(ds: Dataset, by_tag: bool = False, checkers: bool = False) -> str:
+    """The table of how each model did per role; ``by_tag``: one line per kind of work too (the tag column);
+    ``checkers``: the panel's checkers instead (reviews.jsonl)."""
+    if checkers:
+        return checkers_table(ds)
     if by_tag:
         lines = [f"{'role':12} {'model':38} {'tag':16} {'tries':>5} {'ok':>4} {'qual':>5} {'1st':>5} {'err':>4} "
                  f"{'avg $':>8} {'rival +/-':>9}"]
@@ -257,6 +340,59 @@ def _rescue_proposal(role: str, chain: list[str], primary: ModelStats, ds: Datas
     return None
 
 
+def _checker_proposal(cfg: HarnessConfig, ds: Dataset, min_n: int) -> Proposal | None:
+    """Rule 4: a checker the decision keeps overruling, or that rejects without quoting what is broken, goes
+    to the back of the reviewer's chain."""
+    reviewer = cfg.roles.get(cfg.reviewer_role or "")
+    if reviewer is None:
+        return None
+    chain = [str(m) for m in reviewer.models]
+    if len(chain) < 2:
+        return None
+    for ref in chain[:-1]:
+        st = ds.checkers.get(ref)
+        if not st or st.verdicts < min_n:
+            continue
+        overruled = st.decided >= min_n and st.overruled_share >= 0.4
+        loose = st.rejected >= 2 and st.unquoted_share >= 0.5
+        if not (overruled or loose):
+            continue
+        why = (f"the final decision went the other way on {st.overruled_share:.0%} of its {st.decided} verdicts"
+               if overruled else
+               f"{st.unquoted_share:.0%} of its {st.rejected} rejections quoted nothing the work breaks")
+        return Proposal(
+            id="", kind="routing", role=reviewer.name, change={"models": [m for m in chain if m != ref] + [ref]},
+            risk="medium", rationale=f"As a checker, {ref} was not reliable: {why}. It moves to the back.",
+            evidence={"checker": ref, "verdicts": st.verdicts, "overruled": st.overruled, "decided": st.decided,
+                      "rejected": st.rejected, "unquoted": st.unquoted + st.not_counted})
+    return None
+
+
+def _tag_proposal(role: str, chain: list[str], ds: Dataset, min_n: int) -> Proposal | None:
+    """Rule 5: a fallback that beats the first model on three kinds of work (tags), each with enough judged
+    tries on both and a lead of 0.15, is promoted."""
+    for alt in chain[1:]:
+        wins = []
+        for (r, model, tag), st in ds.by_tag.items():
+            if r != role or model != alt or st.judged < min_n or st.quality is None:
+                continue
+            first = ds.by_tag.get((role, chain[0], tag))
+            if not first or first.judged < min_n or first.quality is None:
+                continue
+            if st.quality >= first.quality + 0.15:
+                wins.append({"tag": tag, "candidate": round(st.quality, 3), "primary": round(first.quality, 3),
+                             "n": [first.judged, st.judged]})
+        if len(wins) >= 3:
+            wins.sort(key=lambda w: w["tag"])
+            return Proposal(
+                id="", kind="routing", role=role, change={"models": [alt] + [m for m in chain if m != alt]},
+                risk="low", evidence={"tags": wins, "primary": chain[0], "candidate": alt},
+                rationale=f"{alt} beat {chain[0]} on {len(wins)} kinds of work ("
+                          + ", ".join(f"{w['tag']} {w['candidate']:.0%} vs {w['primary']:.0%}" for w in wins)
+                          + ").")
+    return None
+
+
 def rule_proposals(cfg: HarnessConfig, ds: Dataset) -> list[Proposal]:
     min_n = int(cfg.improve.get("min_samples", 5))
     out: list[Proposal] = []
@@ -264,47 +400,62 @@ def rule_proposals(cfg: HarnessConfig, ds: Dataset) -> list[Proposal]:
         chain = [str(m) for m in role.models]
         if len(chain) < 2:
             continue
-        primary = ds.stats.get((role.name, chain[0]))
-        # 1. primary keeps failing at the provider level -> move it to the back
-        if primary and primary.attempts >= min_n and primary.error_rate >= 0.3:
-            out.append(Proposal(
-                id="", kind="routing", role=role.name, change={"models": chain[1:] + chain[:1]}, risk="low",
-                rationale=f"{chain[0]} failed with provider errors on {primary.error_rate:.0%} of {primary.attempts} attempts.",
-                evidence={"error_rate": round(primary.error_rate, 3), "attempts": primary.attempts},
-            ))
-            continue
-        if not primary or primary.judged < min_n or primary.quality is None:
-            continue
-        rescue = _rescue_proposal(role.name, chain, primary, ds)
-        if rescue:
-            out.append(rescue)
-            continue
-        for alt_ref in chain[1:]:
-            alt = ds.stats.get((role.name, alt_ref))
-            if not alt or alt.judged < min_n or alt.quality is None:
-                continue
-            new_chain = [alt_ref] + [m for m in chain if m != alt_ref]
-            ev = {"primary": {"model": chain[0], "quality": round(primary.quality, 3), "n": primary.judged,
-                              "avg_cost": primary.avg_cost},
-                  "candidate": {"model": alt_ref, "quality": round(alt.quality, 3), "n": alt.judged, "avg_cost": alt.avg_cost}}
-            # 2. clearly better quality
-            if alt.quality >= primary.quality + 0.15:
-                out.append(Proposal(
-                    id="", kind="routing", role=role.name, change={"models": new_chain}, risk="low", evidence=ev,
-                    rationale=f"{alt_ref} was approved {alt.quality:.0%} of the time vs {primary.quality:.0%} for "
-                              f"{chain[0]} ({alt.judged} vs {primary.judged} judged attempts)."))
-                break
-            # 3. same quality, much cheaper
-            if (abs(alt.quality - primary.quality) <= 0.05 and alt.avg_cost and primary.avg_cost
-                    and alt.avg_cost <= 0.5 * primary.avg_cost):
-                out.append(Proposal(
-                    id="", kind="routing", role=role.name, change={"models": new_chain}, risk="medium", evidence=ev,
-                    rationale=f"{alt_ref} matched {chain[0]}'s approval rate ({alt.quality:.0%} vs {primary.quality:.0%}) "
-                              f"at {alt.avg_cost / primary.avg_cost:.0%} of the cost per attempt."))
-                break
+        before = len(out)
+        _role_rules(cfg, ds, role, chain, min_n, out)
+        if len(out) == before:
+            tagged = _tag_proposal(role.name, chain, ds, min_n)
+            if tagged:
+                out.append(tagged)
+    if not any(p.role == cfg.reviewer_role for p in out):
+        checker = _checker_proposal(cfg, ds, min_n)
+        if checker:
+            out.append(checker)
     for p in out:
         p.source = "rules"
     return out
+
+
+def _role_rules(cfg: HarnessConfig, ds: Dataset, role: Any, chain: list[str], min_n: int,
+                out: list[Proposal]) -> None:
+    """Rules 1 to 3 for one role (at most one proposal)."""
+    primary = ds.stats.get((role.name, chain[0]))
+    # 1. primary keeps failing at the provider level -> move it to the back
+    if primary and primary.attempts >= min_n and primary.error_rate >= 0.3:
+        out.append(Proposal(
+            id="", kind="routing", role=role.name, change={"models": chain[1:] + chain[:1]}, risk="low",
+            rationale=f"{chain[0]} failed with provider errors on {primary.error_rate:.0%} of {primary.attempts} attempts.",
+            evidence={"error_rate": round(primary.error_rate, 3), "attempts": primary.attempts},
+        ))
+        return
+    if not primary or primary.judged < min_n or primary.quality is None:
+        return
+    rescue = _rescue_proposal(role.name, chain, primary, ds)
+    if rescue:
+        out.append(rescue)
+        return
+    for alt_ref in chain[1:]:
+        alt = ds.stats.get((role.name, alt_ref))
+        if not alt or alt.judged < min_n or alt.quality is None:
+            continue
+        new_chain = [alt_ref] + [m for m in chain if m != alt_ref]
+        ev = {"primary": {"model": chain[0], "quality": round(primary.quality, 3), "n": primary.judged,
+                          "avg_cost": primary.avg_cost},
+              "candidate": {"model": alt_ref, "quality": round(alt.quality, 3), "n": alt.judged, "avg_cost": alt.avg_cost}}
+        # 2. clearly better quality
+        if alt.quality >= primary.quality + 0.15:
+            out.append(Proposal(
+                id="", kind="routing", role=role.name, change={"models": new_chain}, risk="low", evidence=ev,
+                rationale=f"{alt_ref} was approved {alt.quality:.0%} of the time vs {primary.quality:.0%} for "
+                          f"{chain[0]} ({alt.judged} vs {primary.judged} judged attempts)."))
+            return
+        # 3. same quality, much cheaper
+        if (abs(alt.quality - primary.quality) <= 0.05 and alt.avg_cost and primary.avg_cost
+                and alt.avg_cost <= 0.5 * primary.avg_cost):
+            out.append(Proposal(
+                id="", kind="routing", role=role.name, change={"models": new_chain}, risk="medium", evidence=ev,
+                rationale=f"{alt_ref} matched {chain[0]}'s approval rate ({alt.quality:.0%} vs {primary.quality:.0%}) "
+                          f"at {alt.avg_cost / primary.avg_cost:.0%} of the cost per attempt."))
+            return
 
 
 # -- LLM analyst ----------------------------------------------------------------------
@@ -335,7 +486,10 @@ def llm_proposals(cfg: HarnessConfig, ds: Dataset, lab: Lab, max_cost: float, on
             kind = raw.get("kind")
             change = {"routing": {"models": raw.get("models")}, "options": {"options": raw.get("options")},
                       "prompt": {"prompt_text": raw.get("prompt_text")}}.get(kind, {})
-            p = Proposal(id="", kind=kind, role=raw.get("role", ""), change=change, rationale=raw.get("rationale", ""),
+            if kind == "prompt" and isinstance(change["prompt_text"], str):
+                change["prompt_text"] = charter.scrub(change["prompt_text"], lab)
+            p = Proposal(id="", kind=kind, role=raw.get("role", ""), change=change,
+                         rationale=charter.scrub(str(raw.get("rationale", "")), lab),
                          risk=raw.get("risk", "medium"), source="llm")
             try:
                 p.validate(cfg)
@@ -361,9 +515,23 @@ def llm_proposals(cfg: HarnessConfig, ds: Dataset, lab: Lab, max_cost: float, on
     box.add(Tool(ToolSpec("submit_proposals", "Submit your proposed changes (may be an empty list).",
                           _obj({"proposals": {"type": "array", "items": item}}, ["proposals"])), submit, terminal=True))
 
-    rejections = "\n".join(f"- [{r['role']} / {r['model']}] {r['title']}: {r['feedback']}" for r in ds.rejections[-30:])
+    analyst = role.models[0]
+    allowed: dict[str, bool] = {}
+
+    def may_see(row: dict[str, Any]) -> bool:
+        """Only a project that allows the analyst's maker gives it rejection texts and task titles."""
+        root = str(row.get("root") or "")
+        if root not in allowed:
+            try:
+                allowed[root] = bool(root) and makers.allowed(ps.load(Path(root)).values, analyst)
+            except Exception:  # noqa: BLE001 - settings that can't be read: nothing from that project
+                allowed[root] = False
+        return allowed[root]
+
+    rejections = "\n".join(f"- [{r['role']} / {r['model']}] {r['title']}: {r['feedback']}"
+                           for r in [x for x in ds.rejections if may_see(x)][-30:])
     owner = "\n".join(f"- [{f['role']} / {f['model']}] {f['title']}: {f.get('rating')} - {f.get('note', '')}"
-                      for f in ds.owner_feedback[-30:])
+                      for f in [x for x in ds.owner_feedback if may_see(x)][-30:])
     pending = "\n".join(f"- {p.id} {p.status}: {p.summary()}" for p in lab.proposals() if p.status in ("proposed", "tested", "applied"))
     prompt = (
         f"# Performance by role and model ({len(ds.projects)} projects, {ds.tasks} tasks)\n"
@@ -376,7 +544,9 @@ def llm_proposals(cfg: HarnessConfig, ds: Dataset, lab: Lab, max_cost: float, on
         "Propose the changes most likely to raise first-try approval and owner satisfaction per dollar. "
         "Call submit_proposals (an empty list is a fine answer when the evidence is thin)."
     )
-    res = run_agent(cfg, role.models[0], cfg.prompt_text("improver"), prompt, box, Budget(max_cost),
+    fixed = charter.fixed_block("improver")  # the lines no learned prompt can drop
+    system = cfg.prompt_text("improver") + (f"\n\n{fixed}" if fixed else "")
+    res = run_agent(cfg, role.models[0], system, prompt, box, Budget(max_cost),
                     max_steps=4, max_tokens=role.max_tokens, options=role.options,
                     require_terminal="submit_proposals", on_event=on_event)
     return accepted, res.cost_usd

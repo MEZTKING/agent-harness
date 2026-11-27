@@ -1,0 +1,15 @@
+import sys
+
+
+def counts(text):
+    return len(text.splitlines()), len(text.split()), len(text)
+
+
+def main(argv):
+    with open(argv[0], encoding="utf-8") as f:
+        lines, words, chars = counts(f.read())
+    print(lines, words, chars)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

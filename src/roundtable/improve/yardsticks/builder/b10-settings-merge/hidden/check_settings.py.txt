@@ -1,0 +1,19 @@
+import copy
+import json
+import tempfile
+from pathlib import Path
+
+from settings import load
+
+defaults = {"window": {"width": 800, "height": 600}, "theme": "dark", "recent": []}
+before = copy.deepcopy(defaults)
+d = Path(tempfile.mkdtemp())
+(d / "s.json").write_text(json.dumps({"window": {"width": 1024}, "theme": "light"}), encoding="utf-8")
+got = load(str(d / "s.json"), defaults)
+assert got == {"window": {"width": 1024, "height": 600}, "theme": "light", "recent": []}, got
+assert defaults == before, "the defaults were changed"
+missing = load(str(d / "none.json"), defaults)
+assert missing == before
+missing["window"]["width"] = 1
+assert defaults == before, "the defaults were changed through the copy"
+print("ok")

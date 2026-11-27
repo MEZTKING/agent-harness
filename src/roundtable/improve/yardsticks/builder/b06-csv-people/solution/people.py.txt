@@ -1,0 +1,6 @@
+import csv
+
+
+def read_people(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return [{"name": row["name"], "age": int(row["age"])} for row in csv.DictReader(f) if row.get("name")]

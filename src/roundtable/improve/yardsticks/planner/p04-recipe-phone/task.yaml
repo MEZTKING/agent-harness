@@ -1,0 +1,23 @@
+id: p04-recipe-phone
+version: 1
+job: planner
+tags:
+- phone
+title: A recipe book app for the phone that works without the internet
+goal: A recipe book app for the phone that works without the internet. No cloud sync.
+dont:
+- No cloud sync.
+description: A recipe book app for the phone that works without the internet.
+acceptance: a plan with done-when lines and stages, nothing from the don't list
+check:
+- shape:
+    min_tasks: 2
+    max_tasks: 14
+    acceptance: true
+    stages: true
+    forbidden:
+    - \bcloud\b
+    - \bsync\w*
+    must_mention:
+    - (?i)recipe
+max_steps: 8

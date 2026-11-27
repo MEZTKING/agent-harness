@@ -1,0 +1,25 @@
+id: p05-budget-csv
+version: 1
+job: planner
+tags:
+- python
+- data
+title: A weekly budget helper in Python that reads the bank's CSV export
+goal: A weekly budget helper in Python that reads the bank's CSV export. Never connect to the bank itself.
+dont:
+- Never connect to the bank itself.
+description: A weekly budget helper in Python that reads the bank's CSV export.
+acceptance: a plan with done-when lines and stages, nothing from the don't list
+check:
+- shape:
+    min_tasks: 2
+    max_tasks: 14
+    acceptance: true
+    stages: true
+    forbidden:
+    - \bbank api\b
+    - \bopen banking\b
+    - \boauth\b
+    must_mention:
+    - (?i)csv
+max_steps: 8

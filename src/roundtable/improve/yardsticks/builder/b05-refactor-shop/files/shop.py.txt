@@ -1,0 +1,12 @@
+def order_total(lines):
+    total = 0.0
+    for price, quantity, discount in lines:
+        total += price * quantity * (1 - discount)
+    return round(total, 2)
+
+
+def invoice_total(lines, tax):
+    net = 0.0
+    for price, quantity, discount in lines:
+        net += price * quantity * (1 - discount)
+    return round(net * (1 + tax), 2)

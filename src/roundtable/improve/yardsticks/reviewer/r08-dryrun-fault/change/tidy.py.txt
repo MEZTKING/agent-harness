@@ -1,0 +1,8 @@
+import os
+
+
+def clean(paths, dry_run=False):
+    for path in paths:
+        if dry_run:
+            print("would remove", path)
+        os.remove(path)
