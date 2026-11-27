@@ -1,0 +1,76 @@
+[
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "journal:todo",
+  "project": "proj",
+  "seq": 1795785250.308361,
+  "text": "check the logo colours",
+  "who": "to do"
+ },
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "status",
+  "model": "a/planner",
+  "project": "proj",
+  "role": "orchestrator",
+  "seq": 7,
+  "task": "",
+  "text": "[status: awaiting_approval]",
+  "who": "orchestrator"
+ },
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "status",
+  "model": "a/planner",
+  "project": "proj",
+  "role": "orchestrator",
+  "seq": 6,
+  "task": "",
+  "text": "[status: awaiting_approval]",
+  "who": "orchestrator"
+ },
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "plan",
+  "model": "a/planner",
+  "project": "proj",
+  "role": "orchestrator",
+  "seq": 5,
+  "task": "",
+  "text": "Plan:",
+  "who": "orchestrator"
+ },
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "tool_call",
+  "model": "a/planner",
+  "project": "proj",
+  "role": "orchestrator",
+  "seq": 3,
+  "task": "",
+  "text": "submit_plan",
+  "who": "orchestrator (planner)"
+ },
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "planning",
+  "model": "a/planner",
+  "project": "proj",
+  "role": "orchestrator",
+  "seq": 1,
+  "task": "",
+  "text": "Planning with a/planner...",
+  "who": "orchestrator (planner)"
+ },
+ {
+  "at": "2026-11-27T13:14:10Z",
+  "kind": "goal",
+  "model": "",
+  "project": "proj",
+  "role": "",
+  "seq": 0,
+  "task": "",
+  "text": "new goal: bakery site",
+  "who": ""
+ }
+]
