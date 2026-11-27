@@ -557,6 +557,9 @@ class AutoSync:
         self.start_cheap_runs()
         self.sync_hub()
         self.autopilot()
+        from ..automation import app_tick  # schedules, GitHub issues and failed checks that start work
+
+        app_tick(self.app)
 
     def autopilot(self) -> None:
         """After the other jobs: answer what waits with the recommendations while autopilot is on."""

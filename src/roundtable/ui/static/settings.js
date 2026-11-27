@@ -2,20 +2,22 @@
 // updates, the look and an Advanced part. And the first-run set-up. Everything is done here: nothing to type
 // elsewhere, no file to edit.
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, dialog, fileSize, plural, jobName, modelName, every, has } from "./core.js";
+import { notifySettings } from "./notify.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let Roundtable use each AI maker"], ["services", "AI services", "Which AI services Roundtable can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
   ["phone", "Your phone", "Use Roundtable from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
-  ["plugins", "Plugins", "Extra abilities for Roundtable"], ["updates", "Updates", "The newest Roundtable Hold"], ["look", "Look", "Light or dark"],
+  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for Roundtable"], ["updates", "Updates", "The newest Roundtable Hold"], ["look", "Look", "Light or dark"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
 
 export async function viewSettings(section = "keys") {
   if (!SECTIONS.some(([k]) => k === section)) section = "keys";
   const st = S.setup = await get("/api/setup");
   const nav = h("nav", { class: "side-nav", "aria-label": "Settings" }, SECTIONS.map(([k, t, tip]) =>
-    h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)));
+    h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)),
+    h("a", { href: "#/automations", title: "Work that starts by itself: schedules, GitHub issues, failed checks" }, "Automations"));
   const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, hub: hubPart, phone: phonePart, backups: backupsPart,
-    plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
+    notifications: notifySettings, plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
   const body = await views[section](st);
   return page("Settings", `Roundtable Hold ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
 }

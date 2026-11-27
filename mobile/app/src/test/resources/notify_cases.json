@@ -1,0 +1,107 @@
+{
+  "about": "Shared cases for the news classifier: src/roundtable/notify.py (tests/test_notify.py) and mobile notify/Classifier.kt (NotifyCasesTest). Made-up projects only.",
+  "cases": [
+    {
+      "name": "a run that finishes is news",
+      "old": {"at": "2026-11-27T10:00:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "running", "done": 3, "total": 4, "last_activity": "2026-11-27T09:59:00Z"}], "needs": []},
+      "new": {"at": "2026-11-27T10:05:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "done", "done": 4, "total": 4, "last_activity": "2026-11-27T10:04:00Z"}], "needs": []},
+      "expect": [{"key": "finished:kite:2026-11-27T10:04:00Z", "kind": "finished", "group": "kite", "quiet": false, "title": "Kite is finished", "text": "All 4 tasks done. Open it to try it.", "buttons": []}]
+    },
+    {
+      "name": "finished at the first look is not news",
+      "old": null,
+      "new": {"at": "2026-11-27T10:05:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "done", "done": 4, "total": 4, "last_activity": "2026-11-27T10:04:00Z"}], "needs": []},
+      "expect": []
+    },
+    {
+      "name": "still finished is not news again",
+      "old": {"at": "2026-11-27T10:05:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "done", "done": 4, "total": 4, "last_activity": "2026-11-27T10:04:00Z"}], "needs": []},
+      "new": {"at": "2026-11-27T10:10:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "done", "done": 4, "total": 4, "last_activity": "2026-11-27T10:04:00Z"}], "needs": []},
+      "expect": []
+    },
+    {
+      "name": "a plan to approve needs you, with an Approve button",
+      "old": {"at": "2026-11-27T10:00:00Z", "projects": [], "needs": []},
+      "new": {"at": "2026-11-27T10:01:00Z", "projects": [], "needs": [{"key": "ask:bakery:approve:ab12", "project": "bakery", "name": "Bakery", "kind": "needs_you", "text": "Is the plan right? Start building?",
+        "ask": {"id": "approve", "kind": "approve", "question": "Is the plan right? Start building?", "stamp": "ab12", "options": [{"id": "approve", "label": "Approve and start"}, {"id": "not_now", "label": "Not now"}]}}]},
+      "expect": [{"key": "needs_you:ask:bakery:approve:ab12", "kind": "needs_you", "group": "bakery", "quiet": false, "title": "Bakery: the plan is ready", "text": "Look at it, then approve it to start building.", "buttons": ["approve"]}]
+    },
+    {
+      "name": "the same need twice is one piece of news",
+      "old": {"at": "2026-11-27T10:01:00Z", "projects": [], "needs": [{"key": "todo:bakery:7", "project": "bakery", "name": "Bakery", "kind": "needs_you", "text": "Pick a logo", "ask": null}]},
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [{"key": "todo:bakery:7", "project": "bakery", "name": "Bakery", "kind": "needs_you", "text": "Pick a logo", "ask": null},
+        {"key": "todo:bakery:8", "project": "bakery", "name": "Bakery", "kind": "needs_you", "text": "Choose a font", "ask": null},
+        {"key": "todo:bakery:8", "project": "bakery", "name": "Bakery", "kind": "needs_you", "text": "Choose a font", "ask": null}]},
+      "expect": [{"key": "needs_you:todo:bakery:8", "kind": "needs_you", "group": "bakery", "quiet": false, "title": "Bakery needs you", "text": "Choose a font", "buttons": []}]
+    },
+    {
+      "name": "a task that stopped is failed news, never with buttons",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [{"key": "ask:kite:task:T3:cc", "project": "kite", "name": "Kite", "kind": "failed", "text": "T3 didn't pass after 3 tries. What now?",
+        "ask": {"id": "task:T3", "kind": "failed", "question": "T3 didn't pass after 3 tries. What now?", "stamp": "cc", "options": [{"id": "retry", "label": "Retry"}, {"id": "skip", "label": "Skip it"}]}}]},
+      "expect": [{"key": "failed:ask:kite:task:T3:cc", "kind": "failed", "group": "kite", "quiet": false, "title": "Kite: a task stopped", "text": "T3 didn't pass after 3 tries. What now?", "buttons": []}]
+    },
+    {
+      "name": "a money limit is money news",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [{"key": "ask:kite:money:dd", "project": "kite", "name": "Kite", "kind": "money", "text": "This project reached its limit of $2.00. Carry on?",
+        "ask": {"id": "money", "kind": "money", "question": "This project reached its limit of $2.00. Carry on?", "stamp": "dd", "options": [{"id": "more", "label": "Carry on with $1.00 more", "confirm": "Sure?"}, {"id": "stop", "label": "Stop here"}]}}]},
+      "expect": [{"key": "money:ask:kite:money:dd", "kind": "money", "group": "kite", "quiet": false, "title": "Kite reached its money limit", "text": "This project reached its limit of $2.00. Carry on?", "buttons": []}]
+    },
+    {
+      "name": "out of credit says so",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [{"key": "ask:kite:money:ee", "project": "kite", "name": "Kite", "kind": "money", "text": "An account ran out of credit (deepseek). Top it up, then carry on.", "ask": null}]},
+      "expect": [{"key": "money:ask:kite:money:ee", "kind": "money", "group": "kite", "quiet": false, "title": "Kite: an account is out of credit", "text": "An account ran out of credit (deepseek). Top it up, then carry on.", "buttons": []}]
+    },
+    {
+      "name": "a run paused for long is idle news, once",
+      "old": {"at": "2026-11-27T10:20:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "idle", "paused": true, "last_activity": "2026-11-27T10:00:00Z"}], "needs": []},
+      "new": {"at": "2026-11-27T10:40:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "idle", "paused": true, "last_activity": "2026-11-27T10:00:00Z"}], "needs": []},
+      "expect": [{"key": "idle:kite:2026-11-27T10:00:00Z", "kind": "idle", "group": "kite", "quiet": false, "title": "Kite has been paused a while", "text": "Nothing has happened for 40 minutes. Open it to carry on.", "buttons": []}]
+    },
+    {
+      "name": "already idle is not news again",
+      "old": {"at": "2026-11-27T10:40:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "idle", "paused": true, "last_activity": "2026-11-27T10:00:00Z"}], "needs": []},
+      "new": {"at": "2026-11-27T11:40:00Z", "projects": [{"id": "kite", "name": "Kite", "status": "idle", "paused": true, "last_activity": "2026-11-27T10:00:00Z"}], "needs": []},
+      "expect": []
+    },
+    {
+      "name": "quiet while that project is on screen, grouped per project",
+      "open": "bakery",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [
+        {"key": "todo:bakery:9", "project": "bakery", "name": "Bakery", "kind": "needs_you", "text": "Send the menu", "ask": null},
+        {"key": "todo:kite:1", "project": "kite", "name": "Kite", "kind": "needs_you", "text": "Name the app", "ask": null}]},
+      "expect": [
+        {"key": "needs_you:todo:bakery:9", "kind": "needs_you", "group": "bakery", "quiet": true, "title": "Bakery needs you", "text": "Send the menu", "buttons": []},
+        {"key": "needs_you:todo:kite:1", "kind": "needs_you", "group": "kite", "quiet": false, "title": "Kite needs you", "text": "Name the app", "buttons": []}]
+    },
+    {
+      "name": "a short choice of two gets both as buttons",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [{"key": "ask:kite:choose:d1:s1", "project": "kite", "name": "Kite", "kind": "needs_you", "text": "Dark or light?",
+        "ask": {"id": "choose:d1", "kind": "decision", "question": "Dark or light?", "stamp": "s1", "options": [{"id": "a", "label": "Dark"}, {"id": "b", "label": "Light"}]}}]},
+      "expect": [{"key": "needs_you:ask:kite:choose:d1:s1", "kind": "needs_you", "group": "kite", "quiet": false, "title": "Kite needs you", "text": "Dark or light?", "buttons": ["a", "b"]}]
+    },
+    {
+      "name": "a command waiting gets Allow and Don't allow",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [{"key": "ask:kite:command:c1:s2", "project": "kite", "name": "Kite", "kind": "needs_you", "text": "Run npm install?",
+        "ask": {"id": "command:c1", "kind": "command", "question": "Run npm install?", "stamp": "s2", "options": [{"id": "allow", "label": "Allow"}, {"id": "deny", "label": "Don't allow"}]}}]},
+      "expect": [{"key": "needs_you:ask:kite:command:c1:s2", "kind": "needs_you", "group": "kite", "quiet": false, "title": "Kite wants to run a command", "text": "Run npm install?", "buttons": ["allow", "deny"]}]
+    },
+    {
+      "name": "no buttons when a choice spends money, has three options or several picks",
+      "old": null,
+      "new": {"at": "2026-11-27T10:02:00Z", "projects": [], "needs": [
+        {"key": "k1", "project": "kite", "name": "Kite", "kind": "needs_you", "text": "Q1", "ask": {"id": "q1", "kind": "decision", "question": "Q1", "options": [{"id": "a", "label": "A", "confirm": "Costs more. Sure?"}, {"id": "b", "label": "B"}]}},
+        {"key": "k2", "project": "kite", "name": "Kite", "kind": "needs_you", "text": "Q2", "ask": {"id": "q2", "kind": "question", "question": "Q2", "options": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}, {"id": "c", "label": "C"}]}},
+        {"key": "k3", "project": "kite", "name": "Kite", "kind": "needs_you", "text": "Q3", "ask": {"id": "q3", "kind": "question", "question": "Q3", "multi": true, "options": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}]}}]},
+      "expect": [
+        {"key": "needs_you:k1", "kind": "needs_you", "group": "kite", "quiet": false, "title": "Kite needs you", "text": "Q1", "buttons": []},
+        {"key": "needs_you:k2", "kind": "needs_you", "group": "kite", "quiet": false, "title": "Kite needs you", "text": "Q2", "buttons": []},
+        {"key": "needs_you:k3", "kind": "needs_you", "group": "kite", "quiet": false, "title": "Kite needs you", "text": "Q3", "buttons": []}]
+    }
+  ]
+}

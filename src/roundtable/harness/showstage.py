@@ -62,7 +62,8 @@ class ShowStage:
 
     def _game_tool(self):
         """``run_game`` when the project is a Godot game and Godot is on this computer, else None."""
-        return godotlib.game_tool(self.project.root, self.cfg.godot)
+        root = self._work_root() if hasattr(self, "_work_root") else self.project.root  # the task's own copy
+        return godotlib.game_tool(root, self.cfg.godot)
 
     def _after_task(self, task, ok: bool) -> None:
         record = self._show_it(task) if ok else None

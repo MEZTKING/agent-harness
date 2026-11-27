@@ -9,6 +9,15 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-27
 
+- **Asked Fable: is it safe for Roundtable to tidy up old files by itself?** A helper built a daily tidy-up
+  (old logs, old pictures, leftover working copies, old run records) so the disk doesn't fill. *Fable's
+  advice, taken:* on by default, but only for things that can be rebuilt or are kept elsewhere. Files you
+  send (photos, attachments) are never removed automatically; a project's history is packed into a small
+  archive rather than cut, so old tasks stay visible and backed up; a task's working copy is removed only
+  once that task is truly finished, never while a project is paused. You'll see one line in Activity when
+  something was tidied, and a switch in Settings → Advanced with "Show what would be removed". *Done:* the
+  helper is making those changes before it's merged (wave 2).
+
 - **Asked Fable: your keys, and the order to "add everything" from Munder Difflin and DSH Mobile.**
   The comparison (`plans/parity.md`) found that commands the AI helpers run could read your API keys
   (the app put them where every command could see them). *Fable's advice, taken:* fix the keys first and

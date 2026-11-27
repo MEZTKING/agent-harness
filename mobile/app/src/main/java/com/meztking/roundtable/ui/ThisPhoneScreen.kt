@@ -226,7 +226,7 @@ fun CommandQuestion(vm: RuntimeViewModel) {
                 colors = ButtonDefaults.buttonColors(containerColor = Hall.gold, contentColor = Hall.onAccent)) {
                 Text("Run it (recommended for building)")
             }
-            OutlinedButton(onClick = { vm.chooseCommands("ask"); choice = "ask" }, modifier = Modifier.fillMaxWidth()) { Text("Ask me first (coming soon)") }
+            OutlinedButton(onClick = { vm.chooseCommands("ask"); choice = "ask" }, modifier = Modifier.fillMaxWidth()) { Text("Ask me first") }
         }
     }
 }

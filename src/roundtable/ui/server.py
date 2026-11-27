@@ -45,7 +45,7 @@ def _lines(raw) -> list[str]:
 
 # Feature API modules under roundtable.ui: each has routes(app) -> {(method, path): fn}. A feature added
 # side by side with others appends its module name here (one line each), nothing else in this file.
-FEATURE_APIS: tuple[str, ...] = ()
+FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi")
 
 
 def _feature_routes(app) -> dict:
@@ -689,7 +689,7 @@ class UIApp:
         if isinstance(body.get("wizard"), dict):
             return self._wizard_start(cfg, body["wizard"])
         proj = self.project(cfg, body.get("path", ""))
-        if self._busy(proj.root):
+        if self._busy(proj.root) and not str(body.get("id", "")).startswith("command:"):  # a command waits on its own run
             raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         try:
             r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
