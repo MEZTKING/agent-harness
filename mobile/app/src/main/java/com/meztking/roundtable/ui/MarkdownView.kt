@@ -54,7 +54,7 @@ import com.meztking.roundtable.ui.theme.Serif
 fun styled(s: String, codeBg: Color = Hall.code, codeFg: Color = Hall.goldBright, link: Color = Hall.goldBright): AnnotatedString =
     buildAnnotatedString {
         for (span in Markdown.inline(s)) when (span) {
-            is Inline.Plain -> append(span.text)
+            is Inline.Plain -> linkified(span.text, link)
             is Inline.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(span.text) }
             is Inline.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(span.text) }
             is Inline.Code -> withStyle(SpanStyle(fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, background = codeBg, color = codeFg)) {
@@ -65,6 +65,17 @@ fun styled(s: String, codeBg: Color = Hall.code, codeFg: Color = Hall.goldBright
             }
         }
     }
+
+/** Plain text with the bare web addresses in it (a dev server's "Local: http://localhost:5173/") made tappable. */
+private fun androidx.compose.ui.text.AnnotatedString.Builder.linkified(text: String, link: Color) {
+    var at = 0
+    for (l in com.meztking.roundtable.data.browser.findWebLinks(text)) {
+        append(text.substring(at, l.start))
+        withLink(LinkAnnotation.Url(l.url, TextLinkStyles(SpanStyle(color = link, textDecoration = TextDecoration.Underline)))) { append(l.url) }
+        at = l.end
+    }
+    append(text.substring(at))
+}
 
 private val boldTime = Regex("\\*\\*(\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d[0-9:.]*Z?)\\*\\*")
 private val shortTime = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(java.time.ZoneId.systemDefault())
