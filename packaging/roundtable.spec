@@ -20,12 +20,13 @@ hidden = (
     # MCP tool servers for roles (Unreal's editor and others): the client and what it pulls in
     + collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
     + collect_submodules("mcp_types")
+    + collect_submodules("tzdata")  # schedules keep summer time on Windows
 )
 
 a = Analysis(
     [str(ROOT / "packaging" / "roundtable_app.py")],
     pathex=[str(ROOT / "src")],
-    datas=collect_data_files("roundtable"),  # UI, prompts, templates
+    datas=collect_data_files("roundtable") + collect_data_files("tzdata"),  # UI, prompts, templates
     hiddenimports=hidden,
     excludes=["mcp.cli", "tkinter", "pytest"],
     noarchive=False,

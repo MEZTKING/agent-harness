@@ -2,6 +2,7 @@
 on the desktop, the phone and through the hub alike (one card of kind ``command``). Made-up projects,
 scripted models, no network."""
 
+import sys
 import json
 import threading
 import time
@@ -155,7 +156,8 @@ def ws_with_gate(tmp_path, mode="risky", timeout=5.0):
 
 def test_off_never_asks(tmp_path):
     ws = ws_with_gate(tmp_path, "off", timeout=0.05)
-    out = ws.run_command({"command": "git push nowhere-at-all 2>&1; echo ran"})
+    sep = " & " if sys.platform == "win32" else "; "  # cmd.exe joins commands with &, sh with ;
+    out = ws.run_command({"command": f"git push nowhere-at-all 2>&1{sep}echo ran"})
     assert "ran" in out and not asklib.command_asks(ws.root)
 
 

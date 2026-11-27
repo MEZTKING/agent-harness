@@ -14,6 +14,7 @@ dependencies = [
   "openai>=2.0",
   "cryptography>=42",  # phone access: the self-signed TLS certificate
   "segno>=1.5",        # phone access: the pairing QR code
+  "tzdata; sys_platform == 'win32'",  # Windows has no time-zone database: schedules keep summer time
 ]
 
 [project.optional-dependencies]
