@@ -1,0 +1,15 @@
+schema: extra@1
+id: exe
+name: Windows program (EXE)
+blurb: Packs the web app as a program for Windows.
+status: trial
+match: [windows, exe, desktop app, pc program, program for my pc]
+needs: [node]
+targets: [exe]
+pc_only: true
+task: "Add a last task that wraps the finished web app as a Windows program (an Electron or similar shell), builds it and puts the .exe in dist/."
+plan:
+  dont:
+    - {text: "No code signing certificate bought", why: "That costs money: the owner decides"}
+proof:
+  - {id: exe_built, how: file_exists, path: "dist/*.exe", words: "The EXE was built"}

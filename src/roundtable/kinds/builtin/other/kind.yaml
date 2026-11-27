@@ -1,0 +1,20 @@
+schema: kind@1
+id: other
+name: Something else
+blurb: Anything not listed yet, with fewer checks.
+group: Other
+status: trial
+match: []
+examples: ["a script that renames my photos by date", "a small command-line converter"]
+needs: []
+plan:
+  skeleton_first: false
+  spec_sections: [What it does, How to run it]
+look: off
+proof:
+  - {id: tests, how: command, command: "", optional: true, words: "Its own tests pass"}
+pictures: []
+targets: []
+extras_allowed: []
+plugins: []
+estimate: {tasks: [3, 10], usd: [0.5, 3.0], minutes: [15, 60]}
