@@ -1,7 +1,8 @@
 // Tools: what this computer has for building things (found or not, with Install), and the tool servers
 // (MCP) that let helpers work inside other programs, each given to the jobs that use it.
 // The API is ui/toolsapi.py (GET /api/tools and POST /api/tools/...); read loosely so a missing field never breaks it.
-import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName } from "./core.js";
+import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName, has } from "./core.js";
+import { webSearchCard } from "./websearch.js";
 
 const ROW = "padding: 10px 0; border-top: 1px solid var(--color-oak-line)";  // no stylesheet change: style.css isn't this page's
 const STATE = { found: ["Found", "good"], old: ["Too old", "warn"], broken: ["Didn't start", "bad"], missing: ["Not found", ""] };
@@ -13,7 +14,8 @@ export async function viewTools() {
     let t;
     try { t = fresh ? await post("/api/tools/check", {}) : await get("/api/tools"); }
     catch (e) { fill(body, card("Tools", h("p", {}, e.message))); return; }
-    fill(body, summary(t, draw), groups(t, draw), servers(t, draw));
+    const web = await has("/api/websearch") ? await webSearchCard().catch(() => null) : null;  // look things up on the web
+    fill(body, summary(t, draw), groups(t, draw), web, servers(t, draw));
   };
   await draw();
   return page("Tools", "What this computer has for building apps and games.", body);
