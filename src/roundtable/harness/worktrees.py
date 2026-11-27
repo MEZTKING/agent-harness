@@ -224,9 +224,9 @@ class ParallelStage:
         lock = threading.RLock()
         charge, check = type(budget).charge, type(budget).check
 
-        def locked_charge(cost):
+        def locked_charge(cost, *, ref=None, usage=None, role=None):
             with lock:
-                charge(budget, cost)
+                charge(budget, cost, ref=ref, usage=usage, role=role)
 
         def halting_check():
             halt = self._halt

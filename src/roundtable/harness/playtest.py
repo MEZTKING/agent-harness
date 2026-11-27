@@ -545,7 +545,7 @@ class ModelChooser:
         cost = float(self.cfg.cost(self.ref, resp.usage) or 0.0)
         self.spent += cost
         try:
-            self.budget.charge(cost)
+            self.budget.charge(cost, ref=self.ref, usage=resp.usage, role="playtest")
         except Exception:  # noqa: BLE001 - charging is bookkeeping; the next turn's check stops it
             pass
         for call in resp.tool_calls or []:

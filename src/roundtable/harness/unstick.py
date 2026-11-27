@@ -35,6 +35,7 @@ from ..providers.base import ProviderError, ToolSpec, Usage
 from . import handoff
 from .agent import Budget, BudgetExceeded, run_agent
 from .config import ModelRef, section
+from .makers import maker
 from .tools import READ_ONLY, Tool, _obj
 
 ACTIONS = ("retry_with_advice", "split", "replan_around", "park", "needs_owner")
@@ -42,25 +43,6 @@ RECORD = Path(".harness") / "unstick.json"
 DROPPED = Path(".harness") / "dropped-tasks.jsonl"
 DEFAULTS = {"enabled": True, "max_per_run": 4, "max_usd_per_task": 0.15, "max_steps": 15, "tasks_per_diagnosis": 10}
 AUTOPILOT_REASON = "only you can drop work or pay for the stronger model"
-
-# a model's maker from its name, when the provider id doesn't say (a router, a custom endpoint)
-_MAKERS = (("claude", "anthropic"), ("gpt", "openai"), ("o1", "openai"), ("o3", "openai"), ("o4", "openai"),
-           ("codex", "openai"), ("deepseek", "deepseek"), ("gemini", "google"), ("gemma", "google"),
-           ("glm", "zhipu"), ("kimi", "moonshot"), ("moonshot", "moonshot"), ("qwen", "alibaba"), ("grok", "xai"),
-           ("llama", "meta"), ("mistral", "mistral"), ("codestral", "mistral"), ("minimax", "minimax"))
-
-
-def maker(ref: ModelRef | str) -> str:
-    """Who made a model: "openrouter/anthropic/claude-x" -> anthropic, "deepseek/deepseek-v4" -> deepseek."""
-    pid, _, model = str(ref).partition("/")
-    if "/" in model:  # a router: the maker is the model's own prefix
-        return model.split("/", 1)[0].lower()
-    m = model.lower()
-    for word, who in _MAKERS:
-        if m.startswith(word):
-            return who
-    return pid.lower()
-
 
 class _DiagnosisCap(BudgetExceeded):
     """This diagnosis reached its own cap (not the project's limit)."""
@@ -71,12 +53,13 @@ class _CappedBudget(Budget):
     """A diagnosis's own small budget: every charge also goes to the project's budget, whose limit still holds."""
     parent: Any = None
 
-    def charge(self, cost: float | None) -> None:
-        if cost is None:
-            self.unpriced_calls += 1
-        else:
-            self.spent_usd += cost
-        self.parent.charge(cost)
+    def charge(self, cost: float | None, *, ref: Any = None, usage: Any = None, role: str | None = None) -> None:
+        with self._lock:
+            if cost is None:
+                self.unpriced_calls += 1
+            else:
+                self.spent_usd += cost
+        self.parent.charge(cost, ref=ref, usage=usage, role=role)
 
     def check(self) -> None:
         self.parent.check()  # the project's own limit: a real stop

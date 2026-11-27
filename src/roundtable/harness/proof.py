@@ -438,7 +438,7 @@ def judge(cfg: Any, task: Any, prs: list[dict[str, Any]], tests: dict[str, Any] 
                 "words": NOBODY + " (the model that can see didn't answer)"}
     cost = cfg.cost(ref, resp.usage)
     try:
-        budget.charge(cost)
+        budget.charge(cost, ref=ref, usage=resp.usage, role="proof")
     except Exception:  # noqa: BLE001 - charging is bookkeeping
         pass
     out.update(model=str(ref), cost_usd=round(cost or 0.0, 6), pictures=len(files))

@@ -51,6 +51,8 @@ SETTINGS: tuple[Setting, ...] = (
             "are always kept)."),
     Setting("providers_allowed", "lines", [], "Only these AI providers may see this project (e.g. deepseek). Empty: "
             "any. A role whose models are all from other providers stops the run with a message.", example="[deepseek]"),
+    Setting("makers_allowed", "lines", [], "Only models made by these companies may see this project (e.g. anthropic, "
+            "openai, deepseek), whichever service they come through. Empty: any.", example="[anthropic, deepseek]"),
     Setting("profile", "choice", "", "Which set of models builds it (e.g. Budget, Balanced, Quality). Empty: the "
             "app's own choice."),
     Setting("limits", "number-map", {}, "Money and effort limits for this project only: max_real_usd_per_run, "

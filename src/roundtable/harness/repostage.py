@@ -23,6 +23,7 @@ from typing import Any
 
 from ..core.models import utcnow
 from . import checks as checkslib
+from . import makers
 from . import projectsettings as ps
 from . import reporules
 from .safeenv import clean_env
@@ -63,34 +64,43 @@ class RepoStage:
             self.emit("settings_warning", {"warning": f"profile not saved in project.yaml: {e}"})
 
     def _settle_cfg(self, cfg):
-        """The config with this project's limits and allowed providers laid over it."""
+        """The config with this project's limits and allowed providers and makers laid over it."""
         try:
             st = self.project_settings()
         except Exception:
             return cfg
-        limits, allowed = st.values.get("limits") or {}, st.values.get("providers_allowed") or []
-        if not limits and not allowed:
+        limits = st.values.get("limits") or {}
+        kept = bool(st.values.get("providers_allowed") or st.values.get("makers_allowed"))
+        if not limits and not kept:
             return cfg
         c = cfg.variant()
         for k, v in limits.items():
             if hasattr(c.limits, k):
                 setattr(c.limits, k, v)
-        if allowed:
+        if kept:
             for role in c.roles.values():
-                role.models = [m for m in role.models if m.provider in allowed]
+                role.models = [m for m in role.models if makers.allowed(st.values, m)]
         return c
 
     def _require_models(self, role) -> None:
-        """A role left with no model by ``providers_allowed`` stops the run with a message saying what to do."""
+        """A role left with no model by ``providers_allowed`` or ``makers_allowed`` stops the run with a message
+        saying what to do."""
         if role.models:
             return
         from .orchestrator import HarnessError
 
-        allowed = ", ".join(self.project_settings().values.get("providers_allowed") or []) or "none"
+        values = self.project_settings().values
+        providers = ", ".join(values.get("providers_allowed") or [])
+        made_by = ", ".join(values.get("makers_allowed") or [])
+        kept = []
+        if providers or not made_by:
+            kept.append(f"may only use {providers or 'none'} (providers_allowed in its settings)")
+        if made_by:
+            kept.append(f"may only use models made by {made_by} (makers_allowed in its settings)")
         raise HarnessError(
-            f"This project may only use {allowed} (providers_allowed in its settings), and the role "
-            f"'{role.name}' has no model from there. Give it one (roundtable assign {role.name} <provider>/<model>) "
-            "or allow its provider in the project's settings, then run again.")
+            f"This project {' and '.join(kept)}, and the role '{role.name}' has no model allowed. Give it one "
+            f"(roundtable assign {role.name} <provider>/<model>) or allow its provider or maker in the project's "
+            "settings, then run again.")
 
     def _ensure_settings_file(self) -> None:
         try:

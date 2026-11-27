@@ -1358,7 +1358,7 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                 self._metric(task, ref, "error", None)
                 continue
             cost = self.cfg.cost(ref, usage)
-            self.budget.charge(cost)
+            self.budget.charge(cost, ref=ref, usage=usage, role=task.role)
             self._save_spend()
             if "." not in Path(rel).name:
                 rel = f"{rel}.{ext}"
