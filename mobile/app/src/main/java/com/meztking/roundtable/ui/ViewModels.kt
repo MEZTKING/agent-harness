@@ -35,12 +35,8 @@ typealias Done = (Boolean) -> Unit
 /** Something loaded from the network: what we have, whether a load is running, and what went wrong. */
 data class Load<T>(val data: T? = null, val loading: Boolean = false, val error: String? = null)
 
-fun friendly(e: Throwable): String = when (e) {
-    is java.net.UnknownHostException -> "No connection. Is the phone online?"
-    is java.net.SocketTimeoutException -> "It took too long to answer. Try again."
-    is kotlinx.serialization.SerializationException -> "Got an answer the app doesn't understand. Is everything up to date?"
-    else -> e.message?.replaceFirstChar { it.uppercase() } ?: "Something went wrong. Try again."
-}
+/** The words a screen shows for [e]: always one of [com.meztking.roundtable.data.Failure]'s sentences, or the harness's own plain one. */
+fun friendly(e: Throwable): String = com.meztking.roundtable.data.Failure.words(e)
 
 private suspend fun <T> MutableStateFlow<Load<T>>.fetch(block: suspend () -> T) {
     update { it.copy(loading = true, error = null) }
@@ -50,7 +46,7 @@ private suspend fun <T> MutableStateFlow<Load<T>>.fetch(block: suspend () -> T) 
     } catch (e: CancellationException) {
         throw e
     } catch (e: Throwable) {  // errors too (out of memory, a missing method): show them, don't close the app
-        update { it.copy(loading = false, error = if (e is Exception) friendly(e) else "Something went wrong loading this (${e::class.simpleName}). Try again, or send the details from Settings.") }
+        update { it.copy(loading = false, error = friendly(e)) }
     }
 }
 

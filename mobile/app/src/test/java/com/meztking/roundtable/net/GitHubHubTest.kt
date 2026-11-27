@@ -287,6 +287,6 @@ class GitHubHubTest {
         try { hub().projects(); fail() } catch (e: ApiException) { assertTrue(e.message!!.contains("token")) }
         status = null
         files.remove("hub.yaml")
-        try { hub().projects(); fail() } catch (e: ApiException) { assertTrue(e.message!!.contains("hub.yaml")) }
+        try { hub().projects(); fail() } catch (e: ApiException) { assertEquals(com.meztking.roundtable.data.Failure.REPO_MISSING.sentence, e.message) }
     }
 }

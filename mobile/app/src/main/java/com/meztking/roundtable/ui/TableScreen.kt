@@ -234,13 +234,23 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
     }
 }
 
+/**
+ * What a named failure's button does, for screens that can do more than retry (pair again, open Settings…).
+ * Returns false when it can't, and the button retries instead. MainActivity provides it.
+ */
+val LocalFailureActions = androidx.compose.runtime.staticCompositionLocalOf<(com.meztking.roundtable.data.FailureAction) -> Boolean> { { false } }
+
 @Composable
 fun ErrorLine(text: String, onRetry: () -> Unit) {
+    val failure = com.meztking.roundtable.data.Failure.ofSentence(text)
+    val act = LocalFailureActions.current
     Row(Modifier.fillMaxWidth().background(Hall.bad.copy(alpha = 0.10f), RoundedCornerShape(6.dp))
         .border(1.dp, Hall.bad.copy(alpha = 0.5f), RoundedCornerShape(6.dp)).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Text(text, Modifier.weight(1f).padding(vertical = 6.dp), color = Hall.bad, style = MaterialTheme.typography.bodyMedium)
-        TextButton(onClick = onRetry) { Text("Try again") }
+        TextButton(onClick = { if (failure == null || failure.action == com.meztking.roundtable.data.FailureAction.TRY_AGAIN || !act(failure.action)) onRetry() }) {
+            Text(failure?.button ?: "Try again")
+        }
     }
 }
 
