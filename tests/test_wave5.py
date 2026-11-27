@@ -216,6 +216,7 @@ def test_play_and_journey_pictures_are_tidied_like_the_app_pictures(tmp_path):
         d.mkdir(parents=True)
         (d / "turn-01.png").write_bytes(b"png")
         os.utime(d / "turn-01.png", (1000 + n, 1000 + n))
+        os.utime(d, (1000 + n, 1000 + n))  # the folder's own date counts too (Windows times are coarse)
     sweep = retention.Sweep({**retention.settings(), "shots_keep": 2, "min_age_minutes": 0})
     sweep.goal_dirs(tmp_path / ".harness" / "play")
     assert sorted(p.name for p in goal.iterdir()) == ["D2", "D3"]  # the newest two kept
