@@ -13,7 +13,8 @@ export async function viewSettings(section = "keys") {
   if (!SECTIONS.some(([k]) => k === section)) section = "keys";
   const st = S.setup = await get("/api/setup");
   const nav = h("nav", { class: "side-nav", "aria-label": "Settings" }, SECTIONS.map(([k, t, tip]) =>
-    h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)));
+    h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)),
+    h("a", { href: "#/automations", title: "Work that starts by itself: schedules, GitHub issues, failed checks" }, "Automations"));
   const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, hub: hubPart, phone: phonePart, backups: backupsPart,
     plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
   const body = await views[section](st);

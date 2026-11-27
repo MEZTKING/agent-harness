@@ -37,6 +37,7 @@ KNOWN_KEYS = {
     "GEMINI_API_KEY": "Google Gemini",
     "OPENROUTER_API_KEY": "OpenRouter",
     "OPENFERENCE_API_KEY": "Openference",
+    "ROUNDTABLE_GITHUB_TOKEN": "GitHub",
 }
 
 
