@@ -42,10 +42,19 @@ function addLooks() {
 
 const more = (summary, ...kids) => h("details", {}, h("summary", { title: "Show the details" }, summary || "More"), ...kids);
 
+// a piece's date: a day only ("2026-11-27") says today, yesterday or the day; a full time says how long ago
+function day(at) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(at))) return when(at);
+  const d = new Date(`${at}T12:00:00`), now = new Date();
+  const days = Math.round((new Date(now.toDateString()) - new Date(d.toDateString())) / 86400000);
+  const words = days === 0 ? "today" : days === 1 ? "yesterday" : d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  return h("time", { datetime: at }, words);
+}
+
 function pieceRow(p) {
   return h("div", { class: "rc-piece" },
     h("div", {}, h("strong", {}, p.title), p.private ? h("span", { class: "rc-tag", title: "This one is never given to a model" }, " Never leaves this computer") : null),
-    h("div", { class: "rc-src" }, p.kind_words, " · ", p.where, p.at ? [" · ", when(p.at)] : null),
+    h("div", { class: "rc-src" }, p.kind_words, " · ", p.where, p.at ? [" · ", day(p.at)] : null),
     h("p", {}, p.text));
 }
 
@@ -183,13 +192,14 @@ function layout(nodes) {
   const W = 760, H = 460, pos = {};
   const groups = { project: [], agent: [], job: [], document: [], topic: [], seat: [] };
   nodes.forEach((n) => (groups[n.kind] || groups.seat).push(n));
-  const arc = (list, cx, cy, r, from, to) => list.forEach((n, i) => {
+  // ellipses that fit the picture (a circle as wide as the picture would put the ends of an arc outside it)
+  const arc = (list, cx, cy, rx, ry, from, to) => list.forEach((n, i) => {
     const a = list.length === 1 ? (from + to) / 2 : from + (to - from) * (i / (list.length - 1));
-    pos[n.id] = [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    pos[n.id] = [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
   });
-  arc(groups.project, W / 2, H / 2 - 20, 90, -Math.PI * 0.9, Math.PI * 0.9);
-  arc([...groups.agent, ...groups.job, ...groups.seat], W / 2, H / 2, 290, Math.PI * 0.65, Math.PI * 1.35);
-  arc(groups.document, W / 2, H / 2, 290, -Math.PI * 0.35, Math.PI * 0.35);
+  arc(groups.project, W / 2, H / 2 - 20, 90, 90, -Math.PI * 0.9, Math.PI * 0.9);
+  arc([...groups.agent, ...groups.job, ...groups.seat], W / 2, H / 2 - 20, 290, H / 2 - 50, Math.PI * 0.65, Math.PI * 1.35);
+  arc(groups.document, W / 2, H / 2 - 20, 250, H / 2 - 50, -Math.PI * 0.35, Math.PI * 0.35);
   arc(groups.topic, W / 2, H - 30, 230, Math.PI, Math.PI * 2);
   groups.topic.forEach((n, i) => { pos[n.id] = [120 + i * ((W - 240) / Math.max(1, groups.topic.length - 1)), H - 24]; });
   return { W, H, pos };
@@ -201,11 +211,12 @@ export async function memoryPicture() {
   let g;
   try { g = await get("/api/recall/graph"); } catch (e) { return fill(host, empty(e.message)); }
   if (!(g.nodes || []).length) return fill(host, empty(g.sentence || "Nothing to show yet."));
+  g.nodes.forEach((n) => { if (n.kind === "topic") n.label = String(n.label).replace(/^[\w-]+:/, "").replace(/[-_]/g, " "); });  // "kind:website" → "website"
   const { W, H, pos } = layout(g.nodes);
   const top = Math.max(1, ...g.edges.map((e) => e.count));
   const svg = s("svg", { class: "rc-svg", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": g.sentence },
     g.edges.filter((e) => pos[e.from] && pos[e.to]).map((e) => s("line", { x1: pos[e.from][0], y1: pos[e.from][1], x2: pos[e.to][0], y2: pos[e.to][1],
-      class: e.kind, "stroke-width": String(1 + 5 * (e.count / top)) }, s("title", {}, e.words)))),
+      class: e.kind, "stroke-width": String(1 + 5 * (e.count / top)) }, s("title", {}, e.words))),
     g.nodes.filter((n) => pos[n.id]).map((n) => s("g", { class: `n-${n.kind}` },
       s("circle", { cx: pos[n.id][0], cy: pos[n.id][1], r: String(7 + Math.min(10, Math.sqrt(n.weight || 1) * 2)) }, s("title", {}, n.label)),
       s("text", { x: pos[n.id][0] + 14, y: pos[n.id][1] + 4 }, n.label.length > 22 ? n.label.slice(0, 21) + "…" : n.label))));

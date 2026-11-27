@@ -42,7 +42,8 @@ export async function gather(rt, full = true) {
 // One card, answered in place. done() runs after an answer (the page refreshes itself).
 export function needCard(it, done, opts = {}) {
   const name = projectName(it.project);
-  const proj = opts.showProject === false ? null : h("a", { href: projectHref(it.project), title: "Open this project" }, dot(it.project), name);
+  // the harness's own cards (a fix to itself) belong to no project
+  const proj = opts.showProject === false || !it.project ? null : h("a", { href: projectHref(it.project), title: "Open this project" }, dot(it.project), name);
   const more = it.more > 0 ? h("a", { class: "btn small", href: "#/needs", title: "See every card waiting for you" }, `${it.more} more here`) : null;
   if (it.kind === "local-ask") {
     const a = it.ask;
@@ -51,7 +52,9 @@ export function needCard(it, done, opts = {}) {
       const r = await answerHere(a, ans);
       if (r.job) toast("Working on it: watch it on the project's page");
       await after(done);
-    }, { compact: opts.compact, project: proj, disabled: it.busy, extra: [more, it.busy ? h("span", { class: "muted small" }, "It's working on this project now; answer when it stops.") : null],
+    }, { compact: opts.compact, project: proj, disabled: it.busy, extra: [more,
+      a.link ? h("a", { class: "btn small", href: a.link, target: "_blank", rel: "noopener", title: "Opens the draft pull request on GitHub" }, "Look at it") : null,
+      it.busy ? h("span", { class: "muted small" }, "It's working on this project now; answer when it stops.") : null],
       onSkip: skippable ? async () => { try { await skipHere(a); } catch (e) { toast(e.message, true); } await after(done); } : null });
   }
   if (it.kind === "hub-ask") {

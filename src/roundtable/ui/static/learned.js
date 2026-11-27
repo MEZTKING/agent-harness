@@ -8,7 +8,8 @@ const STATE = { on: ["In use", "good"], watching: ["Being watched", "info"], und
 
 // The Learning tab's body for the Models page. `suggestions` (optional): a node or an async function giving one,
 // the harness's open suggestions, shown inside "Waiting for you".
-export async function learnedTab({ suggestions } = {}) {
+// `walletLine` false: the page shows learning's money itself (Models puts the wallet card on top).
+export async function learnedTab({ suggestions, walletLine = true } = {}) {
   if (!(await has("/api/learned"))) return empty("This computer's copy of the app can't show what it learned yet.");
   const box = h("div", { class: "stack ln-tab" });
   const load = async () => {
@@ -17,7 +18,7 @@ export async function learnedTab({ suggestions } = {}) {
     catch (e) { fill(box, empty("Couldn't read what the harness learned. Try again in a moment.")); return; }
     const extra = typeof suggestions === "function" ? await suggestions(load) : suggestions || null;
     fill(box,
-      h("p", { class: "muted small ln-wallet", title: "Learning by itself only spends this weekly allowance" }, (v.wallet || {}).words || ""),
+      walletLine ? h("p", { class: "muted small ln-wallet", title: "Learning by itself only spends this weekly allowance" }, (v.wallet || {}).words || "") : null,
       learnedPart(v, load),
       waitingPart(v, load, extra),
       neverPart(v));
@@ -60,7 +61,9 @@ function beforeAfter(l) {
       h("div", { class: "ln-" + d.op, title: d.op === "new" ? "Added" : "Taken out" }, (d.op === "new" ? "+ " : "– ") + d.text)));
   } else if (ba.before || ba.after) {
     const words = (x) => Array.isArray(x) ? x.join(", then ") : Object.entries(x || {}).map(([k, val]) => `${k} ${val}`).join(", ");
-    body = h("p", { class: "small" }, ba.before && ba.before.length ? `Before: ${words(ba.before)}. ` : "", `Now: ${words(ba.after)}.`);
+    const out = l.state === "undone";  // an undone change is no longer in use: say what it was, not "Now"
+    body = h("p", { class: "small" }, ba.before && ba.before.length ? `Before: ${words(ba.before)}. ` : "",
+      `${out ? "The change was" : "Now"}: ${words(ba.after)}.`);
   }
   return body ? h("details", { class: "ln-more" }, h("summary", { title: "What it was and what it is now" }, "More"), body) : null;
 }

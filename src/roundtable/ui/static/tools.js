@@ -3,6 +3,7 @@
 // The API is ui/toolsapi.py (GET /api/tools and POST /api/tools/...); read loosely so a missing field never breaks it.
 import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName, has } from "./core.js";
 import { webSearchCard } from "./websearch.js";
+import { marketPage } from "./market.js";
 
 const ROW = "padding: 10px 0; border-top: 1px solid var(--color-line)";  // no stylesheet change: style.css isn't this page's
 const STATE = { found: ["Found", "good"], old: ["Too old", "warn"], broken: ["Didn't start", "bad"], missing: ["Not found", ""] };
@@ -15,7 +16,9 @@ export async function viewTools() {
     try { t = fresh ? await post("/api/tools/check", {}) : await get("/api/tools"); }
     catch (e) { fill(body, card("Tools", h("p", {}, e.message))); return; }
     const web = await has("/api/websearch") ? await webSearchCard().catch(() => null) : null;  // look things up on the web
-    fill(body, summary(t, draw), groups(t, draw), web, servers(t, draw));
+    // the list of plug-ins and skills, and Make one (plugins/market.py, ui/marketapi.py)
+    const market = await has("/api/market") ? card("Plug-ins and skills", await marketPage().catch((e) => h("p", { class: "muted" }, e.message))) : null;
+    fill(body, summary(t, draw), groups(t, draw), web, market, servers(t, draw));
   };
   await draw();
   return page("Tools", "What this computer has for building apps and games.", body);

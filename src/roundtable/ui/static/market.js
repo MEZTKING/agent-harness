@@ -46,7 +46,7 @@ function pluginsTab(d, draw) {
         : h("button", { class: "small primary", title: "Shows what it may do, then adds it once you say yes", onclick: (ev) => install(ev.currentTarget, x, draw) }, "Add"),
     ], h("div", {}, perms(x), h("dl", { class: "small" },
       h("dt", {}, "Version"), h("dd", {}, x.version || "?"), x.checked ? [h("dt", {}, "Checked"), h("dd", {}, x.checked)] : null,
-      x.licence ? [h("dt", {}, "Licence"), h("dd", {}, x.licence)] : null, h("dt", {}, "From"), h("dd", {}, h("code", {}, `${x.source}${x.commit ? " @ " + x.commit.slice(0, 10) : ""}`))))))))
+      x.licence ? [h("dt", {}, "Licence"), h("dd", {}, x.licence)] : null, h("dt", {}, "From"), h("dd", {}, h("code", {}, `${x.source}${x.commit ? " @ " + x.commit.slice(0, 10) : ""}`)))))))
       : empty("No outside plug-ins are on the list yet. Make your own under Make one."),
   ];
 }
