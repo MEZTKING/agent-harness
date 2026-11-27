@@ -4,7 +4,8 @@ Each module has ``MANIFEST`` and ``make(cfg) -> (manifest, plugin object, enable
 The order here is the calling order: the token saver is always first.
 """
 
-from . import cost_log, token_saver
+from . import compactor, cost_log, token_saver
 
-BUILTINS = [token_saver.make, cost_log.make]
-BUILTIN_MANIFESTS = {token_saver.MANIFEST.id: token_saver.MANIFEST, cost_log.MANIFEST.id: cost_log.MANIFEST}
+BUILTINS = [token_saver.make, cost_log.make, compactor.make]
+BUILTIN_MANIFESTS = {token_saver.MANIFEST.id: token_saver.MANIFEST, cost_log.MANIFEST.id: cost_log.MANIFEST,
+                     compactor.MANIFEST.id: compactor.MANIFEST}
