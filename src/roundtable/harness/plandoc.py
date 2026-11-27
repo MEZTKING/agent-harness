@@ -168,6 +168,9 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
         new["look"] = old["look"]  # the looks aren't the planner's: they stay as they were
     if old.get("references"):
         new["references"] = old["references"]  # the owner's, read by the scout: never the planner's to drop
+    for k in ("done_list", "stages", "parts", "prep", "warnings"):  # the stages' parts (wave 5) last too
+        if old.get(k) and not new.get(k):
+            new[k] = old[k]
     new["version"] = old.get("version", 1) + 1
     new["history"] = old.get("history", [])
     new["critique"] = old.get("critique")
@@ -381,9 +384,12 @@ def _reprice(cfg, cost, h: dict[str, Any], model) -> float | None:
     return cost * now / then
 
 
-def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, screens: bool = False) -> dict[str, Any]:
+def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, screens: bool = False,
+             extras: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Rough cost and time for the given pending tasks, before anything runs. ``screens``: the app has screens,
-    so each reviewed task may also have its pictures checked by a model that can see (proof.py, capped)."""
+    so each reviewed task may also have its pictures checked by a model that can see (proof.py, capped).
+    ``extras``: the stages' own work (starting it, playing it, shipping it), each {id, usd, minutes, words},
+    added to the totals and returned as ``extras``."""
     from .config import ModelRef  # noqa: F401  (type only)
     from ..providers.base import Usage
 
@@ -434,11 +440,23 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, scr
                                           and cfg.roles[t.role].review and reviewer))
         proof_usd = prooflib.estimate_usd(cfg, looked)
         total += proof_usd
+    kept = []
+    for e in extras or []:
+        if not isinstance(e, dict):
+            continue
+        try:
+            usd, mins = float(e.get("usd") or 0), float(e.get("minutes") or 0)
+        except (TypeError, ValueError):
+            continue
+        total += usd
+        minutes += mins
+        kept.append({"id": str(e.get("id") or ""), "usd": round(usd, 4), "minutes": round(mins, 1),
+                     "words": str(e.get("words") or "")})
     for r in by_role.values():
         if r["cost_usd"] is not None:
             r["cost_usd"] = round(r["cost_usd"], 4)
         r["minutes"] = round(r["minutes"], 1)
-    return {"cost_usd": round(total, 4), "minutes": round(minutes, 1), "tasks": len(tasks),
+    return {"cost_usd": round(total, 4), "minutes": round(minutes, 1), "tasks": len(tasks), "extras": kept,
             "unpriced": unpriced, "by_role": by_role, "at": utcnow(), "proof_usd": proof_usd,
             "note": "rough: from past runs where there are some, else typical sizes; unpriced models aren't counted"}
 
