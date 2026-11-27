@@ -299,15 +299,16 @@ class KindStage:
                 out.append({"kind": what, "path": p.relative_to(root).as_posix()})
         return out[:8]
 
-    def _gallery_record(self, tasks: list) -> dict[str, Any] | None:
-        """One Gallery record for the goal just finished (written once; never fails the run)."""
+    def _gallery_record(self, tasks: list, real_usd: float | None = None) -> dict[str, Any] | None:
+        """One Gallery record for the goal just finished (written once; never fails the run). ``real_usd``: what
+        the providers' balances say the run cost (the run's own end check; no extra request is made here)."""
         try:
-            return self._gallery_write(tasks)
+            return self._gallery_write(tasks, real_usd)
         except Exception as e:  # noqa: BLE001
             self._kind_say("gallery_error", {"error": str(e)[:300]})
             return None
 
-    def _gallery_write(self, tasks: list) -> dict[str, Any] | None:
+    def _gallery_write(self, tasks: list, real_usd: float | None = None) -> dict[str, Any] | None:
         meta = self.project.meta()
         goal_index = len(meta.get("goals") or [1]) - 1
         mine = [t for t in tasks if t.goal_index == goal_index]
@@ -328,11 +329,7 @@ class KindStage:
                 if row.get("task") in ids:
                     seconds += float(row.get("seconds") or 0)
         counted = round(sum(float(a.get("cost_usd") or 0) for t in mine for a in t.attempts), 4)
-        real = None
-        try:
-            real = self._real_spent()
-        except Exception:  # noqa: BLE001 - only when the providers say
-            real = None
+        real = real_usd
         goal = meta["goals"][goal_index]
         entry = {
             "project": self.project.root.name, "goal": gallerylib.goal_key(goal_index), "goal_index": goal_index,

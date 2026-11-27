@@ -53,9 +53,11 @@ class RejectBrain(Brain):
         return super().__call__(model, system, messages, tools)
 
 
-def planned(tmp_path, raw=None, brain=None):
+def planned(tmp_path, raw=None, brain=None, confirm_kind=True):
     orch, *_ = make(tmp_path, raw=raw or with_profiles(), brain=brain or CardBrain())
     orch.start("bakery site", require_approval=True)
+    if confirm_kind:  # as the wizard does; the kind card has its own tests
+        orch.set_kind("website", by="owner", replan=False)
     assert orch.run() == "awaiting_approval"
     return orch
 
@@ -289,8 +291,9 @@ def test_server_asks_and_wizard(ui, tmp_path):
     assert "Watercolour" in r["reply"] and "job" not in r
     with pytest.raises(ApiError, match="isn't one of"):
         call(ui, "POST", "/api/asks", {"path": path, "id": "choose:C1", "chosen": ["zz"]})
-    done = call(ui, "GET", "/api/asks", path=path, answered="1")["asks"]
-    assert done[0]["answer"] == {"chosen": ["b"], "other": ""}
+    done = {a["id"]: a for a in call(ui, "GET", "/api/asks", path=path, answered="1")["asks"]}
+    assert done["choose:C1"]["answer"] == {"chosen": ["b"], "other": ""}
+    assert done["kind"]["answer"] == {"chosen": ["web-app"], "other": ""}  # the wizard's "Web app", confirmed
     r = call(ui, "POST", "/api/asks", {"path": path, "id": "approve", "chosen": ["revise"]})
     assert wait_job(ui, r["job"]["id"])["status"] == "done"
     r = call(ui, "POST", "/api/asks", {"path": path, "id": "approve", "chosen": ["approve"]})
@@ -370,3 +373,36 @@ def test_approve_can_wait_for_the_cheaper_hours(tmp_path, monkeypatch):
     r = asks_mod.answer_ask(orch, card["id"], ["approve_cheap"], "")
     assert "10:00 UTC" in r["reply"] and orch.project.meta()["status"] == "waiting_cheap"
     assert orch.run() == "waiting_cheap"  # not before its time
+
+
+def test_the_kind_card_comes_first_and_changing_it_updates_the_plan(tmp_path):
+    orch = planned(tmp_path, confirm_kind=False)
+    asks = asklib.open_asks(orch)
+    kind = asks[0]
+    assert kind["id"] == "kind" and kind["recommended"] == "website" and kind["question"].startswith("This looks like a Website")
+    assert kind["options"][-1]["id"] == "other"
+    r = asklib.answer_ask(orch, "kind", ["website"])
+    assert r == {"reply": "Kept as a Website.", "then": None} and "kind" not in ids(orch)
+    shown = {a["id"]: a for a in asklib.open_asks(orch, answered=True)}
+    assert shown["kind"]["answer"] == {"chosen": ["website"], "other": ""}
+    r = asklib.answer_ask(orch, "kind", [], other="a game to play in the browser")  # in the owner's words
+    assert r["then"] == "revise" and "Browser game" in orch.project.plan_doc()["pending"][-1]["text"]
+    assert orch.project.meta()["kind"]["id"] == "browser-game"
+
+
+def test_no_kind_card_for_a_guess_of_something_else(tmp_path):
+    orch, *_ = make(tmp_path, raw=with_profiles(), brain=CardBrain())
+    orch.start("renames my photos", require_approval=True)
+    assert orch.run() == "awaiting_approval"
+    assert orch.project.meta()["kind"]["id"] == "other" and "kind" not in ids(orch)
+
+
+def test_the_wizard_offers_the_kinds_and_greys_the_coming_ones(tmp_path):
+    orch, *_ = make(tmp_path, raw=with_profiles())
+    make_ = asklib.wizard_asks(orch.base_cfg)[0]
+    by = {o["id"]: o for o in make_["options"]}
+    assert make_["recommended"] == "web-app" and by["java-mod"]["disabled"] and by["java-mod"]["tip"]
+    assert by["other"]["label"] == "Something else"
+    w = asklib.wizard_project({"kind": {"chosen": ["web-app"]}, "idea": {"other": "a timer"}, "extras": ["apk", "nope"]},
+                              tmp_path / "projects")
+    assert (w["kind"], w["extras"], w["kind_by"]) == ("web-app", ["apk"], "owner") and w["goal"] == "Web app: a timer"

@@ -11,7 +11,6 @@ import pytest
 
 from roundtable import kinds as K
 from roundtable.harness.config import parse_config
-from roundtable.harness.kindstage import KindStage
 from roundtable.harness.orchestrator import HarnessError, Orchestrator
 from roundtable.kinds import model as M
 from roundtable.providers.scripted import ScriptedImages, ScriptedProvider
@@ -20,41 +19,11 @@ from .test_harness import RAW
 from .test_plan import PlanBrain
 
 
-# -- the stand-in for the coordinator's hook-up lines (orchestrator.py) -------------------------------------------
-class KOrch(KindStage, Orchestrator):
-    """Orchestrator with the kind hooks wired in as the hook-up lines say."""
-
-    def __init__(self, *a, **kw):
-        super().__init__(*a, **kw)
-        self.cfg = self._kind_cfg(self.cfg)
-
-    def start(self, goal, **kw):
-        super().start(goal, **kw)
-        self._kind_propose(goal)
-
-    def _plan_call(self, job, reserved):  # plan() and revise_plan(): + self._kind_plan_part()
+# -- the orchestrator, its kind hook-up lines in place; it records what the planner was asked ------------------------
+class KOrch(Orchestrator):
+    def _plan_call(self, job, reserved):  # _plan_call adds the kind's part itself (plan() and revise_plan())
         self.planner_jobs = getattr(self, "planner_jobs", []) + [job + self._kind_plan_part()]
-        return super()._plan_call(job + self._kind_plan_part(), reserved)
-
-    def plan(self):
-        new = super().plan()
-        doc = self.project.plan_doc()
-        if doc is not None:
-            doc["kind"] = self._kind_doc()
-            self.project.save_plan_doc(doc)
-        return new
-
-    def approve(self):
-        super().approve()
-        self._kind_freeze()
-
-    def _worker_prompt(self, task, tasks, feedback):
-        part = self._kind_worker_part(task.role)
-        return super()._worker_prompt(task, tasks, feedback) + (f"\n\n{part}" if part else "")
-
-    def _finish(self, tasks):
-        super()._finish(tasks)
-        self._gallery_record(tasks)
+        return super()._plan_call(job, reserved)
 
 
 def make_k(tmp_path, brain=None, raw=RAW):
@@ -242,7 +211,7 @@ def test_kind_is_proposed_confirmed_and_frozen_at_approval(tmp_path, monkeypatch
 def test_without_a_kind_nothing_changes(tmp_path):
     cfg = parse_config(json.loads(json.dumps(RAW)))
     orch = Orchestrator(cfg, tmp_path / "plain")
-    assert not hasattr(orch, "_kind")  # the plain orchestrator until the coordinator hooks it up
+    assert orch._kind() is None and orch.cfg.prompt_text("coder") == cfg.prompt_text("coder")
     k = KOrch(cfg, tmp_path / "plain2")
     assert k._kind() is None and k._kind_plan_part() == "" and k._kind_proof() == [] and k._kind_cfg(cfg) is cfg
 

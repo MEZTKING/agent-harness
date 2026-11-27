@@ -313,20 +313,9 @@ class SeeingWebBrain(WebBrain):
 
 
 @pytest.fixture
-def hooked(monkeypatch):
-    """The hook-up lines the coordinator adds to orchestrator.py, until then simulated here."""
-    run_task = Orchestrator._run_task
-    later = Orchestrator._later_tasks_text
-
-    def _run_task(self, task, tasks):
-        self._proof_before(task)  # in _run (and worktrees._lane) before ok = self._run_task(task, tasks)
-        return run_task(self, task, tasks)
-
-    def _later_tasks_text(self, task):  # stands in for "+ self._proof_text(task, checks)" after the diff
-        return self._proof_text(task) + later(self, task)
-
-    monkeypatch.setattr(Orchestrator, "_run_task", _run_task)
-    monkeypatch.setattr(Orchestrator, "_later_tasks_text", _later_tasks_text)
+def hooked():
+    """The proof hook-up lines are in orchestrator.py and worktrees.py now; kept so the tests read the same."""
+    yield
 
 
 def build_web(tmp_path, brain, raw=RAW):

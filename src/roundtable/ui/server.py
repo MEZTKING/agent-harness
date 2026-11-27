@@ -46,7 +46,8 @@ def _lines(raw) -> list[str]:
 # Feature API modules under roundtable.ui: each has routes(app) -> {(method, path): fn}. A feature added
 # side by side with others appends its module name here (one line each), nothing else in this file.
 FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "filesapi", "whatsnewapi", "tidyapi",
-                                "searchapi", "attachapi")
+                                "searchapi", "attachapi", "rewindapi", "proofapi", "terminalapi", "moneyapi",
+                                "websearchapi", "kindsapi")
 
 
 def _feature_routes(app) -> dict:
@@ -757,7 +758,7 @@ class UIApp:
                               start=lambda c, root, r: self.start_answer_job(c, root, r, why="autopilot"))
 
     def _wizard_start(self, cfg, answers: dict[str, Any]):
-        from ..asks import wizard_project
+        from ..asks import apply_wizard_kind, wizard_project
         from ..harness.orchestrator import HarnessError
 
         try:
@@ -771,6 +772,7 @@ class UIApp:
         def run(job: Job):
             orch = self._orch(cfg, path, job)
             orch.start(w["goal"], require_approval=True, references=w["references"])
+            apply_wizard_kind(orch, w)  # the wizard's "What do you want to make?" (kinds)
             if w["profile"]:
                 orch.set_profile(w["profile"])
             if w["look"] is not None:
@@ -1597,6 +1599,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
           host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, projects_dir: str | None = None) -> None:
     app = UIApp(hub_config, harness_config, agent, projects_dir)
     remote = host not in LOOPBACK
+    app.local_only = not remote  # the command line works only while the app is open to this PC alone
     token = secrets.token_urlsafe(16) if remote else None
     app.start_auto_sync()
     app.phone.start()

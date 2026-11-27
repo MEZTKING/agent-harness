@@ -673,3 +673,26 @@ def lines_text(proof_lines: list[dict[str, Any]]) -> str:
     """"Opens with no errors ✓ · Tests pass ✓ · Played for a minute – not checked yet"."""
     marks = {True: " ✓", False: " ✗"}
     return " · ".join(ln["words"] + marks.get(ln.get("passed"), " – not checked yet") for ln in proof_lines)
+
+
+def results_for(project_root: Path, items: list[dict[str, Any]] | None, tasks: list[Any]) -> list[dict[str, Any]] | None:
+    """A kind's proof list checked against the proof of a goal's tasks (the Gallery's proof lines).
+
+    Each item takes the newest task's answer that isn't "not checked". None when none of the tasks has a
+    proof record, so the caller falls back to what it can see itself."""
+    plan = plan_for(items)
+    ids = {getattr(t, "id", t) for t in tasks or []}
+    records = [r for r in history(project_root, limit=500) if r.get("task") in ids]
+    if not plan or not records:
+        return None
+    out = []
+    for it in plan:
+        passed = None
+        for rec in records:  # newest first
+            got = _passed(it, rec)
+            if got is not None:
+                passed = got
+                break
+        out.append({"id": it["id"], "words": it["words"], "passed": passed, "optional": it.get("optional", False),
+                    "status": it.get("status", "on"), "checkable": bool(it.get("checkable"))})
+    return out

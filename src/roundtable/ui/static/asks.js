@@ -5,7 +5,7 @@
 import { h, fill, post, toast, projectName } from "./core.js";
 
 const KIND_WORDS = { decision: "Choice", question: "Question", look: "Look", profile: "Models", idea: "Idea", approve: "Plan",
-  failed: "Stopped", money: "Money", command: "Command", wizard: "" };
+  failed: "Stopped", money: "Money", command: "Command", wizard: "", kind: "Kind" };
 const HINTS = { decision: "Tap the choice you want.", question: "Tap an answer, or Other… to type your own.", idea: "Add it to the plan, or leave it out.",
   look: "Tap the look you like.", approve: "Nothing is built until you say so.", failed: "Try it again, or carry on without it.",
   money: "Nothing more is spent until you say so.", profile: "Which set of models does the work.",
@@ -77,10 +77,11 @@ export function askCard(ask, onAnswer, opts = {}) {
     const rec = ask.recommended, options = ask.options || [];
     const optButtons = options.map((o, i) => {
       const on = picked.has(o.id);
-      return h("button", { class: "ask-opt" + (on ? " on" : "") + (o.id === rec ? " rec" : ""), type: "button", disabled: opts.disabled,
-        "aria-pressed": ask.multi || ask.answer ? String(on) : null, title: o.confirm ? "You'll be asked to make sure first" : `Press ${i + 1}`, onclick: () => pick(o) },
+      return h("button", { class: "ask-opt" + (on ? " on" : "") + (o.id === rec ? " rec" : "") + (o.disabled ? " off" : ""), type: "button", disabled: opts.disabled || o.disabled,
+        "aria-pressed": ask.multi || ask.answer ? String(on) : null, title: o.tip || (o.confirm ? "You'll be asked to make sure first" : `Press ${i + 1}`), onclick: () => pick(o) },
       o.picture && opts.pictures && opts.pictures[o.picture] ? h("img", { class: "ask-pic", src: opts.pictures[o.picture], alt: o.label }) : null,
       h("b", {}, ask.multi ? h("i", { class: "tick" + (on ? " on" : "") }) : h("kbd", {}, i + 1), h("span", { class: "grow" }, o.label),
+        o.disabled ? h("span", { class: "muted small" }, o.group || "Coming") : null,
         o.id === rec ? h("span", { class: "rec-mark", title: "What Roundtable would pick" }, "Recommended") : null),
       o.description ? h("span", {}, o.description) : null);
     });

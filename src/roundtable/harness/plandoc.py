@@ -160,6 +160,8 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
                 x["id"] = f"{prefix}{n + 1}"
     if new.get("has_ui") is None:
         new["has_ui"] = old.get("has_ui")
+    if old.get("kind") and not new.get("kind"):
+        new["kind"] = old["kind"]  # what kind of thing it is (kinds) lasts across revisions
     if not new.get("title") and old.get("title"):
         new["title"] = old["title"]  # a revision that didn't name it keeps the name the owner knows
     if old.get("look"):
@@ -379,8 +381,9 @@ def _reprice(cfg, cost, h: dict[str, Any], model) -> float | None:
     return cost * now / then
 
 
-def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:
-    """Rough cost and time for the given pending tasks, before anything runs."""
+def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, screens: bool = False) -> dict[str, Any]:
+    """Rough cost and time for the given pending tasks, before anything runs. ``screens``: the app has screens,
+    so each reviewed task may also have its pictures checked by a model that can see (proof.py, capped)."""
     from .config import ModelRef  # noqa: F401  (type only)
     from ..providers.base import Usage
 
@@ -423,12 +426,20 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None) -> 
             if r["cost_usd"] is not None:
                 r["cost_usd"] += cost
         minutes += mins
+    proof_usd = 0.0
+    if screens:
+        from . import proof as prooflib
+
+        looked = sum(1 for t in tasks if (cfg.roles.get(t.role) is not None and cfg.roles[t.role].kind == "chat"
+                                          and cfg.roles[t.role].review and reviewer))
+        proof_usd = prooflib.estimate_usd(cfg, looked)
+        total += proof_usd
     for r in by_role.values():
         if r["cost_usd"] is not None:
             r["cost_usd"] = round(r["cost_usd"], 4)
         r["minutes"] = round(r["minutes"], 1)
     return {"cost_usd": round(total, 4), "minutes": round(minutes, 1), "tasks": len(tasks),
-            "unpriced": unpriced, "by_role": by_role, "at": utcnow(),
+            "unpriced": unpriced, "by_role": by_role, "at": utcnow(), "proof_usd": proof_usd,
             "note": "rough: from past runs where there are some, else typical sizes; unpriced models aren't counted"}
 
 

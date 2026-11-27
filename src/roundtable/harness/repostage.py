@@ -380,5 +380,6 @@ class RepoStage:
                     + f"The end of its output (failures from before the run left out):\n```\n{tail}\n```")
         self.emit("checks", {"task": task.id, "verdict": verdict, "new": cmp["new"][:20], "old": len(cmp["old"])})
         return {"verdict": verdict, "blame": verdict == "new", "text": text + "\n\n", "new": cmp["new"],
+                "now": now,  # the run's own summary: the proof's tests before and after (proof.tests_part)
                 "feedback": text.replace("# The project's checks\n", "The project's checks found a problem: ")
                 + "\nFix this before finishing (run the command yourself to see it)."}

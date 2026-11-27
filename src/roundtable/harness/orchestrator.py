@@ -27,6 +27,9 @@ from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
+from . import livecmd
+from . import websearch
+from .kindstage import KindStage
 from .lookstage import LookStage
 from .refstage import ReferenceStage, new_reference
 from .repostage import RepoStage
@@ -57,6 +60,7 @@ class Task:
     status: str = "pending"
     summary: str = ""
     attempts: list[dict[str, Any]] = field(default_factory=list)
+    previous_attempts: list[dict[str, Any]] = field(default_factory=list)  # kept when the project went back (rewind.py)
     goal_index: int = 0
     base_commit: str | None = None  # project state the task started from (for replays)
     section: str = ""  # the plan's spec section (or decision) this task belongs to
@@ -216,7 +220,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage):
+class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage):
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -227,7 +231,8 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         self._lock = threading.RLock()
         self.base_cfg = cfg
         self.project = Project(project_dir)
-        self.cfg = self._settle_cfg(cfg.for_profile(self.profile()))
+        self._listener = None  # set below; the kind's overlay may say something before then (it never fails)
+        self.cfg = self._kind_cfg(self._settle_cfg(cfg.for_profile(self.profile())))  # the kind laid over (kindstage.py)
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
         self.ws.gate = Gate(self.project.root, self.cfg, on_change=self._publish_plan)  # "Ask me first"
         self._listener = on_event
@@ -612,6 +617,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         if self._repo_found:
             self._begin_repository(goal, self._repo_found)
         self.emit("goal", {"goal": goal})
+        self._kind_propose(goal)  # what kind of thing this is: Roundtable's guess until the owner confirms it
         self._register_with_lab()
 
     def _register_with_lab(self) -> None:
@@ -675,7 +681,9 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
             captured["args"] = args
             return f"plan accepted with {len(new)} tasks"
 
+        job += self._kind_plan_part()  # the kind's sections, questions and don'ts (plan and revise_plan)
         box = self.ws.toolbox(READ_ONLY)
+        websearch.add_tools(box, self.cfg, role, self.emit, self.project.root)  # the planner may look things up
         box.add(Tool(
             ToolSpec("submit_plan", "Submit the plan: the plan document and its tasks. Call exactly once when complete.",
                      plandoc.submission_schema(self._task_schema())),
@@ -736,7 +744,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         meta["profile"] = name
         self.project.save_meta(meta)
         self._remember_profile(name)
-        self.cfg = self._settle_cfg(self.base_cfg.for_profile(name))
+        self.cfg = self._kind_cfg(self._settle_cfg(self.base_cfg.for_profile(name)))
         doc = self.project.plan_doc()
         if doc:
             doc["profile"] = name
@@ -747,19 +755,19 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         self.emit("profile", {"profile": name})
         return {"profile": name, "estimates": self.profile_estimates()}
 
-    def profile_estimates(self) -> dict[str, dict[str, Any]]:
+    def profile_estimates(self, has_ui: bool | None = None) -> dict[str, dict[str, Any]]:
         """The plan's estimate under every profile, so the owner sees what each would cost."""
         out, keep = {}, self.cfg
         try:
             for name in self.base_cfg.profiles:
-                self.cfg = self._settle_cfg(self.base_cfg.for_profile(name))
-                e = self._estimate(self.project.tasks())
+                self.cfg = self._kind_cfg(self._settle_cfg(self.base_cfg.for_profile(name)))
+                e = self._estimate(self.project.tasks(), has_ui)
                 out[name] = {"cost_usd": e.get("cost_usd"), "minutes": e.get("minutes"), "unpriced": e.get("unpriced", [])}
         finally:
             self.cfg = keep
         return out
 
-    def _estimate(self, tasks: list[Task]) -> dict[str, Any]:
+    def _estimate(self, tasks: list[Task], has_ui: bool | None = None) -> dict[str, Any]:
         files = [self.project.dir / "metrics.jsonl"]
         if self.cfg.lab_dir:
             try:
@@ -773,7 +781,12 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
             if f.resolve() not in seen and f.is_file():
                 seen.add(f.resolve())
                 uniq.append(f)
-        return plandoc.estimate(self.cfg, [t for t in tasks if t.status == "pending"], plandoc.history_by_role(uniq))
+        try:  # pictures are checked by a model that can see (capped a task): counted before approving
+            screens = bool(has_ui) if has_ui is not None else self._shots_wanted()
+        except Exception:
+            screens = False
+        return plandoc.estimate(self.cfg, [t for t in tasks if t.status == "pending"], plandoc.history_by_role(uniq),
+                                screens=screens)
 
     def plan(self) -> list[Task]:
         meta = self.project.meta()
@@ -800,9 +813,12 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         self.project.save_tasks(tasks)
         doc = plandoc.doc_from_submission(args, goal, goal_index)
         doc["references"] = refs
-        doc["estimate"] = self._estimate(new)
+        kind_doc = self._kind_doc()
+        if kind_doc:
+            doc["kind"] = kind_doc  # the first card on the plan: "This looks like a website. Right?"
+        doc["estimate"] = self._estimate(new, doc.get("has_ui"))
         if self.base_cfg.profiles:
-            doc["estimates"] = self.profile_estimates()
+            doc["estimates"] = self.profile_estimates(doc.get("has_ui"))
             doc["profile"] = self.profile()
         self.project.save_plan_doc(doc, tasks)
         self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": doc["summary"][:500]})
@@ -934,9 +950,9 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         new_doc["pending"] = []
         all_tasks = keep + new
         self.project.save_tasks(all_tasks)
-        new_doc["estimate"] = self._estimate(new)
+        new_doc["estimate"] = self._estimate(new, new_doc.get("has_ui"))
         if self.base_cfg.profiles:
-            new_doc["estimates"] = self.profile_estimates()
+            new_doc["estimates"] = self.profile_estimates(new_doc.get("has_ui"))
             new_doc["profile"] = self.profile()
         self.project.save_plan_doc(new_doc, all_tasks)
         self.emit("plan_revised", {"version": new_doc["version"], "by": by, **diff})
@@ -1047,6 +1063,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         if meta.get("status") == "awaiting_approval":
             meta["status"] = "running"
         self.project.save_meta(meta)
+        self._kind_freeze()  # the kind is fixed now: editing it later never changes this project
         self.emit("approved", {})
         self._publish_plan()
 
@@ -1107,6 +1124,9 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         if feedback:
             parts.append("# Feedback on your previous attempt(s) - address all of it\n" + "\n\n".join(feedback))
         parts.extend(self._repo_worker_parts())
+        kind_part = self._kind_worker_part(task.role)
+        if kind_part:
+            parts.append(kind_part)
         block = self._memory_part().strip()
         if block:
             parts.append(block)
@@ -1136,6 +1156,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
 
         box = self.ws.toolbox(REVIEW_TOOLS)
         self._add_mcp_tools(box, reviewer)
+        websearch.add_tools(box, self.cfg, reviewer, self.emit, self.project.root)
         game = self._game_tool()
         if game is not None:
             box.add(game)
@@ -1155,6 +1176,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
             + "".join(f"{x}\n\n" for x in (self._design_context(), self._design_findings()) if x) +
             f"# Changes since last commit\n```diff\n{self._diff()}\n```\n\n"
             + (checks["text"] if checks else "")
+            + self._proof_text(task, checks)  # before and after, the tests, and a model that can see (advice)
             + self._later_tasks_text(task) +
             ("This project is a Godot game: call run_game to start it and see its script errors.\n\n"
                if game is not None else "") +
@@ -1232,6 +1254,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         self._require_models(role)
         if role.kind == "image":
             return self._run_image_task(task, role)
+        self.ws.live = (self.project.root, task.id)  # its commands shown as they print (livecmd.py)
 
         feedback: list[str] = []
         model_idx = 0
@@ -1255,6 +1278,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
 
             box = self.ws.toolbox(role.tools)
             self._add_mcp_tools(box, role)
+            websearch.add_tools(box, self.cfg, role, self.emit, self.project.root)
             if "write_file" in box.tools or "edit_file" in box.tools or "run_game" in (role.tools or []):
                 game = self._game_tool()  # a Godot game: the coder can start it and see its errors
                 if game is not None:
@@ -1325,12 +1349,16 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
             start = self._note_balance("start")
             self._balance_start = start
             self._last_real_check = time.time()
+            end = None
             try:
                 status = self._run(max_tasks)
             finally:
                 self._close_mcp()
+                livecmd.stop_strays(self.project.root)  # no command a task started outlives the run
                 if start:
-                    self._note_balance("end", start)
+                    end = self._note_balance("end", start)
+            if status == "done":  # one Gallery record for the finished goal (kinds/gallery.py; never fails the run)
+                self._gallery_record(self.project.tasks(), (end or {}).get("real_usd"))
         finally:
             self._let_go(status)
         if status != "awaiting_approval":
@@ -1589,6 +1617,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
                                          "total": len(tasks)})
                 self._tl.task = task.id  # its events say which task they belong to
                 try:
+                    self._proof_before(task)  # the pictures as the task finds it (proof.py)
                     ok = self._run_task(task, tasks)
                 finally:
                     self._tl.__dict__.pop("task", None)

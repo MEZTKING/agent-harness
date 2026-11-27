@@ -11,6 +11,9 @@ import { watchTab, appTab } from "./watch.js";
 import { journalTab, notesPage } from "./journal.js";
 import { filesTab } from "./files.js";
 import { composer } from "./compose.js";
+import { historyCard } from "./rewind.js";
+import { terminalTab } from "./terminal.js";
+import { poundsTag } from "./pounds.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
@@ -18,6 +21,7 @@ const TABS = [["overview", "Overview", "What waits for you, the tasks, the money
   ["app", "App", "The app itself, running, and pictures after each task"],
   ["files", "Files", "The project's folder: open any file, and every command its tasks ran"],
   ["journal", "Journal", "Notes, to-dos, plans and decisions about this project"],
+  ["terminal", "Command line", "Type commands in this project's folder"],
   ["settings", "Settings", "How Roundtable works on this project"]];
 
 export async function viewProject(id, tab = "overview") {
@@ -30,7 +34,8 @@ export async function viewProject(id, tab = "overview") {
   const local = !!seat.path;
   const hubAgent = (S.ov.agents || []).some((a) => a.id === seat.id);
   const shown = TABS.filter(([k]) => k === "overview" || (k === "plan" && (local || seat.hub_name)) || (k === "watch" && (local || seat.hub_name))
-    || (k === "app" && (local || seat.hub_name)) || (k === "files" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local));
+    || (k === "app" && (local || seat.hub_name)) || (k === "files" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local)
+    || (k === "terminal" && local && FEAT.has("/api/terminal/open")));
   if (!shown.some(([k]) => k === tab)) tab = "overview";
   const head = h("header", { class: "project-head" });
   const drawHead = (s) => patch(head, JSON.stringify([s.state, s.status, s.actions, s.goal, s.where, s.waiting_for_you, s.spent_usd, s.progress, s.building_on]), () => {
@@ -52,7 +57,7 @@ export async function viewProject(id, tab = "overview") {
     tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "cdl", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
     body);
   onHall(root, (rt) => { const s = rt.seats.find((x) => x.id === id); if (s) { seat = s; drawHead(s); } });
-  const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab };
+  const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab, terminal: terminalTab };
   fill(body, await views[tab](seat, () => seatOf(id) || seat));
   return root;
 }
@@ -96,8 +101,9 @@ function moveOn(s) {
 // ---------- Overview ----------
 async function overview(seat, now) {
   const waits = h("div", { class: "stack" }), tasksBox = h("div"), money_ = h("div"), chat = h("div"), report = h("div"), brief = h("div");
+  const history = h("div");  // what each task changed, Undo and Try another way (rewind.js)
   const grid = h("div", { class: "overview" },
-    h("div", { class: "ov-main" }, waits, tasksBox, report, brief),
+    h("div", { class: "ov-main" }, waits, tasksBox, history, report, brief),
     h("div", { class: "ov-side" }, money_, chat));
   if (!seat.path) {  // another computer's project, or a hub project: what the hub knows
     const items = (S.rt.needs_you || []).filter((n) => n.project === seat.id);
@@ -122,6 +128,9 @@ async function overview(seat, now) {
       items.map((i) => needCard(i, () => { lastSig = ""; }, { showProject: false }))] : null);
     fill(tasksBox, tasksCard(seat, d));
     fill(money_, moneyCard(d, plan));
+    if (FEAT.has("/api/rewind") && d.tasks.some((t) => t.status === "done")) {
+      try { fill(history, await historyCard(seat)); } catch { /* the history is a help: the rest still shows */ }
+    }
     fill(report, d.summary ? card("The final report", prose(d.summary)) : null);
     if (!chat.firstChild) fill(chat, chatCard(seat));
   }, () => (now().status === "running" ? 3000 : 15000));
@@ -164,7 +173,7 @@ function moneyCard(d, plan) {
   const est = plan && plan.doc && plan.doc.estimate ? plan.doc.estimate.cost_usd || 0 : 0;
   const unpriced = d.meta.unpriced_calls || 0;
   const pct = est ? Math.min(100, (100 * spent) / est) : 0;
-  return card("Money", h("p", { class: "big" }, money(spent), h("span", { class: "muted" }, est ? ` of about ${money(est)}` : " spent")),
+  return card("Money", h("p", { class: "big" }, money(spent), poundsTag(spent), h("span", { class: "muted" }, est ? ` of about ${money(est)}` : " spent")),
     est ? h("div", { class: "bar wide" + (spent > est * 1.2 ? " over" : ""), title: `${Math.round((100 * spent) / est)}% of the estimate` }, h("i", { style: `width:${pct}%` })) : null,
     spent > est * 1.2 && est ? h("p", { class: "warn small" }, "It has gone past the estimate. It stops at the project's limit and asks you before spending more.") : null,
     unpriced ? h("p", { class: "muted small", title: "Add their price in Settings → AI services so they count towards the limit" }, `${plural(unpriced, "call")} to models with no price yet aren't counted.`) : null,

@@ -128,7 +128,11 @@ def command_ask(w: dict[str, Any]) -> dict[str, Any]:
 
 
 def _plan_asks(orch, doc: dict[str, Any], meta: dict[str, Any]) -> list[dict[str, Any]]:
-    asks = [_decision_ask(d) for d in doc.get("decisions", [])]
+    asks = []
+    kind = _kind_ask(orch)
+    if kind:
+        asks.append(kind)  # first: "This looks like a website. Right?"
+    asks += [_decision_ask(d) for d in doc.get("decisions", [])]
     asks += [_question_ask(q) for q in doc.get("questions", [])]
     if (doc.get("look") or {}).get("directions"):
         asks.append(_look_ask(doc["look"]))
@@ -185,6 +189,24 @@ def _idea_ask(i: dict[str, Any]) -> dict[str, Any]:
     return _answered(_ask(f"idea:{i['id']}", "idea", "Idea", f"Add this? {i['text']}", opts,
                           recommended=None if i.get("recommended") is False else "yes", detail=i.get("why") or "", other_hint="Yes, but… (say what to change)",
                           source={"idea": i["id"]}), state)
+
+
+def _kind_ask(orch) -> dict[str, Any] | None:
+    """What kind of thing the project is (kinds; harness/kindstage.py), until the plan is approved."""
+    get = getattr(orch, "_kind_doc", None)
+    try:
+        d = get() if callable(get) else None
+    except Exception:  # a kind is a help: it never hides the other cards
+        d = None
+    if not d or d.get("fixed"):
+        return None
+    if d["id"] == "other" and not d.get("confirmed"):
+        return None  # no clue what it is: no question to ask (the plan page still lets the owner say)
+    opts = [{"id": c["id"], "label": c["name"]} for c in d.get("choices") or []]
+    ask = _ask("kind", "kind", "Kind", d["question"], opts, recommended=d["id"],
+               detail=d.get("change_words") or "", other_hint="Something else? Say what it is",
+               source={"kind": d["id"], "extras": [e["id"] for e in d.get("extras") or []]})
+    return _answered(ask, [d["id"]] if d.get("confirmed") else None)
 
 
 def _look_ask(look: dict[str, Any]) -> dict[str, Any]:
@@ -457,7 +479,25 @@ def _apply_command(orch, ask, picked, other):
     return {"reply": "Not allowed: it won't run. The builder carries on without it.", "then": None}
 
 
-APPLY = {"command": _apply_command, "decision": _apply_decision, "question": _apply_question, "idea": _apply_idea, "look": _apply_look,
+def _apply_kind(orch, ask, picked, other):
+    old = (orch.project.meta().get("kind") or {}).get("id")
+    kid = picked[0] if picked else ""
+    if not kid and other:
+        from . import kinds as kindlib
+
+        kid = kindlib.from_wizard("other", other=other, home=orch._kind_home())["kind"]
+    if not kid:
+        raise HarnessError("Pick what kind of thing it is, or say it in your own words.")
+    r = orch.set_kind(kid, None if kid == old else [], by="owner", replan=False)
+    name = (r.get("kind") or {}).get("name") or kid
+    if kid == old:
+        return {"reply": f"Kept as a {name}.", "then": None}
+    orch.plan_update("note", text=f"The owner says this is a {name}"
+                     + (f": {other}" if other else "") + ". Re-plan it as one: follow 'What this project is'.")
+    return {"reply": f"It's a {name} now. Updating the plan for it…", "then": "revise"}
+
+
+APPLY = {"kind": _apply_kind, "command": _apply_command, "decision": _apply_decision, "question": _apply_question, "idea": _apply_idea, "look": _apply_look,
          "profile": _apply_profile, "approve": _apply_approve, "failed": _apply_failed, "money": _apply_money}
 
 
@@ -478,14 +518,24 @@ def finish(orch, result: dict[str, Any]) -> str:
 KINDS = {"web": "Web app", "game": "Game", "android": "Android app", "windows": "Windows app"}
 
 
+def _kinds_home():
+    from .desktop import app_home
+
+    return app_home()
+
+
 def wizard_asks(cfg) -> list[dict[str, Any]]:
     """The cards of a new project, in order. The client asks them one by one, then posts the answers."""
-    kinds = [{"id": k, "label": v, "description": d} for (k, v), d in zip(KINDS.items(), (
-        "A site or app that runs in the browser.", "Something to play: in the browser, on the PC or the phone.",
-        "An app for Android phones.", "A program for Windows PCs."))]
+    from . import kinds as kindlib
+
+    options = kindlib.wizard_options(_kinds_home())  # the kinds usable now; the rest greyed under "Coming"
+    make = _ask("kind", "wizard", "Make", "What do you want to make?", options, recommended="web-app",
+                other_hint="Something else? Say what")
+    extra = {o["id"]: o for o in options}
+    for o in make["options"]:
+        o.update({k: extra[o["id"]][k] for k in ("group", "disabled", "tip") if k in extra.get(o["id"], {})})
     asks = [
-        _ask("kind", "wizard", "Make", "What do you want to make?", kinds, recommended="web",
-             other_hint="Something else? Say what"),
+        make,
         {**_ask("idea", "wizard", "Idea", "Your idea, in a few words", [],
                 detail="For example: “a bakery site with opening hours and a menu”. You can say more later.",
                 other_hint="Describe your idea"), "required": True},
@@ -525,7 +575,20 @@ def wizard_project(answers: dict[str, Any], projects_dir: Path) -> dict[str, Any
     _, idea = one("idea")
     if not idea:
         raise HarnessError("Write your idea in a few words first.")
-    what = kind_other or KINDS.get(kind[0] if kind else "", "")
+    from . import kinds as kindlib
+
+    chosen = kind[0] if kind else ""
+    try:
+        cat = kindlib.load_all(_kinds_home())
+        picked = kindlib.from_wizard(chosen or "other", other=kind_other, idea=idea, catalog=cat)
+    except Exception:  # a kind is a help: the project still starts without one
+        cat, picked = None, {"kind": "", "extras": [], "by": "roundtable"}
+    if isinstance(answers.get("extras"), list) and cat:  # "Make another like this": the same extras
+        allowed = (set(kindlib.resolve(picked["kind"], catalog=cat).spec.get("extras_allowed") or [])
+                   if picked["kind"] in cat.kinds else set())
+        picked["extras"] = [str(x) for x in answers["extras"] if str(x) in allowed]
+    named = cat.kinds[chosen].name if cat and chosen in cat.kinds and chosen != "other" else ""
+    what = kind_other or KINDS.get(chosen, "") or named
     goal = f"{what}: {idea}" if what else idea
     _, like = one("like")
     refs = [x.strip() for x in like.splitlines() if x.strip()]
@@ -535,4 +598,14 @@ def wizard_project(answers: dict[str, Any], projects_dir: Path) -> dict[str, Any
     return {"dir": projects_dir / slug(idea, taken), "goal": goal + (f"\nSetting note: {prof_note}" if prof_note else ""),
             "references": refs, "profile": prof[0] if prof else None,
             "look": (look != ["no"]) if (look or look_note) else None,
-            "look_note": look_note}
+            "look_note": look_note, "kind": picked["kind"], "extras": picked["extras"], "kind_by": picked["by"]}
+
+
+def apply_wizard_kind(orch, w: dict[str, Any]) -> None:
+    """After ``start``: the kind the owner picked in the wizard (a guess from their words stays a guess)."""
+    if not w.get("kind") or w.get("kind_by") != "owner" or not hasattr(orch, "set_kind"):
+        return
+    try:
+        orch.set_kind(w["kind"], w.get("extras") or [], by="owner", replan=False)
+    except HarnessError:
+        pass  # not ready or not allowed: Roundtable's own guess stands
