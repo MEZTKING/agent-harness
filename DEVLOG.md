@@ -6,6 +6,36 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – wave 7, step 0: the seams the seven helpers build on (towards 1.3.0, "it learns")
+
+Asked: the coordinator's step 0 from the wave 7 plan, before the helpers branch: the lab's kinds registry, undo of
+one change, rebuild, a state id, the frozen stubs, and the orchestrator and config seams. Nothing changes for a run.
+
+Done:
+- `improve/lab.py`: `KindSpec`, `KINDS`, `register_kind`; routing, options and prompt moved in with the same
+  results, summaries and error words. `PROPOSAL_KINDS` kept (the analyst's enum). `STATUSES` gains `undone` and
+  `needs_owner`. `Proposal` gains `applied_at`, `machine`, `watch`, `undone_why`, `origin`. `Lab.apply(…, by_owner)`
+  asks `charter.check` first (a refusal that wants a tap marks the proposal `needs_owner`), then lays the change,
+  `on_apply`, and `canary.start`. `Lab.undo(pid, why, by, cfg=None)` takes a snapshot, then rebuilds from the
+  snapshot before the earliest change no longer in force with every still-applied change laid again in order
+  (so two undos in turn never bring the first back); rolling back that snapshot puts the change back.
+  `Lab.rebuild(changes, cfg)`, `Lab.state_id()` (12 characters, from the settings and prompts, not the comments).
+  `is_duplicate` counts `undone`. History rows gain `id` and `machine`. `rollback` is as before.
+- Stubs with frozen signatures: `improve/charter.py`, `wallet.py`, `yardstick.py`, `canary.py`, `share.py`,
+  `plugins/sandbox.py`.
+- `harness/orchestrator.py`: `SYSTEM_PARTS`, `_system(system, name)` at the three system-prompt sites (the unstick
+  diagnosis is named "unstick"), `TOOL_PARTS` with `_part_tools` after each `websearch.add_tools` (never replaces a
+  tool), the new worker, plan, attempt and metric part names, `_hook_fault`, `_watch_after_run` before the
+  `after_each_run` test, learning's spend in `_spent_today`.
+- `config.FEATURE_SECTIONS` gains eight sections; `merge_custom` now carries `improve:` from custom.yaml (not its
+  paths). `automation.WHATS` gains `learn` (does nothing until `wallet.job` exists). Api.kt's feature prefixes,
+  pyproject's package data.
+- The owner chose a learning allowance of $2 a week: the code's default stays 0 (off); the template
+  `harness.example.yaml` carries `improve.allowance_usd_per_week: 2`, so new set-ups start with the owner's figure.
+- Tests: `tests/test_learn_seam.py` (23); `test_tandem_seam.py` checks wave 6's part names as a prefix now.
+
+Open: the helpers fill the stubs; the template's $2 does nothing until the wallet is built.
+
 ## 2026-11-27 – 1.2.0: wave 6 put together ("every model at once")
 
 Asked: merge the seven wave 6 branches in order (d3-limits, d3-router, d3-panel with both its commits, d3-rivals,
