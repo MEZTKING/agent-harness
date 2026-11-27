@@ -21,6 +21,8 @@ from typing import Any
 
 import yaml
 
+from .core import secrets as vault
+
 # job names and what each does, for the owner
 JOBS: dict[str, tuple[str, str]] = {
     "orchestrator": ("Planner", "Turns your idea into a plan, splits it into tasks and writes the final report."),
@@ -94,12 +96,10 @@ def model_label(ref: str, providers: dict[str, Any] | None = None) -> str:
 
 
 def _key_state(providers: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    import os
-
     out = {}
     for pid, spec in providers.items():
         env = (spec or {}).get("api_key_env") or ""
-        out[pid] = {"name": provider_name(pid, spec), "needs_key": bool(env), "key_set": bool(env and os.environ.get(env))}
+        out[pid] = {"name": provider_name(pid, spec), "needs_key": bool(env), "key_set": vault.has(env)}
     return out
 
 

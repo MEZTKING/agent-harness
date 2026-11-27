@@ -32,6 +32,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from ..core.models import utcnow
+from ..core import secrets as vault
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
@@ -944,7 +945,7 @@ class UIApp:
             if cfg:
                 specs = {**cfg.providers, **specs}
             extra = [v.get("api_key_env") for v in specs.values() if v.get("api_key_env")]
-            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(os.environ.get(n) or ks.get(n)),
+            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(vault.get(n) or ks.get(n)),
                             "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
                            for n in ks.names(extra)]
             out["secure_keys"] = ks.secure
@@ -956,7 +957,7 @@ class UIApp:
 
             cfg = self.cfg()
             specs = dict(cfg.providers) if cfg else {}
-            out["keys"] = [{"name": n, "label": label, "set": bool(os.environ.get(n)),
+            out["keys"] = [{"name": n, "label": label, "set": vault.has(n),
                             "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
                            for n, label in KNOWN_KEYS.items()]
             out["secure_keys"] = False

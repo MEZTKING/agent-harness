@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from ..core import secrets as vault
 from .base import ChatResponse, Provider, ProviderError, ToolCall, ToolSpec, Usage
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -65,7 +66,7 @@ class AnthropicProvider(Provider):
         import anthropic
 
         self._anthropic = anthropic
-        key = os.environ.get(api_key_env) if api_key_env else None
+        key = vault.get(api_key_env)
         kwargs: dict[str, Any] = {"timeout": timeout, "max_retries": 3}
         if key:
             kwargs["api_key"] = key

@@ -12,6 +12,7 @@ from typing import Any
 
 import yaml
 
+from ..core import secrets as vault
 from ..harness.config import (ModelRef, find_config, load_custom, merge_custom, parse_config, save_custom)
 from .base import ProviderError
 from .catalog import PRESETS, preset_block, valid_provider_id
@@ -40,7 +41,7 @@ def list_providers(harness_path: str | Path | None = None) -> list[dict[str, Any
         out.append({
             "id": pid, "type": spec.get("type"), "base_url": spec.get("base_url", ""), "api_key_env": env,
             "preset": spec.get("preset", ""), "source": "harness.yaml" if pid in base else "custom.yaml",
-            "key_set": bool(env and os.environ.get(env)), "needs_key": bool(env),
+            "key_set": vault.has(env), "needs_key": bool(env),
             "name": PRESETS.get(spec.get("preset", ""), {}).get("name", pid),
         })
     return sorted(out, key=lambda p: p["id"])
@@ -150,7 +151,7 @@ def test_provider(cfg, pid: str) -> dict[str, Any]:
         spec = {}
     name = provider_label(pid, spec)
     env = spec.get("api_key_env") or ""
-    if env and not os.environ.get(env):
+    if env and not vault.has(env):
         return {"ok": False, "missing_key": True,
                 "error": f"No key for {name} yet: paste it under API keys, then Save."}
     refused = f"The key for {name} was refused: check it under API keys, paste it again and Save."

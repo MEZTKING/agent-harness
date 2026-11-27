@@ -3,8 +3,9 @@
 * Keeps everything in one app folder (Windows: %APPDATA%\\RoundtableHold):
   config/hub.yaml, config/harness.yaml, hub-data/ (local or a git clone), logs/.
 * API keys live in the OS credential store (Windows Credential Manager via
-  `keyring`); they are loaded into the environment at start-up, so every
-  provider finds them exactly as on the command line.
+  `keyring`); they are loaded into Roundtable's in-memory vault at start-up
+  (`core/secrets.py`, never os.environ), so providers find them and the
+  commands AI workers run never inherit them (`harness/safeenv.py`).
 * Starts the web UI on a free localhost port and shows it in a native window
   (pywebview / Edge WebView2), or the default browser if that isn't available.
 
@@ -23,6 +24,8 @@ import threading
 import time
 from importlib import resources
 from pathlib import Path
+
+from .core import secrets as vault
 
 APP_NAME = "RoundtableHold"
 KEYRING_SERVICE = "Roundtable Hold"
@@ -177,22 +180,23 @@ class KeyStore:
             except OSError:
                 pass
             os.replace(tmp, self.file)
-        if value:
-            os.environ[name] = value
-        else:
-            os.environ.pop(name, None)
+        # into Roundtable's own memory, never os.environ: a worker's command can't inherit it
+        vault.put(name, value)
 
     def names(self, extra: list[str] | None = None) -> list[str]:
         return list(dict.fromkeys(list(KNOWN_KEYS) + list(extra or [])))
 
     def load_into_env(self, extra: list[str] | None = None) -> list[str]:
+        """Load the saved keys into Roundtable's in-memory vault (``core/secrets.py``), not into
+        ``os.environ``: providers read them from there, and workers' commands never see them."""
         loaded = []
         for name in self.names(extra):
+            vault.remember_name(name)
             if os.environ.get(name):
                 continue  # an explicit environment variable wins
             v = self.get(name)
             if v:
-                os.environ[name] = v
+                vault.put(name, v)
                 loaded.append(name)
         return loaded
 

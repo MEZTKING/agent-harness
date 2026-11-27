@@ -29,6 +29,7 @@ from . import plandoc
 from .lookstage import LookStage
 from .refstage import ReferenceStage, new_reference
 from .repostage import RepoStage
+from .safeenv import clean_env
 from .saver import TokenSaver
 from .showstage import ShowStage
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
@@ -259,6 +260,7 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
             ["git", "-c", "user.name=agent-harness", "-c", "user.email=harness@localhost",
              "-c", "commit.gpgsign=false", *args],
             cwd=self.project.root, capture_output=True, text=True,
+            env=clean_env(),  # a hook a worker wrote runs without the owner's keys
         )
         if check and res.returncode != 0:
             raise HarnessError(f"git {' '.join(args)}: {res.stderr.strip()}")
@@ -287,7 +289,8 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
     def _head(self) -> str | None:
         if not self.cfg.git or not (self.project.root / ".git").exists():
             return None
-        res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.project.root, capture_output=True, text=True)
+        res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.project.root, capture_output=True, text=True,
+                             env=clean_env())
         return res.stdout.strip() if res.returncode == 0 else None
 
     def _diff(self) -> str:
@@ -295,7 +298,7 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
             return "(git disabled - inspect files directly)"
         self._git("add", "-A", check=False)
         has_head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=self.project.root,
-                                  capture_output=True).returncode == 0
+                                  capture_output=True, env=clean_env()).returncode == 0
         diff = self._git("diff", "--cached", *(["HEAD"] if has_head else []), check=False)
         self._git("reset", "-q", check=False)
         if len(diff) > MAX_DIFF:

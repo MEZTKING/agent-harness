@@ -32,6 +32,7 @@ from urllib.parse import urljoin, urlsplit
 from ..providers.base import ToolSpec
 from .tools import Tool, Toolbox, ToolError, Workspace, _obj
 from ..core.files import remove_tree
+from .safeenv import clean_env
 
 MAX_BYTES = 2_000_000
 TIMEOUT = 20
@@ -240,7 +241,7 @@ def clone_repo(repo: str, dest: Path, run: Callable[..., Any] = subprocess.run) 
     if dest.exists():
         remove_tree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1"}
+    env = clean_env({"GIT_LFS_SKIP_SMUDGE": "1"})  # a public copy: no keys and no git login needed
     cmd = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.symlinks=false", "clone", "--depth", "1",
            "--single-branch", "--no-recurse-submodules",
            f"https://github.com/{name}.git", str(dest)]

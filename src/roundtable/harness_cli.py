@@ -51,6 +51,7 @@ from .harness.config import load_config
 from .harness.orchestrator import HarnessError, Orchestrator, Project
 from .harness.tools import Toolbox
 from .core.models import utcnow
+from .core import secrets as vault
 from .providers.base import ProviderError
 
 STATUS_ICON = {"pending": "·", "running": "▶", "done": "✓", "failed": "✗", "skipped": "-"}
@@ -530,7 +531,7 @@ def _providers(args, cfg) -> None:
                              auth_header=args.auth_header, auth_prefix=args.auth_prefix,
                              headers=_pairs(args.header), query=_pairs(args.query), **{"class": args.plugin_class})
         print(f"added provider {block['id']!r} to custom.yaml")
-        if block.get("api_key_env") and not os.environ.get(block["api_key_env"]):
+        if block.get("api_key_env") and not vault.has(block["api_key_env"]):
             print(f"next: set {block['api_key_env']} (or paste the key in the app's Settings), then "
                   f"`roundtable providers test {block['id']}`")
     elif args.pcmd == "remove":

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .core import secrets as vault
 from .desktop import KNOWN_KEYS, KeyStore, Paths
 
 MODEL = "deepseek/deepseek-v4-flash"  # the owner's rule: Flash on the phone, never V4 Pro
@@ -135,12 +136,13 @@ def git_auth_env(url: str, token: str) -> dict[str, str]:
 
 
 def use_hub_token(paths: Paths, keys: KeyStore) -> bool:
-    """Put the hub token into this process's git settings, so the hub's own sync can pull and push."""
+    """Give the hub's own git calls the hub token (``core/secrets.set_git_env``), so its sync can pull
+    and push. Never os.environ: a worker's command must not inherit it."""
     token = keys.get(HUB_TOKEN)
     url = paths.load_settings().get("hub_url") or ""
     if not (token and url):
         return False
-    os.environ.update(git_auth_env(url, token))
+    vault.set_git_env(git_auth_env(url, token))
     return True
 
 
@@ -175,7 +177,7 @@ def connect_hub(paths: Paths, keys: KeyStore, url: str, token: str, seat: str, l
                               + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     if token:
         keys.set(HUB_TOKEN, token)
-        os.environ.update(env)
+        vault.set_git_env(env)
     settings = paths.load_settings()
     settings["hub_url"] = url
     paths.save_settings(settings)
@@ -215,7 +217,7 @@ class LocalAccess:
 
     def keys_list(self) -> dict[str, Any]:
         out = [{"provider": pid, "name": env, "label": KNOWN_KEYS.get(env, pid),
-                "set": bool(os.environ.get(env) or self.keys.get(env))} for pid, env in self._key_names().items()]
+                "set": bool(vault.get(env) or self.keys.get(env))} for pid, env in self._key_names().items()]
         return {"keys": out}
 
     def keys_save(self, body: dict[str, Any]) -> dict[str, Any]:

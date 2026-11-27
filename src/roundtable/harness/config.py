@@ -588,6 +588,10 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     base = path.parent if path else Path.cwd()
     prompts_dir = raw.get("prompts_dir")
     ws = raw.get("workspace") or {}
+    from ..core import secrets as vault
+
+    # every provider's key name is a secret: workers' commands never get it (safeenv.py)
+    vault.remember_name(*[(p or {}).get("api_key_env") for p in providers.values() if isinstance(p, dict)])
     return HarnessConfig(
         path=path,
         providers=providers,

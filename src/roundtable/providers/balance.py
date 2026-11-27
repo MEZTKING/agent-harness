@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from ..core import secrets as vault
 # provider base URL host -> path of its balance endpoint and how to read it
 _KNOWN = {"api.deepseek.com": "/user/balance", "openrouter.ai": "/api/v1/credits"}
 
@@ -30,7 +31,7 @@ def balance_url(spec: dict[str, Any]) -> str | None:
 def read_balance(spec: dict[str, Any], timeout: float = 10.0) -> dict[str, Any] | None:
     """{"amount": float, "currency": str} or None when the provider can't say."""
     url = balance_url(spec)
-    key = os.environ.get(spec.get("api_key_env") or "")
+    key = vault.get(spec.get("api_key_env"))
     if not url or not key:
         return None
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
@@ -50,7 +51,7 @@ def check_key(spec: dict[str, Any], timeout: float = 15.0) -> dict[str, Any] | N
     address (the caller then uses its model list, which needs the key on most services).
     """
     url = balance_url(spec)
-    key = os.environ.get(spec.get("api_key_env") or "")
+    key = vault.get(spec.get("api_key_env"))
     if not url or not key:
         return None
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})

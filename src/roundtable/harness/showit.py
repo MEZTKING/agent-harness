@@ -27,6 +27,7 @@ from urllib.parse import quote, unquote, urlparse
 
 from . import godot as godotlib
 from . import look as looklib
+from .safeenv import clean_env
 
 SHOTS_DIR = "shots"  # under .harness/
 # kind: (width, height, dark)
@@ -264,7 +265,7 @@ def _render_python(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _render_node(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     res = subprocess.run([shutil.which("node") or "node", "-e", _NODE_SCRIPT], input=json.dumps(jobs),
-                         capture_output=True, text=True, timeout=90 + 30 * len(jobs))
+                         capture_output=True, text=True, timeout=90 + 30 * len(jobs), env=clean_env())
     if res.returncode != 0:
         raise RuntimeError((res.stderr or res.stdout).strip()[-400:])
     return json.loads(res.stdout or "[]")

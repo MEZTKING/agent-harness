@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..providers.base import ToolSpec
+from .safeenv import clean_env
 
 MAX_OUTPUT = 12_000
 MAX_CHANGE_DIFF = 8_000  # the diff kept with a write or an edit, for the Session view
@@ -205,7 +206,8 @@ class Workspace:
         timeout = min(int(a.get("timeout") or self.command_timeout), self.command_timeout * 5)
         try:
             res = subprocess.run(
-                a["command"], shell=True, cwd=self.root, capture_output=True, text=True, timeout=timeout
+                a["command"], shell=True, cwd=self.root, capture_output=True, text=True, timeout=timeout,
+                env=clean_env(),  # never the owner's keys or git login (safeenv.py)
             )
         except subprocess.TimeoutExpired:
             raise ToolError(f"command timed out after {timeout}s")

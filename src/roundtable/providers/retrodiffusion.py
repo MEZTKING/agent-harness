@@ -26,6 +26,7 @@ import urllib.request
 import uuid
 from typing import Any
 
+from ..core import secrets as vault
 from .base import ImageProvider, ProviderError, Usage
 
 BASE_URL = "https://api.retrodiffusion.ai/v2"
@@ -46,7 +47,7 @@ class RetroDiffusionProvider(ImageProvider):
 
     # -- http -------------------------------------------------------------------
     def _request(self, method: str, path: str, body: dict | None = None, headers: dict | None = None) -> dict:
-        key = os.environ.get(self.api_key_env or "", "") or "proxy-injected"  # a proxy may inject the real key
+        key = vault.get(self.api_key_env) or "proxy-injected"  # a proxy may inject the real key
         req = urllib.request.Request(
             self.base_url + path,
             data=json.dumps(body).encode() if body is not None else None,

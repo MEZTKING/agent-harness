@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
+from ..core import secrets as vault
 from .base import ChatResponse, ImageProvider, Provider, ProviderError, ToolCall, ToolSpec, Usage
 
 
@@ -67,8 +69,9 @@ def _mark_cache(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _expand(value: str) -> str:
-    """Expand ${ENV_VAR} references in configured header/query values."""
-    return os.path.expandvars(str(value))
+    """Expand ${ENV_VAR} references in configured header/query values (the key vault first)."""
+    text = re.sub(r"\$\{(\w+)\}", lambda m: vault.get(m.group(1)) or m.group(0), str(value))
+    return os.path.expandvars(text)
 
 
 def _client(api_key_env: str | None, base_url: str | None, timeout: float, auth_header: str | None = None,
@@ -81,7 +84,7 @@ def _client(api_key_env: str | None, base_url: str | None, timeout: float, auth_
     """
     import openai
 
-    key = os.environ.get(api_key_env) if api_key_env else None
+    key = vault.get(api_key_env)
     default_headers = {k: _expand(v) for k, v in (headers or {}).items()}
     if auth_header and key:
         default_headers[auth_header] = f"{auth_prefix}{key}"

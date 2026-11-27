@@ -22,6 +22,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from .safeenv import clean_env
 
 NAMES = ("godot", "godot4", "Godot")
 MARKERS = ("SCRIPT ERROR", "ERROR:", "Parse Error", "Failed to load")
@@ -139,7 +140,7 @@ def run(cmd: list[str], timeout: int, cwd: Path | None = None) -> tuple[int | No
     with tempfile.TemporaryFile() as out:
         kw: dict[str, Any] = {"start_new_session": True} if os.name != "nt" else {}
         proc = subprocess.Popen(cmd, cwd=str(cwd) if cwd else None, stdin=subprocess.DEVNULL, stdout=out,
-                                stderr=subprocess.STDOUT, **kw)
+                                stderr=subprocess.STDOUT, env=clean_env(), **kw)
         try:
             code: int | None = proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:

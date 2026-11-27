@@ -690,6 +690,16 @@ Text a model has already seen (a cache hit) is counted at a tenth of the input p
 
 - `limits.max_cost_usd` pauses a project when reached; `roundtable run` continues after you raise it. Claude prices are built in. **Add `pricing:` for the other providers**, or their calls are counted as "unpriced" and don't count toward the budget.
 - `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
+- **Your keys stay out of the workers' commands.** Saved API keys and the hub token are kept in
+  Roundtable's own memory, not in the environment, and every command an AI worker can start (its shell
+  commands, the project's tests and setup, Godot, tool servers, the picture-taking browser, git in the
+  project folder) gets a cleaned copy of the environment: no saved keys, nothing named like a key,
+  token, secret, password or credential, no git settings or GitHub tokens, and nothing holding a value
+  you saved as a key. git is also told not to use your saved GitHub login, so a worker can't push as
+  you. The project's own `env:` settings (and a tool server's) are still passed on – never put keys
+  there. **The honest limit:** a command still runs as you, so it could in principle read Windows' own
+  credential store or the keys file directly. The full fix is the sandbox planned for later, and
+  "Ask me first" (next release) makes risky commands wait for your tap.
 - `hub:` in `harness.yaml` reports project progress to the Hub, so your repo agents can see what the harness is building.
 - **A real-money limit per run**: `limits.max_real_usd_per_run` (e.g. `1.0`) pauses a run once your
   providers' real balances fell by that much since it started, checked between tasks and inside long
