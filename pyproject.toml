@@ -23,6 +23,7 @@ desktop = ["pywebview>=5", "keyring>=24"]
 
 [project.scripts]
 roundtable = "roundtable.main:main"
+darkness = "roundtable.main:main"         # the same command under the new name
 agent-hub = "roundtable.cli:main"        # alias: hub commands only
 harness = "roundtable.harness_cli:main"  # alias: harness commands only
 roundtable-app = "roundtable.desktop:main"  # the desktop app (from source)

@@ -1,6 +1,9 @@
 // Shared helpers: elements, the API, polling, dialogs and the words the owner reads.
 // Every node is built with h() (text, never HTML): journal entries, letters and logs hold model output.
 
+/** The name the owner reads (brand.py's twin). Names machines read stay "roundtable". */
+export const BRAND = Object.freeze({ name: "Darkness Harness", short: "Darkness", legacy: "Roundtable Hold" });
+
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
