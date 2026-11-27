@@ -5,6 +5,7 @@
     roundtable plugin remove ID [--purge]           --purge also deletes its data folder
     roundtable plugin enable ID [--yes] | disable ID
     roundtable plugin settings ID [key=value ...]   show, or change, its settings
+    roundtable plugin trust ID [--yes] | untrust ID   let it run as the app itself, or put it back in its box
 """
 
 from __future__ import annotations
@@ -16,8 +17,14 @@ from typing import Callable
 from .api import PluginError
 from .manifest import Manifest
 
-TRUST_NOTE = ("A plugin is someone's program: it runs with the same access as Darkness Harness. The harness "
-              "can't hold it to what it says below, so only add plugins from people you trust.")
+TRUST_NOTE = "A plugin is someone's program: add plugins from people you trust."
+
+
+def box_note() -> str:
+    """What the box holds a plugin to on this computer, then the trust note."""
+    from .sandbox import supported
+
+    return f"{supported()['words']}, unless it asks for more above. {TRUST_NOTE}"
 
 
 def describe(m: Manifest) -> str:
@@ -34,7 +41,7 @@ def describe(m: Manifest) -> str:
 def asker(assume_yes: bool, ask: Callable[[str], str] = input) -> Callable[[Manifest], bool]:
     def confirm(m: Manifest) -> bool:
         print(describe(m))
-        print(f"\n{TRUST_NOTE}")
+        print(f"\n{box_note()}")
         if assume_yes:
             return True
         return ask("Add it? [y/N] ").strip().lower() in ("y", "yes")
@@ -68,6 +75,10 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("id")
     s.add_argument("--yes", action="store_true")
     sub.add_parser("disable", help="switch a plugin off").add_argument("id")
+    s = sub.add_parser("trust", help="let a plugin you wrote or read run as the app itself, outside its box")
+    s.add_argument("id")
+    s.add_argument("--yes", action="store_true", help="don't ask (you've read the warning)")
+    sub.add_parser("untrust", help="put a plugin back in its box").add_argument("id")
     s = sub.add_parser("settings", help="show or change a plugin's settings")
     s.add_argument("id")
     s.add_argument("values", nargs="*", metavar="key=value")
@@ -79,7 +90,8 @@ def _list(cfg_path) -> None:
 
     for p in list_plugins(cfg_path):
         mark = {"on": "on ", "off": "off", "broken": "!! ", "needs_ok": "?? "}[p["status"]]
-        print(f"{mark} {p['id']:18} {p['version']:8} {'built in' if p['builtin'] else p['source']}")
+        where = "built in" if p["builtin"] else f"{p['source']} ({'trusted' if p['trusted'] else 'in its box'})"
+        print(f"{mark} {p['id']:18} {p['version']:8} {where}")
         print(f"      {p['description']}")
         if p["problem"]:
             print(f"      {p['problem']}")
@@ -102,6 +114,16 @@ def main(argv: list[str], ask: Callable[[str], str] = input) -> None:
             manage.set_enabled(args.config, args.id, args.pcmd == "enable",
                                confirm=asker(getattr(args, "yes", False), ask))
             print(f"{args.id} is {'on' if args.pcmd == 'enable' else 'off'}.")
+        elif args.pcmd in ("trust", "untrust"):
+            trusting = args.pcmd == "trust"
+            sure = not trusting or args.yes
+            if trusting and not sure:
+                print(manage.TRUST_WARNING)
+                sure = ask("Trust it? [y/N] ").strip().lower() in ("y", "yes")
+                if not sure:
+                    sys.exit(f"Not changed: {args.id} stays in its box.")
+            manage.set_trusted(args.config, args.id, trusting, sure=sure)
+            print(f"{args.id} is {'trusted: it runs as the app itself' if trusting else 'back in its box'}.")
         elif args.pcmd == "settings":
             values = manage.set_settings(args.config, args.id, _pairs(args.values)) if args.values \
                 else manage.get_settings(args.config, args.id)

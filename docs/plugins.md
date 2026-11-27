@@ -18,6 +18,7 @@ roundtable plugin enable ID | disable ID   switch one on or off
 roundtable plugin settings ID              show its settings
 roundtable plugin settings ID key=value    change one (checked against its list)
 roundtable plugin remove ID [--purge]      remove one you added (--purge: its data too)
+roundtable plugin trust ID | untrust ID    let one you wrote run as the app itself, or box it again
 roundtable ID COMMAND ...                  a command a plugin adds
 ```
 
@@ -34,16 +35,48 @@ Your choices (on or off, settings) are kept in `custom.yaml` next to `harness.ya
 `plugins:`. Each plugin's own files go in `<app folder>/plugins/<id>/` (on Windows,
 `%APPDATA%\RoundtableHold\plugins\<id>`), its code in `<app folder>/plugin-code/<id>/`.
 
-## Trust: read this before adding one
+## Its own box: read this before adding one
 
-A plugin is someone's Python program, and it runs with the same access as Darkness Harness:
-it could read your files, use the internet or run programs. Its manifest says what it
-*means* to do (the permissions below), and the harness shows you that and asks before it
-installs anything, but **the harness can't hold a plugin to it**. Only add plugins from
-people you trust, the same as any program you install. If a plugin later asks for more than
-you said yes to, it stays off until you say yes again (`roundtable plugin enable ID`).
+Every plugin you add runs **in its own box**: a separate program with no internet, no other
+programs and only its own folder, unless you said yes to more. Your keys are never in it, and
+the rest of the harness can't be reached from it. What it asks for (the permissions below) is
+shown before anything is installed, and is then exactly what it's allowed. If it tries anything
+else it's stopped, switched off until the run ends, and you're told what it tried. If a later
+version asks for more, it stays off until you say yes again (`roundtable plugin enable ID`).
 
-The built-in plugins are part of Darkness Harness and trusted.
+How strong the box is depends on the computer:
+
+| Where | No internet | Only its own folder | No other programs |
+|---|---|---|---|
+| Linux with `bwrap` | the system | the system | the box* |
+| Linux with `unshare` | the system | the box* | the box* |
+| Windows | the box* | the box* | Windows itself (a Job Object: one process only) |
+| The phone | the box* | the box* | the box* |
+
+\* "the box" is a guard inside the plugin's own Python: it stops a plugin that tries, but it
+isn't proof against one written on purpose to break out. So still add plugins only from people
+you trust. A plugin with compiled parts (`.pyd`, `.so`, `.dll`, `.dylib`, `.exe`, also in its
+`.deps`) is refused unless it asks to run programs, because the guard can't see inside them.
+
+**Trusted.** A plugin you wrote yourself (or have read) can be marked Trusted in Settings >
+Plugins or with `roundtable plugin trust ID`, after a warning. It then runs as the app itself,
+outside its box, as all plugins did before 1.3.0. The built-in plugins are part of Darkness
+Harness and always run that way.
+
+What a boxed plugin sees differs from the table above in small ways:
+
+- `roundtable.plugins.api` inside the box is a stand-alone copy (`boxapi.py`) with the same
+  names; `api.BOXED` is `True` there. Nothing else of the harness can be imported, nor
+  third-party packages unless they're in the plugin's own `.deps`.
+- Everything crosses the box as plain data (JSON): `after_model_call` gets a `Response`
+  (`text`, `tool_calls`, `stop_reason`, `model`) and a `Usage` (the token counts); `compact`'s
+  `info` has no `cfg` and no `charge` (a boxed plugin can't call a model).
+- `ctx.state` lives in the box; `ctx.shared` holds only what is plain data.
+- Its prints go to `errors.log` in its folder; a command's prints are shown as before. Temporary
+  files go in its folder's `tmp/`; its working folder is its own folder.
+- Limits: 10 seconds a hook, 60 seconds a tool (`tool_timeout = 120` in the manifest asks for up
+  to 300), 8 MB a message. Over a limit its box is stopped. After a crash it starts again once,
+  then stays off until the next run.
 
 If a plugin goes wrong during a run, the run carries on without it: the plugin is switched
 off until that run ends, you see a short message, and the details go in `errors.log` in its
@@ -142,11 +175,15 @@ Notes:
 |---|---|
 | `network` | Can go on the internet |
 | `files` | Can read and change files on this computer outside its own folder |
-| `shell` | Can run programs on this computer |
+| `shell` | Can run programs on this computer (and have compiled parts) |
+| `project:read` | Can read the project it is helping with (never `.env`-like files, `.git` or `.harness`) |
 | `secrets:<host>` | Can use your saved key for that host |
 
-They are what the plugin says about itself, shown to you before you add it. As above,
-the harness can't enforce them.
+Each opens only its own door of the box. `secrets:<host>` works through `ctx.http(method, url,
+headers=None, body=None)`: the harness sends the request to that host only (https, no
+redirects), adds your saved key itself and takes it out of the answer, so the key never enters
+the box. It answers `{"status", "headers", "body"}`. The key is the one a configured AI service
+with that host uses.
 
 ## Versions
 
