@@ -9,6 +9,26 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-27
 
+- **Wave 5 (1.1.0, "finished, not just built"): Fable's advice on its big questions, followed.**
+  - *Fixing things past the amount you approved:* yes, within limits it can't change itself – up to 25%
+    over what you agreed (never less than 50 cents of room), at most two "check it works and fix" rounds
+    and eight added tasks per goal, then it stops with one card. The estimate you approve already shows
+    a line for checking and fixing. Autopilot never raises this and never chooses "accept as it is".
+  - *Build and start commands that come with a kind of project:* built-in ones follow the usual command
+    rules; one from a kind you imported asks you first, once per project, showing the exact command.
+    Nothing is ever signed with a real key, installed on your phone, uploaded or published without you.
+  - *Play-testing a game shows its pictures to a model that can see:* same service and rules as the
+    proof pictures; games only, at most about 30 cents a play, counted in the estimate.
+  - *Nothing in this wave deletes:* work planned around is kept in a file; play pictures are tidied
+    like the other app pictures. **Your call later:** keep play pictures for ever?
+  - *Your words stay yours:* your idea is tidied into a brief for the planner, but your own words stay
+    the goal, on top; anything the brief adds is an idea you accept or not.
+  - *Not yet:* sound and music need a new paid service and key – asked when the first game needs it.
+- **The upgrade check passed first time:** GitHub installed Roundtable Hold, upgraded it to Darkness
+  Harness, and found nothing lost (data, a saved key, shortcuts; an old taskbar pin still opens it).
+- **The three looks were drawn** (samples, $0.20 in total): Eclipse, Obsidian Forge, Abyss. Waiting for
+  your pick; the art budget (up to $15) and keeping the phone app the same underneath are agreed.
+
 - **Darkness Harness: Fable's plan, followed.** Built on Roundtable; 1.0.0 is the new name and look
   only (your installed app updates into it; projects, keys, phone pairing and hub kept, nothing moved or
   deleted; a test on GitHub upgrades the old app before it ships). Then 1.1 finished apps and games,
