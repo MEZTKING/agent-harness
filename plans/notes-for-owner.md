@@ -9,6 +9,17 @@ The harness's own model switches are in the hub journal as decisions ("Switched 
 
 ## 2026-11-27
 
+- **Darkness Harness 1.1.0 is put together and ready** (not released yet): the done list, stages, trying what
+  it built and fixing what breaks, stuck tasks worked out, money limits, play-testing and real builds. Small
+  choices made for you while putting it together, all reversible:
+  - something this computer can't build (an EXE on a computer that isn't Windows, a mod with no Java) is shown
+    as "not checked here" with the reason and never stops the project being called done;
+  - the "check it works and fix" step only spends money fixing things on the list that must work, never a
+    nice-to-have;
+  - approving a project before it has a plan agrees no amount, so the "this will cost more" card only uses an
+    estimate you actually saw;
+  - "an Android app" on its own still means your web app wrapped as an APK; the new native Android kind is
+    picked when you say "native Android", "Kotlin" or "Jetpack Compose".
 - **Darkness Harness 1.0.0 is put together and ready** (not released yet). Roundtable Hold becomes
   Darkness Harness in the Eclipse look you picked, on the PC and the phone; your data, keys, hub, projects
   folder and phone pairing stay exactly where they are. Small choices made for you, all reversible:

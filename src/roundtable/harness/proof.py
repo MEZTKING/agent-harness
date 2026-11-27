@@ -604,6 +604,7 @@ HOWS = {
     "looks": "A model that can see checks the pictures show the task",
     "command": "The project's test command passes",
     "tests": "The project's test command passes",
+    "play": "A model that can see plays it for a minute",  # the play results (playtest.py, the done list)
 }
 
 
@@ -675,6 +676,26 @@ def lines_text(proof_lines: list[dict[str, Any]]) -> str:
     return " · ".join(ln["words"] + marks.get(ln.get("passed"), " – not checked yet") for ln in proof_lines)
 
 
+def _play_passed(project_root: Path, item: dict[str, Any]) -> bool | None:
+    """A ``play`` check's answer: the done list's record for it (``kind_id``), else the newest play.json
+    written for it (harness/playtest.py). None: it wasn't played, or the play couldn't say."""
+    try:
+        from . import donelist
+
+        for i in donelist.read(project_root)["items"]:
+            if i.get("kind_id") == item["id"] and i.get("state") in ("passed", "failed"):
+                return i["state"] == "passed"
+        recs = sorted(Path(project_root, ".harness", "play").glob(f"*/{item['id']}/play.json"),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+        for p in recs:
+            got = json.loads(p.read_text(encoding="utf-8")).get("passed")
+            if got is not None:
+                return bool(got)
+    except Exception:  # noqa: BLE001 - unreadable: not checked
+        return None
+    return None
+
+
 def results_for(project_root: Path, items: list[dict[str, Any]] | None, tasks: list[Any]) -> list[dict[str, Any]] | None:
     """A kind's proof list checked against the proof of a goal's tasks (the Gallery's proof lines).
 
@@ -687,8 +708,8 @@ def results_for(project_root: Path, items: list[dict[str, Any]] | None, tasks: l
         return None
     out = []
     for it in plan:
-        passed = None
-        for rec in records:  # newest first
+        passed = _play_passed(project_root, it) if it.get("how") == "play" and it.get("checkable") else None
+        for rec in records if passed is None else []:  # newest first
             got = _passed(it, rec)
             if got is not None:
                 passed = got

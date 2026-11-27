@@ -463,6 +463,7 @@ class ParallelStage:
             self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
             self._resolved(f"failed:{task.id}", note="task completed")
             self._after_task(task, True)
+            self._hook("_stage_after_task", task)  # files changed outside the plan (stages.py)
             chain, seen = [task.id], {task.id}
             while True:  # a fix-up brought in the task it was for (and that one's, and so on)
                 prev = next((t for t in tasks if t.id == chain[-1]), None)
@@ -589,5 +590,8 @@ class ParallelStage:
                 return got  # "again": the caller reloads the tasks and goes round
             self._finish(tasks)
             return "done"
+        stop = self._hook("_stage_stop")  # "Stop after each stage" (stages.py)
+        if stop:
+            return stop
         self._set_status("blocked")
         return "blocked"

@@ -27,6 +27,31 @@ The app's look is **Eclipse**: a dark ring of lights, one for each project, roun
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\DarknessHarness` (or `%APPDATA%\RoundtableHold` if you had the app before 1.0.0) and is kept if you uninstall.
 
+### What's new in 1.1.0
+
+Finished, not just built: the harness now checks the thing works before it calls it done.
+
+- **"Done when"**: every plan has a short list of what you can do with the finished thing ("You can start a
+  game, lose and start again"). It isn't called finished while one of them fails. Add your own lines on the
+  plan page.
+- **It tries what it built**: at the end it starts the app, uses it as a person would, and turns what's
+  broken into fix tasks, at most two rounds. Only then does it ask you, with one card: try fixing again,
+  accept it as it is, or stop.
+- **Stages**: plans start with a small slice that already works, then build on it. Each task says which files
+  it changes, so two tasks never fight over the same file.
+- **Stuck tasks are worked out**: a model from another maker looks at why a task keeps failing and retries
+  it with advice, splits it, plans around it or puts it aside. You get one card at the end, not one per task.
+- **No surprises with money**: a run that would cost well past what you agreed (a quarter more, at least
+  50 cents) stops and asks. Autopilot's spending limit now binds the runs it starts. Picture models get a
+  price in the estimate, and the estimate shows the cost of checking and fixing.
+- **The App tab can start an app** that runs with a command (Start it, Stop it), on this PC only.
+- **Games are played**: a model that can see plays a browser game for a minute and says what broke.
+- **New kinds**: Godot games and native Android apps (on trial); Java mods move to trial. An EXE, APK or mod
+  is really built at the end, checked and started once. What this computer can't build is shown as not
+  checked, with the reason, and never stops the project.
+- **Beta until tried on your PC**: playing a real Godot game, building a real EXE, APK or mod, and walking an
+  app in a real browser on Windows have only run against stand-ins so far.
+
 ### What's new in 1.0.0
 
 Roundtable Hold is now Darkness Harness. Everything you have stays.

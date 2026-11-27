@@ -59,6 +59,8 @@ SETTINGS: tuple[Setting, ...] = (
             "or a web app.", tuple(SWITCH)),
     Setting("show_it", "choice", "auto", "Take pictures of the app's screens after each task. auto: when it has "
             "screens the harness can open.", tuple(SWITCH)),
+    Setting("stage_stop", "choice", "off", "Stop after each stage so you can try it before the next one starts. off: "
+            "keep going (it still notes when each stage is ready).", ("off", "each")),
     Setting("ask_first", "choice", "", "Before a builder runs a command: off (run it), risky (ask only for risky ones) or all (ask every time). Empty: this computer's choice.", ("", "off", "risky", "all")),
     Setting("web_search", "choice", "", "Let the builders look things up on the web (their search words go to a search "
             "service). Empty: this computer's choice; a project kept to some providers gets none unless this says on.",

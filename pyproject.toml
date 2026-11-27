@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roundtable-hold"
-version = "1.0.0"
+version = "1.1.0"
 description = "Roundtable Hold: the best AI models working together - a cross-repo hub with project journals, a role-routed multi-provider project harness, self-improvement and a web UI."
 requires-python = ">=3.10"
 dependencies = [
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pillow>=10"]   # pillow: the picture tests (proof, play-testing)
 desktop = ["pywebview>=5", "keyring>=24"]
 
 [project.scripts]

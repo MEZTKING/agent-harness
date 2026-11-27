@@ -156,12 +156,13 @@ def test_without_playwright_it_says_so(tmp_path, monkeypatch):
     assert "Playwright isn't installed" in rec["note"] and rec["pictures"] == {}
 
 
-def test_start_commands_are_noted_and_the_page_still_shown(tmp_path):
+def test_without_a_workspace_a_start_command_is_not_run_and_the_page_still_shown(tmp_path):
     (tmp_path / "public").mkdir()
     (tmp_path / "public" / "index.html").write_text(PAGE, encoding="utf-8")
     (tmp_path / "package.json").write_text(json.dumps({"scripts": {"dev": "vite"}}), encoding="utf-8")
     rec = showit.take_shots(tmp_path, "T1", render=fake_renderer())
-    assert rec["entry"] == "public/index.html" and "npm run dev" in rec["note"] and "desktop" in rec["pictures"]
+    assert rec["entry"] == "public/index.html" and rec["note"] == "" and "desktop" in rec["pictures"]
+    assert "started" not in rec  # starting it needs the task's workspace (the gate): test_appserver.py
 
 
 def test_pictures_go_to_the_hub_and_old_ones_are_pruned(tmp_path, monkeypatch):

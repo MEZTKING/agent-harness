@@ -401,7 +401,8 @@ def test_the_wizard_offers_the_kinds_and_greys_the_coming_ones(tmp_path):
     orch, *_ = make(tmp_path, raw=with_profiles())
     make_ = asklib.wizard_asks(orch.base_cfg)[0]
     by = {o["id"]: o for o in make_["options"]}
-    assert make_["recommended"] == "web-app" and by["java-mod"]["disabled"] and by["java-mod"]["tip"]
+    assert make_["recommended"] == "web-app" and not by["java-mod"].get("disabled") and "android-app" in by
+    assert all(o["group"] == "Coming" for o in make_["options"] if o.get("disabled"))
     assert by["other"]["label"] == "Something else"
     w = asklib.wizard_project({"kind": {"chosen": ["web-app"]}, "idea": {"other": "a timer"}, "extras": ["apk", "nope"]},
                               tmp_path / "projects")

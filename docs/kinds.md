@@ -26,7 +26,10 @@ Kinds are looked for in three places, later ones winning:
    later never changes a project already being built. **Use the newest recipe** replaces it on purpose.
 
 An **extra** (`_extras/<id>/extra.yaml`, schema `extra@1`) stacks on a kind: `needs`, `targets`, `proof`,
-`plan.dont`, `task` (a hint for the planner) and `pc_only`. The first two are `apk` and `exe`.
+`plan.dont`, `task` (a hint for the planner), `pc_only` and `ship`. The first two are `apk` and `exe`.
+
+The built-in kinds: `website`, `web-app`, `browser-game`, `android-app` (native Kotlin, a debug APK),
+`java-mod` (a Gradle mod, a `.jar`) and `other`.
 
 ## `kind.yaml`
 
@@ -62,6 +65,37 @@ extras_allowed: [apk, exe]
 plugins: []
 estimate: {tasks: [6, 12], usd: [1.5, 4.0], minutes: [30, 90]}   # "a guess" until real builds exist
 ```
+
+## Building it to hand out: `ship` and `start`
+
+A kind or an extra may say how its thing is built and checked at the end; a kind may say how it starts:
+
+```yaml
+ship:
+  build: ./gradlew assembleDebug                 # one line; ./gradlew becomes gradlew.bat on Windows
+  artefact: app/build/outputs/apk/debug/*.apk    # inside the project
+  smoke: apk                                     # start | apk | mod | none | a command of its own
+  needs: [java, android]                         # ids from prereq.py (default: the kind's needs)
+  os: [windows, mac, linux]                      # where it can be built (default: all three)
+  target: apk                                    # default: the extra's id, or the kind's first target
+  timeout: 1800                                  # seconds, at most 7200
+start: {command: npm start, port: 5173, ready: /}
+```
+
+At the end of a run (`harness/shipstage.py`, after the finishing step) each target is built once, the file is
+checked (it is there, isn't empty, and starts with the right bytes: `PK` for apk, jar and zip, `MZ` for exe)
+and started once: an EXE must still be running after 10 seconds and is then ended with everything it started;
+an APK is checked with the SDK's own `aapt2` when it is there and installed only on an emulator that is
+already running; a mod jar must hold its mod file (`fabric.mod.json`, `mods.toml`…). A command of its own
+passes when it exits with 0 or is still running after 10 seconds. The result is the done-list item
+`ship:<target>`. A failed build gets one fix task per target; after that it is a failed item for the done
+gate. A target this machine can't build (no Windows here, Java missing) is "not checked", with the reason;
+the planner is told the same beforehand. Never: signing with a real key, installing on a plugged-in phone,
+uploading or publishing.
+
+**Whose commands.** A built-in recipe runs under the project's own "Ask me first" rules. A recipe from the
+owner's own or an imported kind always waits for the owner's Allow the first time in each project, with the
+exact command shown, even when the project never asks. Adding a kind from a file lists these commands first.
 
 A card with a mistake is refused, with the line named ("line 5: status can't say proven…"). The Gallery's
 *What the harness can make* lists refused cards under a fold.
@@ -117,6 +151,7 @@ catalogue, because a kind's prompts steer the builders.
 |---|---|
 | `kinds/model.py` | `Kind`, `validate`, `parse_text`, `load_all`, `resolve`, `propose`, `propose_extras`, `overlay`, `apply_to_config`, `plan_brief`, `worker_brief`, `proof_plan`, `card`, `status_of`, `status_words`, `wizard_options`, `from_wizard`, `export`, `import_file` |
 | `kinds/gallery.py` | `record`, `entries`, `one`, `hide`, `star`, `again`, `hub_files`, `refresh_state` |
+| `harness/ship.py`, `harness/shipstage.py` | the recipes and checks (pure); `ShipStage`: `_ship_plan_part`, `_ship_estimate`, `_ship_step`, `ship_status` (`.harness/ship.json`) |
 | `harness/kindstage.py` | `KindStage`: `_kind`, `_kind_cfg`, `_kind_propose`, `set_kind`, `_kind_freeze`, `kind_use_newest`, `_kind_doc`, `_kind_ask`, `_kind_plan_part`, `_kind_worker_part`, `_kind_proof`, `_kind_proof_plan`, `_gallery_record` |
 | `ui/kindsapi.py` | `/api/kinds…` and `/api/gallery…` |
 | `ui/static/kinds.js`, `gallery.js` | the plan's kind card, the Gallery room and *What the harness can make* |

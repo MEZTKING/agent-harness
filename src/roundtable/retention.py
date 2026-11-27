@@ -283,6 +283,8 @@ class Sweep:
                     self.remove("live", f, live)
         self.rewind_refs(root)
         self.shots(hdir / "shots")
+        self.goal_dirs(hdir / "play")  # play-test pictures (harness/playtest.py), like the app's pictures
+        self.goal_dirs(hdir / "journeys")  # the finishing step's pictures (harness/finishstage.py)
         if self.limits["worktrees_merged"]:
             self.worktrees(root, cfg)
 
@@ -319,6 +321,13 @@ class Sweep:
         if done:
             self.result.removed.append(Removed("events", str(live), done["saved"],
                                                f"older part kept in {Path(done['archive']).name}"))
+
+    def goal_dirs(self, top: Path) -> None:
+        """Folders of pictures kept per goal (``play/goal-1/<item>``, ``journeys/g1/<part>``): the newest
+        ``shots_keep`` in each goal's folder, as for the app's pictures."""
+        if top.is_dir() and not top.is_symlink():
+            for goal in sorted(d for d in top.iterdir() if d.is_dir() and not d.is_symlink()):
+                self.shots(goal)
 
     def shots(self, shots: Path) -> None:
         if not shots.is_dir() or shots.is_symlink():

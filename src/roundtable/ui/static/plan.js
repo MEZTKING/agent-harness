@@ -5,6 +5,8 @@ import { h, fill, clean, get, post, toast, act, card, money, ago, plural, jobNam
 import { askCard, answerHere, answerHub, hubCommand } from "./asks.js";
 import { composer } from "./compose.js";
 import { kindCard } from "./kinds.js";
+import { doneCard } from "./donelist.js";
+import { stagedTaskList } from "./stages.js";
 import { pounds } from "./pounds.js";
 
 const SETS = { budget: ["Budget", "Cheapest that still works"], balanced: ["Balanced", "Strong models where it matters, cheaper ones for the rest"], quality: ["Quality", "The strongest model for every job"] };
@@ -72,7 +74,8 @@ async function localPlan(seat, redraw) {
 
   const input = waiting.length && !locked ? h("div", { class: "asks" }, waiting.map(cardFor)) : null;
   const done = d.tasks.filter((t) => t.status === "done").length;
-  const tasks = d.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, `${done} of ${d.tasks.length} done`)), taskLines(d.tasks)) : null;
+  const tasks = d.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, `${done} of ${d.tasks.length} done`)),
+    stagedTaskList(d.tasks, doc.stages, taskLines)) : null;  // under a heading per stage when the plan has stages
 
   // More about this plan: each part its own fold
   const ests = doc.estimates || {};
@@ -102,7 +105,8 @@ async function localPlan(seat, redraw) {
       `Version ${x.version} · ${ago(x.at)} · ${x.by === "critic" ? "changed after the second opinion" : x.by === "owner" ? "your changes" : x.change || "the first plan"}`)))) : null);
 
   const kind = doc.kind ? kindCard(doc.kind, path, () => { refreshHall(); redraw(); }) : null;  // "This looks like a website. Right?"
-  return [kind, top, input, tasks, more];
+  const doneList = doneCard(seat);  // "Done when: 5 of 7 ✓", each thing on opening (donelist.js)
+  return [kind, top, doneList, input, tasks, more];
 }
 
 // one line a task: a tick when done, a dot otherwise

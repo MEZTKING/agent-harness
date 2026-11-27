@@ -1,5 +1,7 @@
 package com.meztking.roundtable.net
 
+import com.meztking.roundtable.data.DoneList
+import com.meztking.roundtable.data.Stages
 import com.meztking.roundtable.data.Asks
 import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.ComposerDraft
@@ -187,6 +189,12 @@ class ConformanceTest {
         assertTrue(api.feature("GET", "/api/proof/list?path=$project").contains("items"))
         assertTrue(api.feature("GET", "/api/terminal/task?path=$project&task=T1&since=0").contains("words"))
         assertTrue(api.feature("POST", "/api/terminal/task/stop", buildJsonObject { put("path", project); put("task", "T1") }.toString()).contains("words"))
+        // wave 5: the done list with its evidence, and the plan's stages
+        val done = DoneList.parse(api.feature("GET", DoneList.url(project)))
+        assertNotNull(done)
+        assertTrue(done!!.words.isNotBlank())
+        assertEquals("D1", DoneList.parseEvidence(api.feature("GET", DoneList.evidenceUrl(project, "D1")))?.item)
+        assertNotNull(Stages.parse(api.feature("GET", Stages.url(project))))
 
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }

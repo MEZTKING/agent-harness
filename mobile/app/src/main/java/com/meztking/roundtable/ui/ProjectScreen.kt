@@ -285,6 +285,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     // what kind of thing it is; the question itself comes as a card (kind "kind"), so here it only says what it is
     val kind = p.kind
     if (kind != null && cards.none { it.kind == "kind" }) item(key = "kind") { KindCard(kind, onChoose = null) }
+    // what "finished" means: one line, each thing on opening (from the PC; nothing in Hub mode)
+    val machine = a.machine
+    val path = a.path
+    if (machine != null && !path.isNullOrBlank()) item(key = "done") { DoneCard(machine, path) }
     if (cards.isNotEmpty() && !top.finished) {
         val agreed = d?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
         items(cards, key = { "ask:" + it.id }) { c ->
@@ -294,6 +298,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     if (hub && top.waiting) item(key = "actions") {
         val pending = p.words?.pendingChanges == true || ui.sent.keys.any { k -> listOf("note:", "choose:", "answer:", "idea:", "ask:").any { k.startsWith(it) } }
         PlanButtons(ui.id, ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
+    }
+    if (machine != null && !path.isNullOrBlank()) item(key = "stages") {
+        StageStrip(path) { machine.feature("GET", com.meztking.roundtable.data.Stages.url(path)) }  // nothing without stages
     }
     if (top.tasks.isNotEmpty()) {
         item(key = "tasks-head") {

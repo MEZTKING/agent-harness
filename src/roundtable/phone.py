@@ -71,6 +71,9 @@ PHONE_ROUTES = {
     ("GET", "/api/kinds"), ("GET", "/api/kinds/one"), ("POST", "/api/kinds/propose"), ("POST", "/api/kinds/set"),
     ("GET", "/api/gallery"), ("GET", "/api/gallery/one"), ("POST", "/api/gallery/hide"), ("POST", "/api/gallery/star"),
     ("POST", "/api/gallery/again"),
+    # what "finished" means and how each check went, with its pictures (ui/doneapi.py)
+    ("GET", "/api/done"), ("GET", "/api/done/evidence"),
+    ("GET", "/api/stages"),  # the plan's stages and parts (ui/stagesapi.py); the App tab's Start stays on the PC
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))

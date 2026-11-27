@@ -1,14 +1,25 @@
 [
  {
-  "at": "2026-11-27T16:28:24Z",
+  "at": "2026-11-27T17:33:49Z",
   "kind": "journal:todo",
   "project": "proj",
-  "seq": 1795796904.785863,
+  "seq": 1795800829.4582539,
   "text": "check the logo colours",
   "who": "to do"
  },
  {
-  "at": "2026-11-27T16:28:24Z",
+  "at": "2026-11-27T17:33:49Z",
+  "kind": "status",
+  "model": "a/planner",
+  "project": "proj",
+  "role": "orchestrator",
+  "seq": 9,
+  "task": "",
+  "text": "[status: awaiting_approval]",
+  "who": "orchestrator"
+ },
+ {
+  "at": "2026-11-27T17:33:49Z",
   "kind": "status",
   "model": "a/planner",
   "project": "proj",
@@ -19,51 +30,40 @@
   "who": "orchestrator"
  },
  {
-  "at": "2026-11-27T16:28:24Z",
-  "kind": "status",
+  "at": "2026-11-27T17:33:49Z",
+  "kind": "plan",
   "model": "a/planner",
   "project": "proj",
   "role": "orchestrator",
   "seq": 7,
   "task": "",
-  "text": "[status: awaiting_approval]",
-  "who": "orchestrator"
- },
- {
-  "at": "2026-11-27T16:28:24Z",
-  "kind": "plan",
-  "model": "a/planner",
-  "project": "proj",
-  "role": "orchestrator",
-  "seq": 6,
-  "task": "",
   "text": "Plan:",
   "who": "orchestrator"
  },
  {
-  "at": "2026-11-27T16:28:24Z",
+  "at": "2026-11-27T17:33:49Z",
   "kind": "tool_call",
   "model": "a/planner",
   "project": "proj",
   "role": "orchestrator",
-  "seq": 4,
+  "seq": 5,
   "task": "",
   "text": "submit_plan",
   "who": "orchestrator (planner)"
  },
  {
-  "at": "2026-11-27T16:28:24Z",
+  "at": "2026-11-27T17:33:49Z",
   "kind": "planning",
   "model": "a/planner",
   "project": "proj",
   "role": "orchestrator",
-  "seq": 2,
+  "seq": 3,
   "task": "",
   "text": "Planning with a/planner...",
   "who": "orchestrator (planner)"
  },
  {
-  "at": "2026-11-27T16:28:24Z",
+  "at": "2026-11-27T17:33:48Z",
   "kind": "goal",
   "model": "",
   "project": "proj",

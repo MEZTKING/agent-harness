@@ -1,0 +1,31 @@
+schema: kind@1
+id: godot-game
+name: Godot game
+blurb: A 2D or 3D game made in Godot 4. Still in beta.
+group: Desktop apps
+status: trial
+match: [godot, godot game, godot 4, gdscript, game engine, 3d game, 2d game, platformer]
+examples: ["a Godot platformer with three levels", "a small 3D maze game in Godot", "a top-down shooter in Godot"]
+needs: [godot]
+roles:
+  add: {artist: {kind: image, description: "Draws the game's pictures"}}
+  prompts: {orchestrator: prompts/planner.md, coder: prompts/coder.md, reviewer: prompts/reviewer.md}
+plan:
+  has_ui: true
+  skeleton_first: true
+  spec_sections: [Godot version, Scenes, Controls, Art style, Sound, How to run it]
+  questions:
+    - id: dimension
+      header: 2D or 3D
+      question: "Is it a 2D or a 3D game?"
+      options: [{id: "2d", label: "2D"}, {id: "3d", label: "3D"}]
+      recommended: "2d"
+  dont:
+    - {text: "No Godot editor plug-ins the game needs to run", why: "It must start from the project's own files"}
+    - {text: "No C# scripts", why: "GDScript runs in every copy of Godot; C# needs a special one"}
+look: art
+proof:
+  - {id: imports, how: command, command: "godot --headless --path . --import", words: "It opens in Godot with no errors"}
+  - {id: starts, how: play, seconds: 20, words: "It starts and can be played"}
+  - {id: plays, how: play, seconds: 60, words: "Played for a minute"}
+estimate: {tasks: [8, 16], usd: [2.0, 6.0], minutes: [40, 120]}

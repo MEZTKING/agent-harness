@@ -42,7 +42,7 @@ KIND_KEYS = {"schema", "id", "name", "blurb", "group", "status", "extends", "mat
              "plan", "look", "proof", "pictures", "targets", "extras_allowed", "plugins", "estimate", "start", "ship"}
 EXTRA_KEYS = {"schema", "id", "name", "blurb", "status", "match", "needs", "targets", "proof", "plan", "task",
               "pc_only", "ship"}
-RECIPE_KEYS = ("start", "ship")  # how to start the thing built and how to build it to hand out (d2-ship tightens)
+RECIPE_KEYS = ("start", "ship")  # how to start the thing built and how to build it to hand out (harness/ship.py)
 MAX_RECIPE_WORDS = 500
 PLAN_KEYS = {"has_ui", "skeleton_first", "spec_sections", "questions", "dont"}
 EXTRA_PLAN_KEYS = {"dont"}
@@ -203,7 +203,7 @@ def validate(raw: Any, lines: dict[str, int] | None = None, is_extra: bool = Fal
     _check_proof(raw.get("proof"), bad)
     _check_estimate(raw.get("estimate"), bad)
     for k in RECIPE_KEYS:
-        _check_recipe(k, raw.get(k), bad)
+        _check_recipe(k, raw.get(k), bad, known_needs)
     if probs:
         return None, probs
     data = dict(raw)
@@ -298,13 +298,60 @@ def _check_proof(proof: Any, bad) -> None:
             bad(f"{p}.optional", "optional must be true or false")
 
 
-def _check_recipe(key: str, recipe: Any, bad) -> None:
+SHIP_KEYS = {"build", "artefact", "smoke", "needs", "os", "target", "timeout"}
+START_KEYS = {"command", "port", "ready"}
+SHIP_OSES = ("windows", "mac", "linux")
+
+
+def _line_of_words(v: Any) -> bool:
+    return isinstance(v, str) and bool(v.strip()) and "\n" not in v.strip() and len(v) <= MAX_RECIPE_WORDS
+
+
+def _check_recipe(key: str, recipe: Any, bad, known_needs: set[str] | None = None) -> None:
+    """``ship: {build, artefact, smoke?, needs?, os?, target?, timeout?}`` and ``start: {command, port?, ready?}``:
+    each mistake named with its line. A recipe's commands run on the owner's PC, so they are one line each."""
     if recipe is None:
         return
-    if (not isinstance(recipe, dict)
-            or not all(isinstance(k, str) and isinstance(v, str) and len(v) <= MAX_RECIPE_WORDS
-                       for k, v in recipe.items())):
-        bad(key, f"{key} must be a list of settings, each a short line of words (like command: npm start)")
+    if not isinstance(recipe, dict):
+        bad(key, f"{key} must be a list of settings, like {key}: {{build: npm run dist, artefact: dist/*.exe}}"
+            if key == "ship" else f"{key} must be a list of settings, like start: {{command: npm start}}")
+        return
+    allowed = SHIP_KEYS if key == "ship" else START_KEYS
+    for k in recipe:
+        if k not in allowed:
+            bad(f"{key}.{k}", f"{k!r} isn't a setting {key}: can have (it can have {', '.join(sorted(allowed))})")
+    if key == "start":
+        if not _line_of_words(recipe.get("command")):
+            bad(f"{key}.command" if "command" in recipe else key, "start needs command: one line, like npm start")
+        port = recipe.get("port")
+        if port is not None and (not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536):
+            bad(f"{key}.port", "port must be a number between 1 and 65535")
+        if "ready" in recipe and not _line_of_words(recipe["ready"]):
+            bad(f"{key}.ready", "ready must be one line: the words it prints when it's ready, or a page like /")
+        return
+    if not _line_of_words(recipe.get("build")):
+        bad(f"{key}.build" if "build" in recipe else key, "ship needs build: one line, like ./gradlew build")
+    art = recipe.get("artefact")
+    if not isinstance(art, str) or not _safe_rel(art):
+        bad(f"{key}.artefact" if "artefact" in recipe else key,
+            "ship needs artefact: where the built file lands, inside the project, like build/libs/*.jar")
+    if "smoke" in recipe and not _line_of_words(recipe["smoke"]):
+        bad(f"{key}.smoke", "smoke must be start, apk, mod, none or one line of a command")
+    if "target" in recipe and (not isinstance(recipe["target"], str) or not ID_RE.match(recipe["target"])):
+        bad(f"{key}.target", "target must be a short name in lower case, like apk")
+    t = recipe.get("timeout")
+    if t is not None and (not isinstance(t, (int, float)) or isinstance(t, bool) or not 0 < t <= 7200):
+        bad(f"{key}.timeout", "timeout is seconds, above 0 and at most 7200 (two hours)")
+    for lk, ok in (("needs", known_needs), ("os", set(SHIP_OSES))):
+        v = recipe.get(lk)
+        if v is None:
+            continue
+        if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+            bad(f"{key}.{lk}", f"{key}.{lk} must be a list of words, like [a, b]")
+            continue
+        for i, x in enumerate(v):
+            if ok is not None and x not in ok:
+                bad(f"{key}.{lk}.{i}", f"{key}.{lk} names {x!r}, which isn't one of: {', '.join(sorted(ok))}")
 
 
 def _check_estimate(est: Any, bad) -> None:
@@ -462,7 +509,8 @@ def resolve(kind_id: str, extras: list[str] | None = None, catalog: Catalog | No
             raise KindError(f"{top.name} can't have the extra {cat.extras[eid].name}")
         e = cat.extras[eid]
         out.extras.append({"id": e.id, "name": e.name, "blurb": e.blurb, "status": e.status,
-                           "task": str(e.spec.get("task") or ""), "pc_only": bool(e.spec.get("pc_only"))})
+                           "task": str(e.spec.get("task") or ""), "pc_only": bool(e.spec.get("pc_only")),
+                           "source": e.source, **({"ship": copy.deepcopy(e.spec["ship"])} if e.spec.get("ship") else {})})
         es = e.spec
         out.spec["needs"] = list(dict.fromkeys([*(out.spec.get("needs") or []), *(es.get("needs") or [])]))
         out.spec["targets"] = list(dict.fromkeys([*(out.spec.get("targets") or []), *(es.get("targets") or [])]))
@@ -742,7 +790,7 @@ def card(kind: Kind, state: dict[str, Any] | None = None, missing: list[str] | N
         "proof": [{"id": i["id"], "words": i["words"], "optional": i.get("optional", False),
                    "not_yet": i.get("status") == "not_yet"} for i in proof_plan(kind)],
         "more": {"card": kind.card_md, "spec_sections": list(kind.plan.get("spec_sections") or []),
-                 "roles_added": sorted(((kind.spec.get("roles") or {}).get("add") or {})),
+                 "roles_added": sorted((kind.spec.get("roles") or {}).get("add") or {}),
                  "prompts_for": sorted(kind.prompts), "look": kind.spec.get("look", "on"),
                  "targets": list(kind.spec.get("targets") or []), "plugins": list(kind.spec.get("plugins") or [])},
     }
@@ -891,9 +939,11 @@ def import_file(data: bytes, home: Path | str, confirm: bool = False) -> dict[st
     would = {
         "id": spec["id"], "name": spec["name"], "is_extra": is_extra,
         "needs": list(spec.get("needs") or []), "plugins": list(spec.get("plugins") or []),
-        "roles_added": sorted(((spec.get("roles") or {}).get("add") or {})),
-        "prompts_for": sorted(((spec.get("roles") or {}).get("prompts") or {})),
-        "commands": [p["command"] for p in spec.get("proof") or [] if p.get("command")],
+        "roles_added": sorted((spec.get("roles") or {}).get("add") or {}),
+        "prompts_for": sorted((spec.get("roles") or {}).get("prompts") or {}),
+        "commands": [*(p["command"] for p in spec.get("proof") or [] if p.get("command")),
+                     *(str(v) for k, sub in (("ship", ("build", "smoke")), ("start", ("command",)))
+                       for f, v in (spec.get(k) or {}).items() if f in sub and v and v not in ("start", "apk", "mod", "none"))],
         "replaces": ("your own kind with the same name" if "own" in clash
                      else "the built-in one with the same name, for you" if "builtin" in clash else ""),
         "files": sorted(files),
