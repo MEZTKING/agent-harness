@@ -7,20 +7,20 @@ import { h, fill, get, post, q, act, toast, dialog, page, card, empty, seg, mark
 // this page's few looks, kept here so style.css stays as it is
 const CSS = `
 .sr-box { display: flex; align-items: center; }
-.sr-box input { width: 210px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-oak-line);
+.sr-box input { width: 210px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-line);
   background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 14px; }
-.sr-box input:focus { width: 280px; outline: 2px solid var(--color-gold, currentColor); outline-offset: 1px; }
+.sr-box input:focus { width: 280px; outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .sr-hits { list-style: none; margin: 0; padding: 0; }
-.sr-hit { border-top: 1px solid var(--color-oak-line); }
+.sr-hit { border-top: 1px solid var(--color-line); }
 .sr-hit:first-child { border-top: 0; }
 .sr-hit button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 10px 4px; cursor: pointer; }
 .sr-hit button:hover, .sr-hit button:focus-visible { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
 .sr-title { font-weight: 700; }
 .sr-where { color: var(--color-muted); font-size: 13.5px; }
 .sr-snip { margin-top: 2px; font-size: 14px; overflow-wrap: anywhere; }
-.sr-hit mark { background: color-mix(in srgb, var(--color-warn, #d9a400) 35%, transparent); color: inherit; border-radius: 3px; }
+.sr-hit mark { background: color-mix(in srgb, var(--color-warn) 35%, transparent); color: inherit; border-radius: 3px; }
 .sr-peek { max-height: 60vh; overflow: auto; font: 13px/1.45 ui-monospace, monospace; white-space: pre; margin: 0; }
-.sr-peek .on { background: color-mix(in srgb, var(--color-warn, #d9a400) 25%, transparent); }
+.sr-peek .on { background: color-mix(in srgb, var(--color-warn) 25%, transparent); }
 .sr-memory { width: 100%; min-height: 50vh; font: 13.5px/1.5 ui-monospace, monospace; }
 @media (max-width: 720px) { .sr-box input, .sr-box input:focus { width: 140px; } }
 `;

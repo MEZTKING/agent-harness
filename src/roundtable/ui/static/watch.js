@@ -150,7 +150,7 @@ function watchStyles() {
   if (typeof document === "undefined" || document.getElementById("tw-style")) return;
   document.head.append(h("style", { id: "tw-style" }, `
 .tw-now .tw-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
-.tw-row { border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); padding: 10px 12px; background: var(--color-sunken); min-width: 0; }
+.tw-row { border: 1px solid var(--color-line); border-radius: var(--radius-small); padding: 10px 12px; background: var(--color-sunken); min-width: 0; }
 .tw-title { display: flex; align-items: baseline; gap: 6px; } .tw-title .spacer { flex: 1; } .tw-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tw-doing { margin: 4px 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tw-line, .tw-sum > summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -158,10 +158,10 @@ function watchStyles() {
 .tw-time { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
 .tw-bar { display: inline-flex; width: 180px; height: 8px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, currentColor 15%, transparent); gap: 1px; }
 .tw-seg { display: block; height: 100%; flex-basis: 0; }
-.tw-first { background: #9c8b74; } .tw-writing, .tw-model { background: #e8a33d; } .tw-tools { background: #7fa35c; } .tw-you { background: #d0643f; } .tw-other { background: #6f5a46; }
+.tw-first { background: var(--color-muted); } .tw-writing, .tw-model { background: var(--color-accent); } .tw-tools { background: var(--color-good); } .tw-you { background: var(--color-flare); } .tw-other { background: var(--color-line-strong); }
 .tw-gauge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 .tw-meter { display: inline-block; width: 56px; height: 6px; border-radius: 3px; background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
-.tw-meter > span { display: block; height: 100%; background: #7fa35c; } .tw-gauge.high .tw-meter > span { background: #e8a33d; } .tw-gauge.full .tw-meter > span { background: #d0643f; }
+.tw-meter > span { display: block; height: 100%; background: var(--color-good); } .tw-gauge.high .tw-meter > span { background: var(--color-warn); } .tw-gauge.full .tw-meter > span { background: var(--color-bad); }
 .tw-list { margin: 6px 0 4px; padding-left: 18px; font-size: 12px; list-style: none; } .tw-list li { margin: 2px 0; }
 .tw-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 `));

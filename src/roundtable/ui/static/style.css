@@ -55,13 +55,6 @@
   /* the session reads like a terminal: dark in every look */
   --term-bg: #07070b; --term-line: #2a2a3a; --term-text: #ecebf4; --term-muted: #a3a2b8; --term-accent: #a78bfa;
   --term-add: #7fd6a4; --term-add-bg: #122a1e; --term-del: #ff7a85; --term-del-bg: #33161b;
-  /* older names a few page modules still use; they point at the new tokens */
-  --color-oak-line: var(--color-line);
-  --color-candle-glow: var(--color-flare);
-  --color-ember: var(--color-flare);
-  --color-gold: var(--color-accent);
-  --color-ok: var(--color-good);
-  --color-ok-soft: var(--color-good-soft);
 }
 :root[data-theme="pitch"] {
   --color-background: #000000;

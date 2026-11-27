@@ -8,7 +8,7 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 ROOT = Path(SPECPATH).parent
-ICON = str(ROOT / "packaging" / "roundtable.ico")
+ICON = str(ROOT / "packaging" / "darkness.ico")
 NAME = "DarknessHarness"        # brand.EXE without .exe
 LEGACY_NAME = "RoundtableHold"  # brand.LEGACY_EXE without .exe
 

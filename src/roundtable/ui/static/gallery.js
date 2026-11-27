@@ -71,7 +71,7 @@ function galleryStyles() {
   if (typeof document === "undefined" || document.getElementById("gl-style")) return;
   document.head.append(h("style", { id: "gl-style" }, `
 .gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 12px; }
-.gl-tile { display: flex; flex-direction: column; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); color: inherit; text-decoration: none; }
+.gl-tile { display: flex; flex-direction: column; border: 1px solid var(--color-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); color: inherit; text-decoration: none; }
 .gl-tile:hover, .gl-tile:focus-visible { border-color: var(--color-accent); }
 .gl-tile img, .gl-nocover { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--color-sunken); }
 .gl-nocover { display: grid; place-items: center; color: var(--color-muted); font-size: 12px; }

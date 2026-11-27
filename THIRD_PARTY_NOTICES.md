@@ -46,16 +46,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Fonts: Fraunces and Nunito Sans
+## Fonts: Space Grotesk, Inter and JetBrains Mono
 
-- Used by the Candlelit Oak look on the desktop (`src/roundtable/ui/static/fraunces.woff2`,
-  `nunito-sans.woff2`, `nunito-sans-italic.woff2`: the Latin variable files from the npm
-  packages `@fontsource-variable/fraunces` 5.3.0 and `@fontsource-variable/nunito-sans` 5.3.0,
-  unchanged) and on the phone (`mobile/app/src/main/res/font/*.ttf`: fixed weights made from
-  the same files with fontTools). Served from the app itself; nothing is loaded from outside.
-- Fraunces: Copyright 2020 The Fraunces Project Authors (github.com/undercasetype/Fraunces).
-- Nunito Sans: Copyright 2016 The Nunito Sans Project Authors (https://github.com/Fonthausen/NunitoSans).
-- Both under the SIL Open Font License, Version 1.1:
+- Used by the Eclipse look on the desktop (`src/roundtable/ui/static/space-grotesk.woff2`,
+  `inter.woff2`, `inter-italic.woff2`, `jetbrains-mono.woff2`: the Latin variable files from the
+  npm packages `@fontsource-variable/space-grotesk`, `@fontsource-variable/inter` and
+  `@fontsource-variable/jetbrains-mono` 5.3.0, unchanged) and on the phone
+  (`mobile/app/src/main/res/font/space_grotesk_600.ttf`, `space_grotesk_700.ttf`, `inter_400.ttf`,
+  `inter_600.ttf`, `inter_700.ttf`, `jetbrains_mono_400.ttf`: fixed weights made from the same
+  files). Served from the app itself; nothing is loaded from outside.
+- Space Grotesk: Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk).
+- Inter: Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter).
+- JetBrains Mono: Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono).
+- Fraunces and Nunito Sans (the Candlelit Oak look's fonts) were shipped up to 0.12.0 and are no
+  longer included.
+- All three under the SIL Open Font License, Version 1.1:
 
 ```
 This Font Software is licensed under the SIL Open Font License, Version 1.1.

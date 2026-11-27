@@ -125,13 +125,13 @@ function rewindStyles() {
   if (typeof document === "undefined" || document.getElementById("rw-style")) return;
   document.head.append(h("style", { id: "rw-style" }, `
 .rw-rows { list-style: none; margin: 0; padding: 0; }
-.rw-row { border-top: 1px solid var(--color-oak-line); padding: 8px 0; }
+.rw-row { border-top: 1px solid var(--color-line); padding: 8px 0; }
 .rw-row:first-child { border-top: 0; }
 .rw-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; } .rw-line .spacer { flex: 1; }
 .rw-undone b { text-decoration: line-through; opacity: .7; }
 .rw-files { margin: 6px 0; padding-left: 18px; font-size: 13px; } .rw-files li { margin: 2px 0; }
 .rw-modes { gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-.rw-blocked { color: var(--color-ember, #d0643f); }
+.rw-blocked { color: var(--color-flare); }
 .rw-last { gap: 10px; align-items: center; padding: 8px 10px; margin-bottom: 8px; border-radius: var(--radius-small); background: var(--color-sunken); }
 .rw-last .spacer { flex: 1; }
 `));

@@ -4,7 +4,7 @@
 import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName, has } from "./core.js";
 import { webSearchCard } from "./websearch.js";
 
-const ROW = "padding: 10px 0; border-top: 1px solid var(--color-oak-line)";  // no stylesheet change: style.css isn't this page's
+const ROW = "padding: 10px 0; border-top: 1px solid var(--color-line)";  // no stylesheet change: style.css isn't this page's
 const STATE = { found: ["Found", "good"], old: ["Too old", "warn"], broken: ["Didn't start", "bad"], missing: ["Not found", ""] };
 const pill = (state) => { const [w, c] = STATE[state] || STATE.missing; return h("span", { class: "pill " + c }, w); };
 

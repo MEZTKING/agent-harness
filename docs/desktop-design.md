@@ -89,8 +89,8 @@ Chosen by the owner from three concept boards (Eclipse, Obsidian Forge, Abyss) o
 `-flare` (needs you), `-good`, `-bad`, `-warn` (each with `-soft`), `-line` (decorative), `-line-strong` (input and
 control borders), `-paper` (behind pages and QR codes that must stay white), `-scrim` (under text that sits over the
 backdrop art) and `-backdrop-peak` (the brightest the art may be under that text); `--term-*` for the session
-transcript, dark in every theme. A few older names (`--color-oak-line`, `--color-candle-glow`, `--color-ok` …) point
-at the new ones for page modules that still use them. `tests/test_contrast.py` checks every text colour at 4.5:1 on
+transcript, dark in every theme. The older names (`--color-oak-line`, `--color-candle-glow`, `--color-ok` …) are
+gone: every page module uses the new ones, and a test keeps it so. `tests/test_contrast.py` checks every text colour at 4.5:1 on
 each background it sits on, control borders at 3:1, text over the backdrop on its scrim, in all three themes, and
 that no colour is written outside the block.
 

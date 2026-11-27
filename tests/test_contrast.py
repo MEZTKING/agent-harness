@@ -122,7 +122,7 @@ def test_backdrop_art_is_no_brighter_than_the_peak_where_text_sits():
     with image.open(art) as im:
         w, h = im.size
         mid = im.convert("RGB").crop((int(w * .4), int(h * .42), int(w * .6), int(h * .58)))  # the ring's middle, where the words sit
-        px = sorted(lum(tuple(v / 255 for v in p) + (1.0,)) for p in mid.getdata())
+        px = sorted(lum(tuple(v / 255 for v in p) + (1.0,)) for p in mid.get_flattened_data())
     peak = lum(colour(tokens("eclipse"), "--color-backdrop-peak"))
     assert px[int(len(px) * .95)] <= peak, "the backdrop is brighter than --color-backdrop-peak where the ring's words sit"
 
@@ -145,17 +145,22 @@ def test_no_colour_outside_the_token_block():
     rest = re.sub(r"/\*.*?\*/", "", rest, flags=re.S)
     found = re.findall(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(", rest)
     assert not found, found
-    for f in ("hall.js", "theme.js", "index.html"):
+    for f in [p.name for p in sorted(STATIC.glob("*.js"))] + ["index.html"]:
         text = (STATIC / f).read_text(encoding="utf-8")
         assert not re.search(r"#[0-9a-fA-F]{6}\b|\brgba?\(", text), f
 
 
 def test_old_candle_and_oak_names_are_gone():
     for f in ("style.css", "hall.js", "index.html", "theme.js"):
-        text = (STATIC / f).read_text(encoding="utf-8")
-        body = text.replace(CSS[CSS.index("/* older names"):CSS.index(END)], "") if f == "style.css" else text
+        body = (STATIC / f).read_text(encoding="utf-8")
         for old in ("candle", "oak", "flame", "chair", "cdl", "table-top", "seat-", "hall.webp", "table.webp", "fraunces", "nunito"):
             assert old not in body.lower(), (f, old)
+
+
+def test_old_token_names_are_gone_everywhere():
+    old = re.compile(r"--color-(oak-line|candle-glow|ember|gold|ok)(?![\w-])|--color-ok-soft")
+    for f in sorted(STATIC.glob("*.js")) + [STATIC / "style.css", STATIC / "index.html"]:
+        assert not old.search(f.read_text(encoding="utf-8")), f.name
 
 
 def test_motion_stops_when_asked():

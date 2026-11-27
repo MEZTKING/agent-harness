@@ -125,13 +125,13 @@ async function importFile(input, after) {
 export function kindStyles() {
   if (typeof document === "undefined" || document.getElementById("kd-style")) return;
   document.head.append(h("style", { id: "kd-style" }, `
-.kd-st.kd-proven { background: var(--color-ok-soft, #e3efd9); color: var(--color-ok, #3f6b2a); }
+.kd-st.kd-proven { background: var(--color-good-soft); color: var(--color-good); }
 .kd-st.kd-trial { background: var(--color-accent-soft); color: var(--color-accent); }
 .kd-st.kd-not_yet { background: var(--color-sunken); color: var(--color-muted); }
 .kd-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 16px; align-items: start; }
 .kd-group h2 { margin: 18px 0 8px; font-size: 16px; }
 .kd-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-.kd-tile { border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); padding: 12px 14px; background: var(--color-surface); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.kd-tile { border: 1px solid var(--color-line); border-radius: var(--radius-small); padding: 12px 14px; background: var(--color-surface); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .kd-tile p { margin: 0; } .kd-off { opacity: .6; }
 .kd-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .kd-ideas { display: flex; flex-wrap: wrap; gap: 6px; } .kd-ideas .chip-link { padding: 3px 10px; font-size: 12.5px; }

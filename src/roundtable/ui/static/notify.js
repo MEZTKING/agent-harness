@@ -55,9 +55,9 @@ const STYLE = `
 .notify-bell { position: relative; }
 .notify-bell .badge { position: absolute; top: -6px; right: -6px; }
 .notify-panel { position: fixed; top: 64px; right: 16px; z-index: 60; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
-  background: var(--color-surface); border: 1px solid var(--color-oak-line); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; }
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; }
 .notify-panel h2 { font-size: 16px; margin: 4px 4px 8px; }
-.notify-item { padding: 8px 4px; border-top: 1px solid var(--color-oak-line); }
+.notify-item { padding: 8px 4px; border-top: 1px solid var(--color-line); }
 .notify-item:first-of-type { border-top: 0; }
 .notify-item b { display: block; }
 .notify-item p { margin: 2px 0 6px; }
