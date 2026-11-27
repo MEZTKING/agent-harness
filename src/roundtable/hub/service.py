@@ -3,7 +3,7 @@
 On-disk layout (inside the store):
 
     cards/<agent>.json          one project card per agent
-    inbox/<agent>/<msg-id>.json one file per delivered message
+    inbox/<agent>/<msg-id>.json one file per delivered message (``hops``: how many replies deep it is)
     state/<agent>.json          {"read": [...msg ids], "subscriptions": [...agent ids]}
 
 Every public method takes ``actor`` – the agent performing the action – and
@@ -20,6 +20,9 @@ from ..core.policy import PolicyError
 from ..core.store import Store, iter_json, make_store
 
 MAX_READ_IDS = 2000
+# A conversation passed back and forth more than this many times is stopped and goes back to whoever sent the
+# last one, so two agents can't keep answering each other for ever (Munder Difflin's hive does the same).
+HOP_CAP = 12
 
 
 class HubError(ValueError):
@@ -219,7 +222,10 @@ class Hub:
         in_reply_to: str | None = None,
         _thread_id: str | None = None,
         _skip_policy: bool = False,
+        _hops: int | None = None,
     ) -> list[dict[str, Any]]:
+        """Deliver a message. Past ``HOP_CAP`` replies in a row it isn't delivered: the sender gets it back
+        with a note instead (the returned message then has ``bounced: true``)."""
         self._require_agent(actor)
         if kind not in MESSAGE_KINDS:
             raise HubError(f"kind must be one of {MESSAGE_KINDS}")
@@ -231,6 +237,10 @@ class Hub:
             self._require_agent(r)
             if not _skip_policy:
                 self.config.policy.check(actor, r, "message")
+
+        hops = self._hops_after(actor, in_reply_to) if _hops is None else _hops
+        if hops > HOP_CAP:
+            return [self._bounce(actor, recipients, subject, body, hops, in_reply_to, _thread_id)]
 
         writes: dict[str, Any] = {}
         sent = []
@@ -246,10 +256,46 @@ class Hub:
                 in_reply_to=in_reply_to,
             )
             msg.thread_id = _thread_id or msg.id
-            writes[f"inbox/{r}/{msg.id}.json"] = msg.to_dict()
-            sent.append(msg.to_dict())
+            data = msg.to_dict() | {"hops": hops}
+            writes[f"inbox/{r}/{msg.id}.json"] = data
+            sent.append(data)
         self.store.write_json(writes, f"msg {actor} -> {','.join(recipients)}: {subject}"[:200])
         return sent
+
+    def _raw_inbox_message(self, agent: str, message_id: str | None) -> dict[str, Any] | None:
+        if not message_id or "/" in message_id or "\\" in message_id or message_id.startswith("."):
+            return None
+        return self.store.read_json(f"inbox/{agent}/{message_id}.json")
+
+    @staticmethod
+    def _hops_of(data: dict[str, Any] | None) -> int:
+        try:
+            return max(0, int((data or {}).get("hops") or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    def _hops_after(self, actor: str, in_reply_to: str | None) -> int:
+        """A new message starts at 0; an answer to one in the actor's inbox is one more than that one."""
+        if not in_reply_to:
+            return 0
+        parent = self._raw_inbox_message(actor, in_reply_to)
+        return self._hops_of(parent) + 1 if parent else 1
+
+    def _bounce(self, actor: str, recipients: list[str], subject: str, body: str, hops: int,
+                in_reply_to: str | None, thread_id: str | None) -> dict[str, Any]:
+        """The stopped message back in the sender's own inbox, with a plain note on top."""
+        who = ", ".join(recipients)
+        note = (f"Not sent to {who}: this conversation has gone back and forth {hops - 1} times, which is "
+                f"more than {HOP_CAP}. It was stopped so it can't go round for ever. If it still needs an "
+                "answer, start a new message with what is left to settle.")
+        msg = Message(id=new_id(), sender=actor, recipient=actor, kind="notify", subject=f"Stopped: {subject}"[:300],
+                      body=f"{note}\n\n--- What you tried to send ---\n{body}", created_at=utcnow(),
+                      in_reply_to=in_reply_to)
+        msg.thread_id = thread_id or msg.id
+        data = msg.to_dict() | {"hops": hops, "bounced": True, "bounced_to": recipients}
+        self.store.write_json({f"inbox/{actor}/{msg.id}.json": data},
+                              f"msg {actor}: stopped after {hops - 1} replies: {subject}"[:200])
+        return data
 
     def _get_inbox_message(self, agent: str, message_id: str) -> Message:
         if "/" in message_id or "\\" in message_id or message_id.startswith("."):
@@ -275,6 +321,7 @@ class Hub:
             in_reply_to=original.id,
             _thread_id=original.thread_id or original.id,
             _skip_policy=True,
+            _hops=self._hops_of(self._raw_inbox_message(actor, original.id)) + 1,
         )[0]
 
     def inbox(
@@ -294,7 +341,7 @@ class Hub:
             is_read = m.id in read
             if unread_only and is_read:
                 continue
-            d = m.to_dict()
+            d = m.to_dict() | {k: data[k] for k in ("hops", "bounced", "bounced_to") if k in data}
             d["read"] = is_read
             msgs.append(d)
         msgs.sort(key=lambda d: d["created_at"])
