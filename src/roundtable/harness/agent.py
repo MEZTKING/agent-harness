@@ -7,12 +7,12 @@ steps, or the budget is exhausted.
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..providers.base import Provider, ProviderError, Usage
+from .breaker import Breaker, BreakerSettings, work_tokens
 from .config import HarnessConfig, ModelRef
 from .saver import TokenSaver
 from .tools import Toolbox
@@ -53,11 +53,15 @@ class AgentResult:
     usage: Usage
     cost_usd: float
     model: str
-    stop: str  # done | terminal | max_steps | refusal | max_tokens
+    stop: str  # done | terminal | max_steps | refusal | max_tokens | breaker
     captured: dict[str, Any] = field(default_factory=dict)
     messages: list[dict[str, Any]] = field(default_factory=list)
     seconds: float = 0.0
     saved_tokens_est: int = 0  # tokens the token saver kept out of this conversation (estimate)
+    breaker_reason: str = ""  # with stop == "breaker": why, in plain words
+    model_ms: int = 0  # time spent waiting for the model
+    tool_ms: int = 0  # time spent inside tool calls
+    other_ms: int = 0  # the rest: plugins, saving, everything between
 
 
 def run_agent(
@@ -75,6 +79,7 @@ def run_agent(
     saver: TokenSaver | None = None,
     role: str | None = None,
     project_root: Path | None = None,
+    breaker: Breaker | None = None,
 ) -> AgentResult:
     """Drive one model through a tool loop.
 
@@ -89,6 +94,13 @@ def run_agent(
     Plugins (``cfg.plugin_host()``; the token saver is the first, built in) see each model
     call before and after it, each tool result as it enters, and may add tools. ``role`` and
     ``project_root`` are what they are told about this conversation.
+
+    ``breaker``: the guard against loops, error storms, runaway output, the token cap and no
+    progress (``breaker.py``); by default one from ``breaker:`` in harness.yaml. When it stops the
+    loop, ``stop`` is ``"breaker"`` and ``breaker_reason`` says why.
+
+    Every ``model_turn`` and ``tool_call`` event carries ``ms`` (how long it took); the closing
+    ``agent_done`` event carries the totals (``model_ms``, ``tool_ms``, ``other_ms``).
     """
     provider = cfg.provider(ref.provider)
     if not isinstance(provider, Provider):
@@ -108,14 +120,21 @@ def run_agent(
     total = Usage()
     cost = 0.0
     nudges = 0
-    t0 = time.monotonic()
+    brk = breaker if breaker is not None else Breaker(BreakerSettings.from_config(cfg))
+    clock = brk.clock
+    t0 = clock()
+    model_s = tool_s = 0.0
     stop = "max_steps"
     text = ""
+    step = 0
 
     for step in range(1, max_steps + 1):
         budget.check()
         sys_sent, msgs_sent = plugins.before_model_call(str(ref), system, messages)
+        m0 = clock()
         resp = provider.chat(ref.model, sys_sent, msgs_sent, toolbox.specs(), max_tokens=max_tokens, options=options)
+        took = clock() - m0
+        model_s += took
         plugins.after_model_call(str(ref), resp, resp.usage)
         c = cfg.cost(ref, resp.usage)
         budget.charge(c)
@@ -124,34 +143,69 @@ def run_agent(
         messages.append(resp.as_message())
         text = resp.text or text
         emit("model_turn", {"model": str(ref), "step": step, "text": resp.text[:500], "role": role,
-                            "tools": [tc.name for tc in resp.tool_calls], "cost": c})
+                            "tools": [tc.name for tc in resp.tool_calls], "cost": c, "ms": _ms(took)})
 
         if resp.stop_reason == "refusal":
             stop = "refusal"
             break
 
+        finishing = any(getattr(toolbox.tools.get(tc.name), "terminal", False) for tc in resp.tool_calls)
+        if not finishing:  # a reply that finishes the task is never stopped
+            brk.after_reply(resp.text or "", work_tokens(total))
+        action = brk.end_step()
+        if action and _tripped(emit, brk, action, role, step) == "stop":
+            stop = "breaker"
+            break
+        note = brk.note(action) if action else ""
+
         if resp.tool_calls:
             for tc in resp.tool_calls:
-                out, is_err = toolbox.call(tc.name, tc.arguments)
-                emit("tool_call", _tool_event(tc.name, tc.arguments, out, is_err, toolbox.take_change()))
+                tool = toolbox.tools.get(tc.name)
+                if brk.refuses(tc.name, bool(tool and tool.terminal)):
+                    out, is_err = brk.refusal(), True
+                    emit("tool_call", {**_tool_event(tc.name, tc.arguments, out, is_err, None), "refused": True, "ms": 0})
+                else:
+                    brk.tool_started(tc.name)
+                    a0 = clock()
+                    out, is_err = toolbox.call(tc.name, tc.arguments)
+                    took = clock() - a0
+                    tool_s += took
+                    change = toolbox.take_change()
+                    emit("tool_call", {**_tool_event(tc.name, tc.arguments, out, is_err, change), "ms": _ms(took)})
+                    out = brk.after_tool(tc.name, tc.arguments, out, is_err, bool(change))
                 out = plugins.on_tool_result(tc.name, tc.arguments, out, is_err)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": out, "is_error": is_err})
+            brk.tools_done()
             if toolbox.done():
                 stop = "terminal"
                 break
+            if not action:  # a step goes up one level at most
+                action = brk.end_step()
+                if action and _tripped(emit, brk, action, role, step) == "stop":
+                    stop = "breaker"
+                    break
+                note = brk.note(action) if action else ""
+            if note:  # the note rides on the last tool result: no extra turn, nothing rewritten
+                messages[-1]["content"] = f"{messages[-1]['content']}\n\n{note}"
             continue
 
         if resp.stop_reason == "max_tokens":
-            messages.append({"role": "user", "content": "Your reply was cut off. Continue, using tools for large file contents."})
+            messages.append({"role": "user", "content": _join(note, "Your reply was cut off. Continue, using tools for large file contents.")})
             continue
 
         if require_terminal and require_terminal not in toolbox.captured and nudges < 2:
             nudges += 1
-            messages.append({"role": "user", "content": f"You must finish by calling the `{require_terminal}` tool."})
+            messages.append({"role": "user", "content": _join(note, f"You must finish by calling the `{require_terminal}` tool.")})
             continue
         stop = "done"
         break
 
+    seconds = clock() - t0
+    other_s = max(0.0, seconds - model_s - tool_s)
+    emit("agent_done", {"model": str(ref), "role": role, "stop": stop, "steps": step,
+                        "model_ms": _ms(model_s), "tool_ms": _ms(tool_s), "other_ms": _ms(other_s),
+                        "ms": _ms(seconds), **({"breaker": brk.reason} if stop == "breaker" else {}),
+                        **({"breaker_trips": brk.trips} if brk.trips else {})})
     return AgentResult(
         text=text,
         steps=step,
@@ -161,9 +215,29 @@ def run_agent(
         stop=stop,
         captured=dict(toolbox.captured),
         messages=messages,
-        seconds=round(time.monotonic() - t0, 2),
+        seconds=round(seconds, 2),
         saved_tokens_est=(saver.stats.tokens_saved - saved_at_start) if saver else 0,
+        breaker_reason=brk.reason if stop == "breaker" else "",
+        model_ms=_ms(model_s),
+        tool_ms=_ms(tool_s),
+        other_ms=_ms(other_s),
     )
+
+
+def _ms(seconds: float) -> int:
+    return round(seconds * 1000)
+
+
+def _join(note: str, msg: str) -> str:
+    return f"{note}\n\n{msg}" if note else msg
+
+
+def _tripped(emit: Callable[[str, dict[str, Any]], None], brk: Breaker, action: str, role: str | None, step: int) -> str:
+    """Tell the event log the breaker went up a level; returns the action."""
+    trip = brk.trips[-1]
+    emit("breaker", {"action": action, "signal": trip["signal"], "reason": trip["reason"], "role": role,
+                     "step": step})
+    return action
 
 
 def _tool_event(name: str, args: dict[str, Any], out: str, is_err: bool, change: dict[str, Any] | None) -> dict[str, Any]:
