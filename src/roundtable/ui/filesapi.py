@@ -12,8 +12,13 @@
                                  exit_code, passed, timed_out, words, output}] newest first, test_command,
                                  can_run, why_not}
     POST /api/files/run_tests    {path} -> the background job (kind "tests") running the project's own test command
-    /raw/pfile                   ?path=&file=&download=1: the file itself, for pictures, the PDF viewer and Save a
-                                 copy (``raw_file``; wired in ``UIApp.raw``)
+    /raw/pfile                   ?path=&file=&download=1: the file itself, for pictures, the PDF viewer, video and
+                                 sound, and Save a copy (``raw_file``; wired in ``UIApp.raw``). A ``Range`` request
+                                 (passed in as ``_range``) gets only those bytes, so a video can be wound on.
+
+A file with a richer view (a notebook, an archive, a Word, Excel or PowerPoint file, video or sound) carries
+``preview`` (``preview.kind``): the desktop asks ``/api/files/preview`` (ui/editapi.py) for it. ``kind`` stays as it
+was, so the phone shows what it always has.
 
 Safety (the same rules as ``showit.safe_path``, which every file goes through): no ``..`` or absolute paths, nothing
 hidden (``.git``, ``.harness``, ``.env`` and every other dot-file), no link that leads out of the project, and no file
@@ -234,7 +239,7 @@ def list_dir(root: Path, rel: str = "") -> dict[str, Any]:
             continue
         relp = (PurePosixPath(*_parts(rel)) / name).as_posix() if _parts(rel) else name
         items.append({"name": name, "path": relp, "folder": folder, "size": size,
-                      "kind": "folder" if folder else kind_of(Path(name))})
+                      "kind": "folder" if folder else kind_of(Path(name)), "preview": "" if folder else rich(name)})
     items.sort(key=lambda x: (not x["folder"], x["name"].lower()))
     parts = _parts(rel) or ()
     crumbs = [{"name": "Project", "dir": ""}] + [
@@ -266,7 +271,8 @@ def read_file(root: Path, rel: str, inline: bool = False) -> dict[str, Any]:
     size = f.stat().st_size
     kind = kind_of(f)
     out: dict[str, Any] = {"file": rel.replace("\\", "/").strip("/"), "name": f.name, "size": size, "kind": kind,
-                           "lang": LANGS.get(f.suffix.lower(), ""), "too_big": False, "words": ""}
+                           "lang": LANGS.get(f.suffix.lower(), ""), "too_big": False, "words": "",
+                           "preview": rich(f.name)}
     if kind in ("image", "pdf"):
         if inline:
             if size > INLINE_MAX:
@@ -366,19 +372,61 @@ def raw_file(app, q: dict) -> tuple[bytes, str, dict[str, str]]:
         raise FileNotFoundError("that file isn't there, or the harness keeps it private")
     if f.stat().st_size > RAW_MAX:
         raise ValueError("that file is too big to send through the app")
-    return raw_answer(f, download=_first(q, "download") in ("1", "true"))
+    return raw_answer(f, download=_first(q, "download") in ("1", "true"), range_header=_first(q, "_range"))
 
 
-def raw_answer(f: Path, download: bool = False) -> tuple[bytes, str, dict[str, str]]:
+def rich(name: str) -> str:
+    """The richer view a file has (notebook, archive, office, video, audio) or ""."""
+    from .. import preview
+
+    return preview.kind(name)
+
+
+def byte_range(header: str, size: int) -> tuple[int, int] | None:
+    """The bytes a ``Range: bytes=a-b`` header asks for, as (first, last) inclusive; None for the whole file
+    (no header, several ranges, or one that can't be met: the whole file is the safe answer)."""
+    m = re.fullmatch(r"\s*bytes=(\d*)-(\d*)\s*", header or "")
+    if not m or size <= 0 or (not m.group(1) and not m.group(2)):
+        return None
+    if not m.group(1):  # the last n bytes
+        n = int(m.group(2))
+        return (max(0, size - n), size - 1) if n else None
+    a = int(m.group(1))
+    b = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+    return (a, b) if a <= b and a < size else None
+
+
+def _read_range(f: Path, span: tuple[int, int] | None) -> bytes:
+    if span is None:
+        return f.read_bytes()
+    with open(f, "rb") as fh:
+        fh.seek(span[0])
+        return fh.read(span[1] - span[0] + 1)
+
+
+def raw_answer(f: Path, download: bool = False, range_header: str = "") -> tuple[bytes, str, dict[str, str]]:
+    """The file's bytes, its type and headers. With ``range_header`` only those bytes, and the headers carry
+    ``_status: 206`` and ``Content-Range`` (the server sends that status)."""
+    from .. import preview
+
     sandbox = {"Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'"}
     name = f.name.replace('"', "")
     kind = kind_of(f)
-    if download or kind not in ("image", "pdf"):
-        return f.read_bytes(), "application/octet-stream", {**sandbox, "Content-Disposition": f'attachment; filename="{name}"'}
+    size = f.stat().st_size
+    span = byte_range(range_header, size)
+    ranged = {"Accept-Ranges": "bytes"}
+    if span is not None:
+        ranged.update({"_status": "206", "Content-Range": f"bytes {span[0]}-{span[1]}/{size}"})
+    media = preview.media_type(f.name)
+    if download or (kind not in ("image", "pdf") and not media):
+        return _read_range(f, span), "application/octet-stream", {
+            **sandbox, **ranged, "Content-Disposition": f'attachment; filename="{name}"'}
     if kind == "pdf":  # the browser's own PDF viewer (a sandbox would stop it)
-        return f.read_bytes(), "application/pdf", {"Content-Disposition": f'inline; filename="{name}"',
-                                                   "X-Frame-Options": "SAMEORIGIN"}
-    return f.read_bytes(), showit.content_type(f), sandbox
+        return _read_range(f, span), "application/pdf", {**ranged, "Content-Disposition": f'inline; filename="{name}"',
+                                                         "X-Frame-Options": "SAMEORIGIN"}
+    if media:  # the browser's own player
+        return _read_range(f, span), media, {**sandbox, **ranged}
+    return _read_range(f, span), showit.content_type(f), {**sandbox, **ranged}
 
 
 # -- the command log ------------------------------------------------------------------------------
