@@ -1,9 +1,12 @@
 // The message box: one box for a new idea, a note to the planner, a question in chat and a letter.
 // It keeps a draft (the app's own folder: it survives closing the app), takes pictures and files (Attach,
 // paste or drop; big pictures are made smaller here first), @file references from the project, speaking
-// instead of typing where this browser can, and – for a project at work – Next task or Now.
-// Server side: ui/attachapi.py and attachments.py.
+// instead of typing where this browser can, and – for a project at work – Next task or Now. In a project's chat
+// it also runs "/" commands (slash.js) and lists the messages still waiting for the next task (queue.js).
+// Server side: ui/attachapi.py, attachments.py and ui/chatapi.py.
 import { BRAND, h, fill, get, post, q, toast } from "./core.js";
+import { slashMenu, runCommand, replyLine } from "./slash.js";
+import { queueList } from "./queue.js";
 
 const PART = 1_000_000;  // base64 characters a request (the app's servers take 2 MB at most)
 const MAX_PX = 1568;     // a longer picture is made smaller before it leaves this window
@@ -66,7 +69,10 @@ const speech = () => window.SpeechRecognition || window.webkitSpeechRecognition 
 // opts: key (the draft's name, e.g. "new-idea" or "chat:<project>"), project (a project's path: @ lists its files),
 // placeholder, label, rows, modes (show Next task / Now), sendLabel, textless (only pictures and files),
 // noFiles (words only: drafts and Speak, no Attach, paste or drop – a letter),
-// onSend({text, mode, key, items}) -> resolves when sent (the box is then cleared), hint (a line under the box)
+// onSend({text, mode, key, items}) -> resolves when sent (the box is then cleared), hint (a line under the box),
+// slash (default: on in a project's chat, i.e. with project and modes): a line starting with "/" is a command,
+// queue (default: the same): the messages waiting for the next task, above the box; onOpen(page): a command
+// asked for a page ("board")
 export function composer(opts = {}) {
   style();
   const key = opts.key || "message";
@@ -84,9 +90,15 @@ export function composer(opts = {}) {
     onclick: () => (listening ? stop() : listen()) }, "Speak") : null;
   const modeRow = opts.modes ? h("span", { class: "seg", role: "group", "aria-label": "When it arrives" }) : null;
   const send = opts.onSend ? h("button", { type: "button", class: "primary", onclick: () => doSend() }, opts.sendLabel || "Send") : null;
-  const root = h("div", { class: "compose" }, area, at, files,
-    h("div", { class: "compose-bar" }, attach, mic, modeRow, h("span", { class: "spacer" }), saved, send), input,
+  const inChat = !!(opts.project && opts.modes);
+  const useSlash = opts.slash ?? inChat, useQueue = opts.queue ?? inChat;
+  const said = useSlash ? replyLine() : null;
+  const waiting = useQueue && opts.project ? queueList(opts.project) : null;
+  const root = h("div", { class: "compose" }, waiting, area, at, files,
+    h("div", { class: "compose-bar" }, attach, mic, modeRow, h("span", { class: "spacer" }), saved, send), said, input,
     opts.hint ? h("p", { class: "muted small" }, opts.hint) : null);
+  const menu = useSlash && opts.project ? slashMenu(area, opts.project, root) : null;
+  if (menu) { area.placeholder = `${area.placeholder} (type / for commands)`; area.title = "Type / to see the commands, like /run or /goal"; }
 
   function drawModes() {
     if (!modeRow) return;
@@ -175,8 +187,9 @@ export function composer(opts = {}) {
     at.hidden = true; atList = [];
     saveSoon();
   }
-  area.addEventListener("input", () => { saveSoon(); lookAt(); });
+  area.addEventListener("input", () => { saveSoon(); lookAt(); if (menu) menu.update(); });
   area.addEventListener("keydown", (ev) => {
+    if (menu && menu.keydown(ev)) return;
     if (!at.hidden && atList.length) {
       if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault(); atPick = (atPick + (ev.key === "ArrowDown" ? 1 : atList.length - 1)) % atList.length; drawAt(); return; }
       if (ev.key === "Enter" || ev.key === "Tab") { ev.preventDefault(); pickAt(atList[atPick]); return; }
@@ -211,10 +224,21 @@ export function composer(opts = {}) {
     if (!area.value.trim() && !opts.textless) { toast("Write something first.", true); area.focus(); return; }
     clearTimeout(saveTimer);
     if (send) send.disabled = true;
+    if (menu && /^\/[^/]/.test(area.value.trim())) {  // a command, not a message
+      const line = area.value.trim();
+      try {
+        clear();
+        await runCommand(opts.project, line, { onOpen: opts.onOpen, onReply: (t, busy) => said.show(t, busy) });
+        if (waiting) waiting.refresh();
+      } catch (e) { area.value = line; saveSoon(); toast(e.message, true); }
+      finally { if (send && send.isConnected) send.disabled = false; }
+      return;
+    }
     try {
       await post("/api/attach/draft", { key, text: area.value, mode });
       await opts.onSend({ text: area.value.trim(), mode, key, items });
       clear();
+      if (waiting) waiting.refresh();
     } catch (e) { toast(e.message, true); }
     finally { if (send && send.isConnected) send.disabled = false; }
   }

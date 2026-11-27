@@ -2,7 +2,36 @@
 // The recommended answer comes first and is marked; "Other…" opens a box for your own words. Number keys pick,
 // Enter sends. An option that spends past the estimate or can't be undone asks "Are you sure?" on the card first.
 // A command waiting for "Ask me first" shows the whole command (a long one folded, with Show all).
+// A question may carry a timer (asktimer.py): the card says what happens when it runs out, and typing an
+// answer holds the clock while you write.
 import { h, fill, post, toast, projectName } from "./core.js";
+
+const AT = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+const RUNS_OUT = { recommended: "it takes the recommended answer", nothing: "it keeps waiting and nothing is done", pause: "the project waits for your answer" };
+const RAN_OUT = { recommended: (l) => `it took the recommended answer${l ? ` (${l})` : ""}. You can still change it`, nothing: () => "nothing was done. It still waits for you",
+  pause: () => "the project is paused until you answer" };
+
+// The timer's line on a card ("" for none).
+export function timerLine(ask) {
+  if (ask.kind === "command") return null;  // its own line (commandBlock)
+  if (ask.timed_out) {
+    const t = ask.timed_out, words = (RAN_OUT[t.did] || RAN_OUT.nothing)(t.label);
+    return h("p", { class: "muted small ask-timer", title: "This question had a time limit" }, `The time ran out${AT(t.at) ? ` at ${AT(t.at)}` : ""}: ${words}.`);
+  }
+  if (!ask.expires_at || !RUNS_OUT[ask.on_expire]) return null;
+  return h("p", { class: "muted small ask-timer", title: "Typing an answer stops the clock while you write" },
+    ask.held ? "The clock is stopped while you write." : `If nobody answers by ${AT(ask.expires_at)}, ${RUNS_OUT[ask.on_expire]}.`);
+}
+
+// Tell the timer the owner is typing (at most every 30 seconds).
+function holdWhileTyping(ask) {
+  let last = 0;
+  return () => {
+    if (!ask.expires_at || !ask.path || Date.now() - last < 30000) return;
+    last = Date.now();
+    post("/api/asktimer", { path: ask.path, id: ask.id, hold: true }).catch(() => {});
+  };
+}
 
 const KIND_WORDS = { decision: "Choice", question: "Question", look: "Look", profile: "Models", idea: "Idea", approve: "Plan",
   failed: "Stopped", money: "Money", command: "Command", wizard: "", kind: "Kind" };
@@ -35,6 +64,7 @@ export function askCard(ask, onAnswer, opts = {}) {
   const other = h("textarea", { class: "grow", rows: ask.id === "idea" || ask.id === "like" ? 3 : 2, placeholder: ask.other_hint || "Type your own answer",
     "aria-label": ask.other_hint || "Your own answer" });
   if (ask.answer && ask.answer.other) other.value = ask.answer.other;
+  other.addEventListener("input", holdWhileTyping(ask));
   const chosenNow = () => (ask.multi ? [...picked] : []);
   const otherRow = h("div", { class: "ask-other row" }, other,
     h("button", { class: "primary", type: "button", disabled: opts.disabled, onclick: () => send(chosenNow()) }, opts.sendLabel || "Send"));
@@ -96,6 +126,7 @@ export function askCard(ask, onAnswer, opts = {}) {
       h("h3", { class: "ask-q" }, ask.question),
       ask.detail ? h("p", { class: "ask-detail" }, ask.detail) : null,
       ask.kind === "command" ? commandBlock(ask) : null,
+      timerLine(ask),
       opts.hint !== false && HINTS[ask.kind] ? h("p", { class: "ask-hint" }, HINTS[ask.kind]) : null,
       textOnly ? null : h("div", { class: "ask-opts" + (Object.keys(opts.pictures || {}).length ? " pics" : "") }, optButtons, otherBtn),
       ask.allow_other !== false ? otherRow : null,

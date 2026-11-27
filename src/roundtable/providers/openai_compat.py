@@ -170,7 +170,9 @@ class OpenAICompatProvider(Provider):
         return list_openai_models(self._openai, self.client, self.name)
 
     def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None, *,
-             on_delta=None) -> ChatResponse:  # on_delta: not streamed yet (wave 8, p1-chat)
+             on_delta=None) -> ChatResponse:
+        """One call. Given ``on_delta`` (and unless the role's options say ``stream: false``) the reply is
+        streamed and each piece told as it is written; the response returned is the same either way."""
         options = options or {}
         params: dict[str, Any] = {
             "model": model,
@@ -195,6 +197,10 @@ class OpenAICompatProvider(Provider):
 
         if _needs_cache_marks(model):
             params["messages"] = _mark_cache(params["messages"])
+        if on_delta is not None and options.get("stream", True) is not False:
+            got = self._streamed(params, model, on_delta)
+            if got is not None:
+                return got
         resp = _wrap_errors(
             self._openai, self.name, model, self.api_key_env, lambda: self.client.chat.completions.create(**params)
         )
@@ -203,18 +209,27 @@ class OpenAICompatProvider(Provider):
             raise ProviderError(f"{self.name}: empty response", retryable=True)
         choice = resp.choices[0]
         msg = choice.message
+        native = msg.model_dump(exclude_none=True)
+        native.pop("refusal", None)
+        native.pop("annotations", None)
+        native.pop("audio", None)
+        raw_calls = [(tc.id, tc.function.name, tc.function.arguments) for tc in msg.tool_calls or []]
+        return self._response(msg.content, raw_calls, choice.finish_reason, resp.usage, resp.model or model, native)
+
+    # -- one reply, streamed or not ---------------------------------------------------------------------
+    def _response(self, content, raw_calls, finish, u, model: str, native: dict[str, Any]) -> ChatResponse:
+        """The reply as the harness reads it: the same whether it came whole or in pieces."""
         calls = []
-        for tc in msg.tool_calls or []:
+        for cid, name, arguments in raw_calls:
             try:
-                args = json.loads(tc.function.arguments or "{}")
+                args = json.loads(arguments or "{}")
             except json.JSONDecodeError:
-                args = {"_invalid_json": tc.function.arguments}
-            calls.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args if isinstance(args, dict) else {"value": args}))
+                args = {"_invalid_json": arguments}
+            calls.append(ToolCall(id=cid, name=name, arguments=args if isinstance(args, dict) else {"value": args}))
 
         stop = {"stop": "end", "tool_calls": "tool_use", "length": "max_tokens", "content_filter": "refusal"}.get(
-            choice.finish_reason or "", "other"
+            finish or "", "other"
         )
-        u = resp.usage
         cached = 0
         if u is not None:
             details = getattr(u, "prompt_tokens_details", None)
@@ -226,18 +241,120 @@ class OpenAICompatProvider(Provider):
             cache_read_tokens=cached,
             cost_usd=_reported_cost(u) if self.reports_cost else None,
         )
-        native = msg.model_dump(exclude_none=True)
-        native.pop("refusal", None)
-        native.pop("annotations", None)
-        native.pop("audio", None)
         return ChatResponse(
-            text=(msg.content or "").strip(),
+            text=(content or "").strip(),
             tool_calls=calls,
             stop_reason=stop,
             usage=usage,
-            model=resp.model or model,
+            model=model,
             raw={"provider": self.name, "message": native},
         )
+
+    def _streamed(self, params: dict[str, Any], model: str, on_delta) -> ChatResponse | None:
+        """The same call with ``stream: true`` (usage asked for in the stream), each piece told to ``on_delta``.
+        None when it failed before any piece was shown: the caller then asks once more the old way. Tool-call
+        arguments are gathered, never shown."""
+        shown = [False]
+
+        def tell(kind: str, piece: str) -> None:
+            if piece:
+                shown[0] = True
+                try:
+                    on_delta(kind, piece)
+                except Exception:  # noqa: BLE001 - whoever watches must never break the reply
+                    pass
+
+        def read() -> ChatResponse:
+            stream = self.client.chat.completions.create(
+                **params, stream=True, stream_options={**(params.get("stream_options") or {}), "include_usage": True})
+            acc = _Gathered()
+            try:
+                for chunk in stream:
+                    acc.add(chunk, tell)
+            except (self._openai.APIStatusError, self._openai.APIConnectionError):
+                raise
+            except self._openai.APIError as e:  # an error sent inside the stream
+                raise ProviderError(f"{self.name}: the reply broke off ({_said(e)})", retryable=True) from e
+            self.last_route = acc.route
+            if not acc.seen_choice:
+                raise ProviderError(f"{self.name}: empty response", retryable=True)
+            return self._response(acc.content(), acc.calls(), acc.finish, acc.usage, acc.model or model, acc.native())
+
+        try:
+            return _wrap_errors(self._openai, self.name, model, self.api_key_env, read)
+        except Exception:
+            if shown[0]:
+                raise
+            return None
+
+
+class _Gathered:
+    """The pieces of one streamed reply put back together: words, thinking, tool calls by index, usage."""
+
+    def __init__(self) -> None:
+        self.text: list[str] = []
+        self.has_content = False
+        self.thinking: list[str] = []
+        self.tools: dict[int, dict[str, Any]] = {}
+        self.finish: str | None = None
+        self.usage = None
+        self.model = ""
+        self.route = None
+        self.seen_choice = False
+
+    def add(self, chunk, tell) -> None:
+        extra = getattr(chunk, "model_extra", None) or {}
+        self.model = getattr(chunk, "model", "") or self.model
+        self.route = getattr(chunk, "provider", None) or extra.get("provider") or self.route
+        if getattr(chunk, "usage", None) is not None:
+            self.usage = chunk.usage
+        for choice in getattr(chunk, "choices", None) or []:
+            if getattr(choice, "index", 0):
+                continue  # only the first choice is ever asked for
+            self.seen_choice = True
+            delta = choice.delta
+            dx = getattr(delta, "model_extra", None) or {}
+            think = dx.get("reasoning_content") or dx.get("reasoning")
+            if isinstance(think, str) and think:
+                self.thinking.append(think)
+                tell("thinking", think)
+            if delta.content is not None:
+                self.has_content = True
+                if delta.content:
+                    self.text.append(delta.content)
+                    tell("text", delta.content)
+            for tc in getattr(delta, "tool_calls", None) or []:
+                slot = self.tools.setdefault(tc.index if tc.index is not None else len(self.tools),
+                                             {"id": "", "name": "", "arguments": []})
+                if tc.id:
+                    slot["id"] = tc.id
+                fn = tc.function
+                if fn is not None:
+                    if fn.name:
+                        slot["name"] += fn.name
+                    if fn.arguments:
+                        slot["arguments"].append(fn.arguments)
+            if choice.finish_reason:
+                self.finish = choice.finish_reason
+
+    def content(self) -> str | None:
+        return "".join(self.text) if self.has_content else None
+
+    def calls(self) -> list[tuple[str, str, str]]:
+        return [(t["id"], t["name"], "".join(t["arguments"])) for _, t in sorted(self.tools.items())]
+
+    def native(self) -> dict[str, Any]:
+        """What the non-streamed message would have been, replayed on the next call (DeepSeek needs its
+        ``reasoning_content`` inside a tool loop)."""
+        out: dict[str, Any] = {"role": "assistant"}
+        if self.has_content:
+            out["content"] = "".join(self.text)
+        if self.thinking:
+            out["reasoning_content"] = "".join(self.thinking)
+        if self.tools:
+            out["tool_calls"] = [{"id": cid, "type": "function", "function": {"name": name, "arguments": args}}
+                                 for cid, name, args in self.calls()]
+        return out
 
 
 class OpenAIImagesProvider(ImageProvider):
