@@ -119,6 +119,16 @@ REFUSED: tuple[tuple[str, str], ...] = (
     (_NEG + r"\b(switch off|turn off|disable|bypass|get round|get around) (the |a |any )?(safety )?(gate|checks?|"
      r"review|reviewer|charter|sandbox|tests?)\b", "tells it to switch a check off"),
     (r"--no-verify\b", "tells it to skip git's checks"),
+    (r"\b(rules?|instructions?|lines?|text|sentences?|guidance)\b[^.!?\n]{0,40}\b(no longer|doesn't|does not|don't|do "
+     r"not|never) (apply|applies|count|counts|matter|matters|hold|holds|bind)\b|\b(rules?|instructions?|lines?|"
+     r"sentences?)\b[^.!?\n]{0,30}\b(are|is|were) (old|void|outdated|obsolete|cancelled|wrong|not binding|optional)\b",
+     "says some of its own rules don't count"),
+    (r"\b(ignore|disregard|skip)\b[^.!?\n]{0,30}\b(after|below|following|that follows?|which follows?|added)\b"
+     r"|\b(after|below) (this|here)\b[^.!?\n]{0,40}\b(ignore|disregard|doesn't apply|does not apply|isn't for you)\b",
+     "tells it to ignore what comes after it (where the fixed rules are)"),
+    (r"\b(don't|do not|never) (call|use) (finish_task|submit_review|submit_plan|submit_looks|submit_reference)\b",
+     "tells it not to finish properly"),
+    (r"<!--", "hides text in a comment the owner doesn't see"),
     (_NEG + r"\b(print|reveal|send|share|leak|post|upload) (the |your |any |all )?(api )?(keys?|tokens?|secrets?|"
      r"passwords?|environment variables)\b", "tells it to give away keys"),
 )
@@ -172,7 +182,7 @@ def _squash(text: str) -> str:
 def _fold(text: str) -> str:
     t = unicodedata.normalize("NFKC", text or "").lower()
     t = t.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
-    t = re.sub(r"[*_`~]+", "", t)
+    t = re.sub(r"[*`~]+|(?<!\w)_+|_+(?!\w)", "", t)  # markdown emphasis, never the _ inside finish_task
     return re.sub(r"\s+", " ", t).strip()
 
 
