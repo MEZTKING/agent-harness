@@ -1,5 +1,6 @@
 // Projects: every project in one list (on this computer and elsewhere), and a new project from an idea.
-import { h, fill, get, post, S, onHall, patch, refreshHall, projectHref, money, ago, plural, page, empty, dot, toast, seg, card } from "./core.js";
+import { h, fill, get, post, S, onHall, patch, refreshHall, projectHref, money, ago, plural, page, empty, dot, toast, seg, card, has } from "./core.js";
+import { composer } from "./compose.js";
 import { askCard } from "./asks.js";
 import { whereWords, loadMachines } from "./machines.js";
 
@@ -57,6 +58,8 @@ export async function viewNew() {
   if (!S.ov.harness) return page("New project", null, card("Roundtable can't build on this computer yet",
     h("p", {}, "Its settings are missing or have a problem. Open Settings to set it up, then come back."), h("a", { class: "btn primary", href: "#/settings" }, "Open Settings")));
   const w = await get("/api/asks?wizard=1");
+  const withFiles = await has("/api/attach/start");  // the message box (compose.js): pictures and files with the idea
+  const pictures = withFiles ? composer({ key: "new-idea", textless: true, label: "Pictures or files for your idea" }) : null;
   const answers = {};
   let step = 0;
   const root = h("div", { class: "wizard" });
@@ -72,11 +75,13 @@ export async function viewNew() {
     h("div", { class: "ask-head" }, h("span", { class: "chip" }, "Ready")),
     h("h3", { class: "ask-q" }, "Make the plan?"),
     h("p", { class: "ask-detail" }, "The planner writes a plan, with its own questions for you. Nothing is built until you approve it. Making the plan costs a little, usually a few cents."),
+    pictures ? h("div", { class: "stack", title: "A sketch, a photo of a drawing, a screenshot of something you like, a list: the planner looks at them with your idea." },
+      h("span", { class: "muted small" }, "Pictures or files to go with it (you don't need any)"), pictures) : null,
     h("div", { class: "ask-opts" },
       h("button", { class: "ask-opt rec", type: "button", onclick: async (ev) => {
         ev.currentTarget.disabled = true;
         try {
-          const r = await post("/api/asks", { wizard: answers });
+          const r = withFiles ? await post("/api/attach/start", { key: "new-idea", wizard: answers }) : await post("/api/asks", { wizard: answers });
           toast(r.reply);
           await refreshHall();
           location.hash = projectHref(String(r.path || "").split(/[\\/]/).pop(), "plan");
@@ -98,28 +103,32 @@ export async function viewNew() {
   }
   draw();
   return page("New project", "Tap an answer, or choose Other… to type your own. Number keys pick, Enter sends.",
-    h("a", { class: "back", href: "#/projects" }, "← Projects"), root, typeIt(w.projects_dir));
+    h("a", { class: "back", href: "#/projects" }, "← Projects"), root, typeIt(w.projects_dir, withFiles));
 }
 
 // the same, typed: a folder name, the goal, what it should be like
-function typeIt(dir) {
+function typeIt(dir, withFiles) {
   const name = h("input", { class: "grow", required: true, placeholder: "A short name, e.g. bakery-site", "aria-label": "Project name",
     title: `A folder with this name is made in your projects folder (${dir})` });
-  const goal = h("textarea", { rows: 4, required: true, placeholder: "What should be built? Who is it for, what must it do, anything to avoid…", "aria-label": "What to build" });
+  const box = withFiles ? composer({ key: "new-idea-typed", rows: 4, label: "What to build",
+    placeholder: "What should be built? Who is it for, what must it do, anything to avoid… Attach a sketch or a photo if you like." }) : null;
+  const goal = box || h("textarea", { rows: 4, required: true, placeholder: "What should be built? Who is it for, what must it do, anything to avoid…", "aria-label": "What to build" });
   const refs = h("textarea", { rows: 2, placeholder: "Links, projects or a description, one a line (optional)", "aria-label": "Make it like this",
     title: "Roundtable reads each one first and makes something similar: the ideas, how it works and its style, never its name, art, music or text." });
   const approve = h("input", { type: "checkbox", checked: true });
   const form = h("form", { class: "stack", onsubmit: async (ev) => {
     ev.preventDefault();
     try {
-      const j = await post("/api/projects", { dir: name.value.trim(), goal: goal.value, approve: approve.checked, references: refs.value });
+      const j = box ? await post("/api/attach/start", { key: "new-idea-typed", dir: name.value.trim(), goal: box.composer.text(), approve: approve.checked, references: refs.value })
+        : await post("/api/projects", { dir: name.value.trim(), goal: goal.value, approve: approve.checked, references: refs.value });
+      if (box) box.composer.clear();
       toast("Started: the planner is making the plan");
       await refreshHall();
       location.hash = projectHref(String(j.target || name.value).split(/[\\/]/).pop(), "plan");
     } catch (e) { toast(e.message, true); }
   } },
   h("label", { class: "field" }, h("span", { class: "label" }, "Name"), name),
-  h("label", { class: "field" }, h("span", { class: "label" }, "What to build"), goal),
+  box ? h("div", { class: "field" }, h("span", { class: "label" }, "What to build"), goal) : h("label", { class: "field" }, h("span", { class: "label" }, "What to build"), goal),
   h("label", { class: "field" }, h("span", { class: "label" }, "Make it like this"), refs),
   h("label", { class: "check", title: "Recommended: you see the plan and its cost before anything is built" }, approve, "Let me approve the plan first"),
   h("div", { class: "row" }, h("button", { class: "primary" }, "Start")));
