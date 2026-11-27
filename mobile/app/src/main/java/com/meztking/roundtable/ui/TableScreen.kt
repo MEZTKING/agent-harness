@@ -159,7 +159,7 @@ fun TableScreen(
                         }
                     }
                     seats.size > TABLE_MAX -> {
-                        item { CentreBanner(needs.size) { onShowNeeds(true) } }
+                        if (needs.isNotEmpty()) item { CentreBanner(needs.size) { onShowNeeds(true) } }
                         items(seats, key = { it.id }) { SeatRow(it, waits[it.id], pins) { onOpen(it) } }
                     }
                     else -> {
@@ -202,21 +202,27 @@ fun TableScreen(
 @Composable
 private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null,
                    onSearch: (() -> Unit)? = null, onNewIdea: (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        TableMark(Modifier.size(34.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Roundtable Hold", fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, color = Hall.text)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).background(if (mode == null) Hall.muted else Hall.good, CircleShape))
-                Spacer(Modifier.width(6.dp))
-                Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TableMark(Modifier.size(34.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Roundtable Hold", fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, color = Hall.text,
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).background(if (mode == null) Hall.muted else Hall.good, CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
+            if (onSearch != null) IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search everything", tint = Hall.gold) }
+            IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
         }
-        if (onNewIdea != null) TextButton(onClick = onNewIdea) { Text("+ New idea", color = Hall.gold) }
-        if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold) }
-        if (onSearch != null) IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search everything", tint = Hall.gold) }
-        IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
+        // The word buttons get a row of their own, so the title is never squeezed (owner's screenshot, 27 Nov).
+        if (onNewIdea != null || onNotes != null) Row(Modifier.fillMaxWidth().padding(start = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (onNewIdea != null) TextButton(onClick = onNewIdea) { Text("+ New idea", color = Hall.gold, maxLines = 1) }
+            if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold, maxLines = 1) }
+        }
     }
 }
 

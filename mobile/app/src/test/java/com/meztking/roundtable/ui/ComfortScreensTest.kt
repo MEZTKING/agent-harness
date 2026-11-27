@@ -129,6 +129,15 @@ class ComfortScreensTest {
         }
     }
 
+    /** The owner's screenshot (27 Nov): every header button on, big text – the title must stay on one line. */
+    @Test fun tableHeaderAllButtonsBig() {
+        blackAndBig()
+        shot("2c-table-header-all-buttons-130") {
+            TableScreen(Load(hall), Mode.HUB, "Hub on GitHub · example/hub", emptySet(), {}, {}, { _, _ -> }, {}, false, {}, pins = pins(),
+                onNotes = {}, onSearch = {}, onNewIdea = {})
+        }
+    }
+
     @Composable
     private fun shell(content: @Composable () -> Unit) {
         AdaptiveShell(listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needs.size), ShellPlace("Letters", Icons.AutoMirrored.Filled.MenuBook, 2),
