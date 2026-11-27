@@ -59,6 +59,11 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
 - **Wording the owner reads** (the app, the phone, plans, replies, errors): plain, short
   British English for someone who isn't a programmer; a tooltip on anything not
   obvious; errors say what to do next.
+- **Short first, details on request** (owner, 27 November 2026: "Too much information everywhere –
+  overload"). Every screen (desktop and phone) leads with the few things that matter – a short title,
+  one plain sentence of where it stands, what waits for the owner – and folds everything else
+  (technical briefs, specs, model ids, logs) behind "More". A goal or brief written for the builders is
+  never the heading the owner reads.
 - **Borrowed code is credited.** Code taken from another project (for now the owner's
   forks `MEZTKING/munder-difflin` and `MEZTKING/deepseek-harness-mobile`, both MIT; see
   `plans/inspiration.md`) keeps its licence and copyright line in
