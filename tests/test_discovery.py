@@ -61,11 +61,12 @@ def responder():
 
 def _ask(addr, payload=b"ROUNDTABLE? v1", wait=1.0):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        discovery._no_udp_resets(s)
         s.settimeout(wait)
         s.sendto(payload, addr)
         try:
             return s.recvfrom(1024)[0]
-        except socket.timeout:
+        except (socket.timeout, ConnectionResetError):  # nobody listening (Windows reports it as a reset)
             return None
 
 

@@ -139,5 +139,5 @@ def test_the_desktop_rounds_the_same(tmp_path):
     script = tmp_path / "check.js"
     script.write_text(body + f"\nconsole.log(JSON.stringify({json.dumps(amounts)}.flatMap((u) => "
                       f"{json.dumps(rates)}.map((p) => poundsText(u, p)))));\n", encoding="utf-8")
-    got = json.loads(subprocess.run([node, str(script)], capture_output=True, text=True, check=True).stdout)
+    got = json.loads(subprocess.run([node, str(script)], capture_output=True, text=True, encoding="utf-8", check=True).stdout)
     assert got == [money.pounds_text(u, p) for u in amounts for p in rates]

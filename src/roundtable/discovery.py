@@ -91,6 +91,16 @@ def reply_for(data: bytes, sender: str, name: str, port: int, fingerprint: str) 
     return answer(name, port, fingerprint)
 
 
+
+def _no_udp_resets(s: socket.socket) -> None:
+    """Windows: a reply that bounced back ("port unreachable") makes the next recvfrom raise
+    ConnectionResetError (WinError 10054). Turn that off, so one stray answer can't stop discovery."""
+    if hasattr(socket, "SIO_UDP_CONNRESET"):
+        try:
+            s.ioctl(socket.SIO_UDP_CONNRESET, False)
+        except (OSError, ValueError):
+            pass
+
 class Responder:
     """Answers the phone's probe while phone access is on. ``start()`` never raises: a port that is
     taken leaves :attr:`error` set and the phone server running (the QR code still works)."""
@@ -118,6 +128,7 @@ class Responder:
             else:
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.host, self.listen_port))
+            _no_udp_resets(s)
             s.settimeout(0.5)
         except OSError as e:
             self.error = (f"Couldn't listen on port {self.listen_port} so the phone can find this PC ({e}). "
@@ -146,10 +157,12 @@ class Responder:
         while s and not self._stop.is_set():
             try:
                 data, addr = s.recvfrom(512)
-            except socket.timeout:
+            except (socket.timeout, ConnectionResetError):
                 continue
-            except OSError:
-                break
+            except OSError:  # closed by stop(), or Windows' "message too long" for an oversized probe
+                if self._stop.is_set() or self.sock is not s:
+                    break
+                continue
             out = reply_for(data, addr[0], self.name, self.port, self.fingerprint)
             if out is None or not self._allowed_now():
                 continue
@@ -180,6 +193,7 @@ def find(timeout_s: float = 1.5, targets: tuple[tuple[str, int], ...] = (("255.2
     found: dict[tuple[str, str], dict] = {}
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        _no_udp_resets(s)
         s.settimeout(0.2)
         for t in targets:
             try:
@@ -190,7 +204,7 @@ def find(timeout_s: float = 1.5, targets: tuple[tuple[str, int], ...] = (("255.2
         while time.monotonic() < end:
             try:
                 data, addr = s.recvfrom(1024)
-            except socket.timeout:
+            except (socket.timeout, ConnectionResetError):
                 continue
             try:
                 d = json.loads(data)
