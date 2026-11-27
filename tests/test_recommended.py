@@ -174,7 +174,7 @@ def test_use_the_recommended_setup_keeps_the_owners_other_settings(paths):
     assert r["in_use"] and r["backup"].endswith(f"harness.yaml.before-{date.today().isoformat()}")
     assert yaml.safe_load(open(r["backup"], encoding="utf-8")) == OLD
     new = yaml.safe_load(paths.harness_yaml.read_text(encoding="utf-8"))
-    assert new["limits"] == {"max_cost_usd": 3} and new["improve"] == {"after_each_run": True}
+    assert new["limits"] == {"max_cost_usd": 3, "max_parallel": 3} and new["improve"] == {"after_each_run": True}
     assert new["hub"] == OLD["hub"] and new["default_profile"] == "balanced"
     assert new["roles"]["writer"] == OLD["roles"]["writer"] and "mine" in new["providers"]  # their own extras stay
     assert "deepseek-v4-pro" not in paths.harness_yaml.read_text(encoding="utf-8")

@@ -335,7 +335,7 @@ def test_the_catalog_entry_matches_the_engines():
 
 
 def test_a_whole_task_through_the_orchestrator_with_a_retry(tmp_path, monkeypatch):
-    """With the one-line hook-up in agent.py (simulated here), a role naming cli/claude-code builds a task,
+    """Through agent.py's hook-up to cli_engine, a role naming cli/claude-code builds a task,
     is reviewed like any other helper, and the retry after a rejection resumes the same conversation."""
     from roundtable.harness import orchestrator as orchmod
     from roundtable.providers.scripted import ScriptedProvider, reply
@@ -366,15 +366,7 @@ def test_a_whole_task_through_the_orchestrator_with_a_retry(tmp_path, monkeypatc
 
     cfg = parse_config(raw)
     cfg.register("a", ScriptedProvider("a", brain))
-    cfg.register("cli", ce.CliEngine(commands={"claude-code": FAKE}))
-    real = orchmod.run_agent
-
-    def run_agent(cfg, ref, *a, **kw):  # what agent.py's hook-up does
-        if isinstance(cfg.provider(ref.provider), ce.CliEngine):
-            return ce.run_cli_agent(cfg, ref, *a, **kw)
-        return real(cfg, ref, *a, **kw)
-
-    monkeypatch.setattr(orchmod, "run_agent", run_agent)
+    cfg.register("cli", ce.CliEngine(commands={"claude-code": FAKE}))  # agent.run_agent hands it to cli_engine
     events = []
     orch = orchmod.Orchestrator(cfg, tmp_path / "proj", on_event=lambda k, d: events.append((k, d)))
     orch.start("say hello")

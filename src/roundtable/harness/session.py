@@ -365,8 +365,10 @@ def cursor(project_root: Path) -> int:
 
 
 def session(project_root: Path, reviewer: str | None = "reviewer", max_tasks: int = MAX_TASKS) -> dict[str, Any]:
+    from .eventlog import read_events
+
     root = Path(project_root)
-    tasks = tasks_from_events(_rows(root / ".harness" / "events.jsonl"), reviewer)
+    tasks = tasks_from_events(read_events(root), reviewer)  # the archives too: the tidy-up moves old events there
     made = outputs(root, tasks)
     for i, t in enumerate(tasks):  # a task run more than once: its outputs go with its newest run
         again = any(u["id"] == t["id"] for u in tasks[i + 1:])

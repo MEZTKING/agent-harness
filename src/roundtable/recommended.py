@@ -42,6 +42,9 @@ def merged(raw: dict[str, Any]) -> dict[str, Any]:
     for key in OWNED:
         if key != "roles" and key in tpl:
             out[key] = tpl[key]
+    want = (tpl.get("limits") or {}).get("max_parallel")
+    if want and "max_parallel" not in (raw.get("limits") or {}):  # several tasks at once, unless the owner chose
+        out["limits"] = {**(raw.get("limits") or {}), "max_parallel": want}
     return out
 
 

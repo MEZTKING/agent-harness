@@ -62,6 +62,11 @@ PRESETS: dict[str, dict] = {
     "retrodiffusion": {"name": "Retro Diffusion (pixel art)", "type": "retrodiffusion",
                        "api_key_env": "RETRODIFFUSION_API_KEY", "category": "image",
                        "docs": "https://www.retrodiffusion.ai/app/devtools"},
+    # -- coding helpers on this computer, signed in with the owner's own subscriptions (cli_engine.py) --
+    "cli": {"name": "Coding helpers on this computer (Claude Code, Codex: your own subscriptions)",
+            "type": "cli", "api_key_env": "", "category": "cli", "local": True,
+            "models": ["claude-code", "codex"], "tools": {"claude-code": "claude", "codex": "codex"},
+            "docs": "https://github.com/MEZTKING/agent-harness/blob/main/docs/cli-workers.md"},
     # -- anything else ---------------------------------------------------------------------------
     "custom": {"name": "Custom OpenAI-compatible API (any URL: Azure, vLLM, your own server...)",
                "type": "openai_compat", "base_url": "", "api_key_env": "", "category": "chat", "custom": True,
@@ -69,15 +74,8 @@ PRESETS: dict[str, dict] = {
 }
 
 
-# Coding helpers on this computer, signed in with the owner's own subscriptions (cli_engine.py).
-# Kept apart from PRESETS until harness.yaml knows the provider type "cli" (config.PROVIDER_TYPES);
-# then this entry joins PRESETS so the app's "Add a service" list offers it.
-CODING_HELPERS: dict[str, dict] = {
-    "cli": {"name": "Coding helpers on this computer (Claude Code, Codex: your own subscriptions)",
-            "type": "cli", "api_key_env": "", "category": "cli", "local": True,
-            "models": ["claude-code", "codex"], "tools": {"claude-code": "claude", "codex": "codex"},
-            "docs": "https://github.com/MEZTKING/agent-harness/blob/main/docs/cli-workers.md"},
-}
+# The coding helpers' entry above (type "cli"), by its own name for cli_engine.py and its tests.
+CODING_HELPERS: dict[str, dict] = {"cli": PRESETS["cli"]}
 
 PROVIDER_ID_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789_-")
 

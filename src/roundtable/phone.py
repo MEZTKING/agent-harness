@@ -46,6 +46,13 @@ PHONE_ROUTES = {
     ("GET", "/api/plan"), ("POST", "/api/plan"), ("GET", "/api/asks"), ("POST", "/api/asks"),
     ("GET", "/api/autopilot"), ("POST", "/api/autopilot"),
     ("GET", "/api/project/live"), ("GET", "/api/project/session"),
+    ("GET", "/api/files"), ("GET", "/api/files/open"), ("GET", "/api/files/log"), ("POST", "/api/files/run_tests"),
+    ("GET", "/api/whatsnew"), ("POST", "/api/whatsnew/seen"),  # what's new after an update (ui/whatsnewapi.py)
+    ("GET", "/api/search"), ("GET", "/api/search/peek"), ("GET", "/api/memory"),  # search and memory (ui/searchapi.py)
+    # the message box: drafts, attachments, start and send (ui/attachapi.py)
+    ("GET", "/api/attach/draft"), ("POST", "/api/attach/draft"), ("POST", "/api/attach/upload"),
+    ("POST", "/api/attach/remove"), ("POST", "/api/attach/clear"), ("GET", "/api/attach/files"),
+    ("GET", "/api/attach/list"), ("POST", "/api/attach/start"), ("POST", "/api/attach/send"),
     ("GET", "/api/project/settings"), ("POST", "/api/project/settings"),
     ("GET", "/api/setup/recommended"), ("POST", "/api/setup/recommended"),  # the recommended setup, one tap
     # projects that run elsewhere, and the phone and the PC as one Roundtable (sync.py, ui/syncapi.py)

@@ -9,11 +9,13 @@ import { whereWords, builtBy, loadMachines } from "./machines.js";
 import { planTab } from "./plan.js";
 import { watchTab, appTab } from "./watch.js";
 import { journalTab, notesPage } from "./journal.js";
+import { filesTab } from "./files.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
   ["watch", "Watch", "Every step the models take, as it happens"],
   ["app", "App", "The app itself, running, and pictures after each task"],
+  ["files", "Files", "The project's folder: open any file, and every command its tasks ran"],
   ["journal", "Journal", "Notes, to-dos, plans and decisions about this project"],
   ["settings", "Settings", "How Roundtable works on this project"]];
 
@@ -27,7 +29,7 @@ export async function viewProject(id, tab = "overview") {
   const local = !!seat.path;
   const hubAgent = (S.ov.agents || []).some((a) => a.id === seat.id);
   const shown = TABS.filter(([k]) => k === "overview" || (k === "plan" && (local || seat.hub_name)) || (k === "watch" && (local || seat.hub_name))
-    || (k === "app" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local));
+    || (k === "app" && (local || seat.hub_name)) || (k === "files" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local));
   if (!shown.some(([k]) => k === tab)) tab = "overview";
   const head = h("header", { class: "project-head" });
   const drawHead = (s) => patch(head, JSON.stringify([s.state, s.status, s.actions, s.goal, s.where, s.waiting_for_you, s.spent_usd, s.progress, s.building_on]), () => {
@@ -49,7 +51,7 @@ export async function viewProject(id, tab = "overview") {
     tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "cdl", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
     body);
   onHall(root, (rt) => { const s = rt.seats.find((x) => x.id === id); if (s) { seat = s; drawHead(s); } });
-  const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, journal: journalTab, settings: settingsTab };
+  const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab };
   fill(body, await views[tab](seat, () => seatOf(id) || seat));
   return root;
 }

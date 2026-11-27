@@ -503,6 +503,10 @@ def activity(app, limit: int = 120) -> list[dict[str, Any]]:
                 items.append({"at": d.get("at", ""), "seq": seq, "project": path.name, "kind": ev, "who": who.strip(),
                               "task": ctx["task"], "role": role, "model": ctx["model"],
                               "text": text.strip().lstrip("▶✓✗-> ").split("\n")[0][:220]})
+    if getattr(app, "desktop", None):  # the daily tidy-up, one line each (retention.py)
+        from .. import retention
+
+        items.extend(retention.activity_items(app.desktop["paths"].home))
     if app.hub:
         from . import hall
 
@@ -554,6 +558,7 @@ class AutoSync:
 
     def tick(self) -> None:
         self.daily_backup()
+        self.daily_tidy()
         self.start_cheap_runs()
         self.sync_hub()
         self.autopilot()
@@ -619,3 +624,18 @@ class AutoSync:
                                                      app.desktop["paths"].home))
         if msg:
             app.backup_message = msg
+
+    def daily_tidy(self) -> None:
+        """Once a day while the desktop app is open: old logs, pictures and worktrees (retention.py)."""
+        if not getattr(self.app, "desktop", None):
+            return
+        app = self.app
+        try:
+            from .. import retention
+
+            busy = any(j.status == "running" and j.kind in ("run", "plan", "backup")
+                       for j in app.jobs.jobs.values())
+            retention.run_daily(app.cfg(), home=app.desktop["paths"].home, hub=app.hub, hub_lock=app.hub_lock,
+                                busy=busy)
+        except Exception as e:  # never let the tick fail
+            app.auto_sync_error = f"tidy-up: {e}"[:300]

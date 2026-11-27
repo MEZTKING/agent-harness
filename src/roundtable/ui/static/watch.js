@@ -166,6 +166,7 @@ function remoteSteps(events) {
       continue;
     }
     if (e.kind === "cost") continue;  // shown with the turn it paid for
+    if (!e.line) continue;  // a line that only carries times (where the time went)
     const line = e.kind === "turn" && e.model && /^Attempt \d+ on /.test(e.line) ? `Working with ${modelName(e.model)}` : e.line;
     const el = h("div", { class: "t-line " + (REMOTE_CLASS[e.kind] || (() => "t-meta"))(e) }, h("span", {}, line), e.at ? h("span", { class: "t-cost" }, clock(e.at)) : null);
     const into = (e.task && byTask.get(e.task)) || box || (box = (out.push(h("div", { class: "t-task" })), out[out.length - 1]));

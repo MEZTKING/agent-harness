@@ -66,8 +66,20 @@ class ShowStage:
         return godotlib.game_tool(root, self.cfg.godot)
 
     def _after_task(self, task, ok: bool) -> None:
+        self._learn_from_task(task)
         record = self._show_it(task) if ok else None
         self._publish_live(record)
+
+    def _learn_from_task(self, task) -> None:
+        """What the task taught (a fix after a rejection, why it failed) goes in the project's memory."""
+        try:
+            from .. import memory
+
+            line = memory.learn_from_task(self.project.root, task, self.cfg)
+            if line:
+                self.emit("remembered", {"task": task.id, "text": line[:300]})
+        except Exception as e:  # memory is a help; never fail a run over it
+            self.emit("memory_error", {"error": str(e)[:300]})
 
     def _publish_live(self, record: dict[str, Any] | None) -> None:
         """The hub's live files for the phone: session.json always, the pictures when there are new ones."""

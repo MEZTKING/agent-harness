@@ -72,7 +72,7 @@ DEFAULT_PRICING: dict[str, dict] = {
 }
 
 PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "chat_images", "retrodiffusion", "plugin", "scripted",
-                  "scripted_images")
+                  "scripted_images", "cli")
 CLIENT_OPTS = ("auth_header", "auth_prefix", "headers", "query")  # extra openai_compat settings
 
 
@@ -107,7 +107,7 @@ class RoleSpec:
 
 
 FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compaction", "memory", "workers",
-                    "parallel", "rewind", "attachments")
+                    "parallel", "rewind", "attachments", "retention")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:
@@ -274,6 +274,10 @@ class HarnessConfig:
 
             inst = RetroDiffusionProvider(name, api_key_env=spec.get("api_key_env", "RETRODIFFUSION_API_KEY"),
                                           base_url=spec.get("base_url"))
+        elif kind == "cli":  # Claude Code or Codex on this computer, the owner's own subscriptions
+            from ..providers.cli_engine import CliEngine
+
+            inst = CliEngine(name, **{k: v for k, v in spec.items() if k not in ("type", "preset")})
         else:
             raise ProviderError(f"provider {name!r}: type {kind!r} cannot be built from config")
         self._instances[name] = inst
