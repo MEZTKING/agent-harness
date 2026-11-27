@@ -653,3 +653,23 @@ def test_a_plugin_flooding_the_harness_is_stopped_not_waited_on(tmp_path, monkey
     """)
     ok, out, msg = result_of(item, "x")
     assert not ok and out == "x" and "more than 50 messages" in msg
+
+
+def test_windows_socketpair_is_allowed_only_while_it_is_made_and_only_on_loopback(tmp_path):
+    """Windows builds socket.socketpair from loopback sockets; asyncio needs it. Only that is let through."""
+    from roundtable.plugins import guard
+
+    rules = guard.Rules(tmp_path / "data", [], [], [])
+    (tmp_path / "data").mkdir()
+    new = ("socket.__new__", (None, guard.AF_INET, 1, 0))
+    bind = ("socket.bind", (None, ("127.0.0.1", 0)))
+    connect = ("socket.connect", (None, ("127.0.0.1", 50123)))
+    outside = ("socket.connect", (None, ("93.184.216.34", 443)))
+    assert all(rules.decide(e, a) for e, a in (new, bind, connect, outside))  # refused normally
+    guard._PAIRING.on = True
+    try:
+        assert all(rules.decide(e, a) is None for e, a in (new, bind, connect))
+        assert rules.decide(*outside)  # never the outside world, even while pairing
+    finally:
+        guard._PAIRING.on = False
+    assert rules.decide(*connect)  # and refused again afterwards

@@ -43,6 +43,11 @@ COMPILED = (".pyd", ".so", ".dll", ".dylib", ".exe")
 SCAN_SKIP = {".git", "__pycache__", "node_modules", ".venv", "venv"}  # never on the plugin's import path
 
 AF_UNIX = 1  # the same number on Linux, macOS and Windows
+AF_INET, AF_INET6 = 2, 23 if os.name == "nt" else 10
+LOOPBACK = {"127.0.0.1", "::1"}
+# Windows has no AF_UNIX socketpair: Python makes one from two loopback sockets (asyncio's wake-up pair).
+# While socket.socketpair runs, and only on this thread, a loopback socket, bind and connect are allowed.
+_PAIRING = threading.local()
 
 # Imports refused unless the plugin may run programs: native code the audit hook can't see into.
 NATIVE_IMPORTS = {"ctypes", "_ctypes", "cffi", "_cffi_backend", "_posixsubprocess"}
@@ -203,6 +208,8 @@ class Rules:
             return self._winfile(args)
         if event.startswith("winreg."):
             return None if self.files else ("read Windows' registry", False)
+        if getattr(_PAIRING, "on", False) and _pair_step(event, args):
+            return None
         if event == "socket.__new__":
             family = args[1] if len(args) > 1 else -1
             if self.net or family == AF_UNIX:
@@ -321,6 +328,16 @@ def _program(event: str, args: tuple) -> str:
 
 
 # -- installing ---------------------------------------------------------------------------
+def _pair_step(event: str, args: tuple) -> bool:
+    """One step of socket.socketpair on Windows: a loopback socket, binding it, connecting to it."""
+    if event == "socket.__new__":
+        return (args[1] if len(args) > 1 else -1) in (AF_INET, AF_INET6)
+    if event in ("socket.bind", "socket.connect"):
+        address = args[1] if len(args) > 1 else None
+        return isinstance(address, tuple) and bool(address) and address[0] in LOOPBACK
+    return False
+
+
 def install(rules: Rules, report: Callable[[str], None]) -> None:
     """Hold this Python to ``rules`` from now on. ``report(what)`` hears each refused action."""
     busy = threading.local()
@@ -357,4 +374,16 @@ def install(rules: Rules, report: Callable[[str], None]) -> None:
 
         stub.fork_exec = fork_exec  # type: ignore[attr-defined]
         sys.modules["_posixsubprocess"] = stub
+    if os.name == "nt":
+        import socket as _socket
+        _original_pair = _socket.socketpair
+
+        def socketpair(*a: Any, **k: Any) -> Any:
+            _PAIRING.on = True
+            try:
+                return _original_pair(*a, **k)
+            finally:
+                _PAIRING.on = False
+
+        _socket.socketpair = socketpair
     sys.addaudithook(hook)
