@@ -62,12 +62,8 @@ data class Ask(
     /** What the card shows of the command: all of it, or the first lines of a long one until Show all. */
     fun commandShown(all: Boolean): String = if (folded && !all) preview.ifBlank { command.take(1200) } else command
 
-    /** The line under the command: the task, and that it won't run if nobody answers. */
-    val commandFoot: String
-        get() = listOfNotNull(
-            task?.takeIf { it.id.isNotBlank() }?.let { "Task ${it.id}" + if (it.title.isNotBlank()) " “${it.title}”." else "." },
-            if (expires_at.isNotBlank()) "If nobody answers in time, it doesn't run." else null,
-        ).joinToString(" ")
+    /** The line under the command (the question already names the task). */
+    val commandFoot: String get() = if (expires_at.isNotBlank()) "If nobody answers in time, it doesn't run." else ""
 }
 
 @Serializable

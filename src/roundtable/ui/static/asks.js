@@ -15,10 +15,8 @@ const HINTS = { decision: "Tap the choice you want.", question: "Tap an answer, 
 export function commandBlock(ask) {
   const full = String(ask.command || "");
   const pre = h("pre", { class: "log short ask-cmd", "aria-label": "The command" }, ask.folded ? ask.preview || full.slice(0, 1200) : full);
-  const t = ask.task || {};
   const until = ask.expires_at ? new Date(ask.expires_at) : null;
   const foot = h("p", { class: "muted small" },
-    t.id ? `Task ${t.id}${t.title ? ` “${t.title}”` : ""}. ` : "",
     until && !isNaN(until) ? `If nobody answers by ${until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, it doesn't run.` : "");
   if (!ask.folded) return h("div", { class: "ask-command" }, pre, foot);
   let open = false;

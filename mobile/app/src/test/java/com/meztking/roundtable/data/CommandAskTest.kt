@@ -33,7 +33,7 @@ class CommandAskTest {
         assertTrue(a.folded)
         assertEquals("line 1", a.commandShown(all = false))
         assertEquals("line 1\nline 2\nline 3", a.commandShown(all = true))
-        assertTrue(a.commandFoot.startsWith("Task T3 “Add the timer”."))
+        assertEquals("If nobody answers in time, it doesn't run.", a.commandFoot)
         assertTrue(Asks.hint(a).startsWith("Read the command"))
         assertEquals(null, AskReply(listOf("allow")).needsConfirm(a))
     }
