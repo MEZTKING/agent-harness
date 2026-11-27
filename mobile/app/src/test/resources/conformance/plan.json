@@ -1,0 +1,128 @@
+{
+ "approved": false,
+ "busy": false,
+ "doc": {
+  "critique": null,
+  "decisions": [],
+  "dont": [],
+  "estimate": {
+   "at": "2026-11-27T13:14:10Z",
+   "by_role": {
+    "coder": {
+     "basis": "default",
+     "cost_usd": 0.2674,
+     "minutes": 11.0,
+     "model": "a/coder",
+     "tasks": 2
+    },
+    "designer": {
+     "basis": "default",
+     "cost_usd": null,
+     "minutes": 0.5,
+     "model": "img/pic",
+     "tasks": 1
+    }
+   },
+   "cost_usd": 0.2674,
+   "minutes": 11.5,
+   "note": "rough: from past runs where there are some, else typical sizes; unpriced models aren't counted",
+   "tasks": 3,
+   "unpriced": [
+    "img/pic"
+   ]
+  },
+  "goal": "bakery site",
+  "goal_index": 0,
+  "has_ui": null,
+  "history": [
+   {
+    "at": "2026-11-27T13:14:10Z",
+    "change": "first plan",
+    "version": 1
+   }
+  ],
+  "ideas": [],
+  "in_scope": [],
+  "out_of_scope": [],
+  "pending": [],
+  "questions": [],
+  "references": [],
+  "spec": [],
+  "summary": "",
+  "title": "",
+  "version": 1
+ },
+ "line": "plan ready (about $0.27 + unpriced models, ~12 min)",
+ "name": "proj",
+ "open": {
+  "choices": 0,
+  "ideas": 0,
+  "pending": 0,
+  "questions": 0
+ },
+ "path": "/home/owner/lab/proj",
+ "status": "awaiting_approval",
+ "tasks": [
+  {
+   "acceptance": "hello.py prints hi",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [],
+   "description": "create hello.py",
+   "goal_index": 0,
+   "id": "T1",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "",
+   "role": "coder",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "hello module"
+  },
+  {
+   "acceptance": "png exists",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [],
+   "description": "a bakery logo",
+   "goal_index": 0,
+   "id": "T2",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "assets/logo.png",
+   "role": "designer",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "logo"
+  },
+  {
+   "acceptance": "tests pass",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [
+    "T1"
+   ],
+   "description": "add test",
+   "goal_index": 0,
+   "id": "T3",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "",
+   "role": "coder",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "tests"
+  }
+ ],
+ "words": {
+  "estimate": "about $0.27 and 12 minutes (some models have no price yet)",
+  "state": "Ready for you to approve",
+  "title": "Bakery site"
+ }
+}

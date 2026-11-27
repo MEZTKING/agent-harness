@@ -1,0 +1,251 @@
+{
+ "agent": "pc-vm",
+ "autopilot": {
+  "label": "Off",
+  "never": [],
+  "on": false,
+  "spend_cap_usd": 2.0,
+  "spent_usd": 0.0,
+  "started_at": null,
+  "stopped": "",
+  "until": null,
+  "until_label": ""
+ },
+ "health": [],
+ "hub_agent": "backend",
+ "machine": {
+  "id": "pc-vm",
+  "kind": "pc",
+  "name": "PC (VM)"
+ },
+ "machines": [],
+ "needs_you": [
+  {
+   "actions": [
+    "approve"
+   ],
+   "ask": {
+    "allow_other": true,
+    "answer": null,
+    "detail": "",
+    "header": "Plan",
+    "id": "approve",
+    "kind": "approve",
+    "multi": false,
+    "options": [
+     {
+      "description": "Builds it now. About $0.27, about 12 minutes.",
+      "id": "approve",
+      "label": "Approve and start"
+     },
+     {
+      "description": "Keep the plan; nothing is built yet.",
+      "id": "not_now",
+      "label": "Not now"
+     }
+    ],
+    "other_hint": "Change something… (say what)",
+    "path": "/home/owner/lab/proj",
+    "project": "proj",
+    "question": "Is the plan right? Start building?",
+    "recommended": "approve",
+    "source": {
+     "version": 1
+    },
+    "stamp": "52a2c96a01"
+   },
+   "asks": 1,
+   "at": "2026-11-27T13:14:10Z",
+   "kind": "run",
+   "name": "Proj",
+   "order": 1,
+   "path": "/home/owner/lab/proj",
+   "project": "proj",
+   "rank": 0,
+   "task": null,
+   "text": "plan ready (about $0.27 + unpriced models, ~12 min): look at it, then approve it to start",
+   "via": "here"
+  },
+  {
+   "actions": [
+    "done"
+   ],
+   "agent": "proj",
+   "at": "2026-11-27T13:14:10Z",
+   "id": "4a4fff",
+   "kind": "todo",
+   "name": "Proj",
+   "order": 0,
+   "project": "proj",
+   "rank": 2,
+   "text": "check the logo colours"
+  }
+ ],
+ "notes": null,
+ "running_jobs": 0,
+ "seats": [
+  {
+   "actions": [
+    "approve"
+   ],
+   "autopilot": false,
+   "brief": {
+    "agent": "proj",
+    "description": "the harness project",
+    "last_activity": "2026-11-27T13:14:10Z",
+    "last_session": null,
+    "last_ts": 1795785250.308361,
+    "open_plans": [],
+    "open_todos": [
+     {
+      "agent": "proj",
+      "closed_at": "",
+      "closed_note": "",
+      "created_at": "2026-11-27T13:14:10Z",
+      "details": "",
+      "for_owner": true,
+      "id": "4a4fff",
+      "kind": "todo",
+      "next": [],
+      "plan_ready": false,
+      "priority": "high",
+      "source": "",
+      "status": "open",
+      "tags": [],
+      "text": "check the logo colours",
+      "ts": 1795785250.308361
+     }
+    ],
+    "recent_decisions": [],
+    "recent_done": [],
+    "repo": ""
+   },
+   "description": "the harness project",
+   "detail": "plan ready (about $0.27 + unpriced models, ~12 min): look at it, then approve it to start",
+   "failed_task": null,
+   "goal": "Bakery site",
+   "high": 1,
+   "id": "proj",
+   "kind": "both",
+   "last_activity": "2026-11-27T13:14:10Z",
+   "last_session": null,
+   "machine": "pc-vm",
+   "machine_name": "PC (VM)",
+   "name": "Proj",
+   "open_todos": 1,
+   "owner_high": 1,
+   "path": "/home/owner/lab/proj",
+   "progress": {
+    "done": 0,
+    "total": 3
+   },
+   "repo": "",
+   "shot": null,
+   "spent_usd": 0.00012,
+   "state": "Waiting for you: the plan is ready",
+   "status": "waiting",
+   "unread": 1,
+   "waiting_for_you": 2,
+   "where": "here"
+  },
+  {
+   "actions": [],
+   "autopilot": false,
+   "brief": {
+    "agent": "backend",
+    "description": "API",
+    "last_activity": "",
+    "last_session": null,
+    "last_ts": 0.0,
+    "open_plans": [],
+    "open_todos": [],
+    "recent_decisions": [],
+    "recent_done": [],
+    "repo": "me/api"
+   },
+   "description": "API",
+   "detail": "",
+   "high": 0,
+   "id": "backend",
+   "kind": "hub",
+   "last_activity": "",
+   "last_session": null,
+   "name": "Backend",
+   "open_todos": 0,
+   "owner_high": 0,
+   "repo": "me/api",
+   "state": "No news yet",
+   "status": "idle",
+   "unread": 0,
+   "waiting_for_you": 0,
+   "where": "elsewhere"
+  },
+  {
+   "actions": [],
+   "autopilot": false,
+   "brief": {
+    "agent": "frontend",
+    "description": "",
+    "last_activity": "",
+    "last_session": null,
+    "last_ts": 0.0,
+    "open_plans": [],
+    "open_todos": [],
+    "recent_decisions": [],
+    "recent_done": [],
+    "repo": "me/web"
+   },
+   "description": "",
+   "detail": "",
+   "high": 0,
+   "id": "frontend",
+   "kind": "hub",
+   "last_activity": "",
+   "last_session": null,
+   "name": "Frontend",
+   "open_todos": 0,
+   "owner_high": 0,
+   "repo": "me/web",
+   "state": "No news yet",
+   "status": "idle",
+   "unread": 0,
+   "waiting_for_you": 0,
+   "where": "elsewhere"
+  },
+  {
+   "actions": [],
+   "autopilot": false,
+   "brief": {
+    "agent": "secret",
+    "description": "",
+    "last_activity": "",
+    "last_session": null,
+    "last_ts": 0.0,
+    "open_plans": [],
+    "open_todos": [],
+    "recent_decisions": [],
+    "recent_done": [],
+    "repo": "me/secret"
+   },
+   "description": "",
+   "detail": "",
+   "high": 0,
+   "id": "secret",
+   "kind": "hub",
+   "last_activity": "",
+   "last_session": null,
+   "name": "Secret",
+   "open_todos": 0,
+   "owner_high": 0,
+   "repo": "me/secret",
+   "state": "No news yet",
+   "status": "idle",
+   "unread": 0,
+   "waiting_for_you": 0,
+   "where": "elsewhere"
+  }
+ ],
+ "spend_today": 0.00012,
+ "sync_error": "",
+ "synced_at": ""
+}

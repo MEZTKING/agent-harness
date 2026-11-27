@@ -1,0 +1,51 @@
+{
+ "hits": [
+  {
+   "at": "",
+   "kind": "plan",
+   "kind_words": "Plan",
+   "open": {
+    "path": "/home/owner/lab/proj",
+    "room": "project",
+    "tab": "plan"
+   },
+   "score": 9.0,
+   "snippet": "Bakery site Estimate: about $0.27 and 12 minutes (some models have no price yet) The builders' brief (version 1) bakery site Tasks - [T1] pending hello module (coder) - [T2] pendin…",
+   "title": "Bakery site",
+   "where": "Proj · Plan"
+  },
+  {
+   "at": "",
+   "kind": "task",
+   "kind_words": "Task",
+   "open": {
+    "path": "/home/owner/lab/proj",
+    "room": "project",
+    "tab": "plan",
+    "task": "T2"
+   },
+   "score": 3.0,
+   "snippet": "a bakery logo png exists",
+   "title": "Task T2: logo",
+   "where": "Proj · Tasks"
+  },
+  {
+   "at": "",
+   "kind": "file",
+   "kind_words": "File",
+   "open": {
+    "file": "README.md",
+    "line": 1,
+    "path": "/home/owner/lab/proj",
+    "room": "file"
+   },
+   "score": 1.0,
+   "snippet": "A made-up bakery",
+   "title": "README.md",
+   "where": "Proj · Files"
+  }
+ ],
+ "query": "bakery",
+ "total": 3,
+ "words": "3 found."
+}

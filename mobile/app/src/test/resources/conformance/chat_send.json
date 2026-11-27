@@ -1,0 +1,5 @@
+{
+ "cost_usd": 0.00012,
+ "model": "a/planner",
+ "reply": "T1 failed because the provider was down; T3 waits on it."
+}

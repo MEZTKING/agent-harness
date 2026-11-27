@@ -1,0 +1,19 @@
+{
+ "items": [],
+ "job": {
+  "ended": "",
+  "error": "",
+  "id": "a39b5e75",
+  "kind": "run",
+  "log": [],
+  "log_size": 0,
+  "result": null,
+  "started": "2026-11-27T13:14:10Z",
+  "status": "running",
+  "target": "/home/owner/lab/projects/made-up-kite-shop",
+  "title": "new project made-up-kite-shop"
+ },
+ "path": "/home/owner/lab/projects/made-up-kite-shop",
+ "reply": "Started made-up-kite-shop: the planner is drawing up the plan.",
+ "target": "/home/owner/lab/projects/made-up-kite-shop"
+}

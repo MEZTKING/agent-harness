@@ -1,0 +1,513 @@
+{
+ "about": "Every call Roundtable Mobile makes to the PC (mobile/app/src/main/java/**.kt). tests/conformance/test_phone_calls.py runs each against a real phone server and writes the answers to mobile/app/src/test/resources/conformance/<name>.json (ROUNDTABLE_WRITE_FIXTURES=1); ConformanceTest.kt reads them with the app's own decoders. Placeholders in braces are filled from a made-up project. 'needs' are the keys the phone reads; 'local' calls are only made to Roundtable on the phone itself; 'save' keeps a value from the answer for later calls.",
+ "exempt": [
+  "/api/ping",
+  "/api/changes",
+  "/api/pair/claim",
+  "/api/health",
+  "/api/keys"
+ ],
+ "calls": [
+  {
+   "name": "ping",
+   "method": "GET",
+   "path": "/api/ping",
+   "needs": [
+    "name",
+    "version",
+    "device"
+   ]
+  },
+  {
+   "name": "changes",
+   "method": "GET",
+   "path": "/api/changes",
+   "query": {
+    "since": "",
+    "wait": "0"
+   },
+   "needs": [
+    "version",
+    "changed"
+   ]
+  },
+  {
+   "name": "roundtable",
+   "method": "GET",
+   "path": "/api/roundtable",
+   "needs": [
+    "seats",
+    "needs_you"
+   ]
+  },
+  {
+   "name": "activity",
+   "method": "GET",
+   "path": "/api/activity",
+   "query": {
+    "limit": "120"
+   },
+   "shape": "list"
+  },
+  {
+   "name": "project",
+   "method": "GET",
+   "path": "/api/project",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "meta",
+    "tasks"
+   ]
+  },
+  {
+   "name": "chat",
+   "method": "GET",
+   "path": "/api/chat",
+   "query": {
+    "path": "{project}"
+   },
+   "shape": "list"
+  },
+  {
+   "name": "inbox",
+   "method": "GET",
+   "path": "/api/inbox/{agent}",
+   "shape": "list"
+  },
+  {
+   "name": "inbox_all",
+   "method": "GET",
+   "path": "/api/inbox/{agent}",
+   "query": {
+    "all": "1"
+   },
+   "shape": "list"
+  },
+  {
+   "name": "journal",
+   "method": "GET",
+   "path": "/api/journal/{agent}",
+   "shape": "list"
+  },
+  {
+   "name": "jobs",
+   "method": "GET",
+   "path": "/api/jobs",
+   "shape": "list"
+  },
+  {
+   "name": "asks",
+   "method": "GET",
+   "path": "/api/asks",
+   "query": {
+    "path": "{project}"
+   }
+  },
+  {
+   "name": "notes",
+   "method": "GET",
+   "path": "/api/notes",
+   "needs": [
+    "notes"
+   ]
+  },
+  {
+   "name": "note",
+   "method": "GET",
+   "path": "/api/note",
+   "query": {
+    "name": "{note}"
+   },
+   "needs": [
+    "markdown"
+   ]
+  },
+  {
+   "name": "plan",
+   "method": "GET",
+   "path": "/api/plan",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "words"
+   ]
+  },
+  {
+   "name": "live",
+   "method": "GET",
+   "path": "/api/project/live",
+   "query": {
+    "inline": "1",
+    "path": "{project}"
+   }
+  },
+  {
+   "name": "session",
+   "method": "GET",
+   "path": "/api/project/session",
+   "query": {
+    "compact": "1",
+    "path": "{project}"
+   }
+  },
+  {
+   "name": "files",
+   "method": "GET",
+   "path": "/api/files",
+   "query": {
+    "path": "{project}",
+    "dir": ""
+   },
+   "needs": [
+    "items",
+    "crumbs"
+   ]
+  },
+  {
+   "name": "file_open",
+   "method": "GET",
+   "path": "/api/files/open",
+   "query": {
+    "path": "{project}",
+    "file": "{file}",
+    "inline": "1"
+   }
+  },
+  {
+   "name": "file_copy",
+   "method": "GET",
+   "path": "/api/files/open",
+   "query": {
+    "path": "{project}",
+    "file": "{file}",
+    "copy": "1"
+   }
+  },
+  {
+   "name": "command_log",
+   "method": "GET",
+   "path": "/api/files/log",
+   "query": {
+    "path": "{project}"
+   }
+  },
+  {
+   "name": "machines",
+   "method": "GET",
+   "path": "/api/machines"
+  },
+  {
+   "name": "search",
+   "method": "GET",
+   "path": "/api/search",
+   "query": {
+    "q": "bakery",
+    "kinds": ""
+   }
+  },
+  {
+   "name": "peek",
+   "method": "GET",
+   "path": "/api/search/peek",
+   "query": {
+    "path": "{project}",
+    "file": "{file}",
+    "line": "1"
+   }
+  },
+  {
+   "name": "memory",
+   "method": "GET",
+   "path": "/api/memory",
+   "query": {
+    "path": "{project}"
+   }
+  },
+  {
+   "name": "memory_machine",
+   "method": "GET",
+   "path": "/api/memory",
+   "query": {
+    "machine": "1",
+    "archive": "1"
+   }
+  },
+  {
+   "name": "hub_session",
+   "method": "GET",
+   "path": "/api/hub/session",
+   "query": {
+    "name": "{agent}"
+   }
+  },
+  {
+   "name": "shared_settings",
+   "method": "GET",
+   "path": "/api/settings/shared"
+  },
+  {
+   "name": "roles",
+   "method": "GET",
+   "path": "/api/roles"
+  },
+  {
+   "name": "project_settings",
+   "method": "GET",
+   "path": "/api/project/settings",
+   "query": {
+    "project": "{project}"
+   }
+  },
+  {
+   "name": "autopilot",
+   "method": "GET",
+   "path": "/api/autopilot",
+   "query": {
+    "limit": "30"
+   }
+  },
+  {
+   "name": "attach_files",
+   "method": "GET",
+   "path": "/api/attach/files",
+   "query": {
+    "project": "{project}",
+    "q": ""
+   },
+   "needs": [
+    "files"
+   ]
+  },
+  {
+   "name": "attach_clear",
+   "method": "POST",
+   "path": "/api/attach/clear",
+   "body": {
+    "key": "phone:conformance"
+   }
+  },
+  {
+   "name": "attach_upload",
+   "method": "POST",
+   "path": "/api/attach/upload",
+   "body": {
+    "key": "phone:conformance",
+    "name": "note.txt",
+    "data": "aGVsbG8=",
+    "upload_id": "",
+    "last": true
+   },
+   "needs": [
+    "item",
+    "draft"
+   ]
+  },
+  {
+   "name": "attach_draft",
+   "method": "POST",
+   "path": "/api/attach/draft",
+   "body": {
+    "key": "phone:conformance",
+    "text": "a note from the phone",
+    "mode": "next"
+   }
+  },
+  {
+   "name": "attach_send",
+   "method": "POST",
+   "path": "/api/attach/send",
+   "body": {
+    "key": "phone:conformance",
+    "path": "{project}",
+    "as": "note",
+    "mode": "next"
+   }
+  },
+  {
+   "name": "shared_settings_save",
+   "method": "POST",
+   "path": "/api/settings/shared",
+   "body": {
+    "changes": {
+     "autopilot": {
+      "cap": 2.0
+     }
+    }
+   }
+  },
+  {
+   "name": "autopilot_off",
+   "method": "POST",
+   "path": "/api/autopilot",
+   "body": {
+    "action": "off",
+    "until": ""
+   }
+  },
+  {
+   "name": "journal_add",
+   "method": "POST",
+   "path": "/api/journal/{agent}",
+   "body": {
+    "kind": "todo",
+    "text": "check the made-up logo",
+    "priority": "normal"
+   },
+   "save": {
+    "todo": "id"
+   }
+  },
+  {
+   "name": "journal_close",
+   "method": "POST",
+   "path": "/api/journal/{agent}/{todo}/close",
+   "body": {}
+  },
+  {
+   "name": "inbox_read",
+   "method": "POST",
+   "path": "/api/inbox/{agent}/read",
+   "body": {
+    "ids": [
+     "{message}"
+    ]
+   }
+  },
+  {
+   "name": "send",
+   "method": "POST",
+   "path": "/api/send",
+   "body": {
+    "from": "{agent}",
+    "to": "frontend",
+    "subject": "hello",
+    "body": "a made-up message"
+   }
+  },
+  {
+   "name": "reply",
+   "method": "POST",
+   "path": "/api/reply",
+   "body": {
+    "as": "{agent}",
+    "message_id": "{message}",
+    "body": "thanks"
+   }
+  },
+  {
+   "name": "hub_command",
+   "method": "POST",
+   "path": "/api/hub/command",
+   "body": {
+    "agent": "frontend",
+    "action": "run",
+    "fields": {}
+   }
+  },
+  {
+   "name": "project_action",
+   "method": "POST",
+   "path": "/api/project",
+   "body": {
+    "path": "{project}",
+    "action": "feedback",
+    "task": "T1"
+   },
+   "needs": [
+    "ok"
+   ]
+  },
+  {
+   "name": "project_settings_save",
+   "method": "POST",
+   "path": "/api/project/settings",
+   "body": {
+    "project": "{project}",
+    "changes": {
+     "test": "python --version"
+    }
+   }
+  },
+  {
+   "name": "run_tests",
+   "method": "POST",
+   "path": "/api/files/run_tests",
+   "body": {
+    "path": "{project}"
+   },
+   "save": {
+    "job": "id"
+   }
+  },
+  {
+   "name": "job",
+   "method": "GET",
+   "path": "/api/jobs/{job}"
+  },
+  {
+   "name": "chat_send",
+   "method": "POST",
+   "path": "/api/chat",
+   "body": {
+    "path": "{project}",
+    "message": "how is it going?",
+    "steer": false
+   }
+  },
+  {
+   "name": "new_project",
+   "method": "POST",
+   "path": "/api/projects",
+   "body": {
+    "dir": "made-up-garden",
+    "goal": "a garden planner",
+    "approve": true
+   }
+  },
+  {
+   "name": "attach_start",
+   "method": "POST",
+   "path": "/api/attach/start",
+   "body": {
+    "key": "phone:conformance",
+    "wizard": {
+     "idea": {
+      "other": "a made-up kite shop"
+     }
+    }
+   }
+  },
+  {
+   "name": "asks_answer",
+   "method": "POST",
+   "path": "/api/asks",
+   "body": {
+    "path": "{project}",
+    "id": "approve",
+    "chosen": [
+     "approve"
+    ],
+    "other": "",
+    "confirmed": false
+   },
+   "needs": [
+    "reply"
+   ]
+  },
+  {
+   "name": "hub",
+   "method": "GET",
+   "path": "/api/hub",
+   "local": true
+  },
+  {
+   "name": "hub_join",
+   "method": "POST",
+   "path": "/api/hub",
+   "local": true
+  }
+ ]
+}
