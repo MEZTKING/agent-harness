@@ -154,6 +154,14 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     /** The latest task's steps as short lines. */
     suspend fun session(path: String): String = call("GET", "/api/project/session?compact=1&path=${q(path)}")
 
+    // -- Files in the app (ui/filesapi.py): the folder, one file, a copy, the command log, Run the tests ---------------
+    suspend fun files(path: String, dir: String): String = call("GET", "/api/files?path=${q(path)}&dir=${q(dir)}")
+    suspend fun fileOpen(path: String, file: String, copy: Boolean = false): String =
+        call("GET", "/api/files/open?path=${q(path)}&file=${q(file)}&" + if (copy) "copy=1" else "inline=1")
+    suspend fun commandLog(path: String): String = call("GET", "/api/files/log?path=${q(path)}")
+    suspend fun runTests(path: String): String = call("POST", "/api/files/run_tests", obj { put("path", path) })
+    suspend fun job(id: String): String = call("GET", "/api/jobs/${q(id)}")
+
     // -- keeping the phone and the PC in step (slice 2) ---------------------------------------------------------
 
     /** This phone: which hub Roundtable here uses. */
