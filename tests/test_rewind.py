@@ -128,7 +128,7 @@ def test_a_hand_edit_survives_both_ways(proj):
     rewind.apply(proj, "T3", "undo_task", pv["stamp"])
     assert "my own note" in (proj / "hello.py").read_text(encoding="utf-8") and (proj / "notes.txt").exists()
     assert not (proj / "test_hello.py").exists()
-    assert sorted(_git(proj, "status", "--porcelain").splitlines()) == [" M hello.py", "?? notes.txt"]  # still yours
+    assert sorted(_git(proj, "status", "--porcelain").splitlines()) == ["?? notes.txt", "M hello.py"]  # still yours
     # going back to before T2: the edits still fit (T2 and T3 didn't touch them), so they stay, uncommitted
     pv = rewind.preview(proj, "T2", "back_to_before")
     assert pv["hand_edits_kept"] is True
@@ -262,3 +262,69 @@ def test_no_git_says_so(tmp_path):
                                               encoding="utf-8")
     assert rewind.history(root)[0]["can_undo"] is False
     assert "isn't kept in git" in rewind.preview(root, "T1", "undo_task")["blocked"]
+
+
+# -- through the app ---------------------------------------------------------------------------------------
+@pytest.fixture
+def app_proj(tmp_path, monkeypatch):
+    from roundtable.ui import server
+    from roundtable.ui.server import UIApp
+
+    orch, *_ = make(tmp_path)
+    orch.start("build a bakery site")
+    assert orch.run() == "done"
+    cfg = orch.cfg
+    cfg.lab_dir = tmp_path / "lab"
+    orch._register_with_lab()
+    app = UIApp(str(tmp_path / "missing-hub.yaml"), "missing.yaml")
+    app.cfg = lambda: cfg
+    app.projects_dir = tmp_path / "projects"
+    monkeypatch.setattr(server, "FEATURE_APIS", (*server.FEATURE_APIS, "rewindapi"))
+    return app, orch.project.root
+
+
+def test_through_the_server(app_proj):
+    from roundtable.ui.server import ApiError
+
+    app, root = app_proj
+    q = {"path": [str(root)]}
+    ov = app.dispatch("GET", "/api/rewind", q, {})
+    assert [r["id"] for r in ov["rows"]] == ["T1", "T2", "T3"] and ov["can_change"] and ov["last"] is None
+    pv = app.dispatch("GET", "/api/rewind/preview", {**q, "task": ["T2"], "mode": ["undo_task"]}, {})
+    assert "_sim" not in pv and pv["files"][0]["path"] == "assets/logo.png"
+    with pytest.raises(ApiError) as e:
+        app.dispatch("POST", "/api/rewind", {}, {"path": str(root), "task": "T2", "mode": "undo_task", "stamp": "x"})
+    assert e.value.status == 409
+    res = app.dispatch("POST", "/api/rewind", {}, {"path": str(root), "task": "T2", "mode": "undo_task",
+                                                   "stamp": pv["stamp"]})
+    assert res["ok"] and not (root / "assets/logo.png").exists()
+    assert app.dispatch("GET", "/api/rewind", q, {})["last"]["can_put_back"]
+    assert app.dispatch("POST", "/api/rewind/undo", {}, {"path": str(root)})["ok"]
+    assert (root / "assets/logo.png").exists()
+    out = app.dispatch("POST", "/api/rewind/fork", {}, {"path": str(root), "task": "T1", "name": "bakery try 2"})
+    assert out["name"] == "bakery-try-2" and app.dispatch("GET", "/api/rewind", {"path": [out["path"]]}, {})["rows"]
+    with pytest.raises(ApiError) as e:  # only registered projects
+        app.dispatch("GET", "/api/rewind", {"path": [str(root.parent / "elsewhere")]}, {})
+    assert e.value.status == 404
+
+
+def test_the_server_refuses_while_a_job_runs_or_another_machine_builds(app_proj, monkeypatch):
+    from roundtable import sync
+    from roundtable.ui.server import ApiError
+
+    app, root = app_proj
+    pv = app.dispatch("GET", "/api/rewind/preview", {"path": [str(root)], "task": ["T2"], "mode": ["back_to_before"]}, {})
+    monkeypatch.setattr(app, "_busy", lambda path: True)
+    assert app.dispatch("GET", "/api/rewind", {"path": [str(root)]}, {})["can_change"] is False
+    with pytest.raises(ApiError) as e:
+        app.dispatch("POST", "/api/rewind", {}, {"path": str(root), "task": "T2", "mode": "back_to_before",
+                                                 "stamp": pv["stamp"]})
+    assert e.value.status == 409 and "working on this project" in str(e.value)
+    monkeypatch.setattr(app, "_busy", lambda path: False)
+    app.hub = object()
+    monkeypatch.setattr(sync, "where_is", lambda hub, name: {"machine": "other-pc", "machine_name": "Laptop",
+                                                               "building": True})
+    with pytest.raises(ApiError) as e:
+        app.dispatch("POST", "/api/rewind/undo", {}, {"path": str(root)})
+    assert "built on Laptop" in str(e.value)
+    assert (root / "assets/logo.png").exists() and not rewind.entries(root)
