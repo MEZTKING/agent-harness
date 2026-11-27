@@ -18,6 +18,7 @@ import java.io.File
 import java.io.InputStream
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
+import com.meztking.roundtable.Brand
 
 /** Where Roundtable on this phone stands, for the screens and the notification. */
 sealed interface RuntimeState {
@@ -254,7 +255,7 @@ class RuntimeController(
         }.getOrDefault(false)
     }
 
-    class NotRunningException : java.io.IOException("Roundtable on this phone isn't running. Open Settings, Harness on this phone, and press Start.")
+    class NotRunningException : java.io.IOException("${Brand.NAME} on this phone isn't running. Open Settings, Harness on this phone, and press Start.")
 
     companion object {
         const val START_WAIT_MS = 240_000L

@@ -14,6 +14,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLEncoder
+import com.meztking.roundtable.Brand
 
 class ApiException(message: String, val status: Int = 0) : IOException(message)
 
@@ -81,7 +82,7 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
             throw e
         } catch (e: IOException) {
             throw ApiException(if (e.message?.startsWith("refused") == true || e.message?.startsWith("Roundtable") == true || e.message?.startsWith("Darkness") == true) e.message!!
-                else "Roundtable on this phone isn't answering. Open Settings, Harness on this phone, and press Restart.", 0)
+                else "${Brand.NAME} on this phone isn't answering. Open Settings, Harness on this phone, and press Restart.", 0)
         }
     }
 
@@ -276,9 +277,9 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         fun friendly(e: IOException?): String = when {
             e == null -> "couldn't reach your PC"
             e is javax.net.ssl.SSLHandshakeException || e.cause is java.security.cert.CertificateException ->
-                "this isn't your PC: its certificate doesn't match. Pair again if you reinstalled Roundtable Hold."
+                "this isn't your PC: its certificate doesn't match. Pair again if you reinstalled ${Brand.NAME}."
             e is java.net.SocketTimeoutException || e is java.net.ConnectException || e is java.net.NoRouteToHostException ->
-                "can't reach your PC. Is it on, with Roundtable Hold open and phone access on? Away from home, turn on Tailscale."
+                "can't reach your PC. Is it on, with ${Brand.NAME} open and phone access on? Away from home, turn on Tailscale."
             else -> e.message ?: "couldn't reach your PC"
         }
 

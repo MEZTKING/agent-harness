@@ -199,9 +199,9 @@ object Sync {
     fun sentLine(r: Route, selves: Selves = Selves()): String = when {
         r.direct -> "Done"
         r.holder == Source.PC -> "Sent: your PC picks it up when it's on."
-        r.holder == Source.PHONE -> "Sent: this phone picks it up when Roundtable runs on it."
+        r.holder == Source.PHONE -> "Sent: this phone picks it up when the harness runs on it."
         r.machine.isNotBlank() -> "Sent: ${machineWords(r.machine, r.machineName, selves)} picks it up when it's on."
-        else -> "Sent. Roundtable will reply in Letters."
+        else -> "Sent. The harness will reply in Letters."
     }
 
     // -- reading the machines and claims ------------------------------------------------------------------------

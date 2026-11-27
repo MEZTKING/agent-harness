@@ -40,20 +40,20 @@ class PlainTest {
             Letters.commandText("""{"action": "answer", "id": "choose:C6", "chosen": ["B"]}""", plan))
         assertEquals("You approved the plan", t("""{"action": "approve"}"""))
         assertEquals("You approved the plan", t("""{"action": "answer", "id": "approve", "chosen": ["approve"]}"""))
-        assertEquals("You asked Roundtable to start building", t("""{"action": "run"}"""))
-        assertEquals("A command for Roundtable (teleport)", t("""{"action": "teleport"}"""))
-        assertEquals("A command for Roundtable (choose)", Letters.commandText("not json", subjectAction = "choose"))
+        assertEquals("You asked the harness to start building", t("""{"action": "run"}"""))
+        assertEquals("A command for the harness (teleport)", t("""{"action": "teleport"}"""))
+        assertEquals("A command for the harness (choose)", Letters.commandText("not json", subjectAction = "choose"))
     }
 
     @Test fun lettersNeverShowJsonByDefault() {
         val p = Letters.plain(cmd("""{"action": "choose", "decision": "C6", "option": "A"}""", "choose"), plan)
         assertTrue(p.command)
-        assertEquals("Sent to Roundtable", p.title)
+        assertEquals("Sent to the harness", p.title)
         assertFalse(p.text.contains("{"))
         assertTrue(p.details!!.contains("\"decision\"")) // "Show details" reveals it
         val r = Letters.plain(re("Done. 1 change(s) waiting: send 'revise' (Update plan) to apply them."))
         assertTrue(r.receipt)
-        assertEquals("Roundtable: Done. 1 change waits for you to press Update plan.", r.text)
+        assertEquals("Darkness: Done. 1 change waits for you to press Update plan.", r.text)
         val plainLetter = Letters.plain(Message("3", "music-box", "me", "message", "Hello", "**Bold** words"))
         assertEquals("Hello", plainLetter.title)
         assertEquals("Bold words", plainLetter.text)
@@ -66,7 +66,7 @@ class PlainTest {
         assertFalse(Letters.isReceipt(Message("4", "music-box", "me", "message", "Re: lunch", "Done.")))
         val bad = Letters.plain(re("Couldn't do 'run': there's no plan"))
         assertTrue(bad.trouble)
-        assertEquals("Roundtable: Couldn't do that: there's no plan", bad.text)
+        assertEquals("Darkness: Couldn't do that: there's no plan", bad.text)
     }
 
     @Test fun receiptsGroupPerProject() {
@@ -139,7 +139,7 @@ class PlainTest {
         assertEquals("garden: A question", real.title)
         assertEquals("Line one\nLine two\nLine three", real.text)
         val trouble = letterNeed(re("Couldn't do 'run': no plan"))
-        assertEquals("Roundtable couldn't do it", trouble.title)
+        assertEquals("The harness couldn't do it", trouble.title)
         assertEquals(NeedsOrder.Group.LETTER, NeedsOrder.groupOf(trouble))
     }
 }

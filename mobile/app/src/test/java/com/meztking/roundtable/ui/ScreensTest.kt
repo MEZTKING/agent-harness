@@ -193,7 +193,7 @@ class ScreensTest {
 
     @Test fun projectPlan() = shot("6-project-plan") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
-            sent = mapOf("answer:Q1" to "Sent. Roundtable will reply in Letters.")), ProjectActions(), initialTab = 1)
+            sent = mapOf("answer:Q1" to "Sent. The harness will reply in Letters.")), ProjectActions(), initialTab = 1)
     }
 
     @Test fun projectMessages() = shot("7-project-messages") {
@@ -237,7 +237,7 @@ class ScreensTest {
     @Config(qualifiers = "+night")
     @Test fun projectPlanDark() = shot("6-project-plan-dark") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
-            sent = mapOf("answer:Q1" to "Sent. Roundtable will reply in Letters.")), ProjectActions(), initialTab = 1)
+            sent = mapOf("answer:Q1" to "Sent. The harness will reply in Letters.")), ProjectActions(), initialTab = 1)
     }
 
     @Config(qualifiers = "+night")

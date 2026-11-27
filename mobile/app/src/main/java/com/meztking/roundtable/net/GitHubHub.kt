@@ -33,6 +33,7 @@ import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
+import com.meztking.roundtable.Brand
 
 /** One project from hub.yaml's `agents:` block. */
 @Serializable
@@ -240,7 +241,7 @@ class GitHubHub(
         val out = JsonObject((obj + ("read" to JsonArray(merged.map { JsonPrimitive(it) }))).toSortedMap())
         val text = PrettyJson.encodeToString(JsonElement.serializer(), out) + "\n"
         try {
-            put("state/$project.json", text, "$project: read ${ids.size} message(s) (Roundtable Mobile)", current?.sha)
+            put("state/$project.json", text, "$project: read ${ids.size} message(s) (${Brand.SHORT} phone app)", current?.sha)
         } catch (e: ApiException) {
             // someone else wrote the file in between: read it again and retry once
             if ((e.status == 409 || e.status == 422) && attempt == 0) markRead(project, ids, 1) else throw e
@@ -274,7 +275,7 @@ class GitHubHub(
             created_at = DateTimeFormatter.ISO_INSTANT.format(now.truncatedTo(ChronoUnit.SECONDS)),
             in_reply_to = inReplyTo?.id, thread_id = inReplyTo?.let { it.thread_id.ifBlank { it.id } } ?: id,
         )
-        put("inbox/$to/$id.json", PrettyJson.encodeToString(msg) + "\n", "msg $from -> $to: ${subj.take(60)} (Roundtable Mobile)", null)
+        put("inbox/$to/$id.json", PrettyJson.encodeToString(msg) + "\n", "msg $from -> $to: ${subj.take(60)} (${Brand.SHORT} phone app)", null)
         return Message(id, from, to, kind, subj, body, msg.created_at, msg.thread_id, msg.in_reply_to, read = false)
     }
 

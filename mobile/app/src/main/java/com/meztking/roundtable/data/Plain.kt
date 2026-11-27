@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import com.meztking.roundtable.Brand
 
 /** A letter as the owner reads it: a short title and one plain sentence; [details] is the raw text, shown only on request. */
 data class PlainLetter(
@@ -57,10 +58,10 @@ object Letters {
     fun plain(m: Message, plan: PlanDoc? = null): PlainLetter = when {
         isReply(m.subject) -> {
             val bad = isTrouble(m.body)
-            PlainLetter(if (bad) "Roundtable couldn't do it" else "Roundtable replied", "Roundtable: " + replyText(m.body),
+            PlainLetter(if (bad) "The harness couldn't do it" else "The harness replied", "${Brand.SHORT}: " + replyText(m.body),
                 m.body, reply = true, trouble = bad)
         }
-        isCommand(m.subject) -> PlainLetter("Sent to Roundtable", commandText(m.body, plan, m.subject.trim().substring(PREFIX.length).trim()),
+        isCommand(m.subject) -> PlainLetter("Sent to the harness", commandText(m.body, plan, m.subject.trim().substring(PREFIX.length).trim()),
             m.body, command = true)
         else -> PlainLetter(m.subject.ifBlank { "(no subject)" }, Markdown.plain(m.body).replace("\n", " ").trim())
     }
@@ -79,7 +80,7 @@ object Letters {
     /** The sentence for one command's JSON ("You chose …"); never the JSON itself. */
     fun commandText(body: String, plan: PlanDoc? = null, subjectAction: String = ""): String {
         val o = runCatching { com.meztking.roundtable.net.ApiJson.parseToJsonElement(body) as? JsonObject }.getOrNull()
-            ?: return "A command for Roundtable" + if (subjectAction.isNotBlank()) " ($subjectAction)" else ""
+            ?: return "A command for the harness" + if (subjectAction.isNotBlank()) " ($subjectAction)" else ""
         fun s(k: String) = (o[k] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
         fun b(k: String) = (o[k] as? JsonPrimitive)?.booleanOrNull
         fun list(k: String) = when (val v = o[k]) {
@@ -102,7 +103,7 @@ object Letters {
             "note" -> "You added a note: $text"
             "revise" -> "You asked for the plan to be updated"
             "approve" -> "You approved the plan"
-            "run" -> "You asked Roundtable to start building"
+            "run" -> "You asked the harness to start building"
             "scope_add" -> if (b("out") == true) "You left out of the plan: $text" else "You added to the plan: $text"
             "scope_remove" -> "You took out of the plan: $text"
             "dont_add" -> "You said not to: $text"
@@ -112,10 +113,10 @@ object Letters {
             "looks" -> "You asked for new looks to choose from"
             "reference_add" -> "You added something to make it like: $text"
             "reference_remove" -> "You took out one of the things to make it like"
-            "retry" -> "You asked Roundtable to try ${s("task").ifBlank { "the task" }} again"
-            "skip" -> "You asked Roundtable to skip ${s("task").ifBlank { "the task" }}"
+            "retry" -> "You asked the harness to try ${s("task").ifBlank { "the task" }} again"
+            "skip" -> "You asked the harness to skip ${s("task").ifBlank { "the task" }}"
             "accept" -> "You accepted ${s("task").ifBlank { "the task" }} as it is"
-            "steer" -> "You told Roundtable: $text"
+            "steer" -> "You told the harness: $text"
             "ask" -> "You asked: $text"
             "profile" -> "You picked the ${s("name")} setting"
             "autopilot" -> when {
@@ -123,8 +124,8 @@ object Letters {
                 s("state") == "off" || b("on") == false -> "You turned autopilot off"
                 else -> "You asked whether autopilot is on"
             }
-            "" -> "A command for Roundtable"
-            else -> "A command for Roundtable ($action)"
+            "" -> "A command for the harness"
+            else -> "A command for the harness ($action)"
         }.trim().removeSuffix(":").trim()
     }
 
@@ -154,11 +155,11 @@ object Letters {
                 if (first == "no") "You said no to the idea: $idea" else "You said yes to the idea: $idea"
             }
             id.startsWith("task:") -> when (first) {
-                "retry" -> "You asked Roundtable to try $item again"
-                "stronger" -> "You asked Roundtable to try $item again with the stronger model"
+                "retry" -> "You asked the harness to try $item again"
+                "stronger" -> "You asked the harness to try $item again with the stronger model"
                 "accept" -> "You accepted $item as it is"
-                "skip" -> "You asked Roundtable to skip $item"
-                else -> "You told Roundtable about $item: $other"
+                "skip" -> "You asked the harness to skip $item"
+                else -> "You told the harness about $item: $other"
             }
             id == "approve" -> when (first) {
                 "approve" -> "You approved the plan"

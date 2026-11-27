@@ -79,7 +79,7 @@ object SessionLog {
 
     /** The parts of a task's time, as the PC names them (harness/session.py TIME_PARTS). */
     val PARTS = listOf("first" to "Waiting for the first word", "writing" to "The model writing", "model" to "The model thinking and writing",
-        "tools" to "Tools", "you" to "Waiting for you", "other" to "Roundtable's own work")
+        "tools" to "Tools", "you" to "Waiting for you", "other" to "The harness's own work")
 
     fun events(list: List<JsonObject>, project: String = ""): Result? {
         if (list.isEmpty()) return null

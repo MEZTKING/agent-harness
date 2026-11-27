@@ -21,6 +21,7 @@ import androidx.work.WorkerParameters
 import com.meztking.roundtable.MainActivity
 import com.meztking.roundtable.R
 import java.util.concurrent.TimeUnit
+import com.meztking.roundtable.Brand
 
 /** Once a day: is a newer Roundtable Mobile out? One notification per new version. */
 class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
@@ -43,7 +44,7 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         fun setUp(ctx: Context) {
             if (Build.VERSION.SDK_INT >= 26) {
                 val ch = NotificationChannel(CHANNEL, "Updates", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "When a new Roundtable Mobile is out"
+                    description = "When a new ${Brand.NAME} phone app is out"
                 }
                 ctx.getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
             }
@@ -70,7 +71,7 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             try {
                 NotificationManagerCompat.from(ctx).notify(7301, NotificationCompat.Builder(ctx, CHANNEL)
                     .setSmallIcon(R.drawable.ic_stat_seal)
-                    .setContentTitle("Roundtable Mobile ${r.version} is out")
+                    .setContentTitle("${Brand.NAME} ${r.version} is out")
                     .setContentText(notes.ifBlank { "Tap to update it from the Table." })
                     .setStyle(NotificationCompat.BigTextStyle().bigText((if (notes.isBlank()) "" else "$notes\n") + "Tap, then Update on the Table."))
                     .setContentIntent(open)

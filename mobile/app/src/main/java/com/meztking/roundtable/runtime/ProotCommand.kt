@@ -3,6 +3,7 @@
 package com.meztking.roundtable.runtime
 
 import java.io.File
+import com.meztking.roundtable.Brand
 
 /**
  * The command line and environment that run Roundtable inside proot.
@@ -125,7 +126,7 @@ data class ProotCommand(val argv: List<String>, val environment: Map<String, Str
             val ordered = clean.filter { ':' !in it } + clean.filter { ':' in it }
             val servers = ordered.ifEmpty { FALLBACK_DNS }.take(3)
             return buildString {
-                append("# Written by Roundtable Mobile at start from the device's DNS servers.\n")
+                append("# Written by the ${Brand.NAME} phone app at start from the device's DNS servers.\n")
                 servers.forEach { append("nameserver ").append(it).append('\n') }
             }
         }

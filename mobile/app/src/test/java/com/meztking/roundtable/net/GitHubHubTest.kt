@@ -240,8 +240,8 @@ class GitHubHubTest {
         val letters = hall.needs.filter { it.kind == "message" }.mapNotNull { it.id }
         assertEquals(listOf("20261125T110000000000Z-bbbbbb", "20261125T130000000000Z-eeeeee").sorted(), letters.sorted())
         val refusal = hall.needs.first { it.id == "20261125T130000000000Z-eeeeee" }
-        assertEquals("Roundtable couldn't do it", refusal.title)
-        assertEquals("Roundtable: Couldn't do that: there's no plan yet", refusal.text)
+        assertEquals("The harness couldn't do it", refusal.title)
+        assertEquals("Darkness: Couldn't do that: there's no plan yet", refusal.text)
         assertEquals(2, hall.seats.first { it.id == "me" }.unread) // the receipt isn't counted
         val state = Json.parseToJsonElement(String(Base64.getDecoder().decode(
             Json.parseToJsonElement(puts.single().body.readUtf8()).jsonObject["content"]!!.jsonPrimitive.content))).jsonObject

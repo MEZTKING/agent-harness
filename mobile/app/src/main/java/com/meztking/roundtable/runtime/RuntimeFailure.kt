@@ -1,4 +1,5 @@
 package com.meztking.roundtable.runtime
+import com.meztking.roundtable.Brand
 
 /**
  * Why setting up or starting Roundtable on this phone failed, with what to tell the owner.
@@ -29,13 +30,13 @@ sealed class RuntimeFailure {
         is BadArchive -> "A downloaded file couldn't be unpacked safely, so nothing was installed. Press Try again."
         is NoSpace -> "Not enough free space: it needs about ${mb(needed)} and the phone has ${mb(available)}. Free some space, then press Try again."
         is Storage -> "Couldn't write to the phone's storage ($detail). Restart the phone, then press Try again."
-        is AppTooOld -> "This download needs a newer app (version $needs or later). Update Roundtable Mobile first."
+        is AppTooOld -> "This download needs a newer app (version $needs or later). Update the ${Brand.NAME} app first."
         is OlderRelease -> "The download is older than the one already on the phone, so it wasn't used."
         is NoBuildForDevice -> "There's no download for this kind of phone ($abi)."
         is WrongChannel -> if (channel == "test") "This is a test download, which the official app doesn't accept. Use the test app, or wait for the official download."
             else "This download is for a different app ($channel)."
         NoRelease -> "There's no download ready yet. Try again later."
-        is StartFailed -> "Roundtable didn't start ($detail). Press Restart, or open Show log for the details."
+        is StartFailed -> "${Brand.NAME} didn't start ($detail). Press Restart, or open Show log for the details."
     }
 
     companion object {

@@ -13,6 +13,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.time.Instant
+import com.meztking.roundtable.Brand
 
 enum class Mode { HUB, PC }
 
@@ -248,7 +249,7 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
             return "Sent. It waits until you press Update plan."
         }
         hub.command(identity, ask.project, "answer", Asks.commandFields(ask, reply))
-        return "Sent. Roundtable will reply in Letters."
+        return "Sent. The harness will reply in Letters."
     }
 
     override suspend fun status(project: String) = StatusDoc.parse(hub.status(project))
@@ -291,7 +292,7 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
 
     override suspend fun command(project: String, action: String, fields: Map<String, Any?>): String {
         hub.command(identity, project, action, fields)
-        return "Sent. Roundtable will reply in Letters."
+        return "Sent. The harness will reply in Letters."
     }
 
     @Volatile private var lastSeats: List<SeatView> = emptyList()
@@ -330,14 +331,14 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
     override suspend fun note(name: String): String? = if (Note.safe(name)) hub.note(name) else null
 
     override suspend fun saveShared(changes: kotlinx.serialization.json.JsonObject, to: String?): String {
-        val target = to?.ifBlank { null } ?: throw IllegalStateException("No computer has joined the hub yet, so there's nowhere to send this. Open Roundtable Hold on your PC first.")
+        val target = to?.ifBlank { null } ?: throw IllegalStateException("No computer has joined the hub yet, so there's nowhere to send this. Open ${Brand.NAME} on your PC first.")
         hub.command(identity, target, "shared_settings", mapOf("changes" to changes))
         return "Sent: every computer takes it at its next sync."
     }
 
     override suspend fun setAutopilot(on: Boolean, until: String, cap: Double?): String {
         val to = Autopilot.commandTarget(autopilot(), lastSeats)
-            ?: throw IllegalStateException("No project of Roundtable's is in the hub yet, so there's nowhere to send this. Start one on your PC first.")
+            ?: throw IllegalStateException("No project is in the hub yet, so there's nowhere to send this. Start one on your PC first.")
         hub.command(identity, to, "autopilot", Autopilot.commandFields(on, until, cap))
         return "Sent. Your PC turns autopilot ${if (on) "on" else "off"} within a minute or so."
     }
@@ -387,7 +388,7 @@ class PcBackend(val api: Api, override val identity: String, val here: Source = 
         try {
             api.saveSharedSettings(changes)
         } catch (e: com.meztking.roundtable.net.ApiException) {
-            if (e.status == 404) throw IllegalStateException("${here.title} needs a newer Roundtable to change shared settings. Update it, then try again.")
+            if (e.status == 404) throw IllegalStateException("${here.title} needs a newer ${Brand.NAME} to change shared settings. Update it, then try again.")
             throw e
         }
         return "Saved on ${here.words}. Every computer takes it at its next sync."
