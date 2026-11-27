@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pillow>=10"]   # pillow: the picture tests (proof, play-testing); also a runtime need now
-desktop = ["pywebview>=5", "keyring>=24"]
+desktop = ["pywebview>=5", "keyring>=24", "pytest>=8"]   # pytest: the app's own Python runs checks with it (packaging/roundtable.spec)
 
 [project.scripts]
 roundtable = "roundtable.main:main"
