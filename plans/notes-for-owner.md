@@ -7,6 +7,25 @@ and is noted here – the question, Fable's advice, and what was done. Newest fi
 Roundtable's own model switches are in the hub journal as decisions ("Switched by Roundtable:
 … Why: …", each with its undo command).
 
+## 2026-11-27
+
+- **Asked Fable: your keys, and the order to "add everything" from Munder Difflin and DSH Mobile.**
+  The comparison (`plans/parity.md`) found that commands the AI helpers run could read your API keys
+  (the app put them where every command could see them). *Fable's advice, taken:* fix the keys first and
+  release it alone (0.9.2): commands, tests, Godot runs and tool servers get a cleaned environment with no
+  keys, no hub token and no saved GitHub login, and keys stay inside the parts that call the models.
+  Honest limit: a command running as you on your PC could still dig a key out of Windows' own store, so the
+  full fix is the sandbox planned for later; until then risky commands wait for your tap ("Ask me first",
+  next release). Then three waves, at most seven helpers each, a release after each: (1) safety and several
+  tasks at once – a breaker for stuck helpers, Ask me first, 3 tasks at once (switched on in wave 2),
+  notifications, schedules and GitHub issues as work, a Tools page; (2) time and memory in Watch, long-task
+  summaries, Claude Code and Codex as helpers, memory and search, files and a command log, the message box
+  with attachments and dictation; (3) rewind and fork, phone comfort, Wi-Fi discovery, web search for
+  helpers, before/after pictures, kinds, a desktop terminal and pounds. Not building: a public tunnel,
+  usage counts, an iPhone app. Later: Slack/Telegram, a phone terminal, a spoken conversation, the animated
+  office, other languages. Anything needing your PC or phone is marked beta until you share a folder.
+  *Done:* the key fix started (27 November); the waves follow, one release each.
+
 ## 2026-11-26
 
 - **Asked Fable: how should the phone run Roundtable itself, "just like DSH Mobile"?** You asked
