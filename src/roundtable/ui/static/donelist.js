@@ -119,8 +119,8 @@ function doneStyles() {
 .dl-unchecked .dl-mark { background: var(--color-warn-soft); color: var(--color-warn); }
 .dl-tag { font-size: 11px; padding: 0 6px; border-radius: var(--radius-small); border: 1px solid var(--color-line); color: var(--color-text); opacity: .8; }
 .dl-more { margin-top: 4px; font-size: 12px; }
-.dl-pics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; margin: 4px 0; }
+.dl-pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 220px)); gap: 6px; margin: 4px 0; }
 .dl-pic { padding: 0; border: 1px solid var(--color-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); cursor: zoom-in; }
-.dl-pic img { display: block; width: 100%; height: auto; }
+.dl-pic img { display: block; width: 100%; height: 140px; object-fit: cover; }
 `));
 }
