@@ -196,6 +196,7 @@ def harness(tmp_path):
 
 SLEEPY = """
 import time, os
+STARTED = repr(time.time())  # a new process gets a new mark (process ids repeat inside bwrap's own pid space)
 class P(Plugin):
     def on_tool_result(self, ctx, tool, args, text, is_error):
         if text == "sleep":
@@ -205,7 +206,7 @@ class P(Plugin):
         if text == "big":
             return "x" * (9 * 1024 * 1024)
         ctx.state["n"] = ctx.state.get("n", 0) + 1
-        return f"{text}{ctx.state['n']}:{os.getpid()}"
+        return f"{text}{ctx.state['n']}:{STARTED}"
 """
 
 
@@ -540,8 +541,10 @@ def test_bwrap_hides_other_files(tmp_path):
             def on_tool_result(self, ctx, tool, args, text, is_error):
                 return str(os.path.exists(text))
     """)
+    secret = tmp_path / "not-its-own.txt"  # beside its folders, but not one of them
+    secret.write_text("private")
     ctx = PluginHost([item]).context(item)
-    assert item.obj.on_tool_result(ctx, "t", {}, str(tmp_path), False) == "False"
+    assert item.obj.on_tool_result(ctx, "t", {}, str(secret), False) == "False"
     item.obj.stop()
 
 

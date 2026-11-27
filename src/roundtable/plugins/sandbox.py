@@ -127,13 +127,16 @@ def _bwrap_binds(granted: list[str], data_dir: Path, code: Path | None, projects
                   *[p for p in sys.path if p and p.startswith(sys.base_prefix)]]
         for p in dict.fromkeys([*system, *python]):
             args += ["--ro-bind-try", p, p]
+        # bwrap mounts in order: the empty /tmp goes first, or it hides any code, project or data folder
+        # that lives under /tmp (a later mount covers an earlier one).
+        args += ["--tmpfs", "/tmp"]
         if code is not None:
             args += ["--ro-bind", str(code), str(code)]
         for p in projects:
             args += ["--ro-bind-try", p, p]
     args += ["--proc", "/proc", "--dev", "/dev"]
     if "files" not in granted:
-        args += ["--tmpfs", "/tmp", "--bind", str(data_dir), str(data_dir)]
+        args += ["--bind", str(data_dir), str(data_dir)]
     return args
 
 
