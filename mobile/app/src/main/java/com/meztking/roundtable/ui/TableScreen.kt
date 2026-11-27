@@ -107,6 +107,7 @@ fun TableScreen(
     onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
     onAutopilot: (on: Boolean, until: String, cap: Double?) -> Unit = { _, _, _ -> },
     onMarkAllRead: (List<NeedView>) -> Unit = {},
+    onNotes: (() -> Unit)? = null,
 ) {
     val data = hall.data
     var showAutopilot by rememberSaveable { mutableStateOf(false) }
@@ -116,7 +117,7 @@ fun TableScreen(
     // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
     val waits = remember(needs) { NeedsOrder.organise(needs).associate { it.project to it.summary } }
     Column(Modifier.fillMaxSize()) {
-        Header(whereLabel, mode, hall.loading, onRefresh)
+        Header(whereLabel, mode, hall.loading, onRefresh, onNotes)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
         UpdateBanner(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
@@ -174,7 +175,7 @@ fun TableScreen(
 }
 
 @Composable
-private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit) {
+private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         TableMark(Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
@@ -186,6 +187,7 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
                 Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold) }
         IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
     }
 }

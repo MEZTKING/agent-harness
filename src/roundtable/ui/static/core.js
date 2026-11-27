@@ -257,3 +257,71 @@ export function prose(text) {
   return box;
 }
 const strip = (s) => s.replace(/\*\*(.*?)\*\*/g, "$1").replace(/`([^`]*)`/g, "$1").replace(/^_+|_+$/g, "");
+
+// Readable markdown for documents (the hub's saved notes): headings, lists, tables, quotes, code, rules; inline
+// bold, italic, code and links. Built as nodes, never as HTML text; a link opens outside the app.
+export function markdown(text) {
+  const box = h("div", { class: "prose md" });
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  let list = null, para = [];
+  const flush = () => { if (para.length) { box.append(h("p", {}, inlineMd(para.join(" ")))); para = []; } };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd(), t = line.trim();
+    if (/^```/.test(t)) {
+      flush(); list = null;
+      const code = [];
+      for (i++; i < lines.length && !/^```/.test(lines[i].trim()); i++) code.push(lines[i]);
+      box.append(h("pre", { class: "log short" }, code.join("\n")));
+      continue;
+    }
+    if (!t) { flush(); list = null; continue; }
+    const hd = t.match(/^(#{1,6})\s+(.*)$/);
+    if (hd) { flush(); list = null; box.append(h(hd[1].length <= 1 ? "h2" : hd[1].length === 2 ? "h3" : "h4", {}, inlineMd(hd[2]))); continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { flush(); list = null; box.append(h("hr")); continue; }
+    if (t.startsWith("|") && t.endsWith("|")) {
+      flush(); list = null;
+      const rows = [];
+      for (; i < lines.length && /^\|.*\|$/.test(lines[i].trim()); i++) {
+        const cells = lines[i].trim().slice(1, -1).split("|").map((c) => c.trim());
+        if (!cells.every((c) => /^:?-{2,}:?$/.test(c))) rows.push(cells);
+      }
+      i--;
+      const [head, ...body] = rows;
+      box.append(h("div", { class: "md-table" }, h("table", { class: "plain-table" },
+        head ? h("thead", {}, h("tr", {}, head.map((c) => h("th", {}, inlineMd(c))))) : null,
+        h("tbody", {}, body.map((r) => h("tr", {}, r.map((c) => h("td", {}, inlineMd(c)))))))));
+      continue;
+    }
+    if (t.startsWith(">")) { flush(); list = null; box.append(h("blockquote", {}, inlineMd(t.replace(/^>\s?/, "")))); continue; }
+    const li = line.match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/);
+    if (li) {
+      flush();
+      const tag = li[2] ? "ol" : "ul";
+      if (!list || list.tagName.toLowerCase() !== tag) { list = h(tag); box.append(list); }
+      list.append(h("li", {}, inlineMd(li[3].replace(/^\[[ xX]\]\s+/, ""))));
+      continue;
+    }
+    list = null;
+    para.push(t);
+  }
+  flush();
+  return box;
+}
+
+const SAFE_LINK = /^(https?:|mailto:)/i;
+export function inlineMd(s) {
+  const out = [];
+  const re = /\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?])|(?<![\w*])\*([^*\s][^*]*?)\*(?![\w*])|(?<![\w_])_([^_\s][^_]*?)_(?![\w_])/g;
+  let last = 0, m;
+  while ((m = re.exec(s))) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    if (m[1] || m[2]) out.push(h("b", {}, m[1] || m[2]));
+    else if (m[3]) out.push(h("code", {}, m[3]));
+    else if (m[4]) out.push(SAFE_LINK.test(m[5]) ? h("a", { href: m[5], target: "_blank", rel: "noopener noreferrer", title: m[5] }, m[4]) : m[4]);
+    else if (m[6]) out.push(h("a", { href: m[6], target: "_blank", rel: "noopener noreferrer" }, m[6]));
+    else if (m[7] || m[8]) out.push(h("i", {}, m[7] || m[8]));
+    last = re.lastIndex;
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return out;
+}

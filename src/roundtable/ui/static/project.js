@@ -27,7 +27,7 @@ export async function viewProject(id, tab = "overview") {
   const local = !!seat.path;
   const hubAgent = (S.ov.agents || []).some((a) => a.id === seat.id);
   const shown = TABS.filter(([k]) => k === "overview" || (k === "plan" && (local || seat.hub_name)) || (k === "watch" && (local || seat.hub_name))
-    || (k === "app" && local) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local));
+    || (k === "app" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local));
   if (!shown.some(([k]) => k === tab)) tab = "overview";
   const head = h("header", { class: "project-head" });
   const drawHead = (s) => patch(head, JSON.stringify([s.state, s.status, s.actions, s.goal, s.where, s.waiting_for_you, s.spent_usd, s.progress, s.building_on]), () => {

@@ -663,3 +663,30 @@ div.t-tool { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .ask-opt > b { flex-wrap: wrap; row-gap: 4px; }
 .ask-opt > b > .grow { flex: 1 1 auto; min-width: 9ch; }
 .ask-opts { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* Short first (owner, 27 November 2026): a plan's title and one line, tasks one line each, the rest folded */
+.plan-title { font-size: 24px; }
+.plan-state { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; font-size: 16px; }
+.plan-state .sdot, .tl-mark { flex: none; }
+.plan-state .sdot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-muted); display: inline-block; }
+.plan-state .sdot.good { background: var(--color-good); } .plan-state .sdot.wait { background: var(--color-candle-glow); }
+.plan-state .sdot.busy { background: var(--color-warn); }
+.task-lines { list-style: none; margin: 0; padding: 0; }
+.task-lines li { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
+.task-lines .tl-mark { width: 18px; text-align: center; font-weight: 800; color: var(--color-muted); }
+.task-lines .tl-mark.good { color: var(--color-good); } .task-lines .tl-mark.bad { color: var(--color-bad); } .task-lines .tl-mark.busy { color: var(--color-warn); }
+.task-lines .tl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-lines li:not(.done) .tl-title { color: var(--color-muted); }
+.card.fold.more > summary { font-size: 16px; }
+.fold-part { border-top: 1px solid var(--color-oak-line); padding: 8px 0; }
+.fold-part > summary { font-weight: 700; font-size: 15px; }
+.fold-part[open] > summary { margin-bottom: 8px; }
+.fold-part .fold-part { margin-left: 12px; }
+.doc-list { list-style: none; padding: 0; margin: 0; }
+.doc-list li { border-top: 1px solid var(--color-oak-line); }
+.doc-list li:first-child { border-top: 0; }
+button.linkish { background: none; border: 0; padding: 10px 0; font: 700 16px/1.3 var(--font-display); color: var(--color-text); cursor: pointer; text-align: left; width: 100%; box-shadow: none; }
+button.linkish:hover { color: var(--color-accent); }
+.md-table { overflow-x: auto; margin: 8px 0 14px; }
+.prose.md a { color: var(--color-accent); }
+.prose.md blockquote { border-left: 3px solid var(--color-oak-line); margin: 8px 0; padding-left: 12px; color: var(--color-muted); }

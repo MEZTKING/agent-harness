@@ -1152,7 +1152,7 @@ class UIApp:
         return data
 
     # -- projects that run elsewhere: their plan and questions in the hub, answered through the hub ----------
-    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip", "todo_done", "shared_settings", "carry_on")
+    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip", "todo_done", "shared_settings", "carry_on", "show_it")
 
     def hub_plan(self, q):
         """A plan another computer published (plans/<name>.md) with its open questions."""

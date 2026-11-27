@@ -304,6 +304,16 @@ class GitHubHub(
     /** One run's session, one JSON line per event; null when it isn't there. */
     suspend fun sessionLog(key: String, run: String): String? = getOrNull("sessions/$key/$run.jsonl")
 
+    /** The owner's saved documents (the notes folder) as name -> markdown; the list needs each one's heading. */
+    suspend fun notes(): Map<String, String> = coroutineScope {
+        val names = listDir("notes").filter { it.type == "file" && it.name.endsWith(".md") && !it.name.startsWith(".") }.map { it.name }.take(60)
+        val gate = Semaphore(6)
+        names.map { n -> async { gate.withPermit { getOrNull("notes/$n")?.let { n to it } } } }.awaitAll().filterNotNull().toMap()
+    }
+
+    /** One saved document (notes/<name>), or null. */
+    suspend fun note(name: String): String? = getOrNull("notes/$name")
+
     /** The settings every machine shares (settings/shared.yaml); null when there's none yet. */
     suspend fun sharedSettings(): String? = getOrNull("settings/shared.yaml")
 

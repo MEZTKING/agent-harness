@@ -58,7 +58,8 @@ class PlanDocTest {
         assertFalse(d.approved)
         assertEquals("2026-11-25T22:41:05Z", d.updated)
         assertEquals("plan ready: 2 choices (about \$0.17, ~44 min)", d.summaryLine)
-        assertEquals("Plan v2: Make a lantern timer, as a web app.", d.title)
+        assertEquals("Make a lantern timer, as a web app.", d.title)
+        assertEquals("Make a lantern timer, as a web app", d.shortTitle)
         assertEquals(2, d.intro.size)
     }
 
@@ -87,13 +88,14 @@ class PlanDocTest {
 
     @Test fun otherSectionsStayMarkdown() {
         val d = PlanDoc.parse(plan)
-        assertEquals(listOf("In scope", "Don't", "Stack and files", "Critique by a second model", "Tasks"), d.sections.map { it.title })
+        assertEquals(listOf("The builders' brief", "In scope", "Don't", "Stack and files", "Critique by a second model"), d.sections.map { it.title })
+        assertTrue(d.tasks.isNotEmpty())  // the tasks are lines of their own, not a section
     }
 
     @Test fun approvedAndEmpty() {
         assertTrue(PlanDoc.parse("_Plan status: approved, building · 8 tasks · updated 2026-11-25T22:41:05Z by Roundtable Hold_\n\n# Plan v1: x").approved)
         assertEquals("", PlanDoc.parse("").title)
         // a plan without the status line still reads
-        assertEquals("Plan v1: y", PlanDoc.parse("# Plan v1: y\n\n## Decisions\n### Q? [C1]\n- One {a}\n- Two {b}").title)
+        assertEquals("y", PlanDoc.parse("# Plan v1: y\n\n## Decisions\n### Q? [C1]\n- One {a}\n- Two {b}").title)
     }
 }

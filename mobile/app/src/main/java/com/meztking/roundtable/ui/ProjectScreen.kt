@@ -2,6 +2,7 @@ package com.meztking.roundtable.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.Ask
 import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.Asks
+import com.meztking.roundtable.data.Markdown
 import com.meztking.roundtable.data.PlanDoc
 import com.meztking.roundtable.data.PlanView
 import com.meztking.roundtable.data.SeatView
@@ -133,13 +135,15 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
             when (tab) {
                 0 -> StatusTab(ui.status, a.refresh)
                 1 -> PlanTab(ui, a)
-                3 -> LiveTab(ui.live, ui.mode, a.refresh)
+                3 -> LiveTab(ui.live, ui.mode, a.refresh, finished = ui.seat?.status == "done" || ui.plan.data?.let { PlanTop.of(it, ui.id).finished } == true,
+                    onTakePictures = { a.command("show_it", "show_it", emptyMap()) }, sent = ui.sent["show_it"])
                 else -> MessagesTab(ui, a)
             }
         }
     }
 }
 
+/** Status, short first: the first part (where it left off) open, every other part folded under its title. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StatusTab(status: Load<StatusDoc>, onRefresh: () -> Unit) {
@@ -154,16 +158,29 @@ private fun StatusTab(status: Load<StatusDoc>, onRefresh: () -> Unit) {
                     Text("No status page yet. It appears once a session writes to this project's journal.", color = Hall.muted,
                         modifier = Modifier.padding(vertical = 24.dp))
                 }
-                else -> items(doc.sections, key = { it.title }) { s ->
-                    SectionTitle(s.title)
-                    Spacer(Modifier.height(6.dp))
-                    MdBlocks(s.blocks)
+                else -> {
+                    val first = doc.sections.first()
+                    item(key = "first") {
+                        SectionTitle(first.title)
+                        Spacer(Modifier.height(6.dp))
+                        MdBlocks(first.blocks)
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    items(doc.sections.drop(1), key = { it.title }) { s ->
+                        val n = s.blocks.count { it is com.meztking.roundtable.data.Md.Item }
+                        Fold(if (n > 0) "${s.title} ($n)" else s.title) { MdBlocks(s.blocks) }
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * The Plan tab, short first: the title, one sentence of where it stands, what waits for the owner, the tasks one
+ * line each; everything else (the builders' brief, scope, spec, choices, the second opinion, prices) folded
+ * under "More about this plan".
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
@@ -171,202 +188,155 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
     PullToRefreshBox(plan.loading && plan.data != null, a.refresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (plan.error != null) item { ErrorLine(plan.error, a.refresh) }
-            val cards = ui.asks.data.orEmpty()
-            val agreed = plan.data?.doc?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
-            if (cards.isNotEmpty()) {
-                item { SectionTitle("Your answers") }
-                item {
-                    Text("Tap an answer: the recommended one is first. Or choose Other… to type your own.",
-                        style = MaterialTheme.typography.bodySmall, color = Hall.muted)
-                }
-                items(cards, key = { "ask:" + it.id }) { c ->
-                    AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false)
-                }
-            }
             val p = plan.data
             when {
                 p == null && plan.loading -> item { Loading("Reading the plan…") }
                 p == null -> {}
-                p.doc != null -> planDoc(p.doc, ui, a, cards.map { it.id }.toSet())
-                p.tasks.isNotEmpty() -> {
-                    item { Text("Run: ${p.runStatus.replace('_', ' ')}", color = Hall.muted, style = MaterialTheme.typography.bodySmall) }
-                    if (p.canApprove && cards.none { it.kind == "approve" }) item {
-                        Button(onClick = { a.act("approve") }, modifier = Modifier.fillMaxWidth()) { Text("Approve & start") }
-                    }
-                    items(p.tasks, key = { it.id }) { TaskRow(it) }
-                }
-                else -> item {
+                p.doc == null && p.tasks.isEmpty() -> item {
                     Text("No plan yet. A plan appears here when Roundtable Hold plans a run for this project.", color = Hall.muted,
                         modifier = Modifier.padding(vertical = 24.dp))
                 }
+                else -> calmPlan(p, ui, a)
             }
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.planDoc(d: PlanDoc, ui: ProjectUi, a: ProjectActions, carded: Set<String> = emptySet()) {
-    val hub = ui.mode == Mode.HUB
-    // what is a card above (to tap) isn't repeated here; the rest is shown to read (what was chosen or answered)
-    val canAnswer = false
-    val decisions = d.decisions.filter { "choose:${it.id}" !in carded }
-    val questions = d.questions.filter { "answer:${it.id}" !in carded }
-    val ideas = d.ideas.filter { "idea:${it.id}" !in carded }
-    item {
-        Column {
-            if (d.state.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Chip(d.state, if (d.waitingForOwner) Hall.bad else if (d.approved) Hall.good else Hall.goldDim)
-                    Spacer(Modifier.width(8.dp))
-                    if (d.updated.isNotBlank()) Text("updated ${ago(d.updated)}", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
-                }
-                if (d.summaryLine.isNotBlank()) Text(d.summaryLine, style = MaterialTheme.typography.bodySmall, color = Hall.muted)
-                Spacer(Modifier.height(8.dp))
+/** What the plan view shows at the top, worked out once (tests read it too). */
+data class PlanTop(val title: String, val state: String, val summary: String, val estimate: String,
+                   val waiting: Boolean, val finished: Boolean, val tasks: List<PlanDoc.PlanTask>) {
+    companion object {
+        fun of(p: PlanView, fallback: String): PlanTop {
+            val d = p.doc
+            val w = p.words
+            val tasks = d?.tasks?.takeIf { it.isNotEmpty() } ?: p.tasks.map { PlanDoc.PlanTask(it.id, it.status, it.title, it.role) }
+            val finished = d?.finished ?: (p.runStatus == "done")
+            val waiting = !finished && (d?.waitingForOwner ?: p.canApprove)
+            val state = w?.state?.ifBlank { null } ?: d?.stateSentence() ?: when {
+                finished -> "Finished – ${tasks.size} task${if (tasks.size == 1) "" else "s"}"
+                waiting -> "Waiting for you to approve it"
+                else -> p.runStatus.replace('_', ' ').replaceFirstChar { it.uppercase() }
             }
-            Text(d.title, style = MaterialTheme.typography.titleLarge, color = Hall.goldBright)
-            Spacer(Modifier.height(6.dp))
-            MdBlocks(d.intro)
+            val est = (w?.estimate?.ifBlank { null } ?: d?.estimate.orEmpty()).replace(", about ", " and ")
+            return PlanTop(w?.title?.ifBlank { null } ?: d?.shortTitle ?: fallback, state,
+                w?.summary.orEmpty(), if (waiting && est.isNotBlank()) est.replaceFirstChar { it.uppercase() } else "", waiting, finished, tasks)
         }
     }
-    if (decisions.isNotEmpty()) item { SectionTitle("Choices") }
-    items(decisions, key = { "C" + (it.id ?: it.question) }) { dec -> DecisionCard(dec, canAnswer, ui.sent, a) }
-    if (questions.isNotEmpty()) item { SectionTitle("Questions for you") }
-    items(questions, key = { "Q" + (it.id ?: it.text) }) { q -> QuestionCard(q, canAnswer, ui.sent, a) }
-    if (ideas.isNotEmpty()) item { SectionTitle("Ideas") }
-    items(ideas, key = { "I" + (it.id ?: it.text) }) { i -> IdeaCard(i, canAnswer, ui.sent, a) }
-    if (hub && (d.waitingForOwner || carded.isNotEmpty())) item { PlannerBox(ui.sent, a, canApprove = d.waitingForOwner) }
-    else if (hub && !d.waitingForOwner && d.state.isNotBlank()) item {
-        Text("This plan is agreed and nothing in it waits for you.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
-    } else if (!hub) item {
-        Text("Plan choices are answered through the hub: add it in Settings, Your computers.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
-    }
-    items(d.sections, key = { "S" + it.title }) { s ->
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView, ui: ProjectUi, a: ProjectActions) {
+    val top = PlanTop.of(p, ui.id)
+    val d = p.doc
+    val cards = ui.asks.data.orEmpty()
+    val hub = ui.mode == Mode.HUB
+    item(key = "top") {
         Column {
-            SectionTitle(s.title)
-            Spacer(Modifier.height(6.dp))
-            MdBlocks(s.blocks)
+            Text(top.title, style = MaterialTheme.typography.titleLarge, color = Hall.goldBright)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).background(if (top.finished) Hall.good else if (top.waiting) Hall.ember else Hall.amber, RoundedCornerShape(5.dp)))
+                Spacer(Modifier.width(8.dp))
+                Text(top.state, color = Hall.text, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (top.summary.isNotBlank()) Text(top.summary, Modifier.padding(top = 6.dp), color = Hall.muted,
+                style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            if (top.estimate.isNotBlank()) Text(top.estimate, Modifier.padding(top = 4.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         }
+    }
+    if (cards.isNotEmpty() && !top.finished) {
+        val agreed = d?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
+        items(cards, key = { "ask:" + it.id }) { c ->
+            AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false)
+        }
+    }
+    if (hub && top.waiting) item(key = "actions") {
+        val pending = p.words?.pendingChanges == true || ui.sent.keys.any { k -> listOf("note:", "choose:", "answer:", "idea:", "ask:").any { k.startsWith(it) } }
+        PlanButtons(ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
+    }
+    if (top.tasks.isNotEmpty()) {
+        item(key = "tasks-head") {
+            SectionTitle("Tasks · ${top.tasks.count { it.status == "done" }} of ${top.tasks.size} done")
+        }
+        item(key = "tasks") { Column { top.tasks.forEach { TaskLine(it) } } }
+    }
+    if (d != null) item(key = "more") { MoreAboutPlan(d, showSummary = top.summary.isBlank()) }
+}
+
+@Composable
+private fun TaskLine(t: PlanDoc.PlanTask) {
+    val (mark, color) = when (t.status) {
+        "done" -> "✓" to Hall.good
+        "running" -> "●" to Hall.amber
+        "failed" -> "!" to Hall.bad
+        "skipped" -> "–" to Hall.muted
+        else -> "○" to Hall.muted
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(mark, Modifier.width(22.dp), color = color, fontWeight = FontWeight.Bold)
+        Text(Markdown.plain(t.title), Modifier.weight(1f), color = if (t.status == "done") Hall.text else Hall.muted, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Everything but the top, collapsed: each part its own fold. */
+@Composable
+private fun MoreAboutPlan(d: PlanDoc, showSummary: Boolean) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    Panel(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (open) "▾" else "▸", color = Hall.gold, modifier = Modifier.width(20.dp))
+            Text("More about this plan", Modifier.weight(1f), color = Hall.text, style = MaterialTheme.typography.titleSmall)
+        }
+        if (!open) return@Panel
+        if (showSummary && d.intro.isNotEmpty()) Fold("What it will be") { MdBlocks(d.intro) }
+        if (d.decisions.isNotEmpty()) Fold("Choices (${d.decisions.size})") {
+            d.decisions.forEach { dec ->
+                val pick = dec.options.firstOrNull { it.chosen } ?: dec.options.firstOrNull { it.recommended }
+                Text(styled("**${Markdown.plain(dec.question)}** ${pick?.label.orEmpty()}" +
+                    if (dec.options.any { it.chosen }) " (your choice)" else " (recommended)"), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        if (d.questions.isNotEmpty()) Fold("Questions (${d.questions.size})") {
+            d.questions.forEach { q ->
+                Text(styled("**${Markdown.plain(q.text)}** ${q.answer.ifBlank { "not answered yet" }}"), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        if (d.ideas.isNotEmpty()) Fold("Ideas (${d.ideas.size})") {
+            d.ideas.forEach { i ->
+                val word = when (i.state) { "accepted" -> "yes"; "rejected" -> "no thanks"; else -> "not decided" }
+                Text(styled("${Markdown.plain(i.text)} · $word"), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        d.sections.forEach { s -> Fold(s.title) { MdBlocks(s.blocks) } }
     }
 }
 
 @Composable
 private fun SentLine(text: String) {
-    Text(text, color = Hall.ink, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodySmall)
+    Text(text, color = Hall.good, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodySmall)
 }
 
+/** "Tell the planner" is a small button that opens the box; Update plan shows only when changes wait. */
 @Composable
-private fun DecisionCard(d: PlanDoc.Decision, canAnswer: Boolean, sent: Map<String, String>, a: ProjectActions) {
-    val key = "choose:${d.id}"
-    Parchment(Modifier.fillMaxWidth(), seal = if (d.options.any { it.chosen }) Hall.good else Hall.ember) {
-        Text(d.question, fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Hall.ink)
-        if (d.why.isNotBlank()) Text("Why: ${d.why}", style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
-        Spacer(Modifier.height(8.dp))
-        d.options.forEach { o ->
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                .background(if (o.chosen) Hall.accentSoft else Hall.parchment, RoundedCornerShape(14.dp))
-                .border(if (o.chosen || o.recommended) 2.dp else 1.dp, if (o.chosen) Hall.ink else if (o.recommended) Hall.gold else Hall.line,
-                    RoundedCornerShape(14.dp)).padding(12.dp)) {
-                FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(styled(o.label, codeBg = Hall.parchmentLo, codeFg = Hall.ink), fontWeight = FontWeight.SemiBold, color = Hall.ink)
-                    if (o.recommended) Chip("recommended", Hall.ink)
-                    if (o.chosen) Chip("chosen", Hall.ink, filled = true)
-                    if (o.cost.isNotBlank()) Chip(o.cost, Hall.inkSoft)
-                }
-                if (o.detail.isNotBlank()) Text(styled(o.detail, codeBg = Hall.parchmentLo, codeFg = Hall.ink), style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
-                if (canAnswer && !o.chosen && d.id != null && o.id != null && key !in sent) {
-                    Spacer(Modifier.height(6.dp))
-                    if (o.recommended) Button({ a.command(key, "choose", mapOf("decision" to d.id, "option" to o.id)) }, colors = ParchmentButtons.main()) { Text("Choose this") }
-                    else OutlinedButton({ a.command(key, "choose", mapOf("decision" to d.id, "option" to o.id)) }, colors = ParchmentButtons.other(),
-                        border = ParchmentButtons.otherBorder) { Text("Choose this") }
-                }
-            }
-        }
-        sent[key]?.let { SentLine(it) }
-    }
-}
-
-@Composable
-private fun QuestionCard(q: PlanDoc.Question, canAnswer: Boolean, sent: Map<String, String>, a: ProjectActions) {
-    val key = "answer:${q.id}"
-    var text by rememberSaveable(q.id) { mutableStateOf("") }
-    Parchment(Modifier.fillMaxWidth(), seal = if (q.answer.isNotBlank()) Hall.good else Hall.ember) {
-        Text(styled(q.text, codeBg = Hall.parchmentLo, codeFg = Hall.ink), fontFamily = Serif, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Hall.ink)
-        if (q.answer.isNotBlank()) Text("Your answer: ${q.answer}", style = MaterialTheme.typography.bodyMedium, color = Hall.inkSoft)
-        if (canAnswer && q.id != null && key !in sent) {
-            Spacer(Modifier.height(6.dp))
-            OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), placeholder = { Text(if (q.answer.isBlank()) "Your answer" else "A new answer") },
-                colors = parchmentFieldColors())
-            Spacer(Modifier.height(6.dp))
-            Button({ a.command(key, "answer", mapOf("question" to q.id, "text" to text.trim())) }, enabled = text.isNotBlank(),
-                colors = ParchmentButtons.main()) { Text("Send answer") }
-        }
-        sent[key]?.let { SentLine(it) }
-    }
-}
-
-@Composable
-private fun IdeaCard(i: PlanDoc.Idea, canAnswer: Boolean, sent: Map<String, String>, a: ProjectActions) {
-    val key = "idea:${i.id}"
-    Parchment(Modifier.fillMaxWidth(), seal = when (i.state) { "accepted" -> Hall.good; "rejected" -> Hall.inkSoft; else -> Hall.amber }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Chip(i.state, Hall.ink)
-        }
-        Text(styled(i.text, codeBg = Hall.parchmentLo, codeFg = Hall.ink), color = Hall.ink, fontWeight = FontWeight.SemiBold)
-        if (i.why.isNotBlank()) Text(i.why, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
-        if (canAnswer && i.id != null && key !in sent) {
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (i.state != "accepted") Button({ a.command(key, "idea", mapOf("id" to i.id, "accept" to true)) }, colors = ParchmentButtons.main()) { Text("Yes") }
-                if (i.state != "rejected") OutlinedButton({ a.command(key, "idea", mapOf("id" to i.id, "accept" to false)) }, colors = ParchmentButtons.other(),
-                    border = ParchmentButtons.otherBorder) { Text("No thanks") }
-            }
-        }
-        sent[key]?.let { SentLine(it) }
-    }
-}
-
-@Composable
-private fun PlannerBox(sent: Map<String, String>, a: ProjectActions, canApprove: Boolean = true) {
+private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: Boolean, canApprove: Boolean) {
+    var writing by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf("") }
-    Panel(Modifier.fillMaxWidth(), highlight = true) {
-        Text("TELL THE PLANNER", style = Label)
-        Spacer(Modifier.height(6.dp))
-        OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth().heightIn(min = 90.dp), placeholder = { Text("Tell the planner…") })
-        Spacer(Modifier.height(6.dp))
-        OutlinedButton({ a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim())); note = "" }, enabled = note.isNotBlank()) {
-            Icon(Icons.Filled.Edit, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Add this note")
+    Column(Modifier.fillMaxWidth()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (pending) Button({ a.command("revise", "revise", emptyMap()) }, enabled = "revise" !in sent) { Text("Update plan") }
+            if (canApprove && !pending) Button({ a.command("approve", "approve", emptyMap()) }, enabled = "approve" !in sent) { Text("Approve & start") }
+            TextButton({ writing = !writing }) {
+                Icon(Icons.Filled.Edit, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Tell the planner")
+            }
         }
-        Spacer(Modifier.height(12.dp))
-        Text("Your choices, answers and notes wait until you press Update plan; the planner then rewrites the plan once.",
-            style = MaterialTheme.typography.bodySmall, color = Hall.muted)
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton({ a.command("revise", "revise", emptyMap()) }, enabled = "revise" !in sent, modifier = Modifier.weight(1f)) { Text("Update plan") }
-            if (canApprove) Button({ a.command("approve", "approve", emptyMap()) }, enabled = "approve" !in sent, modifier = Modifier.weight(1f)) { Text("Approve & start") }
+        if (writing) {
+            OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth().heightIn(min = 80.dp), placeholder = { Text("What should change?") })
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton({ a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim())); note = ""; writing = false },
+                enabled = note.isNotBlank()) { Text("Add this note") }
+            Text("Your notes and answers wait until you press Update plan.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
-        (sent["approve"] ?: sent["revise"])?.let { Text(it, color = Hall.good, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
-    }
-}
-
-@Composable
-private fun parchmentFieldColors() = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Hall.ink, unfocusedTextColor = Hall.ink, focusedBorderColor = Hall.ink, unfocusedBorderColor = Hall.inkSoft,
-    cursorColor = Hall.ink, focusedPlaceholderColor = Hall.inkSoft, unfocusedPlaceholderColor = Hall.inkSoft,
-)
-
-@Composable
-private fun TaskRow(t: Task) {
-    val color = when (t.status) { "done" -> Hall.good; "running" -> Hall.amber; "failed" -> Hall.bad; else -> Hall.muted }
-    Panel(Modifier.fillMaxWidth(), highlight = t.status == "running") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(9.dp).background(color, RoundedCornerShape(5.dp)))
-            Spacer(Modifier.width(8.dp))
-            Text("${t.id} ", fontWeight = FontWeight.Bold, color = Hall.goldBright)
-            Text(t.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        val meta = listOfNotNull(t.role.ifBlank { null }, t.status, t.attempts.lastOrNull()?.model,
-            if (t.depends_on.isNotEmpty()) "after ${t.depends_on.joinToString(", ")}" else null)
-        Text(meta.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
-        if (t.summary.isNotBlank()) Text(t.summary, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        (sent["approve"] ?: sent["revise"])?.let { SentLine(it) }
     }
 }
 

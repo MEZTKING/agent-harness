@@ -88,7 +88,24 @@ data class HallState(
 )
 
 /** What the Plan tab shows: the hub's plan page, or (PC mode) the run's task tree. */
-data class PlanView(val doc: PlanDoc? = null, val tasks: List<Task> = emptyList(), val runStatus: String = "", val canApprove: Boolean = false)
+/** A saved document in the hub (notes/<name>), shown by its first heading. */
+@Serializable
+data class Note(val name: String = "", val title: String = "", val at: String = "") {
+    companion object {
+        private val heading = Regex("^#{1,6}\\s+(.*\\S)")
+        private val safeName = Regex("^[A-Za-z0-9][\\w .-]{0,80}\\.md$")
+
+        fun safe(name: String) = safeName.matches(name)
+
+        /** The first heading, else the file's name in words ("kite-links.md" -> "Kite links"). */
+        fun title(md: String, name: String): String = md.lineSequence().firstNotNullOfOrNull { heading.find(it.trim())?.groupValues?.get(1) }
+            ?: name.removeSuffix(".md").replace('-', ' ').replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+}
+
+data class PlanView(val doc: PlanDoc? = null, val tasks: List<Task> = emptyList(), val runStatus: String = "", val canApprove: Boolean = false,
+                    /** The plan in the owner's words (title, where it stands); null for a plan published before them. */
+                    val words: PlanWords? = null)
 
 /** The two ways in (the hub on GitHub, or the paired PC) behind one face. */
 interface Backend {
@@ -129,6 +146,12 @@ interface Backend {
     suspend fun session(seat: SeatView): SessionLog.Result? = null
     /** The settings every machine shares; null when this connection can't read them. */
     suspend fun sharedSettings(): SharedSettings? = null
+
+    /** The owner's saved documents in the hub (the notes folder), by their first heading; nothing more until one is opened. */
+    suspend fun notes(): List<Note> = emptyList()
+
+    /** One saved document as markdown; null when it isn't there. */
+    suspend fun note(name: String): String? = null
     /** Change shared settings ([changes] in the file's own shape). [to]: the machine a hub command goes to. */
     suspend fun saveShared(changes: kotlinx.serialization.json.JsonObject, to: String? = null): String =
         throw IllegalStateException("Shared settings can't be changed this way. Connect your PC or the hub first.")
@@ -228,10 +251,11 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
 
     override suspend fun status(project: String) = StatusDoc.parse(hub.status(project))
 
-    override suspend fun plan(seat: SeatView): PlanView {
-        val md = hub.plan(seat.id) ?: return PlanView()
+    override suspend fun plan(seat: SeatView): PlanView = coroutineScope {
+        val words = async { runCatching { PlanWords.parse(hub.asks(seat.id)) }.getOrNull() }
+        val md = hub.plan(seat.id) ?: return@coroutineScope PlanView()
         val doc = PlanDoc.parse(md)
-        return PlanView(doc = doc, canApprove = doc.waitingForOwner)
+        PlanView(doc = doc, canApprove = doc.waitingForOwner, words = words.await())
     }
 
     override suspend fun inbox(project: String) = hub.inbox(project)
@@ -299,6 +323,10 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
 
     override suspend fun sharedSettings(): SharedSettings? = SharedSettings.parseYaml(hub.sharedSettings())
 
+    override suspend fun notes(): List<Note> = hub.notes().map { (name, text) -> Note(name, Note.title(text, name)) }.sortedBy { it.title.lowercase() }
+
+    override suspend fun note(name: String): String? = if (Note.safe(name)) hub.note(name) else null
+
     override suspend fun saveShared(changes: kotlinx.serialization.json.JsonObject, to: String?): String {
         val target = to?.ifBlank { null } ?: throw IllegalStateException("No computer has joined the hub yet, so there's nowhere to send this. Open Roundtable Hold on your PC first.")
         hub.command(identity, target, "shared_settings", mapOf("changes" to changes))
@@ -316,6 +344,10 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
 /** A machine that runs Roundtable: the paired PC, or Roundtable on this phone ([here] says which). */
 class PcBackend(val api: Api, override val identity: String, val here: Source = Source.PC) : Backend {
     override val mode = Mode.PC
+
+    override suspend fun notes(): List<Note> = api.notes()
+
+    override suspend fun note(name: String): String? = if (Note.safe(name)) api.note(name) else null
     @Volatile private var seats: List<Seat> = emptyList()
     @Volatile private var agent: String? = null
     override val seatId: String? get() = agent
@@ -440,7 +472,8 @@ class PcBackend(val api: Api, override val identity: String, val here: Source = 
     override suspend fun plan(seat: SeatView): PlanView {
         val path = seat.path ?: return PlanView()
         val p = api.project(path)
-        return PlanView(tasks = p.tasks, runStatus = p.meta.status, canApprove = p.meta.status == "awaiting_approval")
+        val words = runCatching { api.planWords(path) }.getOrNull()
+        return PlanView(tasks = p.tasks, runStatus = p.meta.status, canApprove = p.meta.status == "awaiting_approval", words = words)
     }
 
     override suspend fun inbox(project: String) = api.inbox(project, all = true)
