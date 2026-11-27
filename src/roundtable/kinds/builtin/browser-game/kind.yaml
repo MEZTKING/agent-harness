@@ -29,5 +29,5 @@ look: art
 proof:
   - {id: starts, how: page_opens, words: "It opens with no errors"}
   - {id: tests, how: command, command: "npm test", optional: true, words: "Its tests pass"}
-  - {id: plays, how: play, seconds: 60, status: not_yet, words: "Played for a minute"}
+  - {id: plays, how: play, seconds: 60, words: "Played for a minute"}
 estimate: {tasks: [6, 12], usd: [1.5, 4.0], minutes: [30, 90]}
