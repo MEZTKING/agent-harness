@@ -1,5 +1,27 @@
 <!-- The README's "What's new" sections, bundled with the app for its "What's new" card. Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->
 
+### What's new in 0.12.0
+
+- **Kinds**: Roundtable knows what sort of thing you're making – a website, a web app, a browser game or
+  something else – and plans, builds and checks it to suit. The plan's first card asks "This looks like a
+  website. Right?"; the choice is fixed once you approve.
+- **Gallery** (new tab, and on the phone): everything finished, with its pictures and checks, and what
+  Roundtable can make. Hiding never deletes; "Make another like this" starts a new one.
+- **Proof for every task**: pictures before and after, the tests before and after, and one line from a
+  model that can see (advice for the reviewer, at most 5 cents a task, counted in the estimate).
+- **Undo a task**: see the files first, then undo it or go back to before it; "Put it back" undoes the undo
+  for 30 days. **Try another way** makes a separate copy from any task. Never for work already on GitHub.
+- **Web search for builders**: they can look up real documentation instead of guessing (6 searches a task
+  at most; off for projects kept to some providers). Switch and engine on the Tools page.
+- **Command line** (a project's new tab, this PC only): type commands in its folder. A task's command
+  shows as it prints, with a Stop for that one command.
+- **Pounds**: costs also show as "≈ £" beside the dollars (Settings → Spending; the bank's daily rate).
+- **Phone comfort** (beta until tried on your phone): accent colour, true black, text size, buzz, pinned
+  and put-away projects, what you sent, how much Watch shows, a battery checklist, and two panes on a
+  tablet or an open foldable.
+- **The phone finds your PC on the Wi-Fi** (beta until tried at home): "Look for my PC" when pairing, and
+  "Look for it" when the PC's address changed. The installer lets the phone in on private networks only.
+
 ### What's new in 0.11.0
 
 - **Several tasks at once is on**: new setups run up to three tasks side by side (`limits.max_parallel: 3`).
@@ -61,20 +83,3 @@
 - **Claude Opus 5.5 codes by default** (medium effort), with DeepSeek V4 Flash as its backup.
 - **Fixes**: keys for OpenRouter and Openference load at start; DeepSeek V4 Pro is switched to Flash;
   the hub's project list stays up to date on every computer.
-
-### What's new in 0.8.0
-
-- **Your existing apps** (first part of "your repositories"): point Roundtable at one of your apps'
-  folders and it works on its own branch, follows the app's own CLAUDE.md, runs the app's tests
-  before and after every change (a newly broken test sends the change back) and never pushes. Each
-  project has a settings file (`.harness/project.yaml`, or `roundtable.yaml` in the app itself) you can
-  change from the project page on the desktop or the phone. How: [docs/repositories.md](docs/repositories.md).
-- **The phone, in plain words**: questions and ideas can always be tapped and answered on the card;
-  Needs you is grouped by project and by what's most urgent; letters read as sentences; Roundtable's
-  "done" receipts no longer count as needing you; Mark all read.
-- **The phone updates itself**: Settings → About shows a new version with **Download and install**,
-  and a banner on the Table.
-- **This phone (beta)**: Roundtable can run on the phone itself, in a small Linux inside the app (the
-  way DSH Mobile does), with no computer and no GitHub. Set up from the connect screen; about 100 MB to
-  download once. First slice: set up, a DeepSeek key, idea → plan → approve → build. Syncing with the
-  PC and the hub comes next.
