@@ -192,7 +192,8 @@ class CliEngine(Provider):
         self.extra_args = {k: [str(a) for a in v] for k, v in (extra_args or {}).items()}
         self.time_limit_minutes = time_limit_minutes
 
-    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None) -> ChatResponse:
+    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None, *,
+             on_delta=None) -> ChatResponse:  # on_delta unused: a coding CLI streams its own steps
         raise ProviderError("A coding helper (cli/…) works on a whole task by itself; it can't answer one "
                             "message. Use it for building roles only.")
 

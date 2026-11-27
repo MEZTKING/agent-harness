@@ -260,7 +260,8 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     companion object {
         val FEATURE_PREFIXES = listOf("/api/rewind", "/api/proof", "/api/kinds", "/api/gallery", "/api/rates", "/api/terminal/task",
             "/api/done", "/api/stages", "/api/tandem", "/api/usage", "/api/agents", "/api/learned", "/api/recall",
-            "/api/learning", "/api/style", "/api/charter", "/api/market")
+            "/api/learning", "/api/style", "/api/charter", "/api/market",
+            "/api/board", "/api/stream", "/api/commands", "/api/ci", "/api/documents")
         private val JSON = "application/json".toMediaType()
         private fun obj(build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject(build).toString()
 

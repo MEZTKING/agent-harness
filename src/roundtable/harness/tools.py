@@ -51,6 +51,10 @@ class Toolbox:
     tools: dict[str, Tool] = field(default_factory=dict)
     captured: dict[str, Any] = field(default_factory=dict)  # args of terminal tools
     source: Any = None  # the Workspace its file tools write through (for take_change)
+    # Asked before any tool's handler runs (wave 8: what each job may do, harness/perms.py): each gets the tool's
+    # name and arguments; a sentence back is the refusal the model is told, and the tool isn't run. Empty by
+    # default, so nothing changes until something adds one.
+    guards: list[Callable[[str, dict[str, Any]], str | None]] = field(default_factory=list)
 
     def add(self, tool: Tool) -> None:
         self.tools[tool.spec.name] = tool
@@ -64,6 +68,9 @@ class Toolbox:
             return f"unknown tool {name!r}; available: {sorted(self.tools)}", True
         if "_invalid_json" in args:
             return "your tool arguments were not valid JSON; try again", True
+        refusal = self._refused(name, args)
+        if refusal:
+            return refusal, True
         try:
             out = tool.fn(args)
             if tool.terminal:
@@ -73,6 +80,17 @@ class Toolbox:
             return str(e), True
         except Exception as e:  # tool bugs shouldn't kill the run
             return f"{type(e).__name__}: {e}", True
+
+    def _refused(self, name: str, args: dict[str, Any]) -> str | None:
+        """The first guard's refusal, or None. A guard that breaks refuses: a permission check never fails open."""
+        for g in self.guards:
+            try:
+                answer = g(name, args)
+            except Exception as e:
+                return f"The check of what this job may do failed ({type(e).__name__}), so {name} wasn't run."
+            if isinstance(answer, str) and answer:
+                return answer
+        return None
 
     def done(self) -> bool:
         return any(self.tools[n].terminal for n in self.captured if n in self.tools)

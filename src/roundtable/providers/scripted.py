@@ -23,13 +23,31 @@ def reply(text: str = "", calls: list[tuple[str, dict]] | None = None, id_prefix
     )
 
 
+Chunks = int | list[list[tuple[str, str]]] | None
+
+
 class ScriptedProvider(Provider):
-    def __init__(self, name: str = "scripted", script: Script | list | None = None):
+    """``chunks`` (wave 8): what a call given ``on_delta`` is told as it "writes". A number sends the reply's
+    text in pieces of that many characters; a list holds one list of ``(kind, piece)`` per call, used in turn
+    (a call with none left sends nothing). Without ``on_delta`` it is never used, and the calls recorded and
+    the responses are the same with or without it."""
+
+    def __init__(self, name: str = "scripted", script: Script | list | None = None, chunks: Chunks = None):
         self.name = name
         self.script = script if script is not None else []
         self.calls: list[dict[str, Any]] = []
+        self.chunks = list(chunks) if isinstance(chunks, list) else chunks
 
-    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None):
+    def _stream(self, resp: ChatResponse, on_delta) -> None:
+        if isinstance(self.chunks, int) and self.chunks > 0:
+            text = resp.text or ""
+            for i in range(0, len(text), self.chunks):
+                on_delta("text", text[i:i + self.chunks])
+        elif isinstance(self.chunks, list) and self.chunks:
+            for kind, piece in self.chunks.pop(0):
+                on_delta(kind, piece)
+
+    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None, *, on_delta=None):
         self.calls.append({"model": model, "system": system, "messages": list(messages), "tools": tools})
         if callable(self.script):
             resp = self.script(model, system, messages, tools or [])
@@ -40,6 +58,8 @@ class ScriptedProvider(Provider):
         if isinstance(resp, Exception):
             raise resp
         resp.model = resp.model or model
+        if on_delta is not None and self.chunks:
+            self._stream(resp, on_delta)
         return resp
 
 

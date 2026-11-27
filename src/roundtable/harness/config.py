@@ -112,7 +112,10 @@ FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compact
                     "terminal", "money", "discovery", "prep", "finish", "unstick", "stages", "playtest", "ship",
                     "tandem", "router", "panel", "rivals", "council", "usage", "agents",
                     # wave 7 (it learns)
-                    "sandbox", "style", "skills", "market", "recall", "documents", "selfrepair", "learning")
+                    "sandbox", "style", "skills", "market", "recall", "documents", "selfrepair", "learning",
+                    # wave 8 (the parity sweep)
+                    "board", "editor", "stream", "slash", "voice", "perms", "builders", "standup", "hooks",
+                    "integrations", "winshot", "emulator")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:

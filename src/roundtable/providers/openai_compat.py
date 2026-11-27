@@ -169,7 +169,8 @@ class OpenAICompatProvider(Provider):
     def list_models(self) -> list[str]:
         return list_openai_models(self._openai, self.client, self.name)
 
-    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None) -> ChatResponse:
+    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None, *,
+             on_delta=None) -> ChatResponse:  # on_delta: not streamed yet (wave 8, p1-chat)
         options = options or {}
         params: dict[str, Any] = {
             "model": model,

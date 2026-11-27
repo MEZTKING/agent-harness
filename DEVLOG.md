@@ -6,6 +6,52 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – wave 8, step 0: the re-audit and the seams before branching (1.4.0 to come)
+
+Asked: the one coordinator commit before the seven wave 8 helpers branch: parity and gaps from the re-audit, the
+streaming seam, guards on every tool call, the stubs with frozen signatures, and tests proving nothing changes
+until something uses them.
+
+Done:
+- `plans/parity.md`: MD-11, MD-55, MD-58, DS-09, DS-36, DS-45 to Have (built earlier, the list was stale); MD-66
+  Missing to Partly (`prereq.py` has Install rows). Four new rows from the two projects' unreleased notes (still
+  0.6.0 and 0.24.0): MD-93 task ids on cards, DS-81 a Browser tab, DS-82 keep your place in the transcript, DS-83
+  slow `/` commands. The once Not wanted rows are now Planned (wave 8 or 9) or Not wanted by the owner's own answer
+  of 27 November (MD-81, MD-82, DS-05). Every open row names its wave 8 helper. New count: 176 rows, 122 have,
+  31 partly, 9 missing, 11 planned, 3 not wanted. Section 5 carries the owner's answers.
+- `plans/gaps.md`: compaction and "Just the next task" moved to Fixed (both built); the phone's Ask me first is
+  wired end to end in code and waits only for a real-phone check; each open picture, phone and listening gap names
+  its wave 8 helper.
+- Streaming seam: `providers/base.py` `Provider.chat(..., *, on_delta=None)` (`OnDelta`: kind `"text"` or
+  `"thinking"`, then the piece); the four chat providers take it and ignore it for now; `ScriptedProvider(chunks=)`
+  (a number: the text in pieces that long; a list: one list of `(kind, piece)` per call). `harness/agent.py`
+  `run_agent(..., on_delta=None)` passes it at the one `provider.chat` call, and only when given and the provider
+  takes it (`_delta_kw`), so the call is the old one otherwise.
+- `harness/tools.py` `Toolbox.guards`: asked before any handler; a sentence back is the refusal (an error result),
+  and a guard that raises refuses too (a permission check never fails open). Empty by default.
+- Stubs, signatures frozen: `harness/perms.py` (`PRESETS`, `preset_for` maps today's gate mode, `guard` allows
+  everything), `harness/streamlog.py` (`sink`, `tail`), `reach.py` (`standup`, `poll_hooks`, `beat`, and two more
+  so p1-reach never needs `automation.py`: `normalise_hook`, `hook_words`), `harness/winshot.py`
+  (`window_picture`), `harness/emulator.py` (`ready`, `start`, `Running`, `EmulatorError`).
+- `automation.py`: kinds `events`, `poll`, `local` (checked by `reach.normalise_hook`, run by `_run_hooks`: each
+  new item claimed once and acted on as issues are) and the schedule's `standup` work (`reach.standup`; nothing
+  recorded while it returns nothing). Old automations are saved exactly as before.
+- `config.FEATURE_SECTIONS` gains board, editor, stream, slash, voice, perms, builders, standup, hooks,
+  integrations, winshot, emulator; the phone's `Api.kt` `FEATURE_PREFIXES` gains `/api/board`, `/api/stream`,
+  `/api/commands`, `/api/ci`, `/api/documents` (`/api/market` was there); `improve/charter.py`: `perms` and
+  `builders` are protected keys, `harness/perms.py` a file no self-made fix may touch, and a "What each job may
+  do" line on the Learning page.
+- `tests/test_sweep_seam.py`: a bare scripted plan-and-run sends byte for byte the requests recorded from the code
+  before the seams (`tests/data/sweep_seam_requests.json.gz`, dates and the folder masked; `UPDATE_GOLDENS=1`
+  writes it again after a deliberate prompt change); guards that allow everything and an `on_delta` sink change
+  no request; an older provider without `on_delta` still works; the stubs' signatures and do-nothing answers.
+
+Noticed: a scripted run outside pytest reads and writes this machine's real app home (a named agent's memory, the
+usage ledger), so the golden must be written from inside the tests; the 36 stray ledger lines from doing it by
+hand were taken out again.
+
+Open: everything the stubs stand for is the helpers' work (the plan's briefs).
+
 ## 2026-11-27 – 1.3.0: wave 7 put together ("it learns")
 
 Asked: merge the seven wave 7 branches in the plan's order, do every hook-up line from the helpers' reports and

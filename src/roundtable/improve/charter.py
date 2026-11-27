@@ -63,6 +63,9 @@ NEVER: tuple[dict[str, str], ...] = (
     {"id": "plugins", "title": "Plug-ins' permissions",
      "words": "It never gives a plug-in a permission and never marks one as trusted. Tools it writes ask "
               "for no permission and are only ever offered."},
+    {"id": "perms", "title": "What each job may do",
+     "words": "It never loosens what a job may do and never changes the builders' own settings (how many work "
+              "at once, their steps, their commands). Only your tap loosens one."},
     {"id": "style", "title": "Your house style",
      "words": "Only you change how agents write for you."},
     {"id": "rules", "title": "What it may apply by itself, and this list",
@@ -143,7 +146,7 @@ OPTION_KEYS = ("effort", "reasoning_effort", "temperature", "top_p", "thinking",
 PROTECTED_KEYS = frozenset({"limits", "gate", "usage", "money", "tandem", "providers", "providers_allowed",
                             "makers_allowed", "improve", "auto_apply", "style", "charter", "trusted", "api_key",
                             "api_key_env", "base_url", "headers", "secrets", "plugins", "mcp_servers", "dial",
-                            "autopilot", "allowance_usd_per_week", "safeenv", "env"})
+                            "autopilot", "allowance_usd_per_week", "safeenv", "env", "perms", "builders"})
 COMMAND_KEYS = frozenset({"command", "commands", "build", "smoke", "start", "ship", "run", "script", "scripts",
                           "shell", "exec", "check_command", "test_command", "setup", "install", "hooks", "tools",
                           "mcp", "needs"})
@@ -152,7 +155,7 @@ COMMAND_KEYS = frozenset({"command", "commands", "build", "smoke", "start", "shi
 NO_TOUCH_FILES = ("harness/gate.py", "harness/safeenv.py", "core/secrets.py", "harness/makers.py",
                   "harness/moneystage.py", "harness/usage.py", "harness/dial.py", "harness/charterstage.py",
                   "harness/housestyle.py", "improve/charter.py", "improve/wallet.py", "plugins/sandbox.py",
-                  "plugins/guard.py", "pyproject.toml", "tests/test_charter.py", "tests/test_housestyle.py")
+                  "plugins/guard.py", "harness/perms.py", "pyproject.toml", "tests/test_charter.py", "tests/test_housestyle.py")
 NO_TOUCH_DIRS = (".github", "packaging", ".git", "mobile/signing")
 
 # -- text that marks something private -------------------------------------------------------------------

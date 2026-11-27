@@ -90,7 +90,8 @@ class AnthropicProvider(Provider):
         except TypeError as e:
             raise ProviderError("anthropic: no credentials - set ANTHROPIC_API_KEY") from e
 
-    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None) -> ChatResponse:
+    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None, *,
+             on_delta=None) -> ChatResponse:  # on_delta: not streamed yet (wave 8, p1-chat)
         a = self._anthropic
         options = options or {}
         params: dict[str, Any] = {
