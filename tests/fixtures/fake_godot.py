@@ -3,7 +3,8 @@
 Markers in the project folder (given by --path) steer it:
 * ``broken.gd``: prints a GDScript parse error the way Godot does;
 * ``hang.marker``: sleeps far longer than any test's timeout;
-* ``noframes.marker``: --write-movie writes nothing.
+* ``noframes.marker``: --write-movie writes nothing;
+* ``still.marker``: every recorded frame is the same picture (a frozen game; otherwise each one differs).
 Each call's arguments are appended to $FAKE_GODOT_LOG (one line of JSON) when it is set.
 """
 
@@ -15,11 +16,11 @@ import time
 import zlib
 
 
-def tiny_png() -> bytes:
+def tiny_png(shade: int = 0x10) -> bytes:
     def chunk(kind: bytes, data: bytes) -> bytes:
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
-            + chunk(b"IDAT", zlib.compress(b"\x00\x10\x20\x30")) + chunk(b"IEND", b""))
+            + chunk(b"IDAT", zlib.compress(bytes([0] + [shade % 256] * 3))) + chunk(b"IEND", b""))
 
 
 def value(args, flag, default=None):
@@ -47,10 +48,10 @@ def main(args):
     movie = value(args, "--write-movie")
     if movie and not os.path.exists(os.path.join(project, "noframes.marker")):
         base, _ext = os.path.splitext(movie)
-        png = tiny_png()
+        still = os.path.exists(os.path.join(project, "still.marker"))
         for i in range(int(value(args, "--quit-after", "10"))):
             with open(f"{base}{i:08d}.png", "wb") as f:
-                f.write(png)
+                f.write(tiny_png(0x10 if still else i * 37))
         with open(base + ".wav", "wb") as f:
             f.write(b"RIFF")
     return 0

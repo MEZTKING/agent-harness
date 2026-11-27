@@ -120,6 +120,37 @@ godot:
 If Godot isn't found the task still finishes and the harness says so. The main scene must be
 set (**Project → Project Settings → Application → Run → Main Scene**), or there's nothing to start.
 
+## Playing it for a minute (beta)
+
+Pick **Godot game** when you start a project (the harness suggests it when your idea says "Godot"). On
+top of the checks above, the harness then plays the game itself:
+
+1. It reads the game's controls (the input actions in **Project → Project Settings → Input Map**,
+   such as `move_left` or `jump`) and plans a minute of pressing them in turn.
+2. It starts the game with a small helper script that presses them, kept in a temporary folder outside
+   your project and deleted afterwards. Your project's files are never changed.
+3. Godot's Movie Maker records the play, and twelve pictures from it are kept in
+   `.harness/play/`. A model that can see looks at them with any errors Godot printed, and says
+   what broke, what felt rough, and any ideas.
+
+Anything broken (an error, a frozen picture, controls that do nothing) becomes a fix task. Rough
+things and ideas are listed for you to choose from; nothing is built from them by itself. Each play
+costs at most $0.30 (a 20-second start check, less), set in `harness.yaml`:
+
+```yaml
+playtest:
+  enabled: auto   # off: never play it
+  seconds: 60     # how long a play lasts
+  turns: 12       # pictures kept from a play (browser games: inputs chosen one at a time)
+  max_usd: 0.30   # the most one play may cost
+```
+
+Without a model that can see, without Godot or without a screen (on Linux: no display and no
+`xvfb-run`), the game isn't played and the check stays "not checked", never ticked. The controls must
+be input actions: a game that reads raw keys can't be played this way.
+
+This is still in beta: it has been tried with a stand-in for Godot, not yet with a real Godot on your PC.
+
 ## If something goes wrong
 
 - **Godot says "MCP: Disconnected" (red)**: the helper isn't running. Check `roundtable mcp list`,

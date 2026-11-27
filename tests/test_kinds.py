@@ -229,7 +229,7 @@ def test_proof_plan_reaches_the_proof_stage_when_it_is_there(tmp_path, monkeypat
 
     monkeypatch.setattr(pkg, "proof", fake, raising=False)
     assert orch._kind_proof_plan() == ["starts", "tests", "plays"]
-    assert next(i for i in orch._kind_proof() if i["id"] == "plays")["status"] == "not_yet"
+    assert next(i for i in orch._kind_proof() if i["id"] == "plays")["status"] == "trial"  # played since d2-play (harness/playtest.py)
 
 
 # -- sharing a kind ---------------------------------------------------------------------------------------------------------
