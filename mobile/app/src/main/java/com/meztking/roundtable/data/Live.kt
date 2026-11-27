@@ -32,11 +32,41 @@ data class SessionStep(val kind: String = "", val line: String = "", val error: 
 data class SessionTask(
     val id: String = "", val title: String = "", val role: String = "", val status: String = "",
     val cost: Double = 0.0, val summary: String = "", val steps: List<SessionStep> = emptyList(),
+    /** What it is doing now, in one line. */
+    val now: String = "",
+    /** Where its time went; null when nothing was timed (an older log): never shown as zero. */
+    val time: TaskTime? = null,
+    /** How full the newest model call's context was, and the cache-hit rate. */
+    val context: TaskContext? = null,
+    /** The files it changed. */
+    val changes: List<FileChange> = emptyList(),
 )
 
-/** The latest task's steps: the hub's plans/shots/<project>/session.json, or /api/project/session?compact=1. */
+/** One part of a task's time: key first, writing, model, tools, you or other. */
 @Serializable
-data class SessionSummary(val project: String = "", val at: String = "", val task: SessionTask? = null)
+data class TimePart(val key: String = "", val label: String = "", val ms: Long = 0)
+
+@Serializable
+data class TaskTime(val parts: List<TimePart> = emptyList(), val total_ms: Long = 0, val unrecorded: Int = 0) {
+    val total: Long get() = if (total_ms > 0) total_ms else parts.sumOf { it.ms }
+}
+
+/** Tokens of the newest model call against the model's window (window and share null when unknown). */
+@Serializable
+data class TaskContext(val used: Long = 0, val window: Long? = null, val share: Double? = null, val model: String = "",
+                       val cache_hit: Double? = null)
+
+@Serializable
+data class FileChange(val path: String = "", val added: Int = 0, val removed: Int = 0, val new: Boolean = false)
+
+/** The latest task's steps: the hub's plans/shots/<project>/session.json, or /api/project/session?compact=1.
+ * [tasks]: every task still running (several run at once), else the latest alone; older sources send only [task]. */
+@Serializable
+data class SessionSummary(val project: String = "", val at: String = "", val task: SessionTask? = null,
+                          val tasks: List<SessionTask> = emptyList()) {
+    /** The tasks to show: [tasks], or the one [task] from an older source. */
+    val shown: List<SessionTask> get() = tasks.ifEmpty { listOfNotNull(task) }
+}
 
 /** What the Live tab shows: the newest pictures (as bytes, by kind) and the latest task's steps. */
 data class LiveView(

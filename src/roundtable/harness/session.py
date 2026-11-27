@@ -2,7 +2,9 @@
 
 ``session(project_root)`` reads ``.harness/events.jsonl`` and turns every task into steps: the
 model's words, each tool call as one line (Read, Edit with its diff, Run with its output), the
-reviewer's verdict, the pictures, and the cost of each model turn. ``outputs`` lists the pictures
+reviewer's verdict, the pictures, and the cost of each model turn. Several tasks can run at once: events
+are grouped by their ``task`` id, and each task carries where its time went (``time``), how full its
+context is (``context``) and the files it changed (``changes``). ``outputs`` lists the pictures
 and files the project made, by task. ``hub_session`` is the short version for the phone in Hub
 mode: one line per step, no file contents. Everything shown goes through ``redact`` first.
 """
@@ -115,11 +117,145 @@ def _new_task(d: dict[str, Any]) -> dict[str, Any]:
             "started": d.get("at", ""), "ended": "", "cost": 0.0, "steps": [], "summary": ""}
 
 
-def _add(task: dict[str, Any], d: dict[str, Any], reviewer: str | None, pending_cost: list[float]) -> None:
+# -- where the time went, how full the context is -------------------------------------------------
+# The parts of a task's time, in the order the bar shows them. Only time that was recorded is counted:
+# an event without ``ms`` (an older log) adds nothing, and a part with nothing in it is left out.
+TIME_PARTS = (
+    ("first", "Waiting for the first word"),
+    ("writing", "The model writing"),
+    ("model", "The model thinking and writing"),
+    ("tools", "Tools"),
+    ("you", "Waiting for you"),
+    ("other", "Roundtable's own work"),
+)
+# A model's context window when its event doesn't say: only families whose window is well known.
+# Anything else shows the tokens without a gauge.
+CONTEXT_WINDOWS = (("claude-", 200_000), ("deepseek", 128_000))
+
+
+def context_window(model: str) -> int | None:
+    """The context window of a model ("provider/model"), when it is known; else None."""
+    name = str(model or "").lower().rsplit("/", 1)[-1]
+    return next((n for prefix, n in CONTEXT_WINDOWS if prefix in name), None)
+
+
+def _num(d: dict[str, Any], key: str) -> int | None:
+    v = d.get(key)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return max(0, int(v))
+
+
+class _Clock:
+    """What one task's events say about its time and tokens (see ``time`` and ``context``)."""
+
+    def __init__(self) -> None:
+        self.ms = dict.fromkeys(k for k, _ in TIME_PARTS)  # None: nothing recorded
+        self.unrecorded = 0  # model turns and tool calls without a time
+        self.conv_wait = 0  # waiting for you counted from this conversation's tool calls
+        self.last: dict[str, Any] | None = None  # the newest model turn with tokens (the worker's first)
+        self.last_who = ""
+        self.prompt = self.cached = 0
+        self.turns_with_tokens = 0
+
+    def add(self, key: str, ms: int) -> None:
+        if ms > 0:
+            self.ms[key] = (self.ms[key] or 0) + ms
+
+    def turn(self, d: dict[str, Any], who: str) -> None:
+        ms, first = _num(d, "ms"), _num(d, "first_ms")
+        if ms is None:
+            self.unrecorded += 1
+        elif first is not None:
+            self.add("first", min(first, ms))
+            self.add("writing", ms - min(first, ms))
+        else:
+            self.add("model", ms)
+        tok = {k: _num(d, k) for k in ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")}
+        if any(v is not None for v in tok.values()):
+            t = {k: v or 0 for k, v in tok.items()}
+            self.turns_with_tokens += 1
+            self.prompt += t["input_tokens"] + t["cache_read_tokens"] + t["cache_write_tokens"]
+            self.cached += t["cache_read_tokens"]
+            if who == "worker" or self.last_who != "worker":
+                self.last, self.last_who = {**t, "model": d.get("model", ""), "window": _num(d, "context_window")}, who
+
+    def tool(self, d: dict[str, Any]) -> None:
+        ms, waited = _num(d, "ms"), _num(d, "waited_ms") or 0
+        if ms is None:
+            self.unrecorded += 1
+            self.add("you", waited)
+        else:
+            waited = min(waited, ms)
+            self.add("tools", ms - waited)
+            self.add("you", waited)
+        self.conv_wait += waited
+
+    def done(self, d: dict[str, Any]) -> None:
+        """agent_done: Roundtable's own time, and waiting the tool calls didn't carry themselves."""
+        self.add("other", _num(d, "other_ms") or 0)
+        extra = (_num(d, "waited_ms") or 0) - self.conv_wait
+        if extra > 0:
+            moved = min(extra, self.ms["tools"] or 0)  # that wait was inside the tool time
+            if moved:
+                self.ms["tools"] = (self.ms["tools"] or 0) - moved or None
+            self.add("you", extra)
+        self.conv_wait = 0
+
+    def time(self) -> dict[str, Any] | None:
+        parts = [{"key": k, "label": label, "ms": self.ms[k]} for k, label in TIME_PARTS if self.ms[k]]
+        if not parts:
+            return None
+        return {"parts": parts, "total_ms": sum(p["ms"] for p in parts), "unrecorded": self.unrecorded}
+
+    def context(self) -> dict[str, Any] | None:
+        if not self.last:
+            return None
+        t = self.last
+        used = t["input_tokens"] + t["cache_read_tokens"] + t["cache_write_tokens"] + t["output_tokens"]
+        window = t["window"] or context_window(t["model"])
+        return {"used": used, "window": window, "share": round(min(used / window, 1.0), 3) if window else None,
+                "model": t["model"], "who": self.last_who,
+                "cache_hit": round(self.cached / self.prompt, 3) if self.prompt else None,
+                "turns": self.turns_with_tokens}
+
+
+def changes(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The files a task changed (its writes and edits that worked), each once, with lines added and removed."""
+    out: dict[str, dict[str, Any]] = {}
+    for s in steps:
+        if s.get("kind") != "tool" or not s.get("path") or s.get("error"):
+            continue
+        c = out.setdefault(s["path"], {"path": s["path"], "added": 0, "removed": 0, "new": s.get("tool") == "write_file"})
+        m = re.match(r"\+(\d+) −(\d+)", s.get("detail") or "")
+        if m:
+            c["added"] += int(m.group(1))
+            c["removed"] += int(m.group(2))
+    return list(out.values())
+
+
+def progress(task: dict[str, Any]) -> str:
+    """What the task is doing now, in one short line (its newest step); a finished task: its summary."""
+    if task["status"] != "running":
+        return " ".join(str(task.get("summary") or "").split())[:140]
+    for s in reversed(task["steps"]):
+        if s.get("kind") == "attempt":
+            return "Starting"
+        if s.get("kind") == "say" and s.get("who") == "reviewer":
+            return "The reviewer is checking it"
+        if s.get("kind") in ("tool", "say", "review", "finish", "shots", "error"):
+            return step_line(s).lstrip("● ")[:140]
+    return "Starting"
+
+
+def _add(task: dict[str, Any], d: dict[str, Any], reviewer: str | None, pending_cost: list[float],
+         clock: _Clock | None = None) -> None:
     ev = d.get("event")
     steps = task["steps"]
     who = "reviewer" if reviewer and d.get("role") == reviewer else "worker"
+    clock = clock or _Clock()
     if ev == "model_turn":
+        clock.turn(d, who)
         cost = float(d.get("cost") or 0)
         task["cost"] += cost
         if (d.get("text") or "").strip():
@@ -128,12 +264,15 @@ def _add(task: dict[str, Any], d: dict[str, Any], reviewer: str | None, pending_
         else:
             pending_cost[0] += cost  # shown with the tool line it led to
     elif ev == "tool_call":
+        clock.tool(d)
         step = tool_step(d)
         if step["kind"] != "hidden":
             step["who"] = who
             if pending_cost[0]:
                 step["cost"], pending_cost[0] = pending_cost[0], 0.0
             steps.append(step)
+    elif ev == "agent_done":
+        clock.done(d)
     elif ev == "attempt":
         steps.append({"kind": "attempt", "text": f"Attempt {d.get('attempt')} on {d.get('model')}",
                       "model": d.get("model", ""), "at": d.get("at", "")})
@@ -148,26 +287,41 @@ def _add(task: dict[str, Any], d: dict[str, Any], reviewer: str | None, pending_
 
 
 def tasks_from_events(rows: list[dict[str, Any]], reviewer: str | None = "reviewer") -> list[dict[str, Any]]:
-    """Each run of a task (task_start to task_end) with its steps, oldest first."""
+    """Each run of a task (task_start to task_end) with its steps, in the order they started.
+
+    Several tasks can run at once: an event carrying a ``task`` id goes to that task's newest run; an
+    event without one (an older log) goes to the task started last. Each task also gets ``time`` (where
+    its time went, or None when nothing was timed), ``context`` (tokens of its newest model call against
+    the model's window, and the cache-hit rate; None without token counts), ``changes`` (the files it
+    changed) and ``now`` (what it is doing, in one line)."""
     tasks: list[dict[str, Any]] = []
+    newest: dict[str, dict[str, Any]] = {}  # task id -> its newest run
+    clocks: dict[int, _Clock] = {}
+    pending: dict[int, list[float]] = {}
     current: dict[str, Any] | None = None
-    pending_cost = [0.0]
     for d in rows:
         ev = d.get("event")
         if ev == "task_start":
             current = _new_task(d)
             tasks.append(current)
-            pending_cost = [0.0]
-        elif current is None:
+            newest[current["id"]] = current
+            clocks[id(current)], pending[id(current)] = _Clock(), [0.0]
             continue
-        elif ev == "task_end" and d.get("task") == current["id"]:
-            current.update(status=d.get("status", ""), ended=d.get("at", ""), summary=d.get("summary", ""))
-        elif ev == "shots" and d.get("task") == current["id"]:
-            _add(current, d, reviewer, pending_cost)
-        elif not current["ended"]:
-            _add(current, d, reviewer, pending_cost)
+        tid = d.get("task")
+        t = newest.get(tid) if tid else current
+        if t is None:
+            continue
+        if ev == "task_end":
+            if tid == t["id"]:
+                t.update(status=d.get("status", ""), ended=d.get("at", ""), summary=d.get("summary", ""))
+        elif ev == "shots" and tid == t["id"]:
+            _add(t, d, reviewer, pending[id(t)], clocks[id(t)])
+        elif not t["ended"]:
+            _add(t, d, reviewer, pending[id(t)], clocks[id(t)])
     for t in tasks:
         t["cost"] = round(t["cost"], 6)
+        c = clocks[id(t)]
+        t.update(time=c.time(), context=c.context(), changes=changes(t["steps"]), now=progress(t))
     return tasks
 
 
@@ -217,7 +371,14 @@ def session(project_root: Path, reviewer: str | None = "reviewer", max_tasks: in
     for i, t in enumerate(tasks):  # a task run more than once: its outputs go with its newest run
         again = any(u["id"] == t["id"] for u in tasks[i + 1:])
         t["outputs"] = [] if again else [o for o in made if o["task"] == t["id"]]
-    return _redact_all({"cursor": cursor(root), "tasks": tasks[-max_tasks:], "outputs": made})
+    shown = tasks[-max_tasks:]
+    return _redact_all({"cursor": cursor(root), "tasks": shown, "outputs": made, "running": running(shown)})
+
+
+def running(tasks: list[dict[str, Any]]) -> list[str]:
+    """The ids of the tasks still going (each task's newest run), in the order they started."""
+    last = {t["id"]: t for t in tasks}
+    return [t["id"] for t in tasks if last[t["id"]] is t and t["status"] == "running"]
 
 
 def step_line(s: dict[str, Any]) -> str:
@@ -237,16 +398,31 @@ def step_line(s: dict[str, Any]) -> str:
     return str(s.get("text", ""))[:200]
 
 
+def compact_task(t: dict[str, Any], max_steps: int = 40) -> dict[str, Any]:
+    """A task for the phone: its steps as one-line summaries, where its time went, its context and the
+    files it changed (paths and counts only)."""
+    return {"id": t["id"], "title": t["title"], "role": t["role"], "status": t["status"],
+            "cost": t["cost"], "summary": t["summary"][:300], "now": t.get("now", ""),
+            "time": t.get("time"), "context": t.get("context"), "changes": t.get("changes") or [],
+            "steps": [{"kind": s.get("kind"), "line": step_line(s), "error": bool(s.get("error"))}
+                      for s in t["steps"][-max_steps:]]}
+
+
 def hub_session(project_root: Path, project: str, reviewer: str | None = "reviewer", max_steps: int = 40) -> dict[str, Any]:
-    """The latest task's last steps as one-line summaries: no file contents, no diffs, keys hidden."""
+    """The latest task's last steps as one-line summaries: no file contents, no diffs, keys hidden.
+
+    ``tasks`` holds every task still running (several run at once), each the same shape as ``task``;
+    with none running it holds the latest task alone. ``task`` (the latest started) stays for older
+    phones."""
     from ..core.models import utcnow
 
     tasks = tasks_from_events(_rows(Path(project_root) / ".harness" / "events.jsonl"), reviewer)
     t = tasks[-1] if tasks else None
-    out: dict[str, Any] = {"project": project, "at": utcnow(), "task": None}
+    out: dict[str, Any] = {"project": project, "at": utcnow(), "task": None, "tasks": []}
     if t:
-        out["task"] = {"id": t["id"], "title": t["title"], "role": t["role"], "status": t["status"],
-                       "cost": t["cost"], "summary": t["summary"][:300],
-                       "steps": [{"kind": s.get("kind"), "line": step_line(s), "error": bool(s.get("error"))}
-                                 for s in t["steps"][-max_steps:]]}
+        out["task"] = compact_task(t, max_steps)
+        last = {u["id"]: u for u in tasks}
+        live = [last[i] for i in running(tasks)]
+        per = max(10, max_steps // max(1, len(live)))
+        out["tasks"] = [compact_task(u, per) for u in live] if live else [out["task"]]
     return _redact_all(out)
