@@ -335,7 +335,7 @@ function lookPart() {
     try { if (v === "system") localStorage.removeItem("rt-theme"); else localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
     if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
   };
-  return card("Look", h("p", { class: "muted small" }, "How Roundtable looks on this computer."),
+  return card("Look", h("p", { class: "muted small" }, "How the harness looks on this computer."),
     seg([["light", "Light", "Warm parchment and oak"], ["dark", "Dark", "The hall by candlelight"], ["system", "Same as this computer", "Follows the computer's light or dark setting"]], now, pick, "Light or dark"));
 }
 

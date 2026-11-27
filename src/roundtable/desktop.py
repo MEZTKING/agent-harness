@@ -26,6 +26,7 @@ from importlib import resources
 from pathlib import Path
 
 from .core import secrets as vault
+from . import brand
 from .brand import NAME, SWITCHED
 
 # Where data and keys live. From 1.0.0 (Darkness Harness) new installs use the new names, and a PC that
@@ -491,7 +492,7 @@ def self_test(paths: Paths) -> int:
         page = urllib.request.urlopen(base + "/", timeout=30).read()
         setup = json.load(urllib.request.urlopen(base + "/api/setup", timeout=30))
         mcp_ok = _mcp_client_present()
-        ok = ov["hub"] and ov["harness"] and b"Roundtable Hold" in page and "keys" in setup and mcp_ok
+        ok = ov["hub"] and ov["harness"] and (brand.NAME.encode() in page or brand.LEGACY_NAME.encode() in page) and "keys" in setup and mcp_ok
         result = json.dumps({"ok": bool(ok), "hub": ov["hub"], "harness": ov["harness"], "mcp_client": mcp_ok,
                              "hub_error": ov.get("hub_error"), "harness_error": ov.get("harness_error"),
                              "secure_keys": setup.get("secure_keys"), "home": str(paths.home)})

@@ -28,7 +28,6 @@ ALLOWED = {
     ("desktop.py", "RoundtableHold"): "the data folder %APPDATA%\\RoundtableHold is never moved",
     ("desktop.py", "Roundtable Hold"): "the key store's old service name, read as a fallback",
     ("desktop.py", "Roundtable Projects"): "an existing projects folder stays where it is",
-    ("automation.py", "Roundtable Projects"): "the same projects folder, as a fallback",
     ("backup.py", "Roundtable backups"): "the folder the backups already live in",
     ("onphone.py", "Roundtable is ready on"): "the line the phone app waits for (its readiness prefix)",
     ("phone.py", "Roundtable Hold on "): "the pinned TLS certificate's name; the phone pins it, so it's never remade",
@@ -40,13 +39,7 @@ ALLOWED = {
 }
 
 # Strings in files another helper of the 1.0.0 rename owns. Remove each line once its file is done.
-PENDING = {
-    ("updater.py", "Roundtable Hold"): "d1-passage (the updater's words and the installer's file name)",
-    ("updater.py", "RoundtableHold-Setup-"): "d1-passage (finds the old installer name too)",
-    ("ui/static/settings.js", "How Roundtable looks on this computer."): "d1-skin (the Look card)",
-    ("ui/static/index.html", "Roundtable Hold"): "d1-skin (the title and the header; app.js sets both from BRAND)",
-    ("ui/static/index.html", "what Roundtable can make"): "d1-skin (the Gallery tab's tip)",
-    ("ui/static/index.html", "what Roundtable has learned"): "d1-skin (the Models tab's tip)",
+PENDING: dict = {
 }
 
 

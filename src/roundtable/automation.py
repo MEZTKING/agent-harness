@@ -781,7 +781,7 @@ def _is_busy(ctx: Ctx, root: Path | None) -> bool:
 def _new_folder(ctx: Ctx, title: str) -> Path:
     from .sync import slug
 
-    base = Path(ctx.projects_dir or settings(ctx.cfg)["projects_dir"] or Path.home() / "Roundtable Projects")
+    base = Path(ctx.projects_dir or settings(ctx.cfg)["projects_dir"] or _default_projects())
     base = base.expanduser()
     name = slug(title, 40)
     p, n = base / name, 2
@@ -1197,3 +1197,9 @@ def main(argv: list[str]) -> None:
         v = view(a, state.get(a["id"]) or {})
         print(f"{a['id']}  {'on ' if a['on'] else 'off'}  {a['name']}\n    {v['what']} {v['when_words']}."
               f"\n    last: {v['last_run'] or 'never'} {v['last_result']}\n    next: {v['next_run'] or '-'}")
+
+
+def _default_projects() -> Path:
+    """The desktop app's projects folder (Darkness Projects, or an existing Roundtable Projects)."""
+    from .desktop import default_projects_dir
+    return Path(default_projects_dir())
