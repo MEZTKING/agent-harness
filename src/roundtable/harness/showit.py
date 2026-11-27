@@ -288,12 +288,41 @@ def _safe_task(task_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "-", task_id).strip(".-") or "task"
 
 
-def _write_record(out_dir: Path, record: dict[str, Any]) -> dict[str, Any]:
+def _write_record(out_dir: Path, record: dict[str, Any], latest: bool = True) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     text = json.dumps(record, indent=1, ensure_ascii=False) + "\n"
     (out_dir / "shots.json").write_text(text, encoding="utf-8")
-    (out_dir.parent / "latest.json").write_text(text, encoding="utf-8")
+    if latest:
+        (shots_root_of(out_dir) / "latest.json").write_text(text, encoding="utf-8")
     return record
+
+
+def shots_root_of(out_dir: Path) -> Path:
+    """The ``.harness/shots`` folder a picture folder is in (a task's, or ``by-commit/<sha>``)."""
+    p = Path(out_dir)
+    for parent in [p, *p.parents]:
+        if parent.name == SHOTS_DIR and parent.parent.name == ".harness":
+            return parent
+    return p.parent
+
+
+def commit_of(root: Path) -> str:
+    """The commit the folder is at when nothing is changed since it (``""`` otherwise, or without git).
+    Roundtable's own ``.harness`` folder doesn't count as a change."""
+    root = Path(root)
+    if not (root / ".git").exists():
+        return ""
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=30,
+                              env=clean_env())
+        if head.returncode != 0:
+            return ""
+        st = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, timeout=30,
+                            env=clean_env())
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    changed = [ln for ln in st.stdout.splitlines() if ln[3:].strip().strip('"').split("/", 1)[0] != ".harness"]
+    return "" if st.returncode != 0 or changed else head.stdout.strip()
 
 
 def _errors(results: list[dict[str, Any]]) -> list[str]:
@@ -306,7 +335,8 @@ def _errors(results: list[dict[str, Any]]) -> list[str]:
     return seen[:20]
 
 
-def _game_shots(root: Path, game: Path, out_dir: Path, record: dict[str, Any], settings: Any) -> dict[str, Any]:
+def _game_shots(root: Path, game: Path, out_dir: Path, record: dict[str, Any], settings: Any,
+                latest: bool = True) -> dict[str, Any]:
     """A Godot game: check it headless, then record it with Movie Maker and keep three frames."""
     record["game"] = "godot"
     record["entry"] = (game.relative_to(root) / "project.godot").as_posix()
@@ -314,7 +344,7 @@ def _game_shots(root: Path, game: Path, out_dir: Path, record: dict[str, Any], s
     godot = godotlib.find_godot(getattr(settings, "path", None))
     if not godot:
         record["note"] = godotlib.NOT_INSTALLED
-        return _write_record(out_dir, record)
+        return _write_record(out_dir, record, latest)
     timeout = int(getattr(settings, "timeout", 120) or 120)
     result = godotlib.check(game, godot, timeout=timeout)
     record["errors"] = list(result["errors"])
@@ -336,27 +366,43 @@ def _game_shots(root: Path, game: Path, out_dir: Path, record: dict[str, Any], s
         record["failed"] = f"the pictures couldn't be taken: {str(e)[:300]}"
     shutil.rmtree(frames_dir, ignore_errors=True)
     record["pictures"] = {k: f"{k}.png" for k in GAME_KINDS if (out_dir / f"{k}.png").is_file()}
-    return _write_record(out_dir, record)
+    return _write_record(out_dir, record, latest)
 
 
 def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
-               godot: Any = None) -> dict[str, Any]:
+               godot: Any = None, out_dir: Path | None = None, latest: bool = True,
+               commit: str | None = None) -> dict[str, Any]:
     """Start the app from its folder, take its pictures, and write ``shots.json``. Never raises.
 
     ``godot`` is the ``godot:`` setting: a project with no web page but a Godot game is started
-    with Godot itself (harness/godot.py), unless the setting turns that off."""
+    with Godot itself (harness/godot.py), unless the setting turns that off.
+
+    ``out_dir`` is where the pictures go (by default ``.harness/shots/<task>/`` of the folder pictured:
+    a task's worktree is pictured into the project's own folder this way); ``latest=False`` leaves
+    ``latest.json`` as it is (pictures for the proof, not yet the Live tab's); ``commit`` is the commit
+    the pictures show (by default the folder's own, or ``""`` when it has changes not committed yet)."""
     root = Path(project_root)
-    out_dir = shots_root(root) / _safe_task(task_id)
-    record: dict[str, Any] = {"task": task_id, "dir": out_dir.name, "at": _now(), "seq": _next_seq(root),
-                              "entry": None, "title": "", "pictures": {}, "errors": [], "note": ""}
+    out_dir = Path(out_dir) if out_dir is not None else shots_root(root) / _safe_task(task_id)
+    base = shots_root_of(out_dir)
+    try:
+        rel = out_dir.relative_to(base).as_posix()
+    except ValueError:
+        rel = out_dir.name
+    if commit is None:
+        try:
+            commit = commit_of(root)
+        except Exception:  # never a reason to fail
+            commit = ""
+    record: dict[str, Any] = {"task": task_id, "dir": rel, "at": _now(), "seq": _next_seq(base.parent.parent),
+                              "commit": commit, "entry": None, "title": "", "pictures": {}, "errors": [], "note": ""}
     entry = entry_page(root)
     game = godotlib.project_dir(root) if not entry and getattr(godot, "enabled", True) else None
     if game is not None:
-        return _game_shots(root, game, out_dir, record, godot)
+        return _game_shots(root, game, out_dir, record, godot, latest)
     if not entry:
         record["note"] = ("nothing to open yet: no index.html (apps started with a command come in a later "
                           "version of Roundtable)")
-        return _write_record(out_dir, record)
+        return _write_record(out_dir, record, latest)
     record["entry"] = entry
     start = start_command(root)
     if start:
@@ -381,7 +427,7 @@ def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
     record["pictures"] = {k: f"{k}.png" for k in kinds if (out_dir / f"{k}.png").is_file()}
     record["errors"] = _errors(results or [])
     record["title"] = next((str(r.get("title") or "") for r in results or [] if r.get("title")), "")[:200]
-    return _write_record(out_dir, record)
+    return _write_record(out_dir, record, latest)
 
 
 def latest(project_root: Path) -> dict[str, Any] | None:
@@ -448,15 +494,23 @@ def hub_files(project_root: Path, record: dict[str, Any], previous: dict[str, An
     old = (previous or {}).get("history") or []
     hist = [h for h in old if h.get("task") != record["task"]]
     gone = [h for h in old if h.get("task") == record["task"]]
+    from . import proof as prooflib  # proof.py uses this module: imported here, not at the top
+
+    try:
+        proof = prooflib.summary(prooflib.read(project_root, record["task"]))
+    except Exception:  # proof is a help; the pictures go anyway
+        proof = None
     if "desktop" in pictures:
         name = f"{_safe_task(record['task'])}-desktop{Path(pictures['desktop']).suffix}"
         files[f"{base}/{name}"] = files[f"{base}/{pictures['desktop']}"]
-        hist.insert(0, {"task": record["task"], "at": record["at"], "title": record.get("title", ""), "picture": name})
+        hist.insert(0, {"task": record["task"], "at": record["at"], "title": record.get("title", ""), "picture": name,
+                        **({"proof": proof["words"]} if proof else {})})
     for h in gone + hist[HUB_KEEP:]:
         if h.get("picture") and f"{base}/{h['picture']}" not in files:
             files[f"{base}/{h['picture']}"] = None
     files[f"{base}/latest.json"] = TextFile(json.dumps({
         "task": record["task"], "at": record["at"], "title": record.get("title", ""), "pictures": pictures,
         "errors": record.get("errors", [])[:10], "note": record.get("note", ""), "history": hist[:HUB_KEEP],
+        **({"proof": proof} if proof else {}),
     }, indent=1, ensure_ascii=False) + "\n")
     return files
