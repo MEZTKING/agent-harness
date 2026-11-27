@@ -690,3 +690,7 @@ button.linkish:hover { color: var(--color-accent); }
 .md-table { overflow-x: auto; margin: 8px 0 14px; }
 .prose.md a { color: var(--color-accent); }
 .prose.md blockquote { border-left: 3px solid var(--color-oak-line); margin: 8px 0; padding-left: 12px; color: var(--color-muted); }
+details.fold-letter > summary { list-style: none; font-weight: 400; }
+details.fold-letter > summary::-webkit-details-marker { display: none; }
+details.fold-letter > summary .letter-line { margin: 0; }
+details.fold-letter[open] > summary { margin-bottom: 8px; }

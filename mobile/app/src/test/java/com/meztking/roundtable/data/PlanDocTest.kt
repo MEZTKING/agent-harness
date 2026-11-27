@@ -60,7 +60,8 @@ class PlanDocTest {
         assertEquals("plan ready: 2 choices (about \$0.17, ~44 min)", d.summaryLine)
         assertEquals("Make a lantern timer, as a web app.", d.title)
         assertEquals("Make a lantern timer, as a web app", d.shortTitle)
-        assertEquals(2, d.intro.size)
+        assertEquals(1, d.intro.size)  // the estimate line is its own: shown only while the plan waits
+        assertTrue(d.estimate.isNotBlank())
     }
 
     @Test fun decisions() {
