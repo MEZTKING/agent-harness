@@ -59,6 +59,7 @@ SETTINGS: tuple[Setting, ...] = (
             "or a web app.", tuple(SWITCH)),
     Setting("show_it", "choice", "auto", "Take pictures of the app's screens after each task. auto: when it has "
             "screens Roundtable can open.", tuple(SWITCH)),
+    Setting("ask_first", "choice", "", "Before a builder runs a command: off (run it), risky (ask only for risky ones) or all (ask every time). Empty: this computer's choice.", ("", "off", "risky", "all")),
     Setting("notes", "text", "", "Anything the planner should know about this project, in your own words."),
 )
 BY_KEY = {s.key: s for s in SETTINGS}
