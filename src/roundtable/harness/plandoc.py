@@ -355,6 +355,9 @@ def history_by_role(metric_files: list[Path]) -> dict[str, dict[str, float]]:
         try:
             for ln in f.read_text(encoding="utf-8").splitlines():
                 d = json.loads(ln)
+                # a rival's extra build (and the winner's row) are the dial's extras, priced on their own
+                if d.get("rival") or d.get("outcome") == "rival_lost":
+                    continue
                 if d.get("role") and d.get("outcome") != "owner_feedback":
                     rows.setdefault(d["role"], []).append(d)
         except (OSError, ValueError):
