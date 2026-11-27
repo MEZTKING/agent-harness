@@ -17,7 +17,9 @@ from roundtable.improve.lab import KINDS, PROPOSAL_KINDS, STATUSES, KindSpec, La
 from .test_harness import RAW, Brain
 from .test_improve import GOOD_PROMPT, make_cfg
 
-OTHER_PROMPT = "You are a tidy engineer. Keep every change small, explain it in one line, and test it first."
+OTHER_PROMPT = ("You are a tidy engineer. Keep every change small and explain it in one line. No placeholders, no "
+                "TODO stubs for required behaviour. Write the tests first and run them with run_command. Then call "
+                "finish_task with what you changed.")
 
 
 def _p(kind, change, role="coder", pid=""):
@@ -108,7 +110,7 @@ def test_a_registered_kind_without_a_role_applies_and_undoes(tmp_path):
         p = lab.add_proposal(Proposal(id="", kind="tool-test", role="", change={"name": "count_lines"}, rationale="r"))
         p.validate(cfg)  # no role needed
         assert p.summary() == "tool-test              count_lines"
-        lab.apply(p, cfg)
+        lab.apply(p, cfg, by_owner=True)  # a kind the charter doesn't know waits for the owner's tap
         assert lab.learned()[0] == {"tools": ["count_lines"]}
         lab.undo(p.id, cfg=cfg)
         assert lab.learned()[0] == {}
@@ -169,7 +171,7 @@ def test_two_undos_in_turn_never_bring_the_first_back(tmp_path):
 def test_undo_keeps_changes_applied_after_an_earlier_undo(tmp_path):
     cfg, lab = make_cfg(tmp_path)
     a = lab.add_proposal(_p("routing", {"models": ["b/coder2"]}))
-    b = lab.add_proposal(_p("options", {"options": {"x": 1}}))
+    b = lab.add_proposal(_p("options", {"options": {"temperature": 0.4}}))
     lab.apply(a, cfg)
     lab.undo(a.id, cfg=cfg)
     lab.apply(b, cfg)
@@ -266,8 +268,10 @@ def test_the_stubs_keep_their_frozen_answers(tmp_path):
     cfg, lab = make_cfg(tmp_path)
     p = _p("prompt", {"prompt_text": GOOD_PROMPT})
     assert charter.check(cfg, p, lab) is None and charter.may_auto(p) and not charter.may_auto(_p("tool", {}))
-    assert charter.may_touch("src/x.py") and charter.fixed_block("coder") == "" and charter.scrub("a b") == "a b"
-    assert charter.diff("a", "b") == [] and issubclass(charter.CharterError, ValueError)
+    # the charter is filled in (Helper 4): its own answers are in tests/test_charter.py
+    assert charter.may_touch("src/x.py") and charter.fixed_block("coder") and charter.scrub("a b") == "a b"
+    assert charter.diff("a", "b") == [{"op": "gone", "text": "a"}, {"op": "new", "text": "b"}]
+    assert issubclass(charter.CharterError, ValueError)
     assert charter.CharterError.needs_owner is False
     assert wallet.allowance(cfg) == 0 and wallet.left(cfg, lab) == 0 and wallet.spent_today(lab) == 0
     with pytest.raises(wallet.AllowanceUsed):
@@ -294,10 +298,14 @@ class Seen(Brain):
         return super().__call__(model, system, messages, tools)
 
 
+class Bare(Orchestrator):
+    SYSTEM_PARTS = ()  # no stage's part, whichever stages are in the bases
+
+
 def test_a_bare_orchestrators_system_prompts_are_as_before(tmp_path):
     brain = Seen()
     cfg, _ = make_cfg(tmp_path, brain=brain)
-    orch = Orchestrator(cfg, tmp_path / "p")
+    orch = Bare(cfg, tmp_path / "p")
     for text in ("x", "You plan.", ""):
         assert orch._system(text, "coder") == orch._with_repo_rules(text)
     orch.start("a goal")
@@ -345,6 +353,8 @@ def test_a_failing_hook_is_reported_to_the_fault_seam(tmp_path):
     faults = []
 
     class O(om.Orchestrator):
+        SYSTEM_PARTS = ("_style_system",)  # only the broken part (the charter's own is in the bases later)
+
         def _style_system(self, name):
             raise RuntimeError("broken style")
 
