@@ -110,7 +110,9 @@ class RoleSpec:
 FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compaction", "memory", "workers",
                     "parallel", "rewind", "attachments", "retention", "websearch", "proof", "kinds",
                     "terminal", "money", "discovery", "prep", "finish", "unstick", "stages", "playtest", "ship",
-                    "tandem", "router", "panel", "rivals", "council", "usage", "agents")
+                    "tandem", "router", "panel", "rivals", "council", "usage", "agents",
+                    # wave 7 (it learns)
+                    "sandbox", "style", "skills", "market", "recall", "documents", "selfrepair", "learning")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:
@@ -397,6 +399,9 @@ def save_custom(harness_path: Path, data: dict[str, Any]) -> None:
         + yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
+IMPROVE_PATH_KEYS = ("lab_dir", "probes_file")  # read against harness.yaml's folder, so never from custom.yaml
+
+
 def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
     """custom.yaml adds providers (harness.yaml wins on a name clash) and overrides role models."""
     if not custom:
@@ -414,6 +419,10 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
     out["roles"] = roles
     if custom.get("limits"):
         out["limits"] = {**(raw.get("limits") or {}), **custom["limits"]}
+    if isinstance(custom.get("improve"), dict) and custom["improve"]:
+        # the app's own learning choices (the allowance, what may apply by itself); paths stay harness.yaml's
+        mine = {k: v for k, v in custom["improve"].items() if k not in IMPROVE_PATH_KEYS}
+        out["improve"] = {**(raw.get("improve") or {}), **mine}
     if custom.get("plugins"):
         out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
     if custom.get("default_profile") and custom["default_profile"] in (raw.get("profiles") or {}):
