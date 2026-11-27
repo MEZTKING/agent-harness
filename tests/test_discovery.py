@@ -9,6 +9,8 @@ import pytest
 from roundtable import discovery
 from roundtable.discovery import Responder, bound_code, code_matches, is_private, reply_for
 
+from .test_roundtable import setup  # noqa: F401  (fixture)
+
 FP = "ab" * 32
 OTHER = "cd" * 32
 
@@ -150,3 +152,43 @@ def test_find_skips_bad_answers():
         found = discovery.find(0.6, targets=(fake.getsockname(),))
         t.join()
     assert [f["name"] for f in found] == ["ok"]
+
+
+# -- the hook-up lines for phone.py, applied to a subclass until the coordinator adds them ------------
+def test_hook_up_lines_on_the_phone_server(setup, tmp_path):  # noqa: F811
+    from roundtable.phone import PhoneAccess, cert_fingerprint
+
+    class Hooked(PhoneAccess):
+        def start(self):
+            super().start()
+            if self.httpd:  # the hook: `self._beacon = discovery.Responder(...).start()` (test port: any free one)
+                self._beacon = discovery.Responder(self.name, self.port, cert_fingerprint(self.cert),
+                                                   listen_port=0, host="127.0.0.1").start()
+
+        def stop(self):
+            super().stop()
+            if getattr(self, "_beacon", None):  # the hook: `self._beacon.stop()`
+                self._beacon.stop()
+
+        def start_pairing(self):
+            out = super().start_pairing()
+            code = discovery.bound_code(cert_fingerprint(self.cert))  # the hook in start_pairing
+            self._pairing["code"] = code
+            return self.status()["pairing"]
+
+    app = setup[0]
+    p = Hooked(app, tmp_path / "home", name="made-up-pc")
+    p.enable(port=0)
+    try:
+        fp = cert_fingerprint(p.cert)
+        answer = json.loads(_ask(p._beacon.address))
+        assert answer == {"v": 1, "name": "made-up-pc", "port": p.port, "fp": fp}
+        pairing = p.start_pairing()
+        assert code_matches(pairing["code"], fp)
+        assert f"&c={pairing['code']}&" in pairing["uri"]
+        assert p.claim(pairing["code"], "Made-up Phone")["token"]  # the PC still takes the whole code
+        addr = p._beacon.address
+        p.disable()  # phone access off: no more answers
+        assert not p._beacon.running and _ask(addr, wait=0.3) is None
+    finally:
+        p.stop()
