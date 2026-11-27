@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -108,6 +109,8 @@ fun TableScreen(
     onAutopilot: (on: Boolean, until: String, cap: Double?) -> Unit = { _, _, _ -> },
     onMarkAllRead: (List<NeedView>) -> Unit = {},
     onNotes: (() -> Unit)? = null,
+    onSearch: (() -> Unit)? = null,
+    onNewIdea: (() -> Unit)? = null,
 ) {
     val data = hall.data
     var showAutopilot by rememberSaveable { mutableStateOf(false) }
@@ -117,7 +120,7 @@ fun TableScreen(
     // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
     val waits = remember(needs) { NeedsOrder.organise(needs).associate { it.project to it.summary } }
     Column(Modifier.fillMaxSize()) {
-        Header(whereLabel, mode, hall.loading, onRefresh, onNotes)
+        Header(whereLabel, mode, hall.loading, onRefresh, onNotes, onSearch, onNewIdea)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
         UpdateBanner(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
@@ -175,7 +178,8 @@ fun TableScreen(
 }
 
 @Composable
-private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null) {
+private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null,
+                   onSearch: (() -> Unit)? = null, onNewIdea: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         TableMark(Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
@@ -187,7 +191,9 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
                 Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        if (onNewIdea != null) TextButton(onClick = onNewIdea) { Text("+ New idea", color = Hall.gold) }
         if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold) }
+        if (onSearch != null) IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search everything", tint = Hall.gold) }
         IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
     }
 }
