@@ -1,23 +1,23 @@
 {
  "events": [
   {
-   "at": "2026-11-27T13:54:05Z",
+   "at": "2026-11-27T16:28:24Z",
    "text": "Planning with a/planner..."
   },
   {
-   "at": "2026-11-27T13:54:05Z",
+   "at": "2026-11-27T16:28:24Z",
    "text": "      - submit_plan {\"tasks\": [{\"id\": \"T1\", \"title\": \"hello module\", \"role\": \"coder\", \"description\": \"create hello.py\", \"acceptance\": \"hello.py prints hi\", \"dep"
   },
   {
-   "at": "2026-11-27T13:54:05Z",
+   "at": "2026-11-27T16:28:24Z",
    "text": "Plan:\n   T1 [coder] hello module\n   T2 [designer] logo\n   T3 [coder] tests"
   },
   {
-   "at": "2026-11-27T13:54:05Z",
+   "at": "2026-11-27T16:28:24Z",
    "text": "[status: awaiting_approval]"
   },
   {
-   "at": "2026-11-27T13:54:05Z",
+   "at": "2026-11-27T16:28:24Z",
    "text": "[status: awaiting_approval]"
   }
  ],
@@ -26,7 +26,7 @@
   "README.md"
  ],
  "meta": {
-  "created_at": "2026-11-27T13:54:05Z",
+  "created_at": "2026-11-27T16:28:24Z",
   "goals": [
    "bakery site"
   ],
@@ -62,7 +62,7 @@
   "spent_usd": 0.00012,
   "status": "awaiting_approval",
   "unpriced_calls": 0,
-  "updated_at": "2026-11-27T13:54:05Z"
+  "updated_at": "2026-11-27T16:28:24Z"
  },
  "metrics": [],
  "name": "proj",
@@ -71,18 +71,25 @@
  "tasks": [
   {
    "acceptance": "hello.py prints hi",
+   "added_by": "",
    "attempts": [],
    "base_commit": null,
    "depends_on": [],
    "description": "create hello.py",
+   "files": [],
+   "fix_of": "",
    "goal_index": 0,
+   "handoff_from": "",
    "id": "T1",
    "image_options": {},
    "merge_of": "",
    "output_path": "",
+   "parked": "",
+   "part": "",
    "previous_attempts": [],
    "role": "coder",
    "section": "",
+   "stage": "",
    "status": "pending",
    "stronger": false,
    "summary": "",
@@ -90,18 +97,25 @@
   },
   {
    "acceptance": "png exists",
+   "added_by": "",
    "attempts": [],
    "base_commit": null,
    "depends_on": [],
    "description": "a bakery logo",
+   "files": [],
+   "fix_of": "",
    "goal_index": 0,
+   "handoff_from": "",
    "id": "T2",
    "image_options": {},
    "merge_of": "",
    "output_path": "assets/logo.png",
+   "parked": "",
+   "part": "",
    "previous_attempts": [],
    "role": "designer",
    "section": "",
+   "stage": "",
    "status": "pending",
    "stronger": false,
    "summary": "",
@@ -109,20 +123,27 @@
   },
   {
    "acceptance": "tests pass",
+   "added_by": "",
    "attempts": [],
    "base_commit": null,
    "depends_on": [
     "T1"
    ],
    "description": "add test",
+   "files": [],
+   "fix_of": "",
    "goal_index": 0,
+   "handoff_from": "",
    "id": "T3",
    "image_options": {},
    "merge_of": "",
    "output_path": "",
+   "parked": "",
+   "part": "",
    "previous_attempts": [],
    "role": "coder",
    "section": "",
+   "stage": "",
    "status": "pending",
    "stronger": false,
    "summary": "",

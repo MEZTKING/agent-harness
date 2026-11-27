@@ -23,9 +23,25 @@ roundtable ui              # the same, in a web UI
    - click **Start**.
 4. Everything can be changed later under **Settings**: keys, the hub, which model does which role, prices and limits.
 
-The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs you is lit by a candle. It follows your computer's light or dark setting; pick one under **Settings → Look**.
+The app's look is **Eclipse**: a dark ring of lights, one for each project, round an eclipse; the one that needs you flares orange. There are three themes – Eclipse, Pitch (true black) and Ash (light) – under **Settings → Look**.
 
-The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
+The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\DarknessHarness` (or `%APPDATA%\RoundtableHold` if you had the app before 1.0.0) and is kept if you uninstall.
+
+### What's new in 1.0.0
+
+Roundtable Hold is now Darkness Harness. Everything you have stays.
+
+- **A new name**: Darkness Harness on the PC, Darkness on the phone. Your projects, keys, hub, settings and
+  phone pairing are kept exactly where they were.
+- **A new look, Eclipse**: Home is a ring of lights round an eclipse, one light for each project; the one
+  that needs you flares orange. Three themes under **Settings → Look**: Eclipse, Pitch (true black) and
+  Ash (light). New letters (Space Grotesk, Inter and JetBrains Mono) and new art, icon and emblem.
+- **A taskbar pin you made yourself keeps working**: the old app file now just opens the new one.
+- **The phone through the firewall**: after this silent update, Windows may ask once to let the phone reach
+  the PC. Press **Yes**. It only asks on PCs that had the old firewall rules.
+- **The phone app updates in place** and stays paired: same app, new name and look.
+- **Windows SmartScreen may ask again** ("Windows protected your PC"), because the app's file name changed.
+  Click **More info → Run anyway**, as before.
 
 ### What's new in 0.12.0
 
