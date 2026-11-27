@@ -9,6 +9,30 @@ The harness's own model switches are in the hub journal as decisions ("Switched 
 
 ## 2026-11-27
 
+- **Wave 6 (1.2.0, "every model at once"): Fable's advice on its big questions, followed.**
+  - *How much extra checking costs:* three levels – Lean (as today), Balanced (the default: a second
+    builder on hard tasks and a second checker on hard and risky ones, about a fifth more, capped near a
+    third more), Maximum (only by your own tap per project: about two to two and a half times, with both
+    prices shown before you confirm). Extra checking gets its own share of the agreed money and falls back
+    to the usual way when that is used. Autopilot never changes the level.
+  - *Maximum's planning* (three planners and a chair) costs about three and a half times today's planning:
+    shown where you choose Maximum, capped at $1.50 a plan.
+  - *Trying models nobody has used yet:* easy tasks only, at most one task in ten and 50 cents a goal, only
+    priced models no dearer than 1.5 times the usual one, with the usual model behind each try.
+  - *Privacy – more companies see each project:* a new setting "Only models made by these companies",
+    honoured by everything; two holes fixed now ("only these services" didn't limit the companies behind
+    OpenRouter; replay tests ignored a project's list). Each project shows "Who has seen this project".
+  - *Faces for named agents:* six starter faces from the picture model, capped at $3 in all.
+  - *An agent's memory crosses projects:* on for ordinary projects, off for projects with an allowed list
+    or your own repositories unless you switch it on there. An agent file from someone else: files only,
+    text and pictures, its notes shown in full before you confirm, model choices never imported.
+  - *A checker from the same company as the builder:* a warning, not a refusal (an all-DeepSeek set-up
+    must still work). *A rejection that quotes nothing:* asked once to quote the line, then a second
+    company decides; never turned into a pass by itself.
+  - *Wording:* the model sets and the checking level are always labelled ("Models: Balanced · Checking:
+    Balanced"). *Nothing deletes:* attempts not chosen keep their branch and a small patch; the Tidy page
+    lists them with a Clear button only you press.
+
 - **Darkness Harness 1.1.0 is put together and ready** (not released yet): the done list, stages, trying what
   it built and fixing what breaks, stuck tasks worked out, money limits, play-testing and real builds. Small
   choices made for you while putting it together, all reversible:
