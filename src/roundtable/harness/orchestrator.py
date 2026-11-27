@@ -76,6 +76,20 @@ class HarnessError(RuntimeError):
 _IO_LOCK = threading.RLock()  # several tasks at once write the same .harness files (worktrees.py)
 
 
+def _retry_windows(fn, tries: int = 20, wait: float = 0.05):
+    """Run fn, retrying a PermissionError for about a second: Windows refuses to open or replace a file
+    that another process is replacing or reading at that moment (Linux allows both)."""
+    import time as _time
+
+    for i in range(tries):
+        try:
+            return fn()
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            _time.sleep(wait)
+
+
 class Project:
     """Persistent state of one project directory."""
 
@@ -89,14 +103,17 @@ class Project:
 
     def _read(self, name: str, default):
         p = self.dir / name
-        return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else default
+        # under the same lock as _write: on Windows a file can't be opened while it is being replaced
+        # (another thread of this run), and another process (the app) may be replacing it: retry briefly
+        with _IO_LOCK:
+            return _retry_windows(lambda: json.loads(p.read_text(encoding="utf-8")) if p.is_file() else default)
 
     def _write(self, name: str, data) -> None:
         with _IO_LOCK:
             self.dir.mkdir(parents=True, exist_ok=True)
             tmp = self.dir / f".{name}.tmp"
             tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            tmp.replace(self.dir / name)
+            _retry_windows(lambda: tmp.replace(self.dir / name))
 
     def meta(self) -> dict[str, Any]:
         return self._read("project.json", {})
