@@ -57,7 +57,7 @@ fun styled(s: String, codeBg: Color = Hall.code, codeFg: Color = Hall.goldBright
             is Inline.Plain -> append(span.text)
             is Inline.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(span.text) }
             is Inline.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(span.text) }
-            is Inline.Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, background = codeBg, color = codeFg)) {
+            is Inline.Code -> withStyle(SpanStyle(fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, background = codeBg, color = codeFg)) {
                 append(" ${span.text} ")
             }
             is Inline.Link -> withLink(LinkAnnotation.Url(span.url, TextLinkStyles(SpanStyle(color = link, textDecoration = TextDecoration.Underline)))) {
@@ -115,7 +115,7 @@ fun MdBlocks(blocks: List<Md>, modifier: Modifier = Modifier) {
             }
             is Md.Code -> Box(Modifier.fillMaxWidth().background(Hall.code, RoundedCornerShape(5.dp))
                 .border(1.dp, Hall.line, RoundedCornerShape(5.dp)).horizontalScroll(rememberScrollState()).padding(10.dp)) {
-                Text(b.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = Hall.text)
+                Text(b.text, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, color = Hall.text)
             }
             is Md.Table -> Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 b.rows.forEachIndexed { i, row ->
@@ -173,7 +173,7 @@ fun Chip(text: String, color: Color, mono: Boolean = false, filled: Boolean = fa
             .padding(horizontal = 6.dp, vertical = 1.dp),
         color = if (filled) Hall.on(color) else color,
         fontSize = 11.sp,
-        fontFamily = if (mono) FontFamily.Monospace else com.meztking.roundtable.ui.theme.NunitoSans,
+        fontFamily = if (mono) com.meztking.roundtable.ui.theme.Mono else com.meztking.roundtable.ui.theme.Inter,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
     )

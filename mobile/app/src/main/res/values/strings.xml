@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Roundtable</string>
+    <!-- The launcher label (Brand.SHORT); the app inside says Brand.NAME, "Darkness Harness" -->
+    <string name="app_name">Darkness</string>
 </resources>

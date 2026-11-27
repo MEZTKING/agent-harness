@@ -138,7 +138,7 @@ fun ReceiptRow(g: ReceiptGroup, open: Boolean, onClick: () -> Unit) {
         .border(1.dp, Hall.line, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(g.line, style = MaterialTheme.typography.bodyMedium, color = Hall.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text((if (open) "Tap to fold them away" else "Roundtable's receipts: tap to see each one") + " · " + ago(g.at),
+            Text((if (open) "Tap to fold them away" else "The harness's receipts: tap to see each one") + " · " + ago(g.at),
                 style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
     }
@@ -184,7 +184,7 @@ fun MessageSheet(m: Message, identity: String, plan: PlanDoc? = null, onDismiss:
                 Text(p.text, style = MaterialTheme.typography.bodyLarge)
                 TextButton({ details = !details }) { Text(if (details) "Hide details" else "Show details") }
                 if (details) SelectionContainer {
-                    Text(m.body, style = MaterialTheme.typography.bodySmall, color = Hall.muted, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    Text(m.body, style = MaterialTheme.typography.bodySmall, color = Hall.muted, fontFamily = com.meztking.roundtable.ui.theme.Mono)
                 }
             } else SelectionContainer {
                 MdBlocks(com.meztking.roundtable.data.Markdown.parse(m.body))

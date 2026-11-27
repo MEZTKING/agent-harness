@@ -151,7 +151,7 @@ fun ComposerBox(
             ) {
                 Text("FILES IN THE PROJECT", style = Label, modifier = Modifier.padding(6.dp))
                 ui.atFiles.take(8).forEach { f ->
-                    Text(f, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, color = Hall.text, maxLines = 1,
+                    Text(f, fontFamily = com.meztking.roundtable.ui.theme.Mono, style = MaterialTheme.typography.bodySmall, color = Hall.text, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().clickable { onAtPick(f) }.padding(8.dp))
                 }
             }
@@ -383,7 +383,7 @@ fun NewIdeaContent(connected: Boolean, notice: String?, onBack: () -> Unit, box:
         Text("Write it, say it, add photos. The planner makes a plan for you to check; nothing is built until you approve it. " +
             "Making the plan costs a little, usually a few cents.", color = Hall.muted)
         if (connected) box()
-        else Text("New ideas with photos need your PC or Roundtable on this phone. Connect one in Settings → Connections.", color = Hall.warn)
+        else Text("New ideas with photos need your PC or the harness on this phone. Connect one in Settings → Connections.", color = Hall.warn)
         if (notice != null) Text(notice, color = Hall.bad)
     }
 }

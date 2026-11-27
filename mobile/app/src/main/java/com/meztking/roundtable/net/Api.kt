@@ -80,7 +80,7 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         } catch (e: ApiException) {
             throw e
         } catch (e: IOException) {
-            throw ApiException(if (e.message?.startsWith("refused") == true || e.message?.startsWith("Roundtable") == true) e.message!!
+            throw ApiException(if (e.message?.startsWith("refused") == true || e.message?.startsWith("Roundtable") == true || e.message?.startsWith("Darkness") == true) e.message!!
                 else "Roundtable on this phone isn't answering. Open Settings, Harness on this phone, and press Restart.", 0)
         }
     }

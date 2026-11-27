@@ -138,7 +138,7 @@ fun SearchView(
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!available) {
-                item { Text("Search needs your PC, or Roundtable on this phone. Connect one in Settings.", color = Hall.muted,
+                item { Text("Search needs your PC, or the harness on this phone. Connect one in Settings.", color = Hall.muted,
                     modifier = Modifier.padding(vertical = 24.dp)) }
                 return@LazyColumn
             }
@@ -207,7 +207,7 @@ fun SearchOpened(hit: SearchHit, opened: Load<Opened>, onBack: () -> Unit) {
                     if (o.peek.words.isNotBlank()) item { Text(o.peek.words, color = Hall.muted) }
                     items(o.peek.lines.size) { i ->
                         val n = o.peek.from + i
-                        Text("${n.toString().padStart(4)}  ${o.peek.lines[i]}", fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                        Text("${n.toString().padStart(4)}  ${o.peek.lines[i]}", fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp,
                             color = if (n == o.peek.line) Hall.goldBright else Hall.text,
                             fontWeight = if (n == o.peek.line) FontWeight.Bold else FontWeight.Normal)
                     }

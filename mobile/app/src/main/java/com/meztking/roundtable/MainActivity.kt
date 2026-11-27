@@ -389,7 +389,7 @@ private fun CrashCard(details: String, onSend: () -> Unit, onTryAgain: () -> Uni
         Modifier.fillMaxSize().padding(20.dp).androidx_verticalScroll(),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
     ) {
-        Text("Roundtable closed unexpectedly last time", color = Hall.text, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+        Text("${Brand.NAME} closed unexpectedly last time", color = Hall.text, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
         Text("Sorry about that. To stop it happening again straight away, nothing has loaded yet. " +
             "Send the details to your PC so it can be fixed, then try again.", color = Hall.muted)
         androidx.compose.material3.Button(onClick = onSend, modifier = Modifier.fillMaxWidth(),

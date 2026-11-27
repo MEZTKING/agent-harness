@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -110,7 +112,7 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
             Text("ABOUT", style = Label)
             Spacer(Modifier.height(8.dp))
             UpdateAbout()
-            Text("Released with Roundtable Hold of the same version.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+            Text("Released with ${Brand.NAME} of the same version.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -120,7 +122,7 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
             onDismissRequest = { confirm = null },
             title = { Text(if (what == "pc") "Unpair this phone?" else "Remove the GitHub token?") },
             text = {
-                Text(if (what == "pc") "The phone forgets your PC. To use it again, pair again from Roundtable Hold. You can also remove this phone there."
+                Text(if (what == "pc") "The phone forgets your PC. To use it again, pair again from ${Brand.NAME}. You can also remove this phone there."
                 else "The phone forgets the token. Delete it on GitHub too if you no longer need it.")
             },
             confirmButton = {

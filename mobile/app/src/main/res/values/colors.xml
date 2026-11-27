@@ -1,6 +1,7 @@
 <resources>
-    <!-- Candlelit Oak: the dark background and the candle accent (design tokens) -->
-    <color name="ink">#FF1B1410</color>
-    <color name="gold">#FFE8A33D</color>
-    <color name="oak_light">#FFF6EBD8</color>
+    <!-- Eclipse: the floor the app starts on (design tokens, the same as the desktop's) -->
+    <color name="eclipse_background">#FF0A0A0F</color>
+    <color name="eclipse_accent">#FFA78BFA</color>
+    <!-- the launcher icon's background (mipmap-anydpi-v26/ic_launcher.xml reads it by this name) -->
+    <color name="ink">#FF0A0A0F</color>
 </resources>

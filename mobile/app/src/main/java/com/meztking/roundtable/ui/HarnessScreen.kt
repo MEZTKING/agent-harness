@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -140,8 +142,8 @@ fun HarnessScreen(onBack: () -> Unit, onSetUp: () -> Unit, vm: RuntimeViewModel 
             title = { Text("Log") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text("The secret Roundtable uses is hidden.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
-                    Text(text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                    Text("The secret ${Brand.NAME} uses is hidden.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+                    Text(text, fontFamily = com.meztking.roundtable.ui.theme.Mono, style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = { TextButton(onClick = { vm.showLog(false) }) { Text("Close") } },
@@ -152,10 +154,10 @@ fun HarnessScreen(onBack: () -> Unit, onSetUp: () -> Unit, vm: RuntimeViewModel 
     confirm?.let { what ->
         AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text(if (what == "remove") "Remove Roundtable from this phone?" else "Delete everything?") },
+            title = { Text(if (what == "remove") "Remove ${Brand.NAME} from this phone?" else "Delete everything?") },
             text = {
-                Text(if (what == "remove") "The download goes (it can be set up again). Your projects and Roundtable's settings stay."
-                else "Roundtable, your projects on this phone and its settings, keys included, are deleted. This can't be undone.")
+                Text(if (what == "remove") "The download goes (it can be set up again). Your projects and its settings stay."
+                else "${Brand.NAME}, your projects on this phone and its settings, keys included, are deleted. This can't be undone.")
             },
             confirmButton = {
                 TextButton(onClick = { vm.remove(keepProjects = what == "remove"); confirm = null }) {
@@ -178,10 +180,10 @@ private fun KeepRunning(onChanged: () -> Unit) {
     Panel(Modifier.fillMaxWidth()) {
         Text("KEEP IT RUNNING", style = Label)
         Spacer(Modifier.height(6.dp))
-        Text("Android stops apps in the background. These keep Roundtable building while the phone is locked.",
+        Text("Android stops apps in the background. These keep ${Brand.NAME} building while the phone is locked.",
             style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         Spacer(Modifier.height(8.dp))
-        Check(notifications, "Notifications on", "So Android lets Roundtable keep its \"running\" notice.", "Turn on") {
+        Check(notifications, "Notifications on", "So Android lets ${Brand.NAME} keep its \"running\" notice.", "Turn on") {
             ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
             onChanged()
         }
@@ -193,7 +195,7 @@ private fun KeepRunning(onChanged: () -> Unit) {
         if (strictMaker(maker)) {
             Text(if (maker.equals("oppo", true) || maker.equals("realme", true) || maker.equals("oneplus", true))
                 "On OPPO phones (ColorOS) also: in the app's settings, Battery, turn on Allow background activity; and in Recent apps, " +
-                    "pull Roundtable down to lock it. Step by step:"
+                    "pull ${Brand.NAME} down to lock it. Step by step:"
             else "Your phone's maker adds its own battery saver. Step by step:", style = MaterialTheme.typography.bodySmall)
         } else Text("Some phones add their own battery saver. Step by step:", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         TextButton(onClick = {
@@ -224,12 +226,12 @@ fun RuntimeUpdate(check: RuntimeCheck?, busy: Boolean, onCheck: () -> Unit, onUp
         Text("UPDATES", style = Label)
         Spacer(Modifier.height(8.dp))
         when (check) {
-            null -> Text("Roundtable on this phone is updated separately from the app.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+            null -> Text("The harness on this phone is updated separately from the app.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             RuntimeCheck.Checking -> Text("Checking…", color = Hall.muted)
             is RuntimeCheck.UpToDate -> Text("You have the newest one" + (if (check.version.isNotBlank()) " (${check.version})." else "."), color = Hall.good)
             is RuntimeCheck.Newer -> {
                 Text("A newer one is ready" + (if (check.version.isNotBlank()) ": ${check.version}" else "") + ", ${RuntimeFailure.mb(check.bytes)} to download.")
-                Text("Roundtable stops for a moment while it swaps over, then starts again. Your projects and keys stay.",
+                Text("${Brand.NAME} stops for a moment while it swaps over, then starts again. Your projects and keys stay.",
                     style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             }
             is RuntimeCheck.Problem -> Text(check.text, color = Hall.bad, style = MaterialTheme.typography.bodySmall)
