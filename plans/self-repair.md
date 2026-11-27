@@ -1,5 +1,15 @@
 # A harness that repairs itself (future plan)
 
+**Built in 1.3.0 (wave 7, `improve/selfrepair.py`):** off until the owner says yes once. A fault inside the
+harness's own code is noted by its shape only (`<home>/faults.jsonl`, no paths or quoted text); at three of the
+same fault on the version in use, one card in Needs you asks "Try a fix for up to $1.50?". On yes it works on a
+copy of its own repository on a branch `selfrepair/<fault>`, as a normal project; then every changed path must
+pass `charter.may_touch` (never the gate, keys, money, makers, the charter, the box or the release files), a test
+must have been added and the whole suite must pass (run with the app's own Python when frozen, `pyexec.py`).
+Only then a draft pull request is opened with the owner's GitHub key, and a card gives the link. It never merges:
+the module has no merge call, and a test reads its source to be sure. Not yet tried for real (it costs money and
+needs a GitHub key that may write to the repository).
+
 The owner (26 November 2026): "In future I want this harness to fix itself – a self-regenerating
 harness. If there are any problems it can fix itself: an API model is down, or a model has been
 changed silently or behaves differently, and the harness should figure that out." Not now; this

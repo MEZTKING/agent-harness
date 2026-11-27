@@ -18,12 +18,12 @@ code, for builders.
 
 | Project | Features | Have | Partly | Missing | Not wanted |
 |---|---|---|---|---|---|
-| Munder Difflin | 92 | 55 | 20 | 9 | 8 |
-| DSH Mobile + the DeepSeek Harness | 80 | 54 | 14 | 5 | 7 |
-| **Both** | **172** | **109** | **34** | **14** | **15** |
+| Munder Difflin | 92 | 60 | 18 | 6 | 8 |
+| DSH Mobile + the DeepSeek Harness | 80 | 56 | 14 | 3 | 7 |
+| **Both** | **172** | **116** | **32** | **9** | **15** |
 
-*Statuses refreshed for 1.2.0 (27 November 2026), after waves 1–6 (wave 6: MD-05, MD-46 and MD-47 to Have,
-MD-06 widened to agents); each changed row names its wave or release. When
+*Statuses refreshed for 1.3.0 (27 November 2026), after waves 1–7 (wave 7: MD-27, MD-56, MD-59, MD-60, MD-85,
+DS-63 and DS-64 to Have; wave 6: MD-05, MD-46 and MD-47 to Have, MD-06 widened to agents); each changed row names its wave or release. When
 this list was first written (0.9.0) the count was 47 have, 55 partly, 55 missing.*
 
 In one sentence: Roundtable is ahead on planning, proof, money and the phone-and-PC link, and behind
@@ -70,7 +70,7 @@ it's first in the ranking below.
 | MD-24 | Handoff per piece of work | Each agent writes what it did, so the next one picks up | `src/shared/handoff.ts`, `src/main/handoffJob.ts` | **Have** (wave 5): every retry, split or re-plan of a stuck task gets a written handover (attempts, last review, files changed, what's left) that the next worker reads (`harness/handoff.py`, `unstick.py`); also the hub journal and the repo's HANDOFF as before |
 | MD-25 | A clean start when work changes | Handoff, then clear, when an agent switches to other work | `src/shared/switchClear.ts` | **Have** by design: each task starts a new conversation |
 | MD-26 | Compaction | Old turns summarised when a conversation gets big | `src/shared/contextTriggerDecide.ts`, `src/core/contextTriggerTimer.ts` | **Have**: a long task's older steps summed up (built-in plugin `compactor`, wave 2) |
-| MD-27 | House response style, editable | Every agent answers short, factual, plain; you can edit the rules | `src/shared/responseStyle.ts`, `components/ResponseStyleSection.tsx` | **Partly**: prompts in code plus learned prompts (`improve/lab.py`); no "house style" box in Settings |
+| MD-27 | House response style, editable | Every agent answers short, factual, plain; you can edit the rules | `src/shared/responseStyle.ts`, `components/ResponseStyleSection.tsx` | **Have** (1.3.0, wave 7): a house style box in Settings → How agents write (on by default, short and plain, up to 1,200 characters, shared between your machines), added to every agent's instructions; learning never edits it (`harness/housestyle.py`, `charterstage.py`, `ui/styleapi.py`, `static/housestyle.js`) |
 | MD-28 | Several floors (windows) | Separate groups of agents side by side | CHANGELOG "Multi-window floors" | **Have** (another form): every project is a seat in the Hall (`ui/hall.py`) |
 
 ### Watching the work
@@ -114,11 +114,11 @@ it's first in the ranking below.
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
 | MD-55 | Each agent's own memory | Read at start, added to as it learns | `hive/agents/<id>/memory.md`, `src/main/memory.ts` | **Partly**: a memory for each project and for this computer (`memory.py`, wave 2); none for a named agent |
-| MD-56 | Shared semantic memory search | "What did we decide about X?" across everything | `src/main/memory.ts` (MemPalace) | **Missing** |
+| MD-56 | Shared semantic memory search | "What did we decide about X?" across everything | `src/main/memory.ts` (MemPalace) | **Have** (1.3.0, wave 7): search by meaning, on this computer (word scores with related words and look-alikes, no network, no key): Search → Ask quotes its sources, the price shown first; a maker's embeddings optional (not built yet) (`recall.py`, `ui/recallapi.py`, `static/recall.js`) |
 | MD-57 | Text search over plans, tasks and memory | Find any word in the office's files | `components/MemoryPanel.tsx` | **Have**: one search over plans, tasks, journal, letters, memory, notes and files (`search.py`, wave 2) |
 | MD-58 | Memory kept small without a model | Old notes move word for word to an archive that's searched | `src/main/reflect.ts`, `memoryIndex.ts` | **Missing** |
-| MD-59 | Memory graph | Who talks to whom, who knows what, as a picture | `components/MemoryGraphPanel.tsx`, `MEMORY_GRAPH_SPEC.md` | **Missing** |
-| MD-60 | Knowledge base of your own documents | Agents look up your facts instead of guessing | `src/main/knowledge.ts`, `kg-core.cjs` | **Partly**: "Make it like this" reads links and repos (`harness/refstage.py`, `scout.py`); no store of your own documents |
+| MD-59 | Memory graph | Who talks to whom, who knows what, as a picture | `components/MemoryGraphPanel.tsx`, `MEMORY_GRAPH_SPEC.md` | **Have** (1.3.0, wave 7): Search → Who knows what: named agents, projects, documents and topics drawn as circles and lines, with one plain sentence on top and a list behind More (`recall.graph`, `static/recall.js` `memoryPicture`) |
+| MD-60 | Knowledge base of your own documents | Agents look up your facts instead of guessing | `src/main/knowledge.ts`, `kg-core.cjs` | **Have** (1.3.0, wave 7): Search → Your documents: drop files or link a folder (text, Markdown, HTML, CSV, JSON, Word; PDFs by name only), all projects or chosen ones, a "Never leaves this computer" tick; agents get `look_up` and use it before guessing (`documents.py`, `harness/recallstage.py`, project setting `documents`) |
 | MD-61 | Choose where the data lives | Pick the folder, with a safe move | CHANGELOG "Configurable hive/memory home folder" | **Partly**: choose the hub and the projects folder in Settings; no "move it there" |
 
 ### Models, providers and costs
@@ -168,7 +168,7 @@ it's first in the ranking below.
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
 | MD-84 | MCP servers per agent, from a catalog | Give an agent extra tools with a tick | `components/AgentMcpGrants.tsx`, `src/shared/mcpCatalog.ts` | **Partly**: the Tools page adds, tests and gives MCP servers to jobs (wave 1); no catalogue |
-| MD-85 | Skills catalog | 227 skills to search, install and remove | `src/main/skills.ts`, `components/SkillsTab.tsx` | **Missing**: plugins are the nearest (`plugins/`) |
+| MD-85 | Skills catalog | 227 skills to search, install and remove | `src/main/skills.ts`, `components/SkillsTab.tsx` | **Have** (1.3.0, wave 7), small: 10 skills written here (pytest, Python packages, accessible forms, canvas games, Godot 4 and more), to switch on and off and add from a file with the whole text shown first; a task gets at most two that match its kind of work (`skills.py`, `harness/skillstage.py`, Tools → Plug-ins and skills). The other harness lists 227 |
 | MD-86 | Hooks from the CLIs | The app hears every tool call and stop | `src/core/hookServer.ts` | **Have** for Claude Code sessions joined to the hub (`connect.py` hooks) |
 | MD-87 | Reach everything from the phone | `/remote-control` on the whole floor | `HIVE.md` §2 | **Have**: Roundtable Mobile and hub commands (`remote.py`, `phone.py`) |
 
@@ -281,8 +281,8 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-60 | The harness's own settings | Web search, shell, subagents, loop, log | `ui/screens/harnesssettings` | **Partly**: Settings, project settings and web search's own settings (wave 3); no subagent settings |
 | DS-61 | Web search for agents | The agent looks things up | Harness "Web search" setting | **Have**: web_search and web_read for the builders and the planner (`harness/websearch.py`, wave 3) |
 | DS-62 | Plugin manager | List, install, switch on and off, remove | `ui/screens/main/PluginManagerScreen.kt` | **Have**: `plugins/manage.py`, Settings → Plugins |
-| DS-63 | Plugin market | Browse and install from a list | `ui/screens/main/PluginMarketBrowser.kt` | **Missing** (plans/gaps.md) |
-| DS-64 | Create a plugin | A session set up to make one | CHANGELOG "Create plugin" | **Missing** |
+| DS-63 | Plugin market | Browse and install from a list | `ui/screens/main/PluginMarketBrowser.kt` | **Have** (1.3.0, wave 7): Tools → Plug-ins and skills, a list shipped with the app (pinned to exact commits, permissions in plain words before anything is added, newer versions shown). Honest size: 10 skills and no outside plug-ins yet (`plugins/market.py`, `catalogue.json`) |
+| DS-64 | Create a plugin | A session set up to make one | CHANGELOG "Create plugin" | **Have** (1.3.0, wave 7): Make one: a plug-in from one sentence, written by a builder model in its own folder, its tests run inside the plug-in box, offered only when they pass and it asks for no permissions; the price is shown first (`plugins/make.py`) |
 | DS-65 | Scheduled tasks | A list with rules and a record of every run; edit, pause, delete | `ui/screens/main/Automation*.kt`, `schedule/*` | **Have**: automations on a schedule (wave 1) |
 
 ### Notifications and the phone app itself
