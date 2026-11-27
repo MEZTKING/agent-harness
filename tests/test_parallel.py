@@ -311,3 +311,26 @@ def test_the_breaker_stops_one_task_and_the_others_carry_on(tmp_path, monkeypatc
     assert [a["outcome"] for a in tasks["T2"].attempts] == ["breaker", "approved"]
     assert len(tasks["T1"].attempts) == 1 and len(tasks["T3"].attempts) == 1  # not stopped with it
     assert "stopped by the safety check: it kept reading the same file." in brain.prompts["T2"]
+
+
+def test_every_task_gets_a_gate_keyed_to_the_project(tmp_path, monkeypatch):
+    from roundtable.harness import orchestrator as orchmod
+
+    seen = {}
+    real = orchmod.Orchestrator._run_task
+
+    def spy(self, task, tasks):
+        gate = self.ws.gate
+        seen[task.id] = (self.ws.root, gate.root, gate.context(), gate.timeout)
+        return real(self, task, tasks)
+
+    monkeypatch.setattr(orchmod.Orchestrator, "_run_task", spy)
+    orch, *_ = make(tmp_path, raw=raw(3), brain=ParallelBrain(THREE))
+    orch.ws.gate.timeout = 0  # as the lab's replays do
+    orch.start("three files")
+    assert orch.run() == "done"
+    root = orch.project.root
+    for tid in ("T1", "T2", "T3"):
+        ws_root, gate_root, ctx, timeout = seen[tid]
+        assert ws_root == Worktrees(root).path(tid) and gate_root == root  # cards in one place
+        assert ctx["id"] == tid and timeout == 0

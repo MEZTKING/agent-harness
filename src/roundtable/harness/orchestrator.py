@@ -34,6 +34,7 @@ from .safeenv import clean_env
 from .saver import TokenSaver
 from .showstage import ShowStage
 from .worktrees import ParallelStage, Worktrees
+from .gate import Gate
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
@@ -211,6 +212,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         self.project = Project(project_dir)
         self.cfg = self._settle_cfg(cfg.for_profile(self.profile()))
         self.ws = Workspace(self.project.root, allow_shell=cfg.allow_shell, command_timeout=cfg.limits.command_timeout)
+        self.ws.gate = Gate(self.project.root, self.cfg, on_change=self._publish_plan)  # "Ask me first"
         self._listener = on_event
         meta = self.project.meta()
         # the owner can let one project spend more than the limit ("Carry on with $X more")

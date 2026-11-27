@@ -236,11 +236,18 @@ class ParallelStage:
 
     # -- one task, in its own thread ----------------------------------------------------------------------------
     def _lane(self, task, tasks, path: Path, fresh: bool) -> tuple[str, BaseException | None]:
+        from .gate import Gate
         from .tools import Workspace
 
         tl = self._tl
         tl.task, tl.root = task.id, path
         tl.ws = Workspace(path, allow_shell=self.cfg.allow_shell, command_timeout=self.cfg.limits.command_timeout)
+        # "Ask me first": the cards live in the project's own .harness/gate/, so every task's show in one place,
+        # each naming its task; the main gate's timeout (0 in the lab's replays) holds here too
+        main = getattr(self._ws, "gate", None)
+        tl.ws.gate = Gate(self.project.root, self.cfg, on_change=self._publish_plan,
+                          context=lambda: {"id": task.id, "title": task.title},
+                          timeout=getattr(main, "timeout", None))
         try:
             tl.baseline = self._lane_baseline(task, path, fresh)
             ok = self._run_task(task, tasks)
