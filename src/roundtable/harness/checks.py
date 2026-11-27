@@ -104,3 +104,27 @@ def filtered_tail(now: dict[str, Any], old: list[str], limit: int = 3000) -> str
     lines = [ln for ln in now.get("tail", "").splitlines() if not any(o in ln for o in old)]
     text = "\n".join(lines)
     return text[-limit:]
+
+
+# -- a task's own worktree (several tasks at once, worktrees.py) ----------------------------------
+def prepare_worktree(root: str | Path, values: dict[str, Any], commit: str = "",
+                     repo_baseline: dict[str, Any] | None = None, fresh: bool = True) -> dict[str, Any]:
+    """Get a new worktree ready for its task: the setup command once (its dependencies aren't in git), and
+    the checks' starting point there. The repository's baseline is used when the worktree starts from the
+    commit it was taken on; otherwise the test command runs once before the task changes anything, so a
+    failure that came with work merged since is never blamed on this task."""
+    out: dict[str, Any] = {"setup": None, "baseline": None}
+    timeout = int(values.get("timeout") or 900)
+    if fresh and values.get("setup"):
+        res = run(root, values["setup"], values.get("env"), timeout)
+        out["setup"] = {"command": values["setup"], "passed": res["exit_code"] == 0 and not res["timed_out"],
+                        "at": utcnow(), "tail": res["output"][-2000:]}
+    test = values.get("test")
+    if test:
+        if (repo_baseline and repo_baseline.get("command") == test and commit
+                and repo_baseline.get("commit") == commit and not repo_baseline.get("after_tasks")):
+            out["baseline"] = repo_baseline
+        else:
+            out["baseline"] = summarise(run(root, test, values.get("env"), timeout), commit)
+            out["baseline"]["worktree"] = True
+    return out
