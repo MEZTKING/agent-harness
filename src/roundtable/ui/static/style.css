@@ -301,12 +301,14 @@ main { padding: 22px clamp(16px, 2.4vw, 36px) 60px; outline: none; }
   background: var(--art-eclipse) center / cover no-repeat, radial-gradient(ellipse 60% 55% at 50% 48%, var(--color-raised), var(--color-background) 72%); }
 .ring { position: relative; height: 620px; container-type: inline-size; }
 .ring.empty-ring { height: 380px; }
+/* no projects yet: the ring art alone, so the backdrop's own eclipse doesn't sit beside it */
+.home-stage:has(> .empty-ring) { background: radial-gradient(ellipse 60% 55% at 50% 48%, var(--color-raised), var(--color-background) 72%); }
 .home-stage > .empty { border: none; border-radius: 0; background: transparent; padding-top: 0; }
 /* the ring itself is art (ring.webp); without it, a thin line of light drawn as chrome */
 .ring-disc { position: absolute; left: 50%; top: 50%; width: var(--disc, 320px); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; pointer-events: none;
-  background: var(--art-ring) center / 118% no-repeat; }
-.ring:not(.art) .ring-disc { border: 2px solid color-mix(in srgb, var(--color-accent) 75%, var(--color-text)); background: var(--color-sunken);
+  background: var(--art-ring) 58.8% 30.5% / 109% no-repeat; }  /* ring.webp: rim at 46% of its width, centre 0.7% right and 1.6% up; this puts the lights on the rim */
+.ring:not(.art) .ring-disc, :root[data-theme="ash"] .ring-disc { border: 2px solid color-mix(in srgb, var(--color-accent) 75%, var(--color-text)); background: var(--color-sunken);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent), 0 0 46px 6px color-mix(in srgb, var(--color-accent) 34%, transparent),
     inset 0 0 40px color-mix(in srgb, var(--color-accent) 18%, transparent); }
 .ring-disc::after { content: ""; position: absolute; inset: -6%; border-radius: 50%; z-index: -1; pointer-events: none;
@@ -315,7 +317,9 @@ main { padding: 22px clamp(16px, 2.4vw, 36px) 60px; outline: none; }
 .ring-words { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 78%; padding: 10px 16px; border-radius: var(--radius);
   background: radial-gradient(closest-side, var(--color-scrim), transparent); }
 .ring-words b { font: 700 clamp(20px, 2.3vw, 30px)/1.1 var(--font-display); letter-spacing: var(--tracking-display); color: var(--color-text); }
-.ring-words img { display: block; width: min(100%, 260px); height: auto; }
+.ring-words img { display: block; width: min(100%, 200px); height: auto; }
+.ring-words .wordmark-typed, :root[data-theme="ash"] .ring-words img { display: none; }
+:root[data-theme="ash"] .ring-words .wordmark-typed { display: block; }
 .ring-words span { font-size: 14px; font-weight: 600; color: var(--color-text); }
 /* each project is a light on the ring; its card sits outside it at the same angle */
 .ring-light { position: absolute; width: 12px; height: 12px; border-radius: 50%; transform: translate(-50%, -50%); z-index: 1; pointer-events: none;

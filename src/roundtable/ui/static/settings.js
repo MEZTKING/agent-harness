@@ -9,7 +9,7 @@ import { poundsSettings } from "./pounds.js";
 const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
   ["phone", "Your phone", "Use the harness from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
-  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Light or dark"],
+  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
 
 export async function viewSettings(section = "keys") {

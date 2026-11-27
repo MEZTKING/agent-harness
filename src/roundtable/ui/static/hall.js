@@ -62,7 +62,9 @@ function placeRing(ring) {  // lights on the ring, cards outside it at the same 
 function ringWords(seats, waiting, small) {  // the middle of the ring: the wordmark (art) or the name, and one sentence
   const line = seats.length ? `${plural(seats.length, "project")}${waiting ? ` · ${waiting} need${waiting === 1 ? "s" : ""} you` : " · nothing needs you"}` : "No projects yet";
   return h("div", { class: "ring-words" },
-    ART.wordmark ? h("img", { src: "wordmark.webp", alt: BRAND.name }) : h("b", {}, small ? "Home" : BRAND.name),
+    // the wordmark is pale art made for the dark themes; Ash (light) shows the typed name instead
+    ...(ART.wordmark ? [h("img", { src: "wordmark.webp", alt: BRAND.name }), h("b", { class: "wordmark-typed", "aria-hidden": "true" }, small ? "Home" : BRAND.name)]
+      : [h("b", {}, small ? "Home" : BRAND.name)]),
     h("span", {}, line));
 }
 
