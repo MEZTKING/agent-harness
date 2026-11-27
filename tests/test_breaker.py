@@ -98,9 +98,9 @@ def test_identical_calls_steer_then_refuse_then_stop():
     assert res.stop == "breaker" and "same look call" in res.breaker_reason
     assert trips(ev) == [("steer", "repeats"), ("refuse", "repeats"), ("stop", "repeats")]
     msgs = tool_msgs(res)
-    assert "Roundtable's safety check: the same look call 8 times" in msgs[7]["content"]  # steered at the 8th
+    assert "The harness's safety check: the same look call 8 times" in msgs[7]["content"]  # steered at the 8th
     assert "second warning" in msgs[15]["content"]  # 8 more: refused next
-    assert msgs[16]["content"].startswith("Refused by Roundtable") and msgs[16]["is_error"]
+    assert msgs[16]["content"].startswith("Refused by the harness") and msgs[16]["is_error"]
     # the refused call doesn't count: it takes 8 real ones again to stop
     assert len(msgs) == 25 and res.steps == 25
     done = [d for k, d in ev if k == "agent_done"][0]
@@ -120,7 +120,7 @@ def test_runaway_tool_output_is_cut_and_trips():
     res, ev = run(cfg, box(clock), brk)
     assert trips(ev) == [("steer", "output"), ("refuse", "output"), ("stop", "output")]
     first = tool_msgs(res)[0]["content"]
-    assert first.startswith("y" * 1000) and "cut by Roundtable: 4,000 more characters" in first
+    assert first.startswith("y" * 1000) and "cut by the harness: 4,000 more characters" in first
     assert len(first) < 1500
 
 

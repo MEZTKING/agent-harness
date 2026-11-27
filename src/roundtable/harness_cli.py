@@ -53,6 +53,7 @@ from .harness.tools import Toolbox
 from .core.models import utcnow
 from .core import secrets as vault
 from .providers.base import ProviderError
+from .brand import NAME
 
 STATUS_ICON = {"pending": "·", "running": "▶", "done": "✓", "failed": "✗", "skipped": "-"}
 
@@ -157,7 +158,7 @@ def _mcp_list(cfg) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="roundtable", description="Roundtable Hold: projects, models and self-improvement")
+    p = argparse.ArgumentParser(prog="roundtable", description=f"{NAME}: projects, models and self-improvement")
     p.add_argument("--config", help="path to harness.yaml (default $HARNESS_CONFIG or ./harness.yaml)")
     p.add_argument("-v", "--verbose", action="store_true", help="show every model turn and tool call")
     sub = p.add_subparsers(dest="cmd", required=True)

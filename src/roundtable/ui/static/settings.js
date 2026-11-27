@@ -1,15 +1,15 @@
 // Settings: keys (by maker, with Test), AI services, the recommended setup, the hub, backups, plugins, your phone,
 // updates, the look and an Advanced part. And the first-run set-up. Everything is done here: nothing to type
 // elsewhere, no file to edit.
-import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, dialog, fileSize, plural, jobName, modelName, every, has } from "./core.js";
+import { BRAND, h, fill, get, post, S, act, card, page, ago, empty, seg, toast, dialog, fileSize, plural, jobName, modelName, every, has } from "./core.js";
 import { notifySettings } from "./notify.js";
 import { tidyCard } from "./tidy.js";
 import { poundsSettings } from "./pounds.js";
 
-const SECTIONS = [["keys", "Keys", "The keys that let Roundtable use each AI maker"], ["services", "AI services", "Which AI services Roundtable can use, and adding more"],
+const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
-  ["phone", "Your phone", "Use Roundtable from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
-  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for Roundtable"], ["updates", "Updates", "The newest Roundtable Hold"], ["look", "Look", "Light or dark"],
+  ["phone", "Your phone", "Use the harness from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
+  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
 
 export async function viewSettings(section = "keys") {
@@ -21,7 +21,7 @@ export async function viewSettings(section = "keys") {
   const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, hub: hubPart, phone: phonePart, backups: backupsPart,
     notifications: notifySettings, plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
   const body = await views[section](st);
-  return page("Settings", `Roundtable Hold ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
+  return page("Settings", `${BRAND.name} ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
 }
 
 // ---------- keys ----------
@@ -63,7 +63,7 @@ async function keysPart(st) {
       out);
   });
   return [card("Keys", h("p", { class: "muted small" }, "Only the makers you use need a key. ",
-    st.desktop ? (st.secure_keys ? "Keys are kept in Windows' own safe store, never in a plain file." : "Keys are kept in a private file in Roundtable's folder.")
+    st.desktop ? (st.secure_keys ? "Keys are kept in Windows' own safe store, never in a plain file." : "Keys are kept in a private file in the harness's folder.")
       : "This copy reads keys from the computer's own settings; the desktop app can save them here."), rows),
   card("Not sure which keys?", h("p", {}, "A DeepSeek key alone is enough to start: every job falls back to it. For the full recommended setup add Openference and OpenRouter too, and Claude for the coder."),
     h("a", { class: "btn", href: "#/settings/recommended" }, "See the recommended setup"))];
@@ -101,7 +101,7 @@ async function servicesPart(st) {
     act(ev.currentTarget, () => post("/api/providers", { action: "add", preset: preset.value, id: name.value, base_url: url.value, key: key.value, auth_header: hdr.value, query }),
       (r) => `Added ${data.presets[preset.value].name.split(" (")[0]}`, (r) => { say(r.added.id, r.test); key.value = ""; });
   } }, "Add it");
-  return [card("AI services", h("p", { class: "muted small" }, "The services Roundtable can use. Their models can then be chosen for any job in Models."), rows, out),
+  return [card("AI services", h("p", { class: "muted small" }, "The services the harness can use. Their models can then be chosen for any job in Models."), rows, out),
     card("Add a service", h("p", { class: "muted small" }, "Pick one from the list; it's tested straight away. Anything not listed: choose the custom one (any service that works like OpenAI's)."),
       h("div", { class: "row" }, preset, docs), h("div", { class: "row" }, name, url), h("div", { class: "row" }, key),
       h("details", {}, h("summary", { class: "small" }, "For unusual services (Azure and gateways)"), h("div", { class: "row" }, hdr, qry)),
@@ -168,7 +168,7 @@ async function hubPart(st) {
         h("div", { class: "row" }, url, h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/hub", { mode: "github", url: url.value.trim() }), "Connecting…",
           (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, mode === "git" ? "Connect another" : "Connect"))]
         : h("div", {}, h("p", {}, "Sharing through GitHub needs Git on this computer. Until then everything works on this computer only."),
-          h("a", { class: "btn", href: "https://git-scm.com/download/win", target: "_blank", rel: "noopener", title: "Opens Git's download page; install it, then open Roundtable Hold again" }, "Get Git for Windows")),
+          h("a", { class: "btn", href: "https://git-scm.com/download/win", target: "_blank", rel: "noopener", title: `Opens Git's download page; install it, then open ${BRAND.name} again` }, "Get Git for Windows")),
       mode === "git" ? h("div", { class: "row" }, h("button", { onclick: async (ev) => {
         if (await dialog({ title: "Keep the hub on this computer only?", text: "It stops sharing with your other computers and your phone. Nothing is deleted.", yes: "This computer only" }))
           act(ev.currentTarget, () => post("/api/setup/hub", { mode: "local" }), "The hub is on this computer only now", () => location.reload());
@@ -186,7 +186,7 @@ async function phonePart() {
   function draw(s) {
     const pairing = s.pairing ? h("div", { class: "pairing" },
       h("img", { src: s.pairing.qr, alt: "The pairing code as a square picture", width: 220, height: 220 }),
-      h("div", { class: "stack" }, h("p", {}, "In Roundtable Mobile tap ", h("b", {}, "Pair with a PC"), " and point the camera at this square."),
+      h("div", { class: "stack" }, h("p", {}, `In the ${BRAND.short} app on your phone, tap `, h("b", {}, "Pair with a PC"), " and point the camera at this square."),
         h("p", {}, "Or type this code: ", h("b", { class: "code" }, s.pairing.code)),
         h("p", { class: "muted small" }, `It works once, for ${Math.max(1, Math.ceil(s.pairing.expires_in / 60))} more minute${s.pairing.expires_in > 60 ? "s" : ""}.`))) : null;
     fill(box,
@@ -230,7 +230,7 @@ async function backupsPart() {
     const last = s.last.last_at ? `${ago(s.last.last_at)}${s.last.last_size ? ` · ${fileSize(s.last.last_size)}` : ""}` : "None yet";
     const noDrive = String(s.no_drive || "").replace(/\s*\(https?:[^)]*\)/, "");
     fill(box,
-      card("Backups", h("p", { class: "muted small" }, "A backup holds your settings, what Roundtable has learned, and every project's plan and history. It never holds your keys."),
+      card("Backups", h("p", { class: "muted small" }, "A backup holds your settings, what the harness has learned, and every project's plan and history. It never holds your keys."),
         s.destination ? h("p", {}, "They go to: ", h("b", { title: s.destination }, s.destination.split(/[\\/]/).slice(-2).join(" › ")))
           : h("p", { class: "warn", title: noDrive }, "There's no Google Drive folder on this computer. Choose a folder below, or ",
             h("a", { href: "https://www.google.com/drive/download/", target: "_blank", rel: "noopener", title: "Opens Google's download page; install it and sign in, then come back" }, "get Google Drive"), "."),
@@ -239,7 +239,7 @@ async function backupsPart() {
         h("p", {}, "Last backup: ", last, s.last.last_error ? h("span", { class: "pill warn" }, "it had a problem") : null),
         s.last.last_error ? h("p", { class: "bad small" }, String(s.last.last_error).replace(/https?:\/\/\S+/g, "").trim()) : null,
         h("div", { class: "row wrap" },
-          h("label", { class: "check", title: "Once a day while Roundtable Hold is open, never while a project is being built" },
+          h("label", { class: "check", title: `Once a day while ${BRAND.name} is open, never while a project is being built` },
             h("input", { type: "checkbox", checked: set.daily, onchange: (ev) => save(null, { daily: ev.target.checked }, ev.target.checked ? "Daily backups on" : "Daily backups off") }), "Back up every day"),
           h("label", { class: "check", title: "Older backups from this computer are deleted; nothing else in the folder is touched" }, "Keep the newest ",
             h("input", { type: "number", min: 1, max: 100, value: set.keep, class: "narrow", "aria-label": "How many to keep", onchange: (ev) => save(null, { keep: Number(ev.target.value) }, "Saved") })),
@@ -268,7 +268,7 @@ async function backupsPart() {
 async function pluginsPart() {
   let st;
   try { st = await get("/api/plugins"); } catch (e) { return card("Plugins", h("p", {}, e.message)); }
-  const trust = "A plugin is someone's program: it can do anything Roundtable Hold can. Only add plugins from people you trust.";
+  const trust = `A plugin is someone's program: it can do anything ${BRAND.name} can. Only add plugins from people you trust.`;
   const send = async (btn, body, ok) => {
     try {
       if (btn) btn.disabled = true;
@@ -289,7 +289,7 @@ async function pluginsPart() {
       return h("label", { class: "field", title: f.description }, h("span", { class: "label" }, f.description || f.key), input);
     });
     return h("article", { class: "plugin" },
-      h("div", { class: "row" }, h("b", { class: "grow" }, p.name || p.id, h("span", { class: "muted small" }, p.builtin ? " · comes with Roundtable" : "")),
+      h("div", { class: "row" }, h("b", { class: "grow" }, p.name || p.id, h("span", { class: "muted small" }, p.builtin ? " · comes with the harness" : "")),
         h("label", { class: "switch", title: p.enabled ? "Switch it off" : "Switch it on" }, h("input", { type: "checkbox", checked: p.enabled, onchange: (ev) => send(null, { action: ev.target.checked ? "enable" : "disable", id: p.id }, ev.target.checked ? "Switched on" : "Switched off") }), p.enabled ? "On" : "Off")),
       h("p", { class: "small" }, p.description || ""),
       p.problem ? h("p", { class: "warn small" }, p.problem) : null,
@@ -302,7 +302,7 @@ async function pluginsPart() {
       p.builtin ? null : h("button", { class: "small danger", onclick: async (ev) => { if (await dialog({ title: `Remove ${p.name || p.id}?`, yes: "Remove", danger: true })) send(ev.currentTarget, { action: "remove", id: p.id }, "Removed"); } }, "Remove"));
   });
   const source = h("input", { class: "grow", placeholder: "Where it comes from: a folder, a GitHub link or a package name", "aria-label": "Where the plugin comes from", title: "You'll see what it may do before anything is added." });
-  return card("Plugins", h("p", { class: "muted small" }, "Extra abilities for Roundtable, like the token saver. ", h("span", { title: trust }, "Only add plugins from people you trust.")),
+  return card("Plugins", h("p", { class: "muted small" }, "Extra abilities for the harness, like the token saver. ", h("span", { title: trust }, "Only add plugins from people you trust.")),
     rows.length ? rows : h("p", { class: "muted" }, "None yet."),
     h("div", { class: "row" }, source, h("button", { onclick: (ev) => source.value.trim() ? send(ev.currentTarget, { action: "add", source: source.value.trim() }, "Plugin added") : toast("Say where the plugin comes from first.", true) }, "Add a plugin")));
 }
@@ -315,8 +315,8 @@ async function updatesPart(st) {
     try { u = await get("/api/update"); } catch (e) { u = { error: e.message }; }
     const kind = (u.install || {}).kind;
     const words = u.error && !u.available ? "Couldn't check for updates just now (no internet?). Try again later."
-      : u.available ? (kind === "app" && u.latest ? `Roundtable Hold ${u.latest} is ready (you have ${st.version}).` : "A newer Roundtable Hold is ready.")
-        : kind === "other" ? "This copy can't update itself. Install the newest Roundtable Hold from its releases page." : `You have the newest Roundtable Hold (${st.version}).`;
+      : u.available ? (kind === "app" && u.latest ? `${BRAND.name} ${u.latest} is ready (you have ${st.version}).` : `A newer ${BRAND.name} is ready.`)
+        : kind === "other" ? `This copy can't update itself. Install the newest ${BRAND.name} from its releases page.` : `You have the newest ${BRAND.name} (${st.version}).`;
     fill(box, h("p", {}, words),
       (u.changes || []).length && kind === "app" ? h("details", {}, h("summary", {}, "What's new"), h("ul", {}, u.changes.slice(0, 20).map((c) => h("li", {}, c.replace(/^[-*]\s*/, ""))))) : null,
       h("div", { class: "row" },
@@ -329,14 +329,17 @@ async function updatesPart(st) {
 
 // ---------- look ----------
 function lookPart() {
-  let now = "system";
-  try { now = localStorage.getItem("rt-theme") || "system"; } catch { /* storage unavailable */ }
+  let now = "eclipse";
+  try { now = { dark: "eclipse", light: "ash", system: "eclipse" }[localStorage.getItem("rt-theme")] || localStorage.getItem("rt-theme") || "eclipse"; } catch { /* storage unavailable */ }
+  if (!["eclipse", "pitch", "ash"].includes(now)) now = "eclipse";
   const pick = (v) => {
-    try { if (v === "system") localStorage.removeItem("rt-theme"); else localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
-    if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+    try { localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
+    document.documentElement.dataset.theme = v;
   };
-  return card("Look", h("p", { class: "muted small" }, "How Roundtable looks on this computer."),
-    seg([["light", "Light", "Warm parchment and oak"], ["dark", "Dark", "The hall by candlelight"], ["system", "Same as this computer", "Follows the computer's light or dark setting"]], now, pick, "Light or dark"));
+  return card("Look", h("p", { class: "muted small" }, "How the harness looks on this computer."),
+    seg([["eclipse", "Eclipse", "Black with a thin ring of light: the usual look"],
+      ["pitch", "Pitch", "True black: easiest on the eyes in the dark, and saves power on OLED screens"],
+      ["ash", "Ash", "Light: for bright rooms and sunlight"]], now, pick, "Eclipse, Pitch or Ash"));
 }
 
 // ---------- advanced ----------
@@ -361,14 +364,14 @@ async function advancedPart(st) {
     return d;
   };
   parts.push(card("Settings files", h("p", { class: "muted small" }, "Everything here can be changed on the other pages. These are the files behind them, for when you're asked to look."),
-    await editor("harness", "Roundtable's settings", "AI services, who does each job, prices and limits."),
+    await editor("harness", "The harness's settings", "AI services, who does each job, prices and limits."),
     await editor("hub", "The hub's settings", "The projects in the hub, and who may read or write to whom.")));
   if (await has("/api/tidy")) parts.push(await tidyCard());
   return parts;
 }
 
 function needsSetup() {
-  return card("Roundtable can't build on this computer yet", h("p", {}, "Its settings are missing or have a problem. Run the set-up to make them."),
+  return card("The harness can't build on this computer yet", h("p", {}, "Its settings are missing or have a problem. Run the set-up to make them."),
     S.setup && S.setup.desktop ? h("a", { class: "btn primary", href: "#/setup" }, "Run the set-up") : null);
 }
 
@@ -377,13 +380,13 @@ export async function viewSetup() {
   const st = S.setup = await get("/api/setup");
   const folder = h("input", { class: "grow", value: st.projects_dir, "aria-label": "Projects folder", title: "Where new projects are made" });
   const me = st.agents.length > 1 ? h("select", { "aria-label": "You are" }, st.agents.map((a) => h("option", { value: a, selected: a === (st.agent || st.agents[0]) }, (S.ov.agents || []).find((x) => x.id === a)?.name || a))) : null;
-  return page("Welcome to Roundtable Hold", "Three quick steps: your keys, your hub, and where projects go. You can change all of it later in Settings.",
+  return page(`Welcome to ${BRAND.name}`, "Three quick steps: your keys, your hub, and where projects go. You can change all of it later in Settings.",
     h("h2", { class: "step" }, "1. Your keys"), ...(await keysPart(st)).slice(0, 1),
     h("h2", { class: "step" }, "2. Your hub"), await hubPart(st),
     h("h2", { class: "step" }, "3. Where projects go"),
     card(null, h("label", { class: "field" }, h("span", { class: "label" }, "Projects folder"), folder),
       me ? h("label", { class: "field", title: "Your own name in the hub: your notes and letters" }, h("span", { class: "label" }, "You are"), me) : null,
       h("div", { class: "row" },
-        h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/done", { projects_dir: folder.value, agent: me ? me.value : null }), "All set", () => { location.hash = "#/"; location.reload(); }) }, "Start using Roundtable Hold"),
+        h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/done", { projects_dir: folder.value, agent: me ? me.value : null }), "All set", () => { location.hash = "#/"; location.reload(); }) }, `Start using ${BRAND.name}`),
         h("button", { title: "A short check that each model answers (a few cents)", onclick: (ev) => act(ev.currentTarget, () => post("/api/probes", {}), "Checking your models…", (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, "Check my models first"))));
 }

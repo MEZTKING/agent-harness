@@ -1,5 +1,21 @@
 <!-- The README's "What's new" sections, bundled with the app for its "What's new" card. Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->
 
+### What's new in 1.0.0
+
+Roundtable Hold is now Darkness Harness. Everything you have stays.
+
+- **A new name**: Darkness Harness on the PC, Darkness on the phone. Your projects, keys, hub, settings and
+  phone pairing are kept exactly where they were.
+- **A new look, Eclipse**: Home is a ring of lights round an eclipse, one light for each project; the one
+  that needs you flares orange. Three themes under **Settings → Look**: Eclipse, Pitch (true black) and
+  Ash (light). New letters (Space Grotesk, Inter and JetBrains Mono) and new art, icon and emblem.
+- **A taskbar pin you made yourself keeps working**: the old app file now just opens the new one.
+- **The phone through the firewall**: after this silent update, Windows may ask once to let the phone reach
+  the PC. Press **Yes**. It only asks on PCs that had the old firewall rules.
+- **The phone app updates in place** and stays paired: same app, new name and look.
+- **Windows SmartScreen may ask again** ("Windows protected your PC"), because the app's file name changed.
+  Click **More info → Run anyway**, as before.
+
 ### What's new in 0.12.0
 
 - **Kinds**: Roundtable knows what sort of thing you're making – a website, a web app, a browser game or
@@ -69,17 +85,3 @@
   "More about this plan". Status, seat cards and Letters are shorter too.
 - **Live on finished projects** shows the final pictures, or a **Take pictures now** button.
 - **My notes** shows the documents kept in your hub (like your list of links), readable in the app.
-
-### What's new in 0.9.0
-
-- **A new desktop app**, rebuilt from scratch: the Hall shows every project as a seat with its own name
-  and what it's doing in words; **Needs you** comes first and is answered with one tap; each project
-  has Overview, Plan, Watch, App, Journal and Settings; **Models** lets you choose who does every job
-  from a list; Settings covers keys (with a Test that really checks them), the recommended setup,
-  spending, the hub, your phone, backups, plugins and updates – nothing sends you out of the app.
-- **The phone and the PC as one Roundtable**: the phone is a seat of its own; one machine builds a
-  project at a time; watch a build on either; spending limits, autopilot and who does which job are
-  shared; "carry on" goes to the machine that has the project; pair the phone with the PC by QR code.
-- **Claude Opus 5.5 codes by default** (medium effort), with DeepSeek V4 Flash as its backup.
-- **Fixes**: keys for OpenRouter and Openference load at start; DeepSeek V4 Pro is switched to Flash;
-  the hub's project list stays up to date on every computer.

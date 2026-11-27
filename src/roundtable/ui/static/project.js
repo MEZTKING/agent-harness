@@ -22,7 +22,7 @@ const TABS = [["overview", "Overview", "What waits for you, the tasks, the money
   ["files", "Files", "The project's folder: open any file, and every command its tasks ran"],
   ["journal", "Journal", "Notes, to-dos, plans and decisions about this project"],
   ["terminal", "Command line", "Type commands in this project's folder"],
-  ["settings", "Settings", "How Roundtable works on this project"]];
+  ["settings", "Settings", "How the harness works on this project"]];
 
 export async function viewProject(id, tab = "overview") {
   await refreshHall();
@@ -54,7 +54,7 @@ export async function viewProject(id, tab = "overview") {
   drawHead(seat);
   const body = h("div", { class: "project-body" });
   const root = h("div", { class: "page project" }, head,
-    tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "cdl", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
+    tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "pulse-dot", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
     body);
   onHall(root, (rt) => { const s = rt.seats.find((x) => x.id === id); if (s) { seat = s; drawHead(s); } });
   const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab, terminal: terminalTab };
@@ -77,7 +77,7 @@ function moveOn(s) {
     const out = runButtons({ path: s.path, actions: s.actions || [], task: s.failed_task }, () => refreshHall());
     if ((s.actions || []).includes("resume")) out.push(h("button", { title: "Builds just the next task, then stops so you can look",
       onclick: (ev) => act(ev.currentTarget, () => post("/api/project", { path: s.path, action: "run", max_tasks: 1 }), "Building the next task", () => refreshHall()) }, "Just the next task"));
-    if (s.status === "running") out.push(h("a", { class: "btn primary", href: projectHref(s.id, "watch") }, h("i", { class: "cdl" }), "Watch it work"));
+    if (s.status === "running") out.push(h("a", { class: "btn primary", href: projectHref(s.id, "watch") }, h("i", { class: "pulse-dot" }), "Watch it work"));
     if (["done", "idle"].includes(s.status) && !(s.actions || []).length) out.push(h("button", { class: s.status === "done" ? "primary" : "", title: "Give it a new goal: the planner adds tasks for it, then builds them",
       onclick: async (ev) => {
         const box = composer({ key: `goal:${s.path}`, project: s.path, rows: 4, label: "What it should do next",
@@ -158,9 +158,9 @@ function tasksCard(seat, d) {
       busy ? null : h("div", { class: "row task-acts" },
         t.status === "failed" ? [h("button", { class: "small primary", title: "Try this task once more", onclick: post_({ action: "retry", task: t.id }, "It will be tried again: press Carry on to start") }, "Try again"),
           h("button", { class: "small", title: "Leave this task out", onclick: post_({ action: "skip", task: t.id }, "Left out") }, "Leave it out")] : null,
-        t.status === "done" ? [h("button", { class: "small", title: "Tell Roundtable this was good work: it learns which models do well", onclick: post_({ action: "feedback", task: t.id, rating: "good" }, "Thanks: noted as good work") }, "Good work"),
-          h("button", { class: "small", title: "Tell Roundtable what was wrong: it learns from it", onclick: async (ev) => {
-            const note = await dialog({ title: "What wasn't right?", text: `About “${t.title}”. Roundtable uses this to choose better models next time.`, yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
+        t.status === "done" ? [h("button", { class: "small", title: "Tell the harness this was good work: it learns which models do well", onclick: post_({ action: "feedback", task: t.id, rating: "good" }, "Thanks: noted as good work") }, "Good work"),
+          h("button", { class: "small", title: "Tell the harness what was wrong: it learns from it", onclick: async (ev) => {
+            const note = await dialog({ title: "What wasn't right?", text: `About “${t.title}”. The harness uses this to choose better models next time.`, yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
             if (note !== null) post_({ action: "feedback", task: t.id, rating: "bad", note })(ev);
           } }, "Not right"),
           h("button", { class: "small", title: "Do this task again from the start", onclick: post_({ action: "retry", task: t.id }, "It will be done again: press Carry on to start") }, "Do it again")] : null));
@@ -190,7 +190,7 @@ function chatCard(seat) {
   let pending = null, history = [];
   const draw = () => {
     const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-    fill(log, [...history.map((m) => msg(m)), pending ? [msg({ who: "owner", text: pending.text, steer: pending.steer }), h("div", { class: "msgl orc pending" }, h("small", {}, "Planner"), h("div", { class: "body" }, h("i", { class: "cdl" }), pending.steer ? "Noting it…" : "Thinking…"))] : null]);
+    fill(log, [...history.map((m) => msg(m)), pending ? [msg({ who: "owner", text: pending.text, steer: pending.steer }), h("div", { class: "msgl orc pending" }, h("small", {}, "Planner"), h("div", { class: "body" }, h("i", { class: "pulse-dot" }), pending.steer ? "Noting it…" : "Thinking…"))] : null]);
     if (!history.length && !pending) fill(log, h("p", { class: "muted small" }, "Ask about this project (“what's left?”, “why did the logo task stop?”), or give an instruction for the next tasks (“use bigger buttons from now on”)."));
     if (atEnd) log.scrollTop = log.scrollHeight;
   };
@@ -235,7 +235,7 @@ function briefCard(seat) {
 // ---------- Settings ----------
 const ABOUT = { test: "The command that checks the app after each task. A task that breaks a check that passed before is sent back.",
   env: "Settings that command needs, one a line, like NAME=value. Never keys or passwords.", setup: "A command run once before the first task, to get the app ready.",
-  timeout: "How long the check or set-up may take.", branch: "Where Roundtable's work goes in an existing app; never its main line.",
+  timeout: "How long the check or set-up may take.", branch: "Where the harness's work goes in an existing app; never its main line.",
   rules_files: "The app's own rule files, which every model follows.", rules_budget: "At most this much of those rules goes to the models.",
   providers_allowed: "Only these AI services may see this project. None ticked: any of them.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
   limits: "Money and effort limits for this project only. Empty: the app's own.", look: "Offer looks to choose from before building.",

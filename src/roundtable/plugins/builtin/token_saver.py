@@ -17,6 +17,7 @@ from typing import Any
 from ...harness.saver import SaverConfig, TokenSaver
 from ..api import Plugin, PluginContext
 from ..manifest import parse_manifest
+from ...brand import NAME
 
 WORDS = {
     "dedupe_enabled": "Replace a result that is exactly the same as one a moment ago with a short note.",
@@ -55,7 +56,7 @@ MANIFEST = parse_manifest({
     "version": "2.1.3",
     "description": ("Big tool results (long logs, tables, JSON) are shortened before a model reads them, so each "
                     "step costs less. Nothing is lost: the full text is kept and the model can ask for it."),
-    "author": "Roundtable Hold (ported from dsh-plugin-save-token by PlayWithAI)",
+    "author": f"{NAME} (ported from dsh-plugin-save-token by PlayWithAI)",
     "licence": "MIT",
     "homepage": "https://github.com/vibe-any/dsh-plugin-save-token",
     "entry": "roundtable.plugins.builtin.token_saver:TokenSaverPlugin",

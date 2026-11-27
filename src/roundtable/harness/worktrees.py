@@ -321,7 +321,8 @@ class ParallelStage:
                     if stop or self._halt is not None:
                         break
                     if split_later:
-                        if any([self._split_if_too_big(t) for t in split_later]):
+                        if any([self._split_if_too_big(t) or self._hook("_unstick_task", t, tasks, default=False)
+                                for t in split_later]):
                             split_later = []
                             tasks = self.project.tasks()
                             continue
@@ -330,8 +331,13 @@ class ParallelStage:
                 by_id = {t.id: t for t in tasks}
                 ready = [t for t in tasks if t.status == "pending" and t.id not in running
                          and all(by_id[d].status == "done" for d in t.depends_on if d in by_id)]
+                ready = self._hook("_stage_ready", ready, tasks, set(running), default=ready)  # a working slice first
                 if not running and not ready:
-                    return self._parallel_end(tasks)
+                    end = self._parallel_end(tasks)
+                    if end == "again":  # the end steps added work: run that too
+                        tasks = self.project.tasks()
+                        continue
+                    return end
                 while ready and len(running) < width and stop is None and self._halt is None:
                     stop = self._launch_stop(state, max_tasks)
                     if stop is not None:
@@ -372,7 +378,8 @@ class ParallelStage:
             raise halt  # a money limit: the run's own handler pauses it; anything else is a real error
         stop = stop or halt
         if stop is None:
-            return self._parallel_end(self.project.tasks())
+            end = self._parallel_end(self.project.tasks())
+            return self._run_parallel(max_tasks) if end == "again" else end
         return self._apply_stop(stop)
 
     def _launch(self, pool: ThreadPoolExecutor, task, tasks, trees: Worktrees) -> tuple[Future, Any]:
@@ -526,6 +533,9 @@ class ParallelStage:
             return {"pause": "money", "halt": True}
         if max_tasks is not None and state["executed"] >= max_tasks:
             return {"pause": "", "halt": False}  # let the running ones finish, start no more
+        got = self._hook("_money_gate")  # past what the owner agreed to: the gate has paused it (moneystage.py)
+        if got:
+            return {"pause": "", "halt": False, "result": got}  # let the running ones finish, start no more
         return self._running_stop()
 
     def _running_stop(self) -> dict[str, Any] | None:
@@ -537,6 +547,8 @@ class ParallelStage:
         return None
 
     def _apply_stop(self, stop: dict[str, Any]) -> str:
+        if stop.get("result"):
+            return stop["result"]  # a stage's gate already set the status and its card
         pause = stop.get("pause") or ""
         if pause == "money_nothing_done":
             self._set_status("paused", pause=pause)
@@ -564,12 +576,17 @@ class ParallelStage:
         """Nothing running and nothing ready: done, or blocked (the same as one task at a time)."""
         if any(t.status == "failed" for t in tasks):
             self._set_status("blocked")
+            if self._hook("_unstick_end", tasks, default=False):  # worked out: one card, not one a task
+                return "blocked"
             for t in tasks:
                 if t.status == "failed":
                     self._attention(f"failed:{t.id}", f"Task {t.id} “{t.title}” didn't pass: try it "
                                     "again or skip it", details=f"roundtable status {self.project.root}")
             return "blocked"
         if all(t.status == "done" for t in tasks):
+            got = self._end_steps(tasks)  # start it, ship it, the done gate
+            if got:
+                return got  # "again": the caller reloads the tasks and goes round
             self._finish(tasks)
             return "done"
         self._set_status("blocked")

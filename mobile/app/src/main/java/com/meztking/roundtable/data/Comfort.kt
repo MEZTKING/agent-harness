@@ -9,14 +9,30 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
-/** The accent colours the owner can pick: each has a light and a dark shade that read on both palettes. */
+/**
+ * The accent colours the owner can pick: each has a light (Ash) and a dark (Eclipse, Pitch) shade that reads at
+ * 4.5:1 or better on every floor. Violet, Eclipse's corona, is the usual one; the names are what is stored.
+ */
 enum class Accent(val words: String, val light: Long, val dark: Long) {
+    VIOLET("Violet", 0xFF5B3FD6, 0xFFA78BFA),
     AMBER("Amber", 0xFF9A4A12, 0xFFE8A33D),
     MOSS("Moss", 0xFF3F5F1F, 0xFFA9C48F),
     SEA("Sea", 0xFF1D5670, 0xFF86C3DA),
     PLUM("Plum", 0xFF73345F, 0xFFDDA6D0);
 
-    companion object { fun of(s: String?) = entries.firstOrNull { it.name == s } ?: AMBER }
+    companion object { fun of(s: String?) = entries.firstOrNull { it.name == s } ?: VIOLET }
+}
+
+/**
+ * The three looks (Settings → Comfort → Look): Eclipse, black with a ring of light, is the usual one; Pitch is
+ * Eclipse on pure black (the old "true black" switch); Ash is light, for sunlight, and never the default.
+ */
+enum class Look(val words: String, val hint: String, val dark: Boolean) {
+    ECLIPSE("Eclipse", "Black with a ring of violet light. The usual look.", true),
+    PITCH("Pitch", "Pure black: easier on the battery on most phone screens.", true),
+    ASH("Ash", "Light, for bright sunlight.", false);
+
+    companion object { fun of(s: String?) = entries.firstOrNull { it.name == s } }
 }
 
 /** How strongly the phone buzzes on a press and hold or a sent answer. */
@@ -43,13 +59,17 @@ data class SentItem(val kind: String, val text: String, val subject: String = ""
 }
 
 /**
- * The phone's comfort settings: accent, true black, text size, haptics, how much detail, pinned and put-away
+ * The phone's comfort settings: look (Eclipse, Pitch, Ash), accent, text size, haptics, how much detail, pinned and put-away
  * projects, and the history of what was sent. Its own plain preferences file ("roundtable.comfort"), which holds
  * nothing secret. Every value is Compose state, so a change redraws the screens straight away.
  */
 class Comfort(private val prefs: SharedPreferences) {
     var accent by mutableStateOf(Accent.of(prefs.getString(K_ACCENT, null))); private set
-    var trueBlack by mutableStateOf(prefs.getBoolean(K_BLACK, false)); private set
+    /** Which look: stored by name; a phone from before the looks keeps its true-black choice as Pitch. */
+    var look by mutableStateOf(Look.of(prefs.getString(K_LOOK, null)) ?: if (prefs.getBoolean(K_BLACK, false)) Look.PITCH else Look.ECLIPSE)
+        private set
+    /** Pitch, in the old switch's words. */
+    val trueBlack: Boolean get() = look == Look.PITCH
     var textScale by mutableStateOf(clampScale(prefs.getFloat(K_SCALE, 1f))); private set
     var haptics by mutableStateOf(Haptics.of(prefs.getString(K_HAPTICS, null))); private set
     var detail by mutableStateOf(Detail.of(prefs.getString(K_DETAIL, null))); private set
@@ -59,7 +79,9 @@ class Comfort(private val prefs: SharedPreferences) {
     var sentVersion by mutableStateOf(0); private set
 
     fun pickAccent(a: Accent) { accent = a; prefs.edit().putString(K_ACCENT, a.name).apply() }
-    fun pickTrueBlack(on: Boolean) { trueBlack = on; prefs.edit().putBoolean(K_BLACK, on).apply() }
+    fun pickLook(l: Look) { look = l; prefs.edit().putString(K_LOOK, l.name).putBoolean(K_BLACK, l == Look.PITCH).apply() }
+    /** The old switch: on is Pitch, off is Eclipse. */
+    fun pickTrueBlack(on: Boolean) = pickLook(if (on) Look.PITCH else Look.ECLIPSE)
     fun pickTextScale(s: Float) { textScale = clampScale(s); prefs.edit().putFloat(K_SCALE, textScale).apply() }
     fun pickHaptics(h: Haptics) { haptics = h; prefs.edit().putString(K_HAPTICS, h.name).apply() }
     fun pickDetail(d: Detail) { detail = d; prefs.edit().putString(K_DETAIL, d.name).apply() }
@@ -106,6 +128,7 @@ class Comfort(private val prefs: SharedPreferences) {
         const val SCALE_MAX = 1.3f
         private const val K_ACCENT = "accent"
         private const val K_BLACK = "true_black"
+        private const val K_LOOK = "look"
         private const val K_SCALE = "text_scale"
         private const val K_HAPTICS = "haptics"
         private const val K_DETAIL = "detail"

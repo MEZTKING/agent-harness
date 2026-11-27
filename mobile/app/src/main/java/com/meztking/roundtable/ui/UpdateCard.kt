@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,9 +62,9 @@ fun UpdateAbout() {
     val new = s.available
     Text(
         when {
-            new != null -> "Roundtable Mobile ${s.current} · ${new.version} is out"
-            s.latest != null -> "Roundtable Mobile ${s.current} · up to date"
-            else -> "Roundtable Mobile ${s.current}"
+            new != null -> "${Brand.NAME} ${s.current} · ${new.version} is out"
+            s.latest != null -> "${Brand.NAME} ${s.current} · up to date"
+            else -> "${Brand.NAME} ${s.current}"
         },
         style = MaterialTheme.typography.bodyLarge, color = if (new != null) Hall.goldBright else Hall.text,
     )
@@ -102,7 +104,7 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
     Panel(modifier.fillMaxWidth(), highlight = true) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Roundtable Mobile ${new.version} is out", style = MaterialTheme.typography.titleSmall, color = Hall.goldBright)
+                Text("${Brand.NAME} ${new.version} is out", style = MaterialTheme.typography.titleSmall, color = Hall.goldBright)
                 val notes = notesPreview(new.notes, lines = 1, maxChars = 90)
                 if (notes.isNotBlank()) Text(notes, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1,
                     overflow = TextOverflow.Ellipsis)
@@ -140,7 +142,7 @@ private fun UpdateActions(updater: AppUpdater, s: UpdateUi, short: Boolean = fal
             UpdateUi.Phase.INSTALLING ->
                 Text("Handing it to Android… tap Update (or Install) when it asks.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             UpdateUi.Phase.NEED_PERMISSION -> {
-                Text("Android needs your OK once: turn on “Allow from this source” for Roundtable Mobile, then come back here.",
+                Text("Android needs your OK once: turn on “Allow from this source” for ${Brand.NAME}, then come back here.",
                     style = MaterialTheme.typography.bodySmall)
                 Button(onClick = updater::openPermission, colors = ButtonDefaults.buttonColors(containerColor = Hall.gold, contentColor = Hall.onAccent)) {
                     Text("Open the setting")
@@ -151,7 +153,7 @@ private fun UpdateActions(updater: AppUpdater, s: UpdateUi, short: Boolean = fal
                     Text(if (short) "Update" else "Download and install" + (size?.let { " ($it)" } ?: ""))
                 }
                 if (!s.explained && !short) {
-                    Text("Android will ask once to allow installs from Roundtable Mobile: say yes, and updates install from here.",
+                    Text("Android will ask once to allow installs from ${Brand.NAME}: say yes, and updates install from here.",
                         style = MaterialTheme.typography.bodySmall, color = Hall.muted)
                 }
             }

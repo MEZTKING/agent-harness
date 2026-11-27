@@ -1,6 +1,6 @@
 """Built-in updater: `roundtable update [--check] [--ref BRANCH]`.
 
-Knows how Roundtable Hold was installed (pip writes PEP 610 ``direct_url.json``):
+Knows how Darkness Harness (Roundtable Hold before 1.0.0) was installed (pip writes PEP 610 ``direct_url.json``):
 
 * from git   (``pip install "git+https://github.com/...@branch"``): compares the
   installed commit with the remote branch head, and reinstalls from the same URL.
@@ -32,11 +32,18 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+from . import brand
+
 DIST = "roundtable-hold"
 DEFAULT_URL = "https://github.com/MEZTKING/agent-harness"
 RELEASES_API = "https://api.github.com/repos/MEZTKING/agent-harness/releases/latest"
 CHECK_EVERY = 24 * 3600
+# ~/.roundtable stays as it is from 1.0.0 on: a hidden folder nobody sees, which the hub and harness configs
+# (core/config.py, harness/config.py) and Roundtable on the phone (onphone.py) also read.
 STATE_FILE = Path(os.environ.get("ROUNDTABLE_HOME", "~/.roundtable")).expanduser() / "update-check.json"
+# The Windows installer's file name, now and before 1.0.0 (the same AppId: one installs over the other).
+INSTALLER_PREFIX = brand.EXE.removesuffix(".exe") + "-Setup-"            # DarknessHarness-Setup-
+LEGACY_INSTALLER_PREFIX = brand.LEGACY_EXE.removesuffix(".exe") + "-Setup-"  # RoundtableHold-Setup-
 
 Runner = Callable[..., subprocess.CompletedProcess]
 
@@ -101,10 +108,25 @@ def latest_release(fetch=None) -> dict:
         rel = fetch(RELEASES_API)
     except Exception as e:
         raise UpdateError(f"could not reach GitHub Releases ({e})") from e
-    asset = next((a for a in rel.get("assets", []) if a.get("name", "").lower().endswith("setup.exe")
-                  or ("setup" in a.get("name", "").lower() and a.get("name", "").lower().endswith(".exe"))), None)
+    asset = pick_installer(rel.get("assets", []))
     return {"version": rel.get("tag_name", "").lstrip("vV"), "url": asset["browser_download_url"] if asset else "",
             "notes": (rel.get("body") or "")[:2000], "page": rel.get("html_url", "")}
+
+
+def pick_installer(assets: list[dict]) -> dict | None:
+    """The Windows installer among a release's files: Darkness Harness's first, then Roundtable Hold's,
+    then any other "…setup….exe". Never the phone's APK or a plain app .exe."""
+    def name(a: dict) -> str:
+        return str(a.get("name", "")).lower()
+
+    def setup(a: dict) -> bool:
+        return name(a).endswith(".exe") and "setup" in name(a) and bool(a.get("browser_download_url"))
+
+    for prefix in (INSTALLER_PREFIX.lower(), LEGACY_INSTALLER_PREFIX.lower(), ""):
+        found = next((a for a in assets if setup(a) and name(a).startswith(prefix)), None)
+        if found:
+            return found
+    return None
 
 
 def install_info(direct_url: dict | None = None, version: str | None = None, runner: Runner = _run) -> InstallInfo:
@@ -154,7 +176,7 @@ def check(ref: str | None = None, info: InstallInfo | None = None, runner: Runne
         rel = latest_release()
         newer = _parse_version(rel["version"]) > _parse_version(info.version)
         st = UpdateStatus(info, latest=rel["version"], available=newer and bool(rel["url"]))
-        st.message = (f"Roundtable Hold {rel['version']} is available (you have {info.version})" if st.available
+        st.message = (f"{brand.NAME} {rel['version']} is available (you have {info.version})" if st.available
                       else f"up to date (version {info.version})")
         st.changes = [ln for ln in rel["notes"].splitlines() if ln.strip()][:20]
         st.install.path = rel["url"]
@@ -240,13 +262,13 @@ def _update_app(st: UpdateStatus, log: Callable[[str], None]) -> UpdateStatus:
     url = st.install.path
     if not url:
         raise UpdateError("the latest release has no Windows installer attached yet")
-    dest = Path(tempfile.gettempdir()) / f"RoundtableHold-Setup-{st.latest}.exe"
+    dest = Path(tempfile.gettempdir()) / f"{INSTALLER_PREFIX}{st.latest}.exe"
     log(f"downloading {url}")
     with urllib.request.urlopen(url, timeout=300) as r, open(dest, "wb") as f:  # noqa: S310 - GitHub release asset
         while chunk := r.read(1 << 20):
             f.write(chunk)
     save_release_notes(st.latest, "\n".join(st.changes))
-    log(f"starting the installer ({dest.stat().st_size // 1_000_000} MB); Roundtable Hold will close and reopen")
+    log(f"starting the installer ({dest.stat().st_size // 1_000_000} MB); {brand.NAME} will close and reopen")
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     subprocess.Popen([str(dest), "/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"], creationflags=flags)
     st.available = False
@@ -293,7 +315,7 @@ def cached_notice(runner: Runner = _run, now: float | None = None) -> str | None
             state = {"checked_at": now, "latest": st.latest, "installed": info.commit}
             _save_state(state)
         if state.get("latest") and state["latest"] != info.commit:
-            return f"Roundtable Hold update available ({info.commit[:7]} -> {state['latest'][:7]}): run `roundtable update`"
+            return f"{brand.NAME} update available ({info.commit[:7]} -> {state['latest'][:7]}): run `roundtable update`"
     except Exception:  # never let the update check break a command
         return None
     return None

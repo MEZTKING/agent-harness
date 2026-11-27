@@ -6,6 +6,7 @@ import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant
+import com.meztking.roundtable.Brand
 
 /**
  * When the app crashes, what happened is written to a file before Android closes it. On the next
@@ -26,7 +27,7 @@ object Crash {
     fun report(error: Throwable, thread: String, version: String): String {
         val trace = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
         return buildString {
-            appendLine("Roundtable Mobile $version crashed at ${Instant.now()}")
+            appendLine("${Brand.NAME} phone app $version crashed at ${Instant.now()}")
             appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}, thread $thread")
             appendLine()
             append(trace.take(12_000))

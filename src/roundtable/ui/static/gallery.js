@@ -1,15 +1,15 @@
-// The Gallery (ui/kindsapi.py): everything finished, and what Roundtable can make. Hiding never deletes;
+// The Gallery (ui/kindsapi.py): everything finished, and what the harness can make. Hiding never deletes;
 // the Gallery has no delete at all. Model ids and the commit fold behind "More".
 import { h, fill, get, post, act, page, tabs, empty, picture, seatByPath, projectHref, money } from "./core.js";
 import { kindsTab, kindStyles, startWizard } from "./kinds.js";
 
-const TABS = [["finished", "Finished", "Everything Roundtable has finished for you"],
-  ["make", "What Roundtable can make", "The kinds of thing Roundtable knows how to build and check"]];
+const TABS = [["finished", "Finished", "Everything the harness has finished for you"],
+  ["make", "What it can make", "The kinds of thing the harness knows how to build and check"]];
 
 export async function viewGallery(tab = "finished", project, goal) {
   galleryStyles(); kindStyles();
   const head = tabs(TABS, tab, (k) => `#/gallery/${k}`, "Parts of the Gallery");
-  if (tab === "make") return page("Gallery", "What Roundtable can make, and how sure it is of each.", head, await kindsTab());
+  if (tab === "make") return page("Gallery", "What the harness can make, and how sure it is of each.", head, await kindsTab());
   if (project && goal) return page("Gallery", null, head, await entryView(project, goal));
   const box = h("div", {});
   let hidden = false;
@@ -49,7 +49,7 @@ async function entryView(project, goal) {
     h("p", { class: "muted" }, e.line),
     e.summary ? h("p", {}, e.summary) : null,
     e.pictures.length ? h("div", { class: "strip" }, e.pictures.map((p) => picture(p.src, `${e.title}: ${p.name}`))) : null,
-    e.proof_words ? h("p", { class: "gl-proof", title: "What Roundtable checked. \"Not checked yet\" means it couldn't check that by itself." }, e.proof_words) : null,
+    e.proof_words ? h("p", { class: "gl-proof", title: "What the harness checked. \"Not checked yet\" means it couldn't check that by itself." }, e.proof_words) : null,
     h("div", { class: "row" },
       h("a", { class: "btn primary", href: projectHref(seatId, "live"), title: e.outputs.length ? e.outputs.map((o) => o.path).join(", ") : "See it working" }, "Open it"),
       h("a", { class: "btn", href: projectHref(seatId) }, "Open the project"),
@@ -71,7 +71,7 @@ function galleryStyles() {
   if (typeof document === "undefined" || document.getElementById("gl-style")) return;
   document.head.append(h("style", { id: "gl-style" }, `
 .gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 12px; }
-.gl-tile { display: flex; flex-direction: column; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); color: inherit; text-decoration: none; }
+.gl-tile { display: flex; flex-direction: column; border: 1px solid var(--color-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); color: inherit; text-decoration: none; }
 .gl-tile:hover, .gl-tile:focus-visible { border-color: var(--color-accent); }
 .gl-tile img, .gl-nocover { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--color-sunken); }
 .gl-nocover { display: grid; place-items: center; color: var(--color-muted); font-size: 12px; }

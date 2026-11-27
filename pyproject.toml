@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roundtable-hold"
-version = "0.12.0"
+version = "1.0.0"
 description = "Roundtable Hold: the best AI models working together - a cross-repo hub with project journals, a role-routed multi-provider project harness, self-improvement and a web UI."
 requires-python = ">=3.10"
 dependencies = [
@@ -23,6 +23,7 @@ desktop = ["pywebview>=5", "keyring>=24"]
 
 [project.scripts]
 roundtable = "roundtable.main:main"
+darkness = "roundtable.main:main"         # the same command under the new name
 agent-hub = "roundtable.cli:main"        # alias: hub commands only
 harness = "roundtable.harness_cli:main"  # alias: harness commands only
 roundtable-app = "roundtable.desktop:main"  # the desktop app (from source)

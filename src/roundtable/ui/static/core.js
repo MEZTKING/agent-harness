@@ -1,6 +1,9 @@
 // Shared helpers: elements, the API, polling, dialogs and the words the owner reads.
 // Every node is built with h() (text, never HTML): journal entries, letters and logs hold model output.
 
+/** The name the owner reads (brand.py's twin). Names machines read stay "roundtable". */
+export const BRAND = Object.freeze({ name: "Darkness Harness", short: "Darkness", legacy: "Roundtable Hold" });
+
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -32,7 +35,7 @@ export async function api(method, path, body) {
     opts.body = JSON.stringify(body || {});
   }
   let res;
-  try { res = await fetch(path, opts); } catch { throw new Error("Roundtable Hold isn't answering. If the window was left open a long time, close and open the app again."); }
+  try { res = await fetch(path, opts); } catch { throw new Error(`${BRAND.name} isn't answering. If the window was left open a long time, close and open the app again.`); }
   let data = null;
   try { data = await res.json(); } catch { /* not JSON */ }
   if (!res.ok) throw new Error(String((data && data.error) || `Something went wrong (${res.status}). Try again in a moment.`).replace(/\s*\(https?:[^)]*\)/g, ""));

@@ -11,6 +11,7 @@ from typing import Any
 
 from ..api import Plugin, PluginContext
 from ..manifest import parse_manifest
+from ...brand import NAME
 
 MANIFEST = parse_manifest({
     "id": "attachments",
@@ -19,7 +20,7 @@ MANIFEST = parse_manifest({
     "description": ("Sends the pictures and files you attach to an idea, a note or a question to the models "
                     "(pictures only to models that can see them), and gives a note you send with Steer to the "
                     "task working now."),
-    "author": "Roundtable Hold",
+    "author": NAME,
     "licence": "MIT",
     "homepage": "",
     "entry": "roundtable.plugins.builtin.attachments:Attachments",

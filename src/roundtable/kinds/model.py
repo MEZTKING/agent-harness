@@ -39,9 +39,11 @@ GROUPS = ["Websites", "Web apps", "Browser games", "Desktop apps", "Mobile apps"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 ROLE_RE = re.compile(r"^[a-z][a-z0-9_]{0,30}$")
 KIND_KEYS = {"schema", "id", "name", "blurb", "group", "status", "extends", "match", "examples", "needs", "roles",
-             "plan", "look", "proof", "pictures", "targets", "extras_allowed", "plugins", "estimate"}
+             "plan", "look", "proof", "pictures", "targets", "extras_allowed", "plugins", "estimate", "start", "ship"}
 EXTRA_KEYS = {"schema", "id", "name", "blurb", "status", "match", "needs", "targets", "proof", "plan", "task",
-              "pc_only"}
+              "pc_only", "ship"}
+RECIPE_KEYS = ("start", "ship")  # how to start the thing built and how to build it to hand out (d2-ship tightens)
+MAX_RECIPE_WORDS = 500
 PLAN_KEYS = {"has_ui", "skeleton_first", "spec_sections", "questions", "dont"}
 EXTRA_PLAN_KEYS = {"dont"}
 PROOF_KEYS = {"id", "how", "words", "optional", "command", "seconds", "status", "path"}
@@ -190,7 +192,7 @@ def validate(raw: Any, lines: dict[str, int] | None = None, is_extra: bool = Fal
     if known_needs is not None and isinstance(raw.get("needs"), list):
         for i, n in enumerate(raw["needs"]):
             if isinstance(n, str) and n not in known_needs:
-                bad(f"needs.{i}", f"needs names {n!r}, which isn't a tool Roundtable knows "
+                bad(f"needs.{i}", f"needs names {n!r}, which isn't a tool the harness knows "
                                   f"(one of: {', '.join(sorted(known_needs))})")
     if "pc_only" in raw and not isinstance(raw["pc_only"], bool):
         bad("pc_only", "pc_only must be true or false")
@@ -200,6 +202,8 @@ def validate(raw: Any, lines: dict[str, int] | None = None, is_extra: bool = Fal
     _check_plan(raw.get("plan"), bad, EXTRA_PLAN_KEYS if is_extra else PLAN_KEYS)
     _check_proof(raw.get("proof"), bad)
     _check_estimate(raw.get("estimate"), bad)
+    for k in RECIPE_KEYS:
+        _check_recipe(k, raw.get(k), bad)
     if probs:
         return None, probs
     data = dict(raw)
@@ -292,6 +296,15 @@ def _check_proof(proof: Any, bad) -> None:
             bad(f"{p}.seconds", "seconds must be a number above 0")
         if "optional" in item and not isinstance(item["optional"], bool):
             bad(f"{p}.optional", "optional must be true or false")
+
+
+def _check_recipe(key: str, recipe: Any, bad) -> None:
+    if recipe is None:
+        return
+    if (not isinstance(recipe, dict)
+            or not all(isinstance(k, str) and isinstance(v, str) and len(v) <= MAX_RECIPE_WORDS
+                       for k, v in recipe.items())):
+        bad(key, f"{key} must be a list of settings, each a short line of words (like command: npm start)")
 
 
 def _check_estimate(est: Any, bad) -> None:
@@ -501,7 +514,7 @@ def propose(goal: str, kinds: Catalog | dict[str, Kind] | None = None,
             why = "because you said " + " and ".join(f"“{m}”" for m in said[:2])
             scored.append((k.id, round(score, 2), why))
     scored.sort(key=lambda x: (-x[1], x[0]))
-    other = ("other", 0.0, "it doesn't look like anything Roundtable has a recipe for yet" if not scored
+    other = ("other", 0.0, "it doesn't look like anything the harness has a recipe for yet" if not scored
              else "if it's none of these")
     if "other" in pool:
         scored.append(other)
@@ -749,7 +762,7 @@ def wizard_options(home: Path | str | None = None, catalog: Catalog | None = Non
     ks = sorted((k for k in cat.kinds.values() if k.id != "other"), key=lambda k: (order.get(k.group, 99), k.name))
     out = [{"id": k.id, "label": k.name, "description": k.blurb, "group": k.group} for k in ks if k.usable]
     out += [{"id": k.id, "label": k.name, "description": k.blurb, "group": "Coming", "disabled": True,
-             "tip": "Not ready yet: Roundtable can't build or prove this sort of thing so far."}
+             "tip": "Not ready yet: the harness can't build or prove this sort of thing so far."}
             for k in ks if not k.usable]
     if "other" in cat.kinds:
         out.append({"id": "other", "label": "Something else", "description": cat.kinds["other"].blurb, "group": "Other"})

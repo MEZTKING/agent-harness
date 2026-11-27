@@ -1,4 +1,4 @@
-"""PyInstaller entry point for the Roundtable Hold desktop app."""
+"""PyInstaller entry point for the Darkness Harness desktop app (DarknessHarness.exe)."""
 import sys
 
 from roundtable.desktop import main

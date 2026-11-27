@@ -1,9 +1,12 @@
 <resources>
-    <!-- Candlelit Oak: the warm floor behind the app while it starts (light; values-night has the dark one) -->
-    <style name="Theme.Roundtable" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/oak_light</item>
-        <item name="android:statusBarColor">@color/oak_light</item>
-        <item name="android:navigationBarColor">@color/oak_light</item>
-        <item name="android:windowLightStatusBar">true</item>
+    <!--
+      Eclipse: the dark floor behind the app while it starts. Dark in every case: the look (Eclipse, Pitch or
+      Ash) is chosen inside the app, not by the phone's light or dark setting.
+    -->
+    <style name="Theme.Roundtable" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/eclipse_background</item>
+        <item name="android:statusBarColor">@color/eclipse_background</item>
+        <item name="android:navigationBarColor">@color/eclipse_background</item>
+        <item name="android:colorAccent">@color/eclipse_accent</item>
     </style>
 </resources>

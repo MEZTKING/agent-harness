@@ -99,10 +99,10 @@ function compare(pr, before, after) {
 function proofStyles() {
   if (typeof document === "undefined" || document.getElementById("pf-style")) return;
   document.head.append(h("style", { id: "pf-style" }, `
-.pf { margin: 6px 0; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); background: var(--color-sunken); }
+.pf { margin: 6px 0; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); }
 .pf > summary { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; list-style: none; }
 .pf > summary::-webkit-details-marker { display: none; }
-.pf-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--color-oak-line); flex: none; }
+.pf-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--color-line); flex: none; }
 .pf-shows_it { background: var(--color-good-soft); color: var(--color-good); }
 .pf-does_not { background: var(--color-bad-soft); color: var(--color-bad); }
 .pf-cant_tell { background: var(--color-warn-soft); color: var(--color-warn); }
@@ -110,7 +110,7 @@ function proofStyles() {
 .pf-body { padding: 4px 10px 10px; }
 .pf-pairs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .pf-pair { margin: 0; min-width: 0; }
-.pf-frame { position: relative; display: block; padding: 0; border: 1px solid var(--color-oak-line); border-radius: 6px; overflow: hidden; background: var(--color-surface); width: 100%; }
+.pf-frame { position: relative; display: block; padding: 0; border: 1px solid var(--color-line); border-radius: 6px; overflow: hidden; background: var(--color-surface); width: 100%; }
 .pf-frame img { display: block; width: 100%; height: auto; cursor: zoom-in; }
 .pf-top { position: absolute; inset: 0; pointer-events: none; } .pf-top img { width: 100%; }
 .pf-tag { position: absolute; top: 6px; left: 6px; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--color-text) 70%, transparent); color: var(--color-surface); pointer-events: none; }

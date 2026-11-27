@@ -1,15 +1,15 @@
 [
  {
   "body": "a made-up note",
-  "created_at": "2026-11-27T13:54:05Z",
+  "created_at": "2026-11-27T16:28:24Z",
   "hops": 0,
-  "id": "20261127T135405796263Z-020e09",
+  "id": "20261127T162824786670Z-44136e",
   "in_reply_to": null,
   "kind": "ask",
   "read": false,
   "recipient": "proj",
   "sender": "frontend",
   "subject": "hello",
-  "thread_id": "20261127T135405796263Z-020e09"
+  "thread_id": "20261127T162824786670Z-44136e"
  }
 ]

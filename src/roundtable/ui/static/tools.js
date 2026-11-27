@@ -4,7 +4,7 @@
 import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName, has } from "./core.js";
 import { webSearchCard } from "./websearch.js";
 
-const ROW = "padding: 10px 0; border-top: 1px solid var(--color-oak-line)";  // no stylesheet change: style.css isn't this page's
+const ROW = "padding: 10px 0; border-top: 1px solid var(--color-line)";  // no stylesheet change: style.css isn't this page's
 const STATE = { found: ["Found", "good"], old: ["Too old", "warn"], broken: ["Didn't start", "bad"], missing: ["Not found", ""] };
 const pill = (state) => { const [w, c] = STATE[state] || STATE.missing; return h("span", { class: "pill " + c }, w); };
 
@@ -135,7 +135,7 @@ function serverRow(s, t, draw) {
           act(ev.currentTarget, () => post("/api/tools/servers/remove", { name: s.name }), "Removed", () => draw());
       } }, "Remove") : null),
     h("details", {}, h("summary", { class: "small muted" }, "More"), h("p", { class: "small" }, h("code", {}, s.where)),
-      s.removable ? null : h("p", { class: "small muted" }, "Set in Roundtable's settings file, so it's changed there.")),
+      s.removable ? null : h("p", { class: "small muted" }, "Set in the harness's settings file, so it's changed there.")),
     out);
 }
 

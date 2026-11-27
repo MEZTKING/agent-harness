@@ -34,6 +34,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ..harness import showit
+from ..brand import NAME
 
 TEXT_MAX = 1_000_000  # bytes of text shown in the app; bigger says so
 INLINE_MAX = 10_000_000  # pictures and PDFs sent inside the answer (the phone)
@@ -123,10 +124,10 @@ def elsewhere(app, q: dict) -> dict[str, Any]:
         where = None
     machine = (where or {}).get("machine_name") or ""
     if machine:
-        words = (f"This project's files are on {machine}. Open Roundtable Hold there to see them, or connect to it "
+        words = (f"This project's files are on {machine}. Open {NAME} there to see them, or connect to it "
                  "from here when it's on.")
     else:
-        words = "This project's files aren't on this computer. Open Roundtable Hold on the computer that builds it."
+        words = f"This project's files aren't on this computer. Open {NAME} on the computer that builds it."
     return {"here": False, "name": name, "machine_name": machine, "words": words}
 
 
@@ -210,7 +211,7 @@ def list_dir(root: Path, rel: str = "") -> dict[str, Any]:
     base = Path(root).resolve()
     d = safe_dir(base, rel)
     if d is None:
-        raise _error("That folder can't be opened: it isn't in the project, or it's one Roundtable keeps private.", 404)
+        raise _error("That folder can't be opened: it isn't in the project, or it's one the harness keeps private.", 404)
     items: list[dict[str, Any]] = []
     try:
         entries = list(os.scandir(d))
@@ -260,7 +261,7 @@ def read_file(root: Path, rel: str, inline: bool = False) -> dict[str, Any]:
     PDFs as base64 only when ``inline`` (the phone; the desktop uses /raw/pfile)."""
     f = safe_file(Path(root), rel)
     if f is None:
-        raise _error("That file can't be opened: it isn't in the project, or it's one Roundtable keeps private "
+        raise _error("That file can't be opened: it isn't in the project, or it's one the harness keeps private "
                      "(keys, passwords and its own records).", 404)
     size = f.stat().st_size
     kind = kind_of(f)
@@ -278,7 +279,7 @@ def read_file(root: Path, rel: str, inline: bool = False) -> dict[str, Any]:
         return out
     raw = f.read_bytes()
     if kind == "other" and (_looks_binary(raw) or not _utf8(raw)):
-        out["words"] = "Roundtable can't show this kind of file. Save a copy to open it with another app."
+        out["words"] = "The harness can't show this kind of file. Save a copy to open it with another app."
         return out
     if kind == "other":
         out["kind"] = kind = "text"
@@ -346,7 +347,7 @@ def copy_of(root: Path, rel: str) -> dict[str, Any]:
     """Save a copy on the phone: the whole file as base64 (up to INLINE_MAX), whatever its kind."""
     f = safe_file(Path(root), rel)
     if f is None:
-        raise _error("That file can't be saved: it isn't in the project, or it's one Roundtable keeps private.", 404)
+        raise _error("That file can't be saved: it isn't in the project, or it's one the harness keeps private.", 404)
     size = f.stat().st_size
     if size > INLINE_MAX:
         raise _error(f"This file is {_size(size)}: too big to send to the phone. Open it on the computer instead.", 413)
@@ -362,7 +363,7 @@ def raw_file(app, q: dict) -> tuple[bytes, str, dict[str, str]]:
         raise FileNotFoundError("that project's files aren't on this computer")
     f = safe_file(root, _first(q, "file"))
     if f is None:
-        raise FileNotFoundError("that file isn't there, or Roundtable keeps it private")
+        raise FileNotFoundError("that file isn't there, or the harness keeps it private")
     if f.stat().st_size > RAW_MAX:
         raise ValueError("that file is too big to send through the app")
     return raw_answer(f, download=_first(q, "download") in ("1", "true"))
@@ -505,7 +506,7 @@ def command_log_view(app, q: dict) -> dict[str, Any]:
     busy = app._busy(root)
     why = "" if test else "This project has no test command yet: add one in the project's Settings (Checks)."
     if test and busy:
-        why = "Roundtable is working on this project now: run the tests when it has finished."
+        why = "The harness is working on this project now: run the tests when it has finished."
     return {"here": True, "path": str(root), "commands": rows, "test_command": test, "can_run": bool(test) and not busy,
             "why_not": why}
 
@@ -527,7 +528,7 @@ def run_tests(app, body: dict) -> dict[str, Any]:
     if not test:
         raise _error("This project has no test command yet: add one in the project's Settings (Checks).")
     if app._busy(root):
-        raise _error("Roundtable is working on this project now: run the tests when it has finished.", 409)
+        raise _error("The harness is working on this project now: run the tests when it has finished.", 409)
     env, timeout = st.values.get("env") or {}, int(st.values.get("timeout") or 900)
 
     def run(job) -> dict[str, Any]:

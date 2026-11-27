@@ -1,52 +1,82 @@
-// The Hall: every project as a seat at a carved round table; the seat that needs you lit by a candle. Beside it the
-// first thing that needs you, answered on the card. More seats than fit around the table: they sit in rows below it.
-import { h, get, S, onHall, patch, projectHref, money, ago, plural, every, dot, empty, needsCount } from "./core.js";
+// Home: the Ring. Every project is a light on a thin ring of light (the art is ring.webp over eclipse.webp; this file only
+// places the lights and their cards). A project that is building pulses slowly; the one that needs you flares ember-orange
+// and moves to the top of the ring. Past ten projects, or in a narrow window, the ring shrinks into the heading and the
+// projects sit in a grid. Beside it the first thing that needs you, answered on the card.
+import { h, get, S, onHall, patch, projectHref, money, ago, plural, every, dot, empty, needsCount, BRAND } from "./core.js";
 import { gather, needCard } from "./needs.js";
 import { whereWords, builtBy, machinesStrip, loadMachines } from "./machines.js";
 import { feedLine } from "./activity.js";
 
-const RING_MAX = 10;   // seats around the table; more sit in rows
+const RING_MAX = 10;   // lights on the ring; more and the ring becomes a heading over a grid
 
-function seat(s) {
+// the art is optional: the ring's chrome stands in until ring.webp (and the wordmark) are there
+const ART = { ring: null, wordmark: null };
+function probe(key, src) {
+  if (ART[key] !== null) return Promise.resolve(ART[key]);
+  return new Promise((done) => { const i = new Image(); i.onload = () => done(ART[key] = true); i.onerror = () => done(ART[key] = false); i.src = src; });
+}
+
+const needsYou = (s) => s.status === "waiting" || (s.waiting_for_you || 0) > 0;
+
+function ringCard(s) {
   const p = s.progress || { done: 0, total: 0 };
   const waiting = s.waiting_for_you || 0;
-  const lit = s.status === "waiting" || waiting > 0;
+  const lit = needsYou(s);
   const by = builtBy(s);
   const state = by || s.state || "";
   const tip = [s.name, state, s.goal ? `Goal: ${s.goal}` : "", whereWords(s), s.last_activity ? `Last news ${ago(s.last_activity)}` : ""].filter(Boolean).join("\n");
-  return h("a", { class: `seat ${s.status}${lit ? " lit" : ""}`, href: projectHref(s.id), title: tip, "data-seat": s.id },
-    s.shot ? h("img", { class: "seat-shot", src: s.shot.url, alt: "", loading: "lazy" }) : null,
-    h("span", { class: "seat-name" }, dot(s.id), h("b", {}, s.name)),
-    h("span", { class: "seat-state" }, h("i", { class: "sdot", "aria-hidden": "true" }), state),
+  return h("a", { class: `ring-card ${s.status}${lit ? " lit" : ""}`, href: projectHref(s.id), title: tip, "data-project": s.id },
+    s.shot ? h("img", { class: "ring-card-shot", src: s.shot.url, alt: "", loading: "lazy" }) : null,
+    h("span", { class: "ring-card-name" }, dot(s.id), h("b", {}, s.name)),
+    h("span", { class: "ring-card-state" }, h("i", { class: "sdot", "aria-hidden": "true" }), state),
     p.total ? h("span", { class: "bar", title: `${p.done} of ${p.total} tasks done` },
       h("i", { style: `width:${(100 * p.done) / p.total}%` }), s.status === "running" && p.done < p.total ? h("i", { class: "run", style: `width:${100 / p.total}%` }) : null,
       s.failed_task ? h("i", { class: "fail", style: `width:${100 / p.total}%` }) : null) : null,
-    h("span", { class: "seat-foot" },
+    h("span", { class: "ring-card-foot" },
       waiting ? h("span", { class: "waits" }, `${waiting} for you`) : h("span", { class: "muted" }, p.total ? `${Math.round((100 * p.done) / p.total)}% done` : s.where === "here" ? "This computer" : ""),
       s.spent_usd ? h("b", { title: "Spent on this project so far" }, money(s.spent_usd)) : null));
 }
 
-function placeRing(ring, n) {  // the seats on an ellipse around the table, the empty chair last
-  const items = [...ring.querySelectorAll(":scope > .seat")];
-  if (!items.length) return;
-  ring.style.height = `${Math.min(860, Math.max(600, 74 * items.length))}px`;  // room for every seat, taller as the table fills
-  items.forEach((el, i) => {
-    const a = (2 * Math.PI * i) / items.length - Math.PI / 2;
-    el.style.left = `${50 + 41 * Math.cos(a)}%`;
-    el.style.top = `${50 + 42 * Math.sin(a)}%`;
+function ringLight(s) {  // the project's point of light on the ring; its state is also in words on its card
+  return h("i", { class: `ring-light ${s.status}${needsYou(s) ? " lit" : ""}`, "aria-hidden": "true" });
+}
+
+function placeRing(ring) {  // lights on the ring, cards outside it at the same angle; the first (the one that needs you) at the top
+  const cards = [...ring.querySelectorAll(":scope > .ring-card")];
+  const lights = [...ring.querySelectorAll(":scope > .ring-light")];
+  if (!cards.length) return;
+  const H = Math.min(860, Math.max(600, 74 * cards.length));
+  ring.style.height = `${H}px`;  // room for every card, taller as the ring fills
+  const half = Math.round(H * 0.25);  // the ring's radius: a quarter of the height, or 22% of the width if that is less
+  ring.style.setProperty("--disc", `min(44cqw, ${2 * half}px)`);
+  cards.forEach((el, i) => {
+    const a = (2 * Math.PI * i) / cards.length - Math.PI / 2;
+    const [c, s] = [Math.cos(a).toFixed(4), Math.sin(a).toFixed(4)];
+    el.style.left = `calc(50% + (50% - 118px) * ${c})`;  // cards stay inside the stage: half a card plus a margin from each edge
+    el.style.top = `calc(50% + (50% - 74px) * ${s})`;
+    const l = lights[i];
+    if (l) { l.style.left = `calc(50% + min(22cqw, ${half}px) * ${c})`; l.style.top = `calc(50% + min(22cqw, ${half}px) * ${s})`; }
   });
-  ring.dataset.n = n;
+}
+
+function ringWords(seats, waiting, small) {  // the middle of the ring: the wordmark (art) or the name, and one sentence
+  const line = seats.length ? `${plural(seats.length, "project")}${waiting ? ` · ${waiting} need${waiting === 1 ? "s" : ""} you` : " · nothing needs you"}` : "No projects yet";
+  return h("div", { class: "ring-words" },
+    // the wordmark is pale art made for the dark themes; Ash (light) shows the typed name instead
+    ...(ART.wordmark ? [h("img", { src: "wordmark.webp", alt: BRAND.name }), h("b", { class: "wordmark-typed", "aria-hidden": "true" }, small ? "Home" : BRAND.name)]
+      : [h("b", {}, small ? "Home" : BRAND.name)]),
+    h("span", {}, line));
 }
 
 export async function viewHall() {
-  const table = h("div", { class: "hall-table" });
-  const side = h("aside", { class: "hall-side", "aria-label": "Needs you" });
-  const notes = h("div", { class: "hall-under" });
-  const now = h("section", { class: "card hall-now" });
-  const root = h("div", { class: "page hall" },
-    h("div", { class: "hall-main" }, table, notes, now), side);
-  const chair = () => h("a", { class: "seat chair", href: "#/new", title: "A few taps, then the planner makes a plan for you to check. Nothing is built until you approve it." },
-    h("b", {}, "+ Pull up a chair"), h("span", {}, "Start a new idea"));
+  const table = h("div", { class: "home-stage" });
+  const side = h("aside", { class: "home-side", "aria-label": "Needs you" });
+  const notes = h("div", { class: "home-under" });
+  const now = h("section", { class: "card home-now" });
+  const root = h("div", { class: "page home" },
+    h("div", { class: "home-main" }, table, notes, now), side);
+  const newIdea = () => h("a", { class: "ring-card new-idea", href: "#/new", title: "A few taps, then the planner makes a plan for you to check. Nothing is built until you approve it." },
+    h("i", { class: "unlit", "aria-hidden": "true" }), h("b", {}, "+ New idea"), h("span", {}, "Start a project"));
 
   let wide = true;
   const ro = new ResizeObserver(() => { const w = table.clientWidth > 760; if (w !== wide) { wide = w; table._sig = undefined; draw(S.rt); } });
@@ -54,26 +84,25 @@ export async function viewHall() {
 
   async function draw(rt) {
     if (!rt) return;
-    await loadMachines();
-    const seats = rt.seats;
-    const waiting = seats.filter((s) => s.status === "waiting" || s.waiting_for_you).length;
+    await Promise.all([loadMachines(), probe("ring", "ring.webp"), probe("wordmark", "wordmark.webp")]);
+    const seats = [...rt.seats].sort((a, b) => needsYou(b) - needsYou(a));  // what needs you goes to the top of the ring
+    const waiting = seats.filter(needsYou).length;
     const ring = seats.length <= RING_MAX && wide;
-    patch(table, JSON.stringify([ring, seats.map((s) => [s.id, s.name, s.state, s.status, s.progress, s.waiting_for_you, s.spent_usd, s.shot && s.shot.url, builtBy(s), s.where])]), () => {
-      const centre = h("div", { class: "table-top", "aria-hidden": "true" }, h("i", { class: "flame" }), h("b", {}, "The Hall"),
-        h("span", {}, `${plural(seats.length, "seat")}${waiting ? ` · ${waiting} need${waiting === 1 ? "s" : ""} you` : ""}`));
-      if (!seats.length) return [h("div", { class: "ring empty-hall" }, centre), empty("No projects at the table yet. Write your first idea and the planner makes a plan for you to check.",
-        h("a", { class: "btn primary", href: "#/new" }, "+ Start a new project"))];
+    patch(table, JSON.stringify([ring, ART, seats.map((s) => [s.id, s.name, s.state, s.status, s.progress, s.waiting_for_you, s.spent_usd, s.shot && s.shot.url, builtBy(s), s.where])]), () => {
+      const disc = (small) => h("div", { class: "ring-disc" }, ringWords(seats, waiting, small));
+      const art = ART.ring ? " art" : "";
+      if (!seats.length) return [h("div", { class: `ring empty-ring${art}` }, disc(false)), empty("No projects yet. Write your first idea and the planner makes a plan for you to check.",
+        h("a", { class: "btn primary", href: "#/new" }, "+ New idea"))];
       if (ring) {
-        const r = h("div", { class: "ring", role: "list", "aria-label": "Projects at the table" }, centre, seats.map(seat), chair());
-        r.querySelectorAll(".seat").forEach((x) => x.setAttribute("role", "listitem"));
-        setTimeout(() => placeRing(r, seats.length), 0);
+        const r = h("div", { class: `ring${art}`, role: "group", "aria-label": "Your projects" }, disc(false), seats.map(ringLight), seats.map(ringCard), newIdea());
+        setTimeout(() => placeRing(r), 0);
         return r;
       }
-      return [h("div", { class: "table-band" }, centre), h("div", { class: "rows", role: "list", "aria-label": "Projects at the table" }, seats.map(seat), chair())];
+      return [h("div", { class: `ring ring-band${art}` }, h("div", { class: "ring-disc", "aria-hidden": "true" }), ringWords(seats, waiting, true)), h("div", { class: "rows", role: "list", "aria-label": "Your projects" }, seats.map(ringCard), newIdea())];
     });
-    table.querySelectorAll(".ring").forEach((r) => placeRing(r, seats.length));
+    table.querySelectorAll(".ring:not(.ring-band):not(.empty-ring)").forEach((r) => placeRing(r));
 
-    // beside the table: the first thing that needs you, answered here
+    // beside the ring: the first thing that needs you, answered here
     const items = await gather(rt, false);
     items.sort((a, b) => a.rank - b.rank);
     patch(side, JSON.stringify(items.map((i) => [i.project, i.kind, i.ask && [i.ask.id, i.ask.stamp], i.need && [i.need.text, i.need.id]])), () => {
@@ -90,7 +119,7 @@ export async function viewHall() {
         rest.length > 8 ? h("a", { href: "#/needs" }, `and ${rest.length - 8} more`) : null) : null];
     });
 
-    // under the table: my notes, the computers, the models' health, the hub's sync
+    // under the ring: my notes, the computers, the models' health, the hub's sync
     patch(notes, JSON.stringify([rt.notes && [rt.notes.open_todos, rt.notes.unread], rt.health, rt.sync_error, rt.synced_at && ago(rt.synced_at), S.offline]), () => {
       const n = rt.notes;
       const bad = (rt.health || []).filter((x) => x.state === "bad").length, off = (rt.health || []).filter((x) => x.state === "warn").length;

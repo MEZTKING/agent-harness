@@ -26,9 +26,20 @@ from importlib import resources
 from pathlib import Path
 
 from .core import secrets as vault
+from . import brand
+from .brand import NAME, SWITCHED
 
-APP_NAME = "RoundtableHold"
-KEYRING_SERVICE = "Roundtable Hold"
+# Where data and keys live. From 1.0.0 (Darkness Harness) new installs use the new names, and a PC that
+# already has Roundtable Hold's folder or keys keeps using them: nothing is ever moved or deleted
+# (the hub's git copy, projects.json and git worktrees hold absolute paths into the old folder).
+APP_NAME = "DarknessHarness"
+LEGACY_APP_NAME = "RoundtableHold"
+LINUX_NAME = "darkness-harness"
+LEGACY_LINUX_NAME = "roundtable-hold"
+KEYRING_SERVICE = "Darkness Harness"          # keys are written here
+LEGACY_KEYRING_SERVICE = "Roundtable Hold"    # and read from here when the new place has none
+PROJECTS_NAME = "Darkness Projects"
+LEGACY_PROJECTS_NAME = "Roundtable Projects"
 KNOWN_KEYS = {
     "ANTHROPIC_API_KEY": "Claude (Anthropic)",
     "DEEPSEEK_API_KEY": "DeepSeek",
@@ -76,19 +87,44 @@ def provider_key_names(paths: "Paths") -> list[str]:
 
 
 # -- locations --------------------------------------------------------------------------
+def _in_use(folder: Path) -> bool:
+    """A folder that holds something (an empty one left behind doesn't count)."""
+    try:
+        return folder.is_dir() and any(folder.iterdir())
+    except OSError:
+        return False
+
+
+def pick_home(new: Path, old: Path) -> Path:
+    """The new folder if it is in use; else the old one if it exists; else the new one (made later).
+
+    Legacy first: an installed Roundtable Hold keeps its folder for good. Nothing is moved.
+    """
+    if _in_use(new):
+        return new
+    if old.is_dir():
+        return old
+    return new
+
+
 def app_home() -> Path:
     if os.environ.get("ROUNDTABLE_HOME"):
         return Path(os.environ["ROUNDTABLE_HOME"]).expanduser()
     if sys.platform == "win32":
-        return Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / APP_NAME
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        return pick_home(base / APP_NAME, base / LEGACY_APP_NAME)
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / APP_NAME
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "roundtable-hold"
+        base = Path.home() / "Library" / "Application Support"
+        return pick_home(base / APP_NAME, base / LEGACY_APP_NAME)
+    base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return pick_home(base / LINUX_NAME, base / LEGACY_LINUX_NAME)
 
 
 def default_projects_dir() -> Path:
+    """Documents\\Darkness Projects for a new install; an existing Roundtable Projects folder stays in use."""
     docs = Path.home() / "Documents"
-    return (docs if docs.is_dir() else Path.home()) / "Roundtable Projects"
+    base = docs if docs.is_dir() else Path.home()
+    return pick_home(base / PROJECTS_NAME, base / LEGACY_PROJECTS_NAME)
 
 
 class Paths:
@@ -122,6 +158,10 @@ class KeyStore:
 
     `file_only=True` skips the credential store (a headless Linux, e.g. Roundtable on the phone,
     has no keyring): keys go to `config/keys.json`, readable by this user only.
+
+    Keys are written under KEYRING_SERVICE. A key saved before 1.0.0 (under LEGACY_KEYRING_SERVICE) is
+    still read, and copied forward to the new name the first time; the old entry is kept. Only when the
+    owner removes a key is it removed under both names, so a removed key can't come back from the old place.
     """
 
     def __init__(self, paths: Paths, backend=None, file_only: bool = False):
@@ -151,9 +191,21 @@ class KeyStore:
     def get(self, name: str) -> str | None:
         if self.backend:
             try:
-                return self.backend.get_password(KEYRING_SERVICE, name)
+                value = self.backend.get_password(KEYRING_SERVICE, name)
+            except Exception:
+                value = None
+            if value:
+                return value
+            try:
+                old = self.backend.get_password(LEGACY_KEYRING_SERVICE, name)
             except Exception:
                 return None
+            if old:
+                try:
+                    self.backend.set_password(KEYRING_SERVICE, name, old)  # copied forward, the old one kept
+                except Exception:
+                    pass
+            return old or None
         return self._file_keys().get(name)
 
     def set(self, name: str, value: str) -> None:
@@ -162,10 +214,11 @@ class KeyStore:
             if value:
                 self.backend.set_password(KEYRING_SERVICE, name, value)
             else:
-                try:
-                    self.backend.delete_password(KEYRING_SERVICE, name)
-                except Exception:
-                    pass
+                for service in (KEYRING_SERVICE, LEGACY_KEYRING_SERVICE):  # removed means removed everywhere
+                    try:
+                        self.backend.delete_password(service, name)
+                    except Exception:
+                        pass
         else:
             keys = self._file_keys()
             if value:
@@ -261,13 +314,13 @@ def migrate_configs(paths: Paths, today=None) -> list[str]:
     new = text
     if _template_hash(text) in OLD_TEMPLATES:
         new = resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8")
-        done.append("Switched by Roundtable: the first-run model choices became the recommended setup "
+        done.append(f"{SWITCHED} the first-run model choices became the recommended setup "
                     "(Claude plans, DeepSeek V4 Flash codes, other makers check). Why: the old settings "
                     "had never been changed, and the owner chose the recommended split.")
     elif any(old in text for old in NO_PRO):
         for old, flash in NO_PRO.items():
             new = new.replace(old, flash)
-        done.append("Switched by Roundtable: DeepSeek V4 Pro was replaced with DeepSeek V4 Flash in harness.yaml. "
+        done.append(f"{SWITCHED} DeepSeek V4 Pro was replaced with DeepSeek V4 Flash in harness.yaml. "
                     "Why: the owner said no DeepSeek V4 Pro for now.")
     if not done or new == text:
         return []
@@ -314,7 +367,7 @@ def write_local_hub(paths: Paths, agents: dict | None = None) -> None:
         "agents": agents or {"me": {"description": "My own notes and plans that don't belong to one project"}},
         "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}],
     }
-    paths.hub_yaml.write_text("# Roundtable Hold hub (this computer only). Connect GitHub sync in Settings.\n"
+    paths.hub_yaml.write_text(f"# {NAME} hub (this computer only). Connect GitHub sync in Settings.\n"
                               + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
 
 
@@ -354,7 +407,7 @@ def connect_github_hub(paths: Paths, url: str, log=print) -> None:
                "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}]}
         log("repository has no hub.yaml yet; starting a new hub in it")
     cfg["storage"] = {"type": "git", "path": str(target), "branch": (cfg.get("storage") or {}).get("branch", "main")}
-    paths.hub_yaml.write_text("# Roundtable Hold hub, synced with " + url + "\n" + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+    paths.hub_yaml.write_text(f"# {NAME} hub, synced with " + url + "\n" + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     log("hub connected")
 
 
@@ -439,7 +492,7 @@ def self_test(paths: Paths) -> int:
         page = urllib.request.urlopen(base + "/", timeout=30).read()
         setup = json.load(urllib.request.urlopen(base + "/api/setup", timeout=30))
         mcp_ok = _mcp_client_present()
-        ok = ov["hub"] and ov["harness"] and b"Roundtable Hold" in page and "keys" in setup and mcp_ok
+        ok = ov["hub"] and ov["harness"] and (brand.NAME.encode() in page or brand.LEGACY_NAME.encode() in page) and "keys" in setup and mcp_ok
         result = json.dumps({"ok": bool(ok), "hub": ov["hub"], "harness": ov["harness"], "mcp_client": mcp_ok,
                              "hub_error": ov.get("hub_error"), "harness_error": ov.get("harness_error"),
                              "secure_keys": setup.get("secure_keys"), "home": str(paths.home)})
@@ -455,7 +508,7 @@ def self_test(paths: Paths) -> int:
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    p = argparse.ArgumentParser(prog="roundtable-app", description="Roundtable Hold desktop app")
+    p = argparse.ArgumentParser(prog="roundtable-app", description=f"{NAME} desktop app")
     p.add_argument("--self-test", action="store_true", help="start headless, check the UI answers, exit")
     p.add_argument("--browser", action="store_true", help="open in the default browser instead of an app window")
     p.add_argument("--port", type=int)
@@ -472,13 +525,13 @@ def main(argv: list[str] | None = None) -> int:
     keystore.load_into_env(provider_key_names(paths))
     httpd, app = start_server(paths, keystore, args.port)
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    print(f"Roundtable Hold running at {url} (data: {paths.home})", flush=True)
+    print(f"{NAME} running at {url} (data: {paths.home})", flush=True)
 
     if not args.browser:
         try:
             import webview  # pywebview: native window (Edge WebView2 on Windows)
 
-            webview.create_window("Roundtable Hold", url, width=1280, height=860, min_size=(420, 600))
+            webview.create_window(NAME, url, width=1280, height=860, min_size=(420, 600))
             webview.start()  # blocks until the window is closed
             httpd.shutdown()
             return 0

@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+from .brand import NAME
 
 # Each limit and why it is that number.
 DEFAULTS: dict[str, Any] = {
@@ -203,7 +204,7 @@ class Sweep:
 
     def remove(self, what: str, p: Path, allowed: Path, note: str = "") -> bool:
         if not _inside(p, allowed) or Path(os.path.realpath(allowed)) == Path(os.path.realpath(p)):
-            self.result.skipped.append(f"{p}: outside the folders Roundtable tidies")
+            self.result.skipped.append(f"{p}: outside the folders the harness tidies")
             return False
         if self.fresh(p):
             return False
@@ -569,7 +570,7 @@ def activity_items(home: Path, limit: int = 10) -> list[dict[str, Any]]:
     for e in entries(home, limit=200):
         if e.get("dry_run") or not e.get("removed"):
             continue
-        out.append({"at": e.get("at", ""), "seq": 0, "project": "", "kind": "tidy", "who": "Roundtable",
+        out.append({"at": e.get("at", ""), "seq": 0, "project": "", "kind": "tidy", "who": NAME,
                     "task": "", "role": "", "model": "", "text": e.get("message", ""),
                     "details": details(e.get("groups") or {})})
         if len(out) >= limit:

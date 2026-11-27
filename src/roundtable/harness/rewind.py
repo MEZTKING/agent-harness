@@ -364,7 +364,7 @@ def _in_the_middle(root: Path) -> bool:
 def guard(root: Path, busy: bool = False, elsewhere: str = "") -> str:
     """Why nothing may change the project right now ("" when it may)."""
     if busy:
-        return "Roundtable is working on this project right now. Wait for it to finish or stop it, then try again."
+        return "The harness is working on this project right now. Wait for it to finish or stop it, then try again."
     if elsewhere:
         return elsewhere
     if not is_repo(root):
@@ -515,7 +515,7 @@ def _preview(root: str | Path, task_id: str, mode: str, busy: bool = False, else
         commit = live.sha
     else:
         if not base or not _out(root, "rev-parse", "--verify", "-q", f"{base}^{{commit}}"):
-            out["blocked"] = "Roundtable didn't note where this task started, so it can't go back to before it."
+            out["blocked"] = "The harness didn't note where this task started, so it can't go back to before it."
             return _finish(out)
         if not _is_ancestor(root, base, head):
             out["blocked"] = "The project has moved on another way since this task started, so it can't go back there."
@@ -768,5 +768,5 @@ def expired_refs(root: str | Path, days: int = KEEP_DAYS, now: datetime | None =
 def drop_ref(root: str | Path, ref: str) -> bool:
     """Remove one kept way back (only ever a ref under ``refs/roundtable/undo/``)."""
     if not str(ref).startswith(REF_PREFIX) or ".." in str(ref):
-        raise RewindError("Only Roundtable's own ways back can be tidied.")
+        raise RewindError("Only the harness's own ways back can be tidied.")
     return _git(Path(root), "update-ref", "-d", ref).returncode == 0

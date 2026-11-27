@@ -1,5 +1,7 @@
 package com.meztking.roundtable.update
 
+import com.meztking.roundtable.Brand
+
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -68,7 +70,7 @@ fun installFailureText(status: Int, message: String?): String? = when (status) {
         else "The install was cancelled. Tap Download and install when you're ready."
     PackageInstaller.STATUS_FAILURE_BLOCKED -> "Your phone wouldn't allow the install (a work profile or a security setting). Install it from the releases page instead."
     PackageInstaller.STATUS_FAILURE_CONFLICT ->
-        "Android refused it: the Roundtable Mobile on this phone was signed differently. Uninstall it, then install the new one from the releases page."
+        "Android refused it: the ${Brand.NAME} app on this phone (once called Roundtable Mobile) was signed differently. Uninstall it, then install the new one from the releases page."
     PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> "This build doesn't work on this phone's version of Android."
     PackageInstaller.STATUS_FAILURE_INVALID -> "The file was damaged. Tap Download and install to fetch it again."
     PackageInstaller.STATUS_FAILURE_STORAGE -> "Not enough space to install. Free some space, then tap Download and install again."

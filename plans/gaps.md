@@ -1,10 +1,26 @@
-# What Roundtable couldn't do yet
+# What the harness couldn't do yet
+
+(Roundtable Hold is Darkness Harness from 1.0.0; older entries keep the old name.)
 
 The owner's rule (26 November 2026): when a job meant for Roundtable needs something it
 can't do, add it to Roundtable, or write it here with what happened and where it
 belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
+
+- **Pictures: no editing of an earlier picture** (27 November, the Eclipse art for 1.0.0): the image route
+  (`providers/chat_images.py`, ChatImagesProvider) can only make new pictures. The ring had to be cut out of
+  the backdrop by hand with Pillow. It should take an earlier picture and an instruction. → 1.1.0.
+- **Pictures: no see-through output** (27 November, same job): there's no transparent background option, so
+  the ring and wordmark were made on black and their transparency worked out from brightness by hand. The
+  image route should ask for transparency where the model can do it, and do the cut-out itself where it
+  can't. → 1.1.0.
+- **Pictures: spending isn't counted safely in parallel** (27 November, same job): two pictures made at once
+  overwrote each other's cost line, so the art's spending had to be added up by hand ($0.89 in all,
+  `docs/art.md`). Picture spending must be counted safely when several run at once. → 1.1.0 (money).
+- **Pictures: no size option** (27 November, same job): the route can't ask for a resolution, so a 16:9
+  picture came back at 1280×720 and the Windows icon and phone art were scaled from it. A size (or "largest
+  the model allows") should be part of the request. → 1.2.0, with every model at once.
 
 - **"Ask me first" for commands on the phone isn't wired** (26 November): the phone stores the choice and
   passes `ROUNDTABLE_ASK_FIRST=1`, but `run_command` can't yet stop mid-task for an allow/deny card.

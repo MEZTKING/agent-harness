@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -56,6 +58,7 @@ import com.meztking.roundtable.data.Accent
 import com.meztking.roundtable.data.Comfort
 import com.meztking.roundtable.data.Detail
 import com.meztking.roundtable.data.Haptics
+import com.meztking.roundtable.data.Look
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.Label
 import com.meztking.roundtable.ui.theme.Panel
@@ -67,7 +70,7 @@ import kotlin.math.roundToInt
  * is one row with a one-line hint; nothing here leaves the phone.
  */
 @Composable
-fun ComfortScreen(comfort: Comfort, onBack: () -> Unit, dark: Boolean = androidx.compose.foundation.isSystemInDarkTheme()) {
+fun ComfortScreen(comfort: Comfort, onBack: () -> Unit, dark: Boolean = comfort.look.dark) {
     val buzz = rememberHaptics()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -75,12 +78,19 @@ fun ComfortScreen(comfort: Comfort, onBack: () -> Unit, dark: Boolean = androidx
             Text("Comfort", style = MaterialTheme.typography.headlineSmall, color = Hall.goldBright, modifier = Modifier.weight(1f))
             Chip("beta", Hall.muted)
         }
-        Text("How Roundtable looks and feels on this phone. These stay on this phone only.", color = Hall.muted,
+        Text("How ${Brand.NAME} looks and feels on this phone. These stay on this phone only.", color = Hall.muted,
             style = MaterialTheme.typography.bodySmall)
 
         Panel(Modifier.fillMaxWidth()) {
+            Text("LOOK", style = Label)
+            Hint(comfort.look.hint)
+            Spacer(Modifier.height(8.dp))
+            Choices(Look.entries, comfort.look, { it.words }) { comfort.pickLook(it); buzz() }
+        }
+
+        Panel(Modifier.fillMaxWidth()) {
             Text("ACCENT COLOUR", style = Label)
-            Hint("The colour of buttons and the selected tab. Each one is easy to read in light and dark.")
+            Hint("The colour of buttons and the selected tab. Each one is easy to read in every look.")
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Accent.entries.forEach { a ->
                     val c = Color(if (dark) a.dark else a.light)
@@ -93,18 +103,6 @@ fun ComfortScreen(comfort: Comfort, onBack: () -> Unit, dark: Boolean = androidx
                             fontWeight = if (on) FontWeight.Bold else null, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
-            }
-        }
-
-        Panel(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("TRUE BLACK", style = Label)
-                    Hint("In the dark look, a pure black floor: easier on the battery on most screens.")
-                }
-                Switch(comfort.trueBlack, { comfort.pickTrueBlack(it); buzz() },
-                    colors = SwitchDefaults.colors(checkedTrackColor = Hall.gold, checkedThumbColor = Hall.onAccent),
-                    modifier = Modifier.semantics { contentDescription = "True black" })
             }
         }
 
@@ -158,17 +156,17 @@ data class BatteryCheck(val words: String, val ok: Boolean?)
 /** What keeps Roundtable checking in the background, worked out from what the phone reports (tests call it). */
 object BatteryChecklist {
     fun checks(unrestricted: Boolean, notifications: Boolean, dataSaverBlocks: Boolean): List<BatteryCheck> = listOf(
-        BatteryCheck("Battery use for Roundtable: Unrestricted", unrestricted),
-        BatteryCheck("Notifications for Roundtable: on", notifications),
-        BatteryCheck("Data Saver lets Roundtable use data in the background", !dataSaverBlocks),
-        BatteryCheck("Your phone maker's own \"sleeping apps\" list doesn't include Roundtable", null),
+        BatteryCheck("Battery use for ${Brand.NAME}: Unrestricted", unrestricted),
+        BatteryCheck("Notifications for ${Brand.NAME}: on", notifications),
+        BatteryCheck("Data Saver lets ${Brand.NAME} use data in the background", !dataSaverBlocks),
+        BatteryCheck("Your phone maker's own \"sleeping apps\" list doesn't include ${Brand.NAME}", null),
     )
 
     /** One plain sentence: all set, or how many things may stop it. */
     fun summary(checks: List<BatteryCheck>): String {
         val bad = checks.count { it.ok == false }
-        return if (bad == 0) "All set: Roundtable can keep checking while the phone sleeps."
-        else "$bad thing${if (bad == 1) "" else "s"} may stop Roundtable checking while the phone sleeps."
+        return if (bad == 0) "All set: ${Brand.NAME} can keep checking while the phone sleeps."
+        else "$bad thing${if (bad == 1) "" else "s"} may stop ${Brand.NAME} checking while the phone sleeps."
     }
 
     /** What this phone reports now. */
@@ -211,11 +209,11 @@ fun BatteryPanel(checks: List<BatteryCheck>, onOpen: () -> Unit) {
                     Text(c.words, color = Hall.text, style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Text("A question mark is something the phone can't tell Roundtable: look for it in the phone's battery settings.",
+            Text("A question mark is something the phone can't tell ${Brand.NAME}: look for it in the phone's battery settings.",
                 Modifier.padding(top = 4.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         }
         OutlinedButton(onClick = onOpen) { Text("Open battery settings") }
-        Text("Choose Roundtable there, then Unrestricted (or \"Don't optimise\"). This list checks again when you come back.",
+        Text("Choose ${Brand.NAME} there, then Unrestricted (or \"Don't optimise\"). This list checks again when you come back.",
             color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -226,7 +224,7 @@ fun ComfortEntry(comfort: Comfort, onOpen: () -> Unit) {
     Panel(Modifier.fillMaxWidth()) {
         Text("COMFORT", style = Label)
         Spacer(Modifier.height(6.dp))
-        Text(comfortLine(comfort.accent, comfort.trueBlack, comfort.textScale, comfort.detail), color = Hall.muted,
+        Text(comfortLine(comfort.look, comfort.accent, comfort.textScale, comfort.detail), color = Hall.muted,
             style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(6.dp))
         OutlinedButton(onClick = onOpen) { Text("Open") }
@@ -234,8 +232,8 @@ fun ComfortEntry(comfort: Comfort, onOpen: () -> Unit) {
 }
 
 /** "Amber · true black · text 110% · Live: Compact". */
-fun comfortLine(accent: Accent, trueBlack: Boolean, scale: Float, detail: Detail): String =
-    listOfNotNull(accent.words, if (trueBlack) "true black" else null, "text ${(scale * 100).roundToInt()}%", "Live: ${detail.words}")
+fun comfortLine(look: Look, accent: Accent, scale: Float, detail: Detail): String =
+    listOf(look.words, accent.words, "text ${(scale * 100).roundToInt()}%", "Live: ${detail.words}")
         .joinToString(" · ")
 
 /** The battery checklist, read again each time the app comes back to the front (after Android's battery page). */

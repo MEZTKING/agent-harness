@@ -3,7 +3,7 @@
 // paste or drop; big pictures are made smaller here first), @file references from the project, speaking
 // instead of typing where this browser can, and – for a project at work – Next task or Now.
 // Server side: ui/attachapi.py and attachments.py.
-import { h, fill, get, post, q, toast } from "./core.js";
+import { BRAND, h, fill, get, post, q, toast } from "./core.js";
 
 const PART = 1_000_000;  // base64 characters a request (the app's servers take 2 MB at most)
 const MAX_PX = 1568;     // a longer picture is made smaller before it leaves this window
@@ -20,7 +20,7 @@ function style() {  // the box's own look, once (the coordinator may move it int
 .compose.drop textarea { outline: 2px dashed var(--color-accent); outline-offset: 2px; }
 .compose-files { display: flex; flex-wrap: wrap; gap: 6px; }
 .compose-file { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; border-radius: var(--radius-small);
-  background: var(--color-sunken); border: 1px solid var(--color-oak-line); font-size: 13px; max-width: 260px; }
+  background: var(--color-sunken); border: 1px solid var(--color-line); font-size: 13px; max-width: 260px; }
 .compose-file img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
 .compose-file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compose-file button { min-height: 24px; padding: 0 7px; border: none; background: transparent; color: var(--color-muted); }
@@ -28,7 +28,7 @@ function style() {  // the box's own look, once (the coordinator may move it int
 .compose-bar .spacer { flex: 1; }
 .compose-bar .mic.on { background: var(--color-bad-soft); color: var(--color-bad); }
 .compose-at { position: absolute; z-index: 5; left: 0; right: 0; top: 92px; max-height: 220px; overflow: auto; margin: 0; padding: 4px;
-  list-style: none; background: var(--color-surface); border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); box-shadow: var(--shadow); }
+  list-style: none; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-small); box-shadow: var(--shadow); }
 .compose-at li { padding: 5px 8px; border-radius: 4px; cursor: pointer; font: 13px/1.4 var(--font-mono); }
 .compose-at li.on, .compose-at li:hover { background: var(--color-accent-soft); }
 .compose-saved { font-size: 12.5px; }
@@ -198,7 +198,7 @@ export function composer(opts = {}) {
       }
       saveSoon();
     };
-    rec.onerror = (ev) => { if (ev.error === "not-allowed") toast("The microphone isn't allowed. Allow it for Roundtable Hold, then try again.", true); };
+    rec.onerror = (ev) => { if (ev.error === "not-allowed") toast(`The microphone isn't allowed. Allow it for ${BRAND.name}, then try again.`, true); };
     rec.onend = () => { listening = null; mic.classList.remove("on"); mic.textContent = "Speak"; mic.setAttribute("aria-pressed", "false"); };
     try { rec.start(); } catch { return; }
     listening = rec; mic.classList.add("on"); mic.textContent = "Stop"; mic.setAttribute("aria-pressed", "true");

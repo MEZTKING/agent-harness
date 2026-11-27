@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ..brand import NAME
 
 WHICH = {"ROUNDTABLE_GITHUB_TOKEN": "your GitHub key", "ROUNDTABLE_HUB_TOKEN": "the phone's hub key"}
 
@@ -48,7 +49,7 @@ def listing(app) -> dict[str, Any]:
         "machine": {"id": ctx.machine["id"], "name": ctx.machine["name"]},
     }
     if not s["enabled"]:
-        out["message"] = "Automations are switched off in Roundtable's settings (automation: enabled: false)."
+        out["message"] = "Automations are switched off in the harness's settings (automation: enabled: false)."
     return out
 
 
@@ -65,7 +66,7 @@ def post(app, body: dict[str, Any]) -> dict[str, Any]:
         if action == "github_key":
             key = str(body.get("key") or "").strip()
             if not app.desktop:
-                raise ApiError("This copy reads keys from the computer's own settings. Open the Roundtable Hold app "
+                raise ApiError(f"This copy reads keys from the computer's own settings. Open the {NAME} app "
                                "to save your GitHub key here.")
             app.desktop["keys"].set(au.TOKEN_KEY, key)  # the key store, and the in-memory vault; never a file here
             done = "Your GitHub key is saved." if key else "Your GitHub key is removed."
@@ -83,7 +84,7 @@ def post(app, body: dict[str, Any]) -> dict[str, Any]:
             done = "Removed."
         elif action == "run":
             if not ctx.cfg:
-                raise ApiError("Roundtable's settings file is missing or has a problem. Open Settings to fix it.", 503)
+                raise ApiError("The harness's settings file is missing or has a problem. Open Settings to fix it.", 503)
             done = au.run_now(ctx, aid)["text"]
         elif action == "start":
             done = au.start_waiting(ctx, aid, str(body.get("key") or ""))["text"]

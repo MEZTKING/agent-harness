@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 from .safeenv import clean_env
+from ..brand import NAME
 
 PALETTE_KEYS = ("background", "surface", "text", "muted", "accent", "accent_text")
 COLOUR_NAMES = {"background": "Background", "surface": "Surface (cards, panels)", "text": "Text",
@@ -323,7 +324,7 @@ def tokens_css(d: dict[str, Any]) -> str:
               f"  --radius: {d['shapes']['radius']};"]
     light = "\n".join(f"  {t}: {lh};" for _, t, lh, _ in rows)
     dark = "\n".join(f"    {t}: {dh};" for _, t, _, dh in rows)
-    return (f"/* The look: {d['name']}. Made by Roundtable from design/DESIGN.md: use only these tokens. */\n"
+    return (f"/* The look: {d['name']}. Made by {NAME} from design/DESIGN.md: use only these tokens. */\n"
             f"{imports}:root {{\n  color-scheme: light dark;\n{light}\n" + "\n".join(common) + "\n}\n\n"
             f"@media (prefers-color-scheme: dark) {{\n  :root {{\n{dark}\n  }}\n}}\n")
 

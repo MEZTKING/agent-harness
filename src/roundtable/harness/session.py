@@ -130,7 +130,7 @@ TIME_PARTS = (
     ("model", "The model thinking and writing"),
     ("tools", "Tools"),
     ("you", "Waiting for you"),
-    ("other", "Roundtable's own work"),
+    ("other", "The harness's own work"),
 )
 # A model's context window when its event doesn't say: only families whose window is well known.
 # Anything else shows the tokens without a gauge.

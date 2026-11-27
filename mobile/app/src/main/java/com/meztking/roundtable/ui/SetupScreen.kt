@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -116,7 +118,7 @@ private fun HubForm(vm: SetupViewModel, state: SetupViewModel.State) {
         Text("How to make the token", style = MaterialTheme.typography.titleSmall, color = Hall.goldBright)
         Text(
             "1. Open the GitHub page below and sign in.\n" +
-                "2. Give it a name, such as \"Roundtable phone\", and an expiry date.\n" +
+                "2. Give it a name, such as \"Darkness phone\", and an expiry date.\n" +
                 "3. Repository access: choose \"Only select repositories\" and pick agent-hub-data.\n" +
                 "4. Permissions: Contents: Read and write.\n" +
                 "5. Press Generate token, copy it and paste it here.",
@@ -168,14 +170,14 @@ private fun PairForm(vm: SetupViewModel, state: SetupViewModel.State) {
     val scan = androidx.activity.compose.rememberLauncherForActivityResult(ScanContract()) { r ->
         val text = r.contents ?: return@rememberLauncherForActivityResult
         val offer = Pairing.parse(text)
-        if (offer == null) localError = "That QR code isn't a Roundtable pairing code."
+        if (offer == null) localError = "That QR code isn't a ${Brand.NAME} pairing code."
         else { localError = null; link = text; vm.pair(offer, offer.code) }
     }
     Panel {
         Text("PAIR WITH MY PC", style = Label)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Needs Roundtable Hold 0.7 or later on your PC, with phone access on (Settings > Phone). " +
+            "Needs ${Brand.NAME} (or ${Brand.LEGACY_NAME} 0.7 or later) on your PC, with phone access on (Settings > Phone). " +
                 "Press Pair a phone there, then scan the code. Away from home, your phone and PC both need Tailscale.",
             style = MaterialTheme.typography.bodyMedium,
         )

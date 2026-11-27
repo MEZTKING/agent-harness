@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import notify
+from ..brand import NAME
 
 REFRESH_S = 10.0
 
@@ -88,5 +89,5 @@ def settings_post(app, body: dict[str, Any]) -> dict[str, Any]:
 
     p = _settings_path(app)
     if not p:
-        raise ApiError("This computer has nowhere to keep the switches. Open Roundtable Hold's settings first.")
+        raise ApiError(f"This computer has nowhere to keep the switches. Open {NAME}'s settings first.")
     return notify.save_settings(p, body or {})

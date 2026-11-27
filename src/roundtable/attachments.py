@@ -425,7 +425,7 @@ def inside(root: str | Path, rel: str) -> Path:
         raise AttachmentError(f"@{rel}: only files inside the project can be attached.")
     first = p.relative_to(root).parts[:1]
     if first and first[0] in (".git", ".harness"):
-        raise AttachmentError(f"@{rel}: Roundtable's own files can't be attached.")
+        raise AttachmentError(f"@{rel}: The harness's own files can't be attached.")
     if not p.is_file():
         raise AttachmentError(f"@{rel}: there's no such file in the project.")
     return p
@@ -643,7 +643,7 @@ def attachment_content(cfg: Any, model: str, root: Path, role: str | None = None
             cut = len(text) > s.text_chars
             label += f":\n```\n{text[:s.text_chars]}\n```" + (f"\n(cut: the first {s.text_chars} characters)" if cut else "")
         else:
-            label += ": a file Roundtable can't read to you; go by its name"
+            label += ": a file the harness can't read to you; go by its name"
         lines.append(label)
     return "\n".join(lines), blocks
 

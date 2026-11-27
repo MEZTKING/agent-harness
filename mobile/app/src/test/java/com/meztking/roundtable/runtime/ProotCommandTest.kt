@@ -96,7 +96,7 @@ class ProotCommandTest {
     @Test
     fun `resolv conf lists IPv4 first, at most three, with a fallback`() {
         assertEquals(
-            "# Written by Roundtable Mobile at start from the device's DNS servers.\nnameserver 10.0.2.3\nnameserver 192.168.1.1\nnameserver fd00::1\n",
+            "# Written by the Darkness Harness phone app at start from the device's DNS servers.\nnameserver 10.0.2.3\nnameserver 192.168.1.1\nnameserver fd00::1\n",
             ProotCommand.resolvConf(listOf("fd00::1", "10.0.2.3", "fe80::1%wlan0", "192.168.1.1", "10.0.2.3")),
         )
         assertTrue(ProotCommand.resolvConf(emptyList()).contains("nameserver 8.8.8.8\nnameserver 1.1.1.1\n"))

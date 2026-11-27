@@ -45,7 +45,7 @@ object Search {
     val places = listOf(
         Triple("Everything", "", "Every place"),
         Triple("Plans and tasks", "plan,task", "The plans and every task"),
-        Triple("Memory", "memory", "What Roundtable remembers"),
+        Triple("Memory", "memory", "What the harness remembers"),
         Triple("Journal and letters", "journal,letter,note", "The journal, your letters and saved notes"),
         Triple("Files", "file", "The projects' own files"),
     )

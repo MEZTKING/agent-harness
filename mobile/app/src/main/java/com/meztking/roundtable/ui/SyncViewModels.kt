@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -44,7 +46,7 @@ data class ConnInputs(
 )
 
 fun connectionRows(i: ConnInputs, now: Instant = Instant.now()): List<ConnectionRow> = listOf(
-    if (!i.phoneSet) ConnectionRow(Source.PHONE, false, "This phone – not set up", null, "Roundtable can build on the phone itself, even with no PC.")
+    if (!i.phoneSet) ConnectionRow(Source.PHONE, false, "This phone – not set up", null, "${Brand.NAME} can build on the phone itself, even with no PC.")
     else ConnectionRow(Source.PHONE, true, Sync.connectionLine(Source.PHONE, i.phoneRunning, "", phoneState = i.phoneState, now = now), i.phoneRunning,
         when {
             i.phoneHub == null -> ""
@@ -52,7 +54,7 @@ fun connectionRows(i: ConnInputs, now: Instant = Instant.now()): List<Connection
             !i.phoneHub.error.isNullOrBlank() -> "Couldn't join the hub: ${i.phoneHub.error}"
             else -> "Works on its own: it doesn't sync with your PC yet."
         }),
-    if (!i.pcSet) ConnectionRow(Source.PC, false, "Your PC – not paired", null, "Pair once with the QR code Roundtable Hold shows on your PC.")
+    if (!i.pcSet) ConnectionRow(Source.PC, false, "Your PC – not paired", null, "Pair once with the QR code ${Brand.NAME} shows on your PC.")
     else {
         val last = Sync.newest(i.pc.lastOk, i.pcBeat)
         ConnectionRow(Source.PC, true, Sync.connectionLine(Source.PC, i.pc.ok, last, i.pcHost, now = now), i.pc.ok,

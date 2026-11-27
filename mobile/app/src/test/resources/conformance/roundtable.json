@@ -56,7 +56,7 @@
     "stamp": "cdfbec2f0b"
    },
    "asks": 2,
-   "at": "2026-11-27T13:54:05Z",
+   "at": "2026-11-27T16:28:24Z",
    "kind": "run",
    "name": "Proj",
    "order": 1,
@@ -72,8 +72,8 @@
     "done"
    ],
    "agent": "proj",
-   "at": "2026-11-27T13:54:05Z",
-   "id": "19528d",
+   "at": "2026-11-27T16:28:24Z",
+   "id": "cc93ea",
    "kind": "todo",
    "name": "Proj",
    "order": 0,
@@ -93,19 +93,19 @@
    "brief": {
     "agent": "proj",
     "description": "the harness project",
-    "last_activity": "2026-11-27T13:54:05Z",
+    "last_activity": "2026-11-27T16:28:24Z",
     "last_session": null,
-    "last_ts": 1795787645.7950728,
+    "last_ts": 1795796904.785863,
     "open_plans": [],
     "open_todos": [
      {
       "agent": "proj",
       "closed_at": "",
       "closed_note": "",
-      "created_at": "2026-11-27T13:54:05Z",
+      "created_at": "2026-11-27T16:28:24Z",
       "details": "",
       "for_owner": true,
-      "id": "19528d",
+      "id": "cc93ea",
       "kind": "todo",
       "next": [],
       "plan_ready": false,
@@ -114,7 +114,7 @@
       "status": "open",
       "tags": [],
       "text": "check the logo colours",
-      "ts": 1795787645.7950728
+      "ts": 1795796904.785863
      }
     ],
     "recent_decisions": [],
@@ -128,7 +128,7 @@
    "high": 1,
    "id": "proj",
    "kind": "both",
-   "last_activity": "2026-11-27T13:54:05Z",
+   "last_activity": "2026-11-27T16:28:24Z",
    "last_session": null,
    "machine": "pc-vm",
    "machine_name": "PC (VM)",

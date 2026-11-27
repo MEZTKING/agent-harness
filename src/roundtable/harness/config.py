@@ -19,6 +19,7 @@ import yaml
 
 from ..providers.base import ImageProvider, Provider, ProviderError
 from .saver import SaverConfig
+from ..brand import NAME
 
 # Anthropic list prices (USD per 1M tokens). Anything else: set `pricing:` in harness.yaml.
 # DeepSeek's peak hours (UTC) since August 2026, as reported; outside them prices are halved (verify)
@@ -108,7 +109,7 @@ class RoleSpec:
 
 FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compaction", "memory", "workers",
                     "parallel", "rewind", "attachments", "retention", "websearch", "proof", "kinds",
-                    "terminal", "money", "discovery")
+                    "terminal", "money", "discovery", "prep", "finish", "unstick", "stages", "playtest", "ship")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:
@@ -127,6 +128,7 @@ class Limits:
     command_timeout: int = 120
     max_parallel: int = 1
     max_scout_steps: int = 30  # steps for reading one reference (scout.py)
+    max_auto_tasks: int = 8  # tasks the stages may add by themselves for one goal (Orchestrator.add_tasks)
 
 
 @dataclass
@@ -389,7 +391,7 @@ def load_custom(harness_path: Path | None) -> dict[str, Any]:
 
 def save_custom(harness_path: Path, data: dict[str, Any]) -> None:
     custom_path(harness_path).write_text(
-        "# Providers and model choices added from the Roundtable Hold app or `roundtable providers`.\n"
+        f"# Providers and model choices added from the {NAME} app or `roundtable providers`.\n"
         "# Merged on top of harness.yaml (which is never rewritten). Safe to edit by hand.\n"
         + yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
@@ -627,6 +629,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             command_timeout=int(lim.get("command_timeout", 120)),
             max_scout_steps=int(lim.get("max_scout_steps", 30)),
             max_parallel=max(1, int(lim.get("max_parallel", 1) or 1)),
+            max_auto_tasks=max(0, int(lim.get("max_auto_tasks", 8))),
         ),
         allow_shell=bool(ws.get("allow_shell", True)),
         git=bool(ws.get("git", True)),

@@ -4,21 +4,21 @@ Newest first. Each item says what to do and where.
 
 ## Now
 
-- **Later, for the official phone release: a signing key for the phone's Roundtable download.**
+- **Later, for the official phone release: a signing key for the phone's harness download.**
   Test builds use a labelled test key. When the phone version is ready to release, I'll make the
   key and ask you to save it as a repository secret through the secure form (you won't type it).
 
 - **The music player build** (the yardstick): tasks 1 and 2 are done. A task really
   costs about 3 cents of DeepSeek credit; the other 12 should come to well under $1.
   Say whether to carry on.
-- **Try Roundtable Mobile on your phone** (`RoundtableMobile-test.apk`, sent 25
+- **Try the phone app (now called Darkness) on your phone** (`RoundtableMobile-test.apk`, sent 25
   November): say what's unclear or missing. It works in Hub mode with a fine-grained
   GitHub token (only `agent-hub-data`, Contents read and write).
 
 ## When you're at your PC
 
 - **Backups:** install [Google Drive for desktop](https://www.google.com/drive/download/) if
-  it isn't on your PC, and sign in. Then in Roundtable Hold, **Settings → Backups**: check it
+  it isn't on your PC, and sign in. Then in Darkness Harness, **Settings → Backups**: check it
   shows your Google Drive folder, tick **Back up every day**, and (if you like) **Lock with a
   passphrase**, then **Back up now** once. Keep the passphrase somewhere safe: a locked backup
   can't be opened without it.

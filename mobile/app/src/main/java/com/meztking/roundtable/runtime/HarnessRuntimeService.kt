@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.meztking.roundtable.Brand
 
 /**
  * Keeps the app's process alive while Roundtable on this phone sets up or runs, and shows it.
@@ -157,21 +158,21 @@ class HarnessRuntimeService : Service() {
         private const val STOP_GRACE_MS = 4_000L
 
         fun notice(state: RuntimeState): String = when (state) {
-            is RuntimeState.Downloading -> "Setting up Roundtable: downloading ${percent(state.done, state.total)}%"
-            RuntimeState.Verifying -> "Setting up Roundtable: checking the download"
-            is RuntimeState.Unpacking -> "Setting up Roundtable: unpacking"
-            is RuntimeState.Starting -> "Starting Roundtable on this phone"
-            is RuntimeState.Running -> "Roundtable is running on this phone"
-            RuntimeState.Stopping -> "Stopping Roundtable"
-            else -> "Roundtable on this phone"
+            is RuntimeState.Downloading -> "Setting up ${Brand.NAME}: downloading ${percent(state.done, state.total)}%"
+            RuntimeState.Verifying -> "Setting up ${Brand.NAME}: checking the download"
+            is RuntimeState.Unpacking -> "Setting up ${Brand.NAME}: unpacking"
+            is RuntimeState.Starting -> "Starting ${Brand.NAME} on this phone"
+            is RuntimeState.Running -> "${Brand.NAME} is running on this phone"
+            RuntimeState.Stopping -> "Stopping ${Brand.NAME}"
+            else -> "${Brand.NAME} on this phone"
         }
 
         private fun percent(done: Long, total: Long): Int = if (total <= 0) 0 else ((done * 100) / total).toInt().coerceIn(0, 100)
 
         fun createChannel(ctx: Context) {
             if (Build.VERSION.SDK_INT >= 26) {
-                val ch = NotificationChannel(CHANNEL, "Roundtable on this phone", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shows while Roundtable sets up or runs on this phone"
+                val ch = NotificationChannel(CHANNEL, "${Brand.NAME} on this phone", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "Shows while ${Brand.NAME} sets up or runs on this phone"
                 }
                 ctx.getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
             }

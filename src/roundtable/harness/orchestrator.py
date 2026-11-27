@@ -42,6 +42,7 @@ from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_not
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
+from ..brand import NAME, SWITCHED
 
 TASK_STATES = ("pending", "running", "done", "failed", "skipped")
 MAX_DIFF = 20_000
@@ -66,6 +67,15 @@ class Task:
     section: str = ""  # the plan's spec section (or decision) this task belongs to
     stronger: bool = False  # the owner asked to retry it with the Quality setting's model
     merge_of: str = ""  # a fix-up task: brings in this task's changes, which clashed (worktrees.py)
+    # the stages' seams (wave 5): which files a task changes, its stage and part of the build, who added it
+    # mid-run and why, the task it fixes or hands over from, and why it was put aside
+    files: list[str] = field(default_factory=list)  # the files this task changes (d2-stages: who changes what)
+    stage: str = ""  # the build stage it belongs to, like "slice" (a working slice first)
+    part: str = ""  # the part of the thing it builds, like "server" or "game"
+    added_by: str = ""  # a stage that added it mid-run (add_tasks), empty for the planner's tasks
+    fix_of: str = ""  # the done-list item or task it fixes
+    handoff_from: str = ""  # the stuck task whose work it carries on
+    parked: str = ""  # why it was put aside (a stuck task worked out another way), empty when not
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -195,6 +205,9 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
                 output_path=str(t.get("output_path") or ""),
                 image_options=dict(t.get("image_options") or {}),
                 section=str(t.get("section") or ""),
+                files=[str(f) for f in t.get("files") or [] if str(f).strip()],
+                stage=str(t.get("stage") or ""),
+                part=str(t.get("part") or ""),
             )
         )
     for t in new:
@@ -255,6 +268,83 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
     @ws.setter
     def ws(self, value: Workspace) -> None:
         self._ws = value
+
+    # -- the stages' hooks (wave 5) --------------------------------------------------------------
+    # Each name is a method a stage mixin may define; a bare Orchestrator has none, so it runs as before.
+    PLAN_PARTS = ("_prep_plan_part", "_done_plan_part", "_stages_plan_part", "_ship_plan_part")  # () -> str
+    SCHEMA_PARTS = ("_done_schema", "_stages_schema")  # (schema): changes the submit_plan schema in place
+    DOC_PARTS = ("_prep_doc", "_done_doc", "_stages_doc")  # (doc, args): adds its part to the plan document
+    WORKER_PARTS = ("_done_worker_part", "_stages_worker_part", "_handoff_worker_part")  # (task) -> str
+    ESTIMATE_PARTS = ("_unstick_estimate", "_finish_estimate", "_play_estimate", "_ship_estimate")  # (tasks) -> extra
+    END_STEPS = ("_finish_step", "_ship_step", "_done_gate")  # (tasks) -> None, "again", or a status to stop with
+
+    def _hook(self, name: str, *a: Any, default: Any = None) -> Any:
+        """Call a stage's hook if there is one. A stage is a help: its failure is written down, never raised,
+        except money (BudgetExceeded) and the harness's own refusals (HarnessError)."""
+        fn = getattr(self, name, None)
+        if not callable(fn):
+            return default
+        try:
+            got = fn(*a)
+        except (BudgetExceeded, HarnessError):
+            raise
+        except Exception as e:  # noqa: BLE001 - a stage is a help
+            self.emit("stage_error", {"stage": name, "error": str(e)[:300]})
+            return default
+        return default if got is None else got
+
+    def _end_steps(self, tasks: list[Task]) -> str | None:
+        """Every task is done: the end steps in order (start it, ship it, the done gate). The first that
+        answers wins: "again" (it added work: run again) or a status to stop with. None: finished."""
+        mark = sorted((t.id, t.status) for t in tasks)
+        for name in self.END_STEPS:
+            got = self._hook(name, tasks)
+            if got == "again":
+                if getattr(self, "_again_mark", None) == mark:
+                    # asked to go again with nothing changed since the last time: that would never end
+                    self.emit("stage_error", {"stage": name, "error": "asked to run again without adding work"})
+                    continue
+                self._again_mark = mark
+                return "again"
+            if got:
+                return str(got)
+        return None
+
+    def add_tasks(self, raw: list[dict[str, Any]], by: str, why: str, fix_of: str = "") -> list[Task]:
+        """A stage adds work mid-run (a fix, a handover, a step to ship). Checked like the planner's tasks,
+        capped by limits.max_auto_tasks for the goal, written in the plan's history. Call it from the run's
+        own thread (an end step, an unstick hook), never from inside a running task."""
+        with self._lock:
+            meta = self.project.meta()
+            if meta.get("no_auto_tasks"):
+                raise HarnessError("no more automatic tasks: the owner chose to finish with what's there")
+            doc = self.project.plan_doc()
+            goals = meta.get("goals") or [""]
+            gi = int(doc.get("goal_index", len(goals) - 1)) if doc else len(goals) - 1
+            existing = self.project.tasks()
+            cap = self.cfg.limits.max_auto_tasks
+            already = sum(1 for t in existing if t.goal_index == gi and t.added_by)
+            if already + len(raw or []) > cap:
+                raise HarnessError(f"{NAME} won't add more than {cap} tasks by itself for one goal "
+                                   f"({already} so far): the rest waits for you")
+            try:
+                new = _validate_plan(raw, self.cfg.roles, existing)
+            except ValueError as e:
+                raise HarnessError(f"the added tasks aren't right: {e}") from e
+            for t in new:
+                t.goal_index, t.added_by, t.fix_of = gi, str(by), str(fix_of or "")
+            tasks = existing + new
+            self.project.save_tasks(tasks)
+            if doc:
+                doc["estimate"] = self._estimate(tasks, doc.get("has_ui"))
+                doc.setdefault("history", []).append({
+                    "at": utcnow(), "version": doc.get("version", 1), "by": by, "change": str(why)[:300],
+                    "diff": {"added": [t.id for t in new], "removed": [], "changed": [], "unchanged": 0}})
+                self.project.save_plan_doc(doc, tasks)
+        self.emit("tasks_added", {"by": by, "why": str(why)[:300], "fix_of": fix_of, "tasks": [t.id for t in new]})
+        self._journal("note", f"{by} added {len(new)} task{'s' * (len(new) != 1)}: {str(why)[:200]}",
+                      details="\n".join(f"[{t.id}] ({t.role}) {t.title}" for t in new))
+        return new
 
     # -- MCP servers -----------------------------------------------------------
     def _add_mcp_tools(self, box: Toolbox, role: RoleSpec) -> None:
@@ -392,7 +482,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             state = ("approved, building" if meta.get("plan_approved") and meta.get("status") != "done"
                      else "done" if meta.get("status") == "done" else "waiting for the owner")
             gi = doc.get("goal_index", 0)
-            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
+            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by {NAME}_\n\n"
                   + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
                                             image_base=f"looks/{name}/", waiting=not meta.get("plan_approved")))
             files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n"),
@@ -648,6 +738,10 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                 "depends_on": {"type": "array", "items": {"type": "string"}},
                 "section": {"type": "string", "description": "id of the spec section (or decision) this task belongs to"},
                 "output_path": {"type": "string", "description": "for image tasks: where to save the file"},
+                "files": {"type": "array", "items": {"type": "string"},
+                          "description": "optional: the files this task creates or changes"},
+                "stage": {"type": "string", "description": "optional: the build stage this task belongs to"},
+                "part": {"type": "string", "description": "optional: the part of the build this task makes"},
                 "image_options": {
                     "type": "object",
                     "description": "image tasks only: e.g. {style, width, height, remove_bg, tile_x, tile_y}",
@@ -682,11 +776,18 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             return f"plan accepted with {len(new)} tasks"
 
         job += self._kind_plan_part()  # the kind's sections, questions and don'ts (plan and revise_plan)
+        for name in self.PLAN_PARTS:  # the stages' asks: the done list, the stages, how it ships
+            part = self._hook(name)
+            if part:
+                job += str(part)
+        schema = plandoc.submission_schema(self._task_schema())
+        for name in self.SCHEMA_PARTS:  # each adds its own fields to the submission
+            self._hook(name, schema)
         box = self.ws.toolbox(READ_ONLY)
         websearch.add_tools(box, self.cfg, role, self.emit, self.project.root)  # the planner may look things up
         box.add(Tool(
             ToolSpec("submit_plan", "Submit the plan: the plan document and its tasks. Call exactly once when complete.",
-                     plandoc.submission_schema(self._task_schema())),
+                     schema),
             submit_plan, terminal=True,  # only counts once validation passes
         ))
         prompt = f"{self._project_context(self.project.tasks())}\n\n# Roles you can assign\n{self._roles_text()}\n\n{job}"
@@ -785,8 +886,9 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             screens = bool(has_ui) if has_ui is not None else self._shots_wanted()
         except Exception:
             screens = False
+        extras = [e for n in self.ESTIMATE_PARTS if (e := self._hook(n, tasks))]  # the stages' own costs
         return plandoc.estimate(self.cfg, [t for t in tasks if t.status == "pending"], plandoc.history_by_role(uniq),
-                                screens=screens)
+                                screens=screens, extras=extras)
 
     def plan(self) -> list[Task]:
         meta = self.project.meta()
@@ -813,6 +915,8 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         self.project.save_tasks(tasks)
         doc = plandoc.doc_from_submission(args, goal, goal_index)
         doc["references"] = refs
+        for name in self.DOC_PARTS:  # the stages' parts of the document (the brief, the done list, the stages)
+            self._hook(name, doc, args)
         kind_doc = self._kind_doc()
         if kind_doc:
             doc["kind"] = kind_doc  # the first card on the plan: "This looks like a website. Right?"
@@ -936,6 +1040,8 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             if old and old.status == "failed" and (old.description, old.role) == (t.description, t.role):
                 t.attempts = old.attempts  # same task: keep its history (it stays to-do)
         new_doc = plandoc.carry_over(plandoc.doc_from_submission(args, meta["goals"][gi], gi), doc)
+        for name in self.DOC_PARTS:
+            self._hook(name, new_doc, args)
         added = [t.id for t in new if t.id not in old_open]
         removed = [i for i in old_open if i not in {t.id for t in new}]
         changed = [t.id for t in new if t.id in old_open and (t.title, t.role, t.description, t.acceptance)
@@ -1064,6 +1170,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             meta["status"] = "running"
         self.project.save_meta(meta)
         self._kind_freeze()  # the kind is fixed now: editing it later never changes this project
+        self._hook("_money_agreed")  # what the owner agreed to spend (moneystage.py)
         self.emit("approved", {})
         self._publish_plan()
 
@@ -1127,6 +1234,10 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         kind_part = self._kind_worker_part(task.role)
         if kind_part:
             parts.append(kind_part)
+        for name in self.WORKER_PARTS:  # the stages' words for the worker: what done means, its files, a handover
+            part = self._hook(name, task)
+            if part:
+                parts.append(str(part))
         block = self._memory_part().strip()
         if block:
             parts.append(block)
@@ -1445,7 +1556,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             p = next((x for x in lab.proposals() if x.id == a["id"]), None)
             why = p.rationale if p else ""
             self.emit("improved", {"id": a["id"], "version": a["version"], "summary": a["summary"]})
-            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why}",
+            self._journal("decision", f"{SWITCHED} {a['summary']}. Why: {why}",
                           details=f"undo: roundtable improve rollback {a['version']}")
 
     REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
@@ -1463,6 +1574,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             if self._real_spend_over_limit():
                 raise BudgetExceeded(f"this run reached its real-money limit of "
                                      f"${self.cfg.limits.max_real_usd_per_run:.2f}")
+        self._hook("_money_charge", cost)  # the agreed amount and autopilot's allowance (moneystage.py)
 
     def _real_spent(self) -> float | None:
         """Real money spent since the run started, from the providers' balances (None: can't tell)."""
@@ -1551,6 +1663,9 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                 return "awaiting_approval"
             self._resolved("approval", "budget", "money", note="run resumed")
             self._set_status("running")
+            stop = self._hook("_money_gate")  # past what the owner agreed to: it waits for them (moneystage.py)
+            if stop:
+                return stop
             stop = self._prepare_run()  # the project's settings, setup and the checks' baseline
             if stop:
                 return stop
@@ -1568,15 +1683,23 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                         t.status = "pending"
                 ready = [t for t in tasks if t.status == "pending"
                          and all(by_id[d].status == "done" for d in t.depends_on)]
+                ready = self._hook("_stage_ready", ready, tasks, set(), default=ready)  # a working slice first
                 if not ready:
                     if any(t.status == "failed" for t in tasks):
                         self._set_status("blocked")
+                        if self._hook("_unstick_end", tasks, default=False):  # worked out: one card, not one a task
+                            return "blocked"
                         for t in tasks:
                             if t.status == "failed":
                                 self._attention(f"failed:{t.id}", f"Task {t.id} “{t.title}” didn't pass: try it "
                                                 "again or skip it", details=f"roundtable status {self.project.root}")
                         return "blocked"
                     if all(t.status == "done" for t in tasks):
+                        got = self._end_steps(tasks)  # start it, ship it, the done gate
+                        if got == "again":
+                            continue  # they added work: run that too
+                        if got:
+                            return got
                         self._finish(tasks)
                         return "done"
                     self._set_status("blocked")
@@ -1592,6 +1715,9 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                     self._attention("money", f"this run has spent ${self.cfg.limits.max_real_usd_per_run:.2f} of real "
                                              "credit, the limit you set; run again to carry on")
                     return "paused"
+                stop = self._hook("_money_gate")
+                if stop:
+                    return stop
                 if max_tasks is not None and executed >= max_tasks:
                     self._set_status("paused")
                     return "paused"
@@ -1630,8 +1756,9 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                     self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
                     self._resolved(f"failed:{task.id}", note="task completed")
                 self._after_task(task, ok)
-                if not ok and self._split_if_too_big(task):
-                    continue  # the planner replaced it with smaller tasks; carry on with those
+                if not ok and (self._split_if_too_big(task)
+                               or self._hook("_unstick_task", task, tasks, default=False)):
+                    continue  # replaced by smaller tasks, or worked out another way; carry on with those
                 executed += 1
         except BudgetExceeded as e:
             tasks = self.project.tasks()
@@ -1678,7 +1805,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         self._journal("session", f"harness finished goal '{meta['goals'][-1][:150]}' ({len(tasks)} tasks, "
                                  f"${self.budget.spent_usd:.2f}). {first[:200]}",
                       next_steps=["Look at what was built and say what you think",
-                                  "Rate the tasks in the app (good or bad), so Roundtable learns"],
+                                  "Rate the tasks in the app (good or bad), so the harness learns"],
                       details=f"Report: {self.project.dir / 'summary.md'}\n"
                               f"Rate tasks: roundtable feedback {self.project.root} TASK --good/--bad")
 

@@ -241,7 +241,7 @@ def build(app) -> dict[str, Any]:
                 if b["open_todos"] or b["open_plans"]:
                     notes = notes or {"id": app.agent, "name": hall.NOTES_NAME, "open_todos": 0, "unread": 0,
                                       "last_activity": "", "brief": None}
-                    notes["runner"] = {"id": a, "name": "Roundtable's own list", "brief": b}
+                    notes["runner"] = {"id": a, "name": "The harness's own list", "brief": b}
                 continue
             seats[a] = _hub_seat(a, hall.friendly(a, spec), b, unread.get(a, 0))
         for who, b in split.items():  # Roundtable-built projects named in the shared journal

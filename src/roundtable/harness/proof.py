@@ -394,7 +394,7 @@ def judge(cfg: Any, task: Any, prs: list[dict[str, Any]], tests: dict[str, Any] 
     task_text = (f"# Task [{getattr(task, 'id', '')}] {getattr(task, 'title', '')}\n{getattr(task, 'description', '')}\n\n"
                  f"# Acceptance criteria\n{getattr(task, 'acceptance', '') or '(use judgement)'}\n\n")
     changes = "".join(f"- {p['kind']}: {p['words']}\n" for p in prs)
-    prompt = (task_text + f"# What Roundtable measured\n{changes}"
+    prompt = (task_text + f"# What the harness measured\n{changes}"
               + (f"{tests['words']}\n" if tests and tests.get("words") else "")
               + "\nDo these pictures show what the task asked for? Call submit_proof with: verdict (shows_it, "
                 "does_not or cant_tell), what_changed (one short plain sentence a non-programmer understands, such "

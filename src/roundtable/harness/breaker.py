@@ -157,7 +157,7 @@ class Breaker:
         if s.max_output_chars and len(out) > s.max_output_chars:
             self._trip("output", f"a {name} result of {len(out):,} characters, over the {s.max_output_chars:,} limit",
                        "Ask for less: a line range, a search, or output piped through head or tail.")
-            out = out[: s.max_output_chars] + f"\n... [cut by Roundtable: {len(out) - s.max_output_chars:,} more characters]"
+            out = out[: s.max_output_chars] + f"\n... [cut by the harness: {len(out) - s.max_output_chars:,} more characters]"
         self._check_progress()
         return out
 
@@ -179,14 +179,14 @@ class Breaker:
         trip = self.trips[-1]
         hint = trip["hint"]
         if action == "steer":
-            return f"Roundtable's safety check: {trip['reason']}. {hint}"
+            return f"The harness's safety check: {trip['reason']}. {hint}"
         if action == "refuse":
-            return (f"Roundtable's safety check, second warning: {trip['reason']}. Your next tool calls will be "
+            return (f"The harness's safety check, second warning: {trip['reason']}. Your next tool calls will be "
                     f"refused (all but the one that finishes). {hint} Next time the task is stopped.")
-        return f"Roundtable stopped this task: {trip['reason']}."
+        return f"The harness stopped this task: {trip['reason']}."
 
     def refusal(self) -> str:
-        return (f"Refused by Roundtable's safety check ({self.reason}). Think about what went wrong, "
+        return (f"Refused by the harness's safety check ({self.reason}). Think about what went wrong, "
                 "then carry on differently or finish the task.")
 
     # -- inside -----------------------------------------------------------------------------

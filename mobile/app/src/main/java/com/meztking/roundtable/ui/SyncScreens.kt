@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,19 +105,19 @@ fun ConnectionsContent(rows: List<ConnectionRow>, hubSet: Boolean, phoneJoined: 
             Spacer(Modifier.height(10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 when (r.source) {
-                    Source.PHONE -> if (!r.set) TipButton("Set up on this phone", "Downloads Roundtable to run on the phone itself.", main = true) { onAction("phone.setup") }
+                    Source.PHONE -> if (!r.set) TipButton("Set up on this phone", "Downloads ${Brand.NAME} to run on the phone itself.", main = true) { onAction("phone.setup") }
                     else {
                         if (hubSet && !phoneJoined) TipButton(if (busy == "join") "Joining…" else "Join my hub",
-                            "Gives Roundtable on this phone your hub's address and GitHub token, so it syncs with your PC. Nothing to type.",
+                            "Gives the harness on this phone your hub's address and GitHub token, so it syncs with your PC. Nothing to type.",
                             main = true, enabled = busy == null) { onAction("phone.join") }
                         TipButton("Harness on this phone", "Start, stop, its log and updates.") { onAction("phone.open") }
                     }
-                    Source.PC -> if (!r.set) TipButton("Pair with your PC", "Opens the camera: point it at the code Roundtable Hold shows on your PC.", main = true) { onAction("pc.pair") }
+                    Source.PC -> if (!r.set) TipButton("Pair with your PC", "Opens the camera: point it at the code ${Brand.NAME} shows on your PC.", main = true) { onAction("pc.pair") }
                     else {
                         if (r.ok == false) TipButton(if (busy == "find") "Looking…" else "Look for it",
                             "Looks for your PC on this Wi-Fi, in case its address changed. Only your own PC's answer is used.",
                             main = true, enabled = busy == null) { onAction("pc.find") }
-                        TipButton("Pair again", "Scan a new code, for example after reinstalling Roundtable Hold.") { onAction("pc.pair") }
+                        TipButton("Pair again", "Scan a new code, for example after reinstalling ${Brand.NAME}.") { onAction("pc.pair") }
                         TextButton(onClick = { onAction("pc.remove") }) { Text("Unpair", color = Hall.bad) }
                     }
                     Source.HUB -> if (!r.set) TipButton("Add the hub", "Paste a GitHub token that can read and write your hub repository.", main = true) { onAction("hub.add") }
@@ -289,7 +291,7 @@ fun ConnectionsScreen(
     val scan = androidx.activity.compose.rememberLauncherForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { r ->
         val text = r.contents ?: return@rememberLauncherForActivityResult
         val offer = com.meztking.roundtable.net.Pairing.parse(text)
-        if (offer == null) vm.notify("That QR code isn't a Roundtable pairing code.") else setup.pair(offer, offer.code)
+        if (offer == null) vm.notify("That QR code isn't a ${Brand.NAME} pairing code.") else setup.pair(offer, offer.code)
     }
     androidx.compose.material3.Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent,
         snackbarHost = { androidx.compose.material3.SnackbarHost(snack) }) { pad ->
@@ -314,7 +316,7 @@ fun ConnectionsScreen(
             onDismissRequest = { confirm = null },
             title = { Text(if (what == "pc.remove") "Unpair this phone?" else "Remove the GitHub token?") },
             text = {
-                Text(if (what == "pc.remove") "The phone forgets your PC. To use it again, pair again from Roundtable Hold."
+                Text(if (what == "pc.remove") "The phone forgets your PC. To use it again, pair again from ${Brand.NAME}."
                 else "The phone forgets the token. Delete it on GitHub too if you no longer need it.")
             },
             confirmButton = {

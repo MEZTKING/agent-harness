@@ -46,7 +46,7 @@
   {
    "choices": [],
    "default": "roundtable/",
-   "description": "Where Roundtable's work goes in an existing app. Ending in / means that start plus a name from the goal; anything else is the exact branch. Never main or master.",
+   "description": "Where the harness's work goes in an existing app. Ending in / means that start plus a name from the goal; anything else is the exact branch. Never main or master.",
    "key": "branch",
    "source": "default",
    "type": "text",
@@ -137,7 +137,7 @@
     "off"
    ],
    "default": "auto",
-   "description": "Take pictures of the app's screens after each task. auto: when it has screens Roundtable can open.",
+   "description": "Take pictures of the app's screens after each task. auto: when it has screens the harness can open.",
    "key": "show_it",
    "source": "default",
    "type": "choice",

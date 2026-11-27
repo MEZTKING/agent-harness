@@ -1,4 +1,4 @@
-# Roundtable Hold
+# Darkness Harness
 
 **The best AI models, working together, on all your projects.**
 
@@ -15,17 +15,33 @@ roundtable ui              # the same, in a web UI
 
 ### Windows app (easiest)
 
-1. Download **`RoundtableHold-Setup-<version>.exe`** from the [Releases page](https://github.com/MEZTKING/agent-harness/releases/latest).
+1. Download **`DarknessHarness-Setup-<version>.exe`** from the [Releases page](https://github.com/MEZTKING/agent-harness/releases/latest).
 2. Run it. It installs for your user only (no admin needed), with a Start-menu entry and a desktop icon. If Windows SmartScreen says "Windows protected your PC", click **More info → Run anyway**. The app isn't code-signed yet, which is why it asks.
-3. Roundtable Hold opens in its own window with a **setup** screen:
+3. Darkness Harness opens in its own window with a **setup** screen:
    - paste your API keys (saved in Windows Credential Manager);
    - optionally connect your `agent-hub-data` repo for sync (needs [Git for Windows](https://git-scm.com/download/win));
    - click **Start**.
 4. Everything can be changed later under **Settings**: keys, the hub, which model does which role, prices and limits.
 
-The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs you is lit by a candle. It follows your computer's light or dark setting; pick one under **Settings → Look**.
+The app's look is **Eclipse**: a dark ring of lights, one for each project, round an eclipse; the one that needs you flares orange. There are three themes – Eclipse, Pitch (true black) and Ash (light) – under **Settings → Look**.
 
-The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
+The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\DarknessHarness` (or `%APPDATA%\RoundtableHold` if you had the app before 1.0.0) and is kept if you uninstall.
+
+### What's new in 1.0.0
+
+Roundtable Hold is now Darkness Harness. Everything you have stays.
+
+- **A new name**: Darkness Harness on the PC, Darkness on the phone. Your projects, keys, hub, settings and
+  phone pairing are kept exactly where they were.
+- **A new look, Eclipse**: Home is a ring of lights round an eclipse, one light for each project; the one
+  that needs you flares orange. Three themes under **Settings → Look**: Eclipse, Pitch (true black) and
+  Ash (light). New letters (Space Grotesk, Inter and JetBrains Mono) and new art, icon and emblem.
+- **A taskbar pin you made yourself keeps working**: the old app file now just opens the new one.
+- **The phone through the firewall**: after this silent update, Windows may ask once to let the phone reach
+  the PC. Press **Yes**. It only asks on PCs that had the old firewall rules.
+- **The phone app updates in place** and stays paired: same app, new name and look.
+- **Windows SmartScreen may ask again** ("Windows protected your PC"), because the app's file name changed.
+  Click **More info → Run anyway**, as before.
 
 ### What's new in 0.12.0
 
@@ -219,16 +235,16 @@ Any `roundtable` command checks for updates at most once a day (2-second timeout
 
 ### Backups
 
-Roundtable Hold can back up everything that would be hard to make again, in one file:
+Darkness Harness can back up everything that would be hard to make again, in one file:
 
 - **your settings**: which model does what, providers, prices and limits (`harness.yaml`, `custom.yaml`), the hub's settings (not a GitHub hub's data: that's on GitHub already; a hub kept only on this computer is included) and the app's own settings;
-- **what Roundtable has learned**: learned settings, suggestions, versions and model check history (files over 20 MB are left out and listed);
+- **what the harness has learned**: learned settings, suggestions, versions and model check history (files over 20 MB are left out and listed);
 - **every project's plan and history**: the plan, tasks, costs, events and pictures in its `.harness` folder (not the rebuildable `spill`, `scratch` and `references` folders). Add **with code** to include the project's own files too (off by default: projects can be big);
 - **the list of paired phones**.
 
 **Never in a backup:** API keys and passwords. Every file is checked first; one that looks like it holds a key is left out, and the backup says which. The phone connection's private key isn't included either.
 
-**Where backups go:** if you have [Google Drive for desktop](https://www.google.com/drive/download/), Roundtable finds its **My Drive** folder (on Windows usually `G:\My Drive`) and puts backups in `My Drive\Roundtable backups`, so they're in your Google Drive with no extra setup. Any other folder works too: OneDrive, a USB stick, another disk.
+**Where backups go:** if you have [Google Drive for desktop](https://www.google.com/drive/download/), the harness finds its **My Drive** folder (on Windows usually `G:\My Drive`) and puts backups in `My Drive\the harness backups`, so they're in your Google Drive with no extra setup. Any other folder works too: OneDrive, a USB stick, another disk.
 
 In the app: **Settings → Backups**. Back up now, see the last backup, back up every day (once a day while the app is open, never while a project is running), keep the newest 10, and lock backups with a **passphrase** (recommended: a backup holds your plans; the passphrase is never saved, and a backup can't be opened without it). A backup is also made just before the app installs an update.
 
@@ -249,7 +265,7 @@ Every project's page has three tabs: **Overview** (the tasks, costs and files), 
 
 - **Live** shows the app itself, running from its folder inside the page (**Computer** or
   **Phone** width, **Reload**, **Open in browser**), and pictures of it. After every task the
-  reviewer approves, Roundtable opens the app's page (`index.html`, at the top of the project or in
+  reviewer approves, the harness opens the app's page (`index.html`, at the top of the project or in
   `public/`, `www/`, `dist/` and the like) on a small web server of its own and takes pictures: a
   computer screen (1280×800), a phone (390×844) and, when the app follows the computer's dark
   mode, a dark one. Errors the page reports while loading are listed. Earlier tasks' pictures sit
@@ -267,7 +283,7 @@ Every project's page has three tabs: **Overview** (the tasks, costs and files), 
   (`plans/shots/<project>/`: the newest set, one picture per finished task up to 20, and
   `session.json` with short lines only, never file contents); in PC mode from the PC.
 
-The app runs in its frame from a separate local address, so it can't reach Roundtable's own pages
+The app runs in its frame from a separate local address, so it can't reach the harness's own pages
 or the internet; only files inside the project are served (never `.git`, `.harness`, `.env` or a
 link that leads outside). Anything shaped like a key is hidden in the Session view and the hub.
 Turn the pictures off with `show_it: off` in `harness.yaml`. Apps that start with a command
@@ -298,7 +314,7 @@ What it decides, through the same cards you tap:
 What it never does: raise a limit or spend more after a money pause or an empty account, pick
 anything that asks "Are you sure?", or delete, publish, release or merge anything. It turns itself
 off when its time is up or the spend limit is reached (real money, checked against your providers'
-balances where they report one, else Roundtable's own count), and says why. A run it started
+balances where they report one, else the harness's own count), and says why. A run it started
 carries on within its project's own limits.
 
 **What autopilot did:** the button's card lists every choice and everything it left for you,
@@ -337,7 +353,7 @@ roundtable ui                 # → http://127.0.0.1:8765  (or: roundtable ui)
 
 | Page | What you can do |
 |---|---|
-| **Roundtable** (main screen) | Every project at the table with its live status (running and on which task/model, waiting for you and why, idle, done) and progress. **Needs you** puts approvals, failed tasks, budget stops, urgent todos and unread messages first, with one-click actions. For the selected project: its **task tree**, **chat with its orchestrator** (ask questions, or steer it; instructions reach every later task), and the **live minutes** of what every agent is doing, plus model health, today's spend and auto-sync. |
+| **Hall** (main screen) | Every project at the table with its live status (running and on which task/model, waiting for you and why, idle, done) and progress. **Needs you** puts approvals, failed tasks, budget stops, urgent todos and unread messages first, with one-click actions. For the selected project: its **task tree**, **chat with its orchestrator** (ask questions, or steer it; instructions reach every later task), and the **live minutes** of what every agent is doing, plus model health, today's spend and auto-sync. |
 | **Projects** | All hub projects at a glance. Per project: full journal history by kind, and the editable project card that other agents read. |
 | **Messages** | Any agent's inbox, threads, reply, and send to one or more agents. |
 | **Runs** | Harness projects with status and spend. Start a new project (optionally approving the plan first), approve, resume, run one task, extend with a new goal, retry or skip failed tasks, 👍/👎 results (feeds self-improvement), live run log, completion report, models used. |
@@ -408,7 +424,7 @@ The recommended setup needs no server:
 
 1. Create a private GitHub repo, e.g. `agent-hub-data`.
 2. Put your `hub.yaml` at its root with `storage: {type: git, path: .}`.
-3. In every session or machine whose agent should join, clone `agent-hub-data` and install Roundtable Hold.
+3. In every session or machine whose agent should join, clone `agent-hub-data` and install Darkness Harness.
 4. Every hub write is committed and pushed, and every read pulls first. Each message is its own file, so agents writing at the same time don't conflict. You also get a full, auditable history in git.
 
 ### Connect Claude Code sessions: `roundtable connect`
@@ -416,18 +432,18 @@ The recommended setup needs no server:
 Claude Code sessions can talk to each other through the hub, whether they run on your PC (the `claude` CLI) or in the cloud (claude.ai/code). Every message and journal entry is a git commit in `agent-hub-data`, so all sessions see them within seconds.
 
 ```
- Claude Code CLI (your PC)        Claude Code (cloud session)        Roundtable Hold app
+ Claude Code CLI (your PC)        Claude Code (cloud session)        Darkness Harness app
    repo: webshop                     repo: agent-harness                (Windows)
         └──────── hub_send / hub_inbox / hub_log ── agent-hub-data (GitHub) ──┘
 ```
 
-**Once per machine:** install Roundtable Hold (`pip install "git+https://github.com/MEZTKING/agent-harness@main"`) and clone your hub next to your repos or in your home folder (`git clone https://github.com/MEZTKING/agent-hub-data ~/agent-hub-data`).
+**Once per machine:** install Darkness Harness (`pip install "git+https://github.com/MEZTKING/agent-harness@main"`) and clone your hub next to your repos or in your home folder (`git clone https://github.com/MEZTKING/agent-hub-data ~/agent-hub-data`).
 
 **Once per repo**, run this inside the repo, then commit the two files it writes:
 
 ```bash
 roundtable connect            # project id = the folder name; or --agent ID --description "..."
-git add .mcp.json .claude/settings.json && git commit -m "Join the Roundtable Hold hub"
+git add .mcp.json .claude/settings.json && git commit -m "Join the Darkness Harness hub"
 ```
 
 It does three things:
@@ -561,7 +577,7 @@ roundtable new bakery "A bakery website with an order API, tests and a logo"
 
 ### The living plan
 
-You write the idea; the plan is a page you can argue with before anything is built. Open it from the Roundtable (**Open plan**) or `#/plan/...` in the app. It has:
+You write the idea; the plan is a page you can argue with before anything is built. Open it from the Hall (**Open plan**) or `#/plan/...` in the app. It has:
 
 - **summary, in scope / out of scope, and a "don't" list** of traps to avoid;
 - **a short spec** (stack, structure, screens, data, art style…), with the tasks grouped under the section they belong to;
@@ -574,9 +590,9 @@ Your edits wait as "changes" until you press **Update plan** (one planner call):
 
 #### Answer by tapping
 
-Roundtable asks you things the way a good assistant does: one card per question, with a short label at the top, the question, two to four answers to tap (the one it recommends comes first, marked **(Recommended)**), and **Other…** when you'd rather type. Where more than one answer fits you tick them and press **Done**. On a computer, number keys pick and Enter sends.
+The harness asks you things the way a good assistant does: one card per question, with a short label at the top, the question, two to four answers to tap (the one it recommends comes first, marked **(Recommended)**), and **Other…** when you'd rather type. Where more than one answer fits you tick them and press **Done**. On a computer, number keys pick and Enter sends.
 
-The same cards are everywhere: **Needs you** on the Roundtable shows the next one for each project, the plan page shows them all (the answered ones fold away under **Answered**, where you can change an answer until you approve), and the phone shows them on its Needs you list and the project's Plan tab. They cover the plan's choices, its questions (the planner now offers likely answers), its ideas, the look, the setting (Budget, Balanced or Quality, each with its estimate), approving the plan, a task that failed (Retry, Retry with the stronger model, Accept as it is, Skip it) and a run paused for money (Carry on with $X more, Stop here, Switch to the Budget setting). Anything that would spend beyond the estimate shows a second card first: **Are you sure?** **Not now** leaves a card for later.
+The same cards are everywhere: **Needs you** on the Hall shows the next one for each project, the plan page shows them all (the answered ones fold away under **Answered**, where you can change an answer until you approve), and the phone shows them on its Needs you list and the project's Plan tab. They cover the plan's choices, its questions (the planner now offers likely answers), its ideas, the look, the setting (Budget, Balanced or Quality, each with its estimate), approving the plan, a task that failed (Retry, Retry with the stronger model, Accept as it is, Skip it) and a run paused for money (Carry on with $X more, Stop here, Switch to the Budget setting). Anything that would spend beyond the estimate shows a second card first: **Are you sure?** **Not now** leaves a card for later.
 
 **+ New project** is a few cards too: what you want to make (web app, game, Android app, Windows app or something else), your idea in a few words, something to make it like, the setting, and whether to see three looks. Then the planner makes the plan, with its own questions for you. From the phone in Hub mode a card's answer goes through the hub as the `answer` command (`id`, `chosen`, `other`, `confirmed`); the cards themselves are written next to the plan as `plans/<project>.asks.json`.
 
@@ -584,15 +600,15 @@ The same cards are everywhere: **Needs you** on the Roundtable shows the next on
 
 So that every app you make looks like itself, an app with screens gets a **Look** step in its plan. A designer (the `designer` role: a model that can see pictures) makes three clearly different looks, each with a name, a mood, light and dark colours, fonts, shapes, one signature detail and a list of things it must never do, plus a picture of the app's main screen in that look (on a computer and on a phone). They're never the same as the looks you chose for your other projects, unless you ask. Give a starting point if you like ("like an old record shop") and press **Make new looks** for another three.
 
-Press **Choose this look** (you can add a note, such as "warmer"), then **Update plan**. Roundtable writes the look into the project as `design/DESIGN.md` (in plain words) and `design/tokens.css` (the colours, fonts and corners for light and dark), and every task and review follows it: a check finds colours or fonts written into the code instead of taken from the design file, and the reviewer sends that work back. If screens are already built, a task "Restyle the app in the chosen look" is added. Choosing a look never blocks **Approve & start**; an unchosen look shows under Needs you. From the phone: `look` (choose, with `id` and an optional `note`) and `looks` (new ones). Set `look_stage: off` in harness.yaml to make looks only when you ask. The pictures need Playwright (`pip install playwright && playwright install chromium`); without it you still get the looks and their pages.
+Press **Choose this look** (you can add a note, such as "warmer"), then **Update plan**. The harness writes the look into the project as `design/DESIGN.md` (in plain words) and `design/tokens.css` (the colours, fonts and corners for light and dark), and every task and review follows it: a check finds colours or fonts written into the code instead of taken from the design file, and the reviewer sends that work back. If screens are already built, a task "Restyle the app in the chosen look" is added. Choosing a look never blocks **Approve & start**; an unchosen look shows under Needs you. From the phone: `look` (choose, with `id` and an optional `note`) and `looks` (new ones). Set `look_stage: off` in harness.yaml to make looks only when you ask. The pictures need Playwright (`pip install playwright && playwright install chromium`); without it you still get the looks and their pages.
 
 #### Make it like this
 
-If something like your idea already exists, give it to Roundtable: a web link (an app, a game page, a website, a forum post), a GitHub repository (`owner/name` or its address), or a plain description ("the queue from Spotify"). Put them in the **Make it like this** box when you start a project (one per line), add them later in **Like these** on the plan page, from the terminal with `roundtable new DIR "goal" --like ADDRESS_OR_TEXT` (repeat it for more), or from the phone (`reference_add` with `text`, `reference_remove` with `id`).
+If something like your idea already exists, give it to the harness: a web link (an app, a game page, a website, a forum post), a GitHub repository (`owner/name` or its address), or a plain description ("the queue from Spotify"). Put them in the **Make it like this** box when you start a project (one per line), add them later in **Like these** on the plan page, from the terminal with `roundtable new DIR "goal" --like ADDRESS_OR_TEXT` (repeat it for more), or from the phone (`reference_add` with `text`, `reference_remove` with `id`).
 
 Before planning, a `scout` role (any cheap, capable chat model; without one the planner does it) reads each one and writes a short report: what it is, its features, how the parts worth borrowing work, its look in words, its licence, what to borrow for your project and what to avoid. The plan shows the reports under **Like these**, the planner builds on them, the designer starts its looks from them, and every task sees a short form. One you add later is read when you press **Update plan**. Each reading costs a little and counts in the budget. Many sites refuse automated readers (Reddit does): the report then says plainly what couldn't be read, and nothing is made up.
 
-**Similar, never a copy.** Your project borrows the kind of thing it is, how it works and its general style, never another product's name, characters, story, art, music, sounds, levels, logos or text, and it is never presented as that product. Pictures, sounds, fonts and models are never copied. Code is used only when its licence is clearly open (MIT, BSD, Apache, ISC, zlib, MPL); Roundtable decides that from the licence itself, and such code is credited in the project's `THIRD_PARTY_NOTICES.md`.
+**Similar, never a copy.** Your project borrows the kind of thing it is, how it works and its general style, never another product's name, characters, story, art, music, sounds, levels, logos or text, and it is never presented as that product. Pictures, sounds, fonts and models are never copied. Code is used only when its licence is clearly open (MIT, BSD, Apache, ISC, zlib, MPL); the harness decides that from the licence itself, and such code is credited in the project's `THIRD_PARTY_NOTICES.md`.
 
 Everything is saved in `<project>/.harness/` (`plan.json` and a readable `plan.md` included). A run can stop at any point (budget reached, plan waiting for approval, a failed task, Ctrl-C) and `roundtable run` resumes where it left off.
 
@@ -681,7 +697,7 @@ what each would cost, and you switch on the plan page, from the phone (`profile`
 - **Quality:** Claude Opus plans and designs, Claude Sonnet codes, GPT checks, all through
   OpenRouter. It costs roughly ten to twenty times as much as Balanced for the coding.
 
-OpenRouter models need no `pricing:` lines: Roundtable reads OpenRouter's published prices, the exact
+OpenRouter models need no `pricing:` lines: the harness reads OpenRouter's published prices, the exact
 cost of every call, and the account balance (`roundtable balance`).
 
 ### Adding any provider
@@ -744,7 +760,7 @@ roundtable -v ...                        # show every model turn and tool call
 
 ### Budget and safety
 
-Roundtable counts each run's cost from the tokens used and the pricing table. To check that count
+The harness counts each run's cost from the tokens used and the pricing table. To check that count
 against your bill, a run notes the provider's real balance at its start and end where the provider
 reports one (DeepSeek does): see `.harness/balance.jsonl` in the project, or run `roundtable balance`.
 Text a model has already seen (a cache hit) is counted at a tenth of the input price unless you set
@@ -753,7 +769,7 @@ Text a model has already seen (a cache hit) is counted at a tenth of the input p
 - `limits.max_cost_usd` pauses a project when reached; `roundtable run` continues after you raise it. Claude prices are built in. **Add `pricing:` for the other providers**, or their calls are counted as "unpriced" and don't count toward the budget.
 - `run_command` executes model-written shell commands in the project directory. **It is not a sandbox.** Run the harness in a container or VM, or set `workspace.allow_shell: false`, if that matters for your machine.
 - **Your keys stay out of the workers' commands.** Saved API keys and the hub token are kept in
-  Roundtable's own memory, not in the environment, and every command an AI worker can start (its shell
+  the harness's own memory, not in the environment, and every command an AI worker can start (its shell
   commands, the project's tests and setup, Godot, tool servers, the picture-taking browser, git in the
   project folder) gets a cleaned copy of the environment: no saved keys, nothing named like a key,
   token, secret, password or credential, no git settings or GitHub tokens, and nothing holding a value
@@ -768,16 +784,16 @@ Text a model has already seen (a cache hit) is counted at a tenth of the input p
   ones. A run also pauses at half its limit if nothing has passed yet, and when an account says it's
   out of credit (the task goes back in the queue; a "money" card asks you to top up).
 - **Cheaper hours**: DeepSeek charges half outside its peak hours (reported as 01:00–04:00 and
-  06:00–10:00 UTC). Roundtable counts the right price at each hour, and when you approve a plan during
+  06:00–10:00 UTC). The harness counts the right price at each hour, and when you approve a plan during
   peak hours the card offers "Approve, start at HH:MM UTC"; the desktop app starts it then.
-- **Cheaper routes**: through OpenRouter, Roundtable asks for the cheapest company that runs the model
+- **Cheaper routes**: through OpenRouter, the harness asks for the cheapest company that runs the model
   (`routing: throughput | latency | none` on the provider changes that); Claude through any gateway
   uses its cache; files over 400 lines are read as an outline plus the parts needed, not whole.
 - **When a task goes wrong**: a task that keeps running out of steps is split into smaller ones by the
   planner (once); after a rejection a stronger reviewer model gives the next verdict; reviewers are
   told what later tasks will do; and you can **accept a task as it is** (`accept` on the failed-task
   card, or the hub command) when the work is right but was rejected for the wrong reason.
-- **Learning after each run**: with `improve: {after_each_run: true, auto_apply: low}`, Roundtable
+- **Learning after each run**: with `improve: {after_each_run: true, auto_apply: low}`, the harness
   looks at the numbers after every run and switches the order of models when they clearly say so
   (for example a cheap model that keeps failing while its backup finishes for less per task). Each
   switch is written in the hub journal with the reason and the undo command.
@@ -809,7 +825,7 @@ comes from.
 
 #### Plugins
 
-Plugins add things to Roundtable without changing it: token saving, cost logs, extra tools
+Plugins add things to the harness without changing it: token saving, cost logs, extra tools
 for the workers, commands of their own. Two come built in: the **token saver** (above; on)
 and **cost log** (each model call's tokens and cost in a CSV file; off until you switch it
 on).
@@ -823,7 +839,7 @@ roundtable plugin remove my-plugin
 ```
 
 Choices are kept in `custom.yaml` under `plugins:`. **A plugin is someone's program and runs
-with Roundtable's full access**: Roundtable shows what it says it will do and asks before
+with the harness's full access**: the harness shows what it says it will do and asks before
 adding it, but can't hold it to that, so only add plugins from people you trust. A plugin
 that goes wrong is switched off for the rest of the run, and the run carries on. How to
 write one, the hooks and the permissions: [docs/plugins.md](docs/plugins.md).
@@ -946,6 +962,8 @@ This project was first built as "agent-harness". The rename to **Roundtable Hold
 - the `HUB_CONFIG` and `HARNESS_CONFIG` environment variables
 - on-disk state: `.harness/` in projects and `.harness-lab/` for learned settings
 - the hub data format
+
+From 1.0.0 the app is called **Darkness Harness** (formerly Roundtable Hold). Only the words you read changed: the `roundtable` command (with `darkness` beside it), the `roundtable` package, `%APPDATA%\RoundtableHold`, the backups folder, the hub's `roundtable:` commands and the phone's app id all stay, so nothing installed breaks.
 
 Config files are also looked up in `~/.roundtable/` before the old `~/.agent-hub/` and `~/.agent-harness/` locations.
 

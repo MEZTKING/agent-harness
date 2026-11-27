@@ -542,7 +542,7 @@ def wizard_asks(cfg) -> list[dict[str, Any]]:
         _ask("like", "wizard", "Like this", "Make it like something you know?", [
             {"id": "no", "label": "No", "description": "Just from your idea."}], recommended="no",
             other_hint="Add links, repositories or names, one per line",
-            detail="Roundtable makes something similar, never a copy: no names, art, music or text taken."),
+            detail="The harness makes something similar, never a copy: no names, art, music or text taken."),
     ]
     if cfg.profiles:
         asks.append(profile_ask(cfg))

@@ -239,13 +239,13 @@ private fun Folder(folder: Load<FolderView>, a: FilesActions) {
         items(v.items, key = { it.path }) { it ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { if (it.folder) a.openDir(it.path) else a.openFile(it) }
                 .padding(horizontal = 6.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(ICONS[it.kind] ?: "•", Modifier.width(34.dp), color = Hall.muted, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                Text(ICONS[it.kind] ?: "•", Modifier.width(34.dp), color = Hall.muted, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 13.sp)
                 Text(it.name, Modifier.weight(1f), color = Hall.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!it.folder) Text(Files.size(it.size), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
             }
         }
         if (v.more > 0) item { Text("And ${v.more} more, not shown.", color = Hall.muted, style = MaterialTheme.typography.bodySmall) }
-        item { Text("Hidden files, keys and Roundtable's own records are never shown.", Modifier.padding(top = 12.dp), color = Hall.muted,
+        item { Text("Hidden files, keys and the harness's own records are never shown.", Modifier.padding(top = 12.dp), color = Hall.muted,
             style = MaterialTheme.typography.bodySmall) }
     }
 }
@@ -334,11 +334,11 @@ private fun JsonRow(n: JsonNode, depth: Int) {
         Text(buildAnnotatedString {
             withStyle(SpanStyle(color = Hall.gold)) { append(keyPart) }
             withStyle(SpanStyle(color = if (n.kind == "string") Hall.good else Hall.warn)) { append(n.leaf) }
-        }, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        }, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp)
         return
     }
     Text((if (open) "▾ " else "▸ ") + keyPart + n.summary, Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 2.dp),
-        color = Hall.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        color = Hall.text, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp)
     if (open) Column(Modifier.padding(start = 14.dp)) { n.kids.forEach { JsonRow(it, depth + 1) } }
 }
 
@@ -374,8 +374,8 @@ private fun CodeBox(lines: List<AnnotatedString>) {
     Column(Modifier.fillMaxWidth().background(Hall.code, RoundedCornerShape(10.dp)).border(1.dp, Hall.line, RoundedCornerShape(10.dp)).padding(10.dp)) {
         lines.forEachIndexed { i, line ->
             Row {
-                Text("${i + 1}", Modifier.width(34.dp), color = Hall.muted, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 16.sp)
-                Text(line, color = Hall.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
+                Text("${i + 1}", Modifier.width(34.dp), color = Hall.muted, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 11.sp, lineHeight = 16.sp)
+                Text(line, color = Hall.text, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
     }
@@ -418,7 +418,7 @@ private fun CommandRow(c: CommandRun, startOpen: Boolean = false) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(Files.mark(c), Modifier.width(24.dp), fontWeight = FontWeight.Bold,
                 color = when (c.passed) { true -> Hall.good; false -> Hall.bad; null -> Hall.muted })
-            Text(c.command.ifBlank { "(no command)" }, Modifier.weight(1f), color = Hall.text, fontFamily = FontFamily.Monospace, fontSize = 13.sp,
+            Text(c.command.ifBlank { "(no command)" }, Modifier.weight(1f), color = Hall.text, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 13.sp,
                 maxLines = if (open) 6 else 1, overflow = TextOverflow.Ellipsis)
             Text(if (open) "▾" else "▸", color = Hall.gold)
         }
@@ -428,13 +428,13 @@ private fun CommandRow(c: CommandRun, startOpen: Boolean = false) {
             Spacer(Modifier.height(6.dp))
             if (c.output.isBlank()) Text("No output was kept.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
             else Text(c.output.takeLast(PHONE_TEXT_MAX / 10), Modifier.fillMaxWidth().background(TermBg, RoundedCornerShape(10.dp)).padding(10.dp),
-                color = TermText, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
+                color = TermText, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 11.sp, lineHeight = 15.sp)
         }
     }
 }
 
-private val TermBg = Color(0xFF1B1410)
-private val TermText = Color(0xFFF4E8D4)
+private val TermBg = Color(0xFF07070B)
+private val TermText = Color(0xFFECEBF4)
 
 // -- Save a copy and Open: through the phone's share sheet and its own viewers ---------------------------
 /** Shares (or, with [view], opens) a file the screen fetched; returns the words to show. */

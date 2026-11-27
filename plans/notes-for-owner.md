@@ -4,10 +4,51 @@ What was decided while you were away, so you can read it later. The owner's rule
 2026): switch freely without asking; anything super important goes to Fable for advice first,
 and is noted here – the question, Fable's advice, and what was done. Newest first.
 
-Roundtable's own model switches are in the hub journal as decisions ("Switched by Roundtable:
-… Why: …", each with its undo command).
+The harness's own model switches are in the hub journal as decisions ("Switched by the harness:
+… Why: …", each with its undo command; older ones say "Switched by Roundtable:").
 
 ## 2026-11-27
+
+- **Darkness Harness 1.0.0 is put together and ready** (not released yet). Roundtable Hold becomes
+  Darkness Harness in the Eclipse look you picked, on the PC and the phone; your data, keys, hub, projects
+  folder and phone pairing stay exactly where they are. Small choices made for you, all reversible:
+  - the hidden settings folder `~/.roundtable` keeps its name (several parts read it; renaming one would
+    split your settings);
+  - the old `RoundtableHold.exe` stays as a tiny starter that opens the new app, so a taskbar pin you made
+    keeps working; it goes in 1.2.0;
+  - on Home the project lights now sit exactly on the painted ring; with no projects there's one eclipse,
+    not two; in Ash (the light theme) the ring is drawn and the name typed, because the painted art is made
+    for dark backgrounds;
+  - the phone's eclipse picture is a little softer, so the drawn ring stands out.
+- **Wave 5 (1.1.0, "finished, not just built"): Fable's advice on its big questions, followed.**
+  - *Fixing things past the amount you approved:* yes, within limits it can't change itself – up to 25%
+    over what you agreed (never less than 50 cents of room), at most two "check it works and fix" rounds
+    and eight added tasks per goal, then it stops with one card. The estimate you approve already shows
+    a line for checking and fixing. Autopilot never raises this and never chooses "accept as it is".
+  - *Build and start commands that come with a kind of project:* built-in ones follow the usual command
+    rules; one from a kind you imported asks you first, once per project, showing the exact command.
+    Nothing is ever signed with a real key, installed on your phone, uploaded or published without you.
+  - *Play-testing a game shows its pictures to a model that can see:* same service and rules as the
+    proof pictures; games only, at most about 30 cents a play, counted in the estimate.
+  - *Nothing in this wave deletes:* work planned around is kept in a file; play pictures are tidied
+    like the other app pictures. **Your call later:** keep play pictures for ever?
+  - *Your words stay yours:* your idea is tidied into a brief for the planner, but your own words stay
+    the goal, on top; anything the brief adds is an idea you accept or not.
+  - *Not yet:* sound and music need a new paid service and key – asked when the first game needs it.
+- **The upgrade check passed first time:** GitHub installed Roundtable Hold, upgraded it to Darkness
+  Harness, and found nothing lost (data, a saved key, shortcuts; an old taskbar pin still opens it).
+- **The three looks were drawn** (samples, $0.20 in total): Eclipse, Obsidian Forge, Abyss. Waiting for
+  your pick; the art budget (up to $15) and keeping the phone app the same underneath are agreed.
+
+- **Darkness Harness: Fable's plan, followed.** Built on Roundtable; 1.0.0 is the new name and look
+  only (your installed app updates into it; projects, keys, phone pairing and hub kept, nothing moved or
+  deleted; a test on GitHub upgrades the old app before it ships). Then 1.1 finished apps and games,
+  1.2 every model at once, 1.3 it improves itself, 1.4 and 1.5 everything else the other harnesses do.
+  Names machines read stay as they are (the `roundtable` command, the data folder, the phone app's id), so
+  nothing breaks. **Name check:** no app called "Darkness Harness" was found; a software company called
+  Harness exists (different name). **Waiting for you:** the look (Eclipse, Obsidian Forge or Abyss), the
+  art budget (up to $15 suggested) and keeping the phone app the same underneath (recommended, assumed
+  until you say otherwise).
 
 - **Asked Fable about wave 3's big questions (0.12.0).** Fable's advice, followed as given:
   - *Web search for builders* sends their search words to a search service: on for builders and the

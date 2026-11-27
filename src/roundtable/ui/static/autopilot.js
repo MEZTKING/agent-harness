@@ -24,7 +24,7 @@ function button() {
   const on = AP.on;
   return h("button", { type: "button", class: "ap-toggle" + (on ? " on" : ""), "aria-expanded": String(open), "aria-haspopup": "dialog",
     title: on ? "Autopilot is answering what waits for you with the recommended answers. Click to see what it did, or to turn it off."
-      : "Autopilot: while you're away, Roundtable answers what waits for you with the recommended answers. Click to set it up.",
+      : "Autopilot: while you're away, the harness answers what waits for you with the recommended answers. Click to set it up.",
     onclick: () => { open = !open; drawAutopilot({}); if (open) loadAutopilot(); } },
   h("i", { class: "ap-dot", "aria-hidden": "true" }), h("b", {}, "Autopilot"), on ? h("span", { class: "ap-label" }, words(AP)) : null);
 }
@@ -60,7 +60,7 @@ function offPart() {
       drawAutopilot(r); toast(`Autopilot is on, ${words(r)}`);
     } catch (e) { toast(e.message, true); go.disabled = false; }
   } }, "Turn on");
-  return [h("p", { class: "small muted" }, "While you're away, Roundtable answers what waits for you with the recommended answer and writes down every choice. It never raises a limit, never picks anything that asks “Are you sure?”, and never deletes, publishes or releases anything."),
+  return [h("p", { class: "small muted" }, "While you're away, the harness answers what waits for you with the recommended answer and writes down every choice. It never raises a limit, never picks anything that asks “Are you sure?”, and never deletes, publishes or releases anything."),
     h("div", { class: "stack" }, h("span", { class: "label" }, "Until"), choices, custom),
     h("div", { class: "stack" }, h("span", { class: "label", title: "The most it may spend while it's on" }, "Spending limit"),
       h("span", { class: "row" }, h("b", {}, "$"), cap, h("span", { class: "small muted" }, "then it stops"))),

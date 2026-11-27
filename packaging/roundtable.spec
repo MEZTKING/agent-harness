@@ -1,13 +1,16 @@
-# PyInstaller recipe for the Roundtable Hold desktop app.
+# PyInstaller recipe for the Darkness Harness desktop app (Roundtable Hold before 1.0.0).
 #   pyinstaller packaging/roundtable.spec --noconfirm
-# Output: dist/RoundtableHold/RoundtableHold(.exe) plus its support files.
+# Output: dist/DarknessHarness/DarknessHarness(.exe) plus its support files, and RoundtableHold(.exe), a small
+# starter under the old name that opens the new one (so a taskbar pin made before the rename still works).
 import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 ROOT = Path(SPECPATH).parent
-ICON = str(ROOT / "packaging" / "roundtable.ico")
+ICON = str(ROOT / "packaging" / "darkness.ico")
+NAME = "DarknessHarness"        # brand.EXE without .exe
+LEGACY_NAME = "RoundtableHold"  # brand.LEGACY_EXE without .exe
 
 hidden = (
     collect_submodules("roundtable", filter=lambda name: "mcp_server" not in name)
@@ -37,8 +40,25 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="RoundtableHold",
+    name=NAME,
     console=False,  # a windowed app: no console window
     icon=ICON,
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="RoundtableHold")
+
+# The old-name starter: its own tiny Analysis (standard library only), sharing the app's support files.
+starter = Analysis(
+    [str(ROOT / "packaging" / "old_name_starter.py")],
+    excludes=["tkinter", "pytest", "roundtable"],
+    noarchive=False,
+)
+starter_exe = EXE(
+    PYZ(starter.pure),
+    starter.scripts,
+    [],
+    exclude_binaries=True,
+    name=LEGACY_NAME,
+    console=False,
+    icon=ICON,
+)
+
+coll = COLLECT(exe, starter_exe, a.binaries, a.datas, starter.binaries, starter.datas, name=NAME)
