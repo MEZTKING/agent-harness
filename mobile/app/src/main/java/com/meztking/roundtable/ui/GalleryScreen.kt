@@ -104,7 +104,7 @@ fun GalleryScreen(onBack: () -> Unit, onOpenProject: (String) -> Unit = {}, onSt
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (api == null) {
-                item { Text("The Gallery needs your PC, or Roundtable on this phone. Connect one in Settings.", color = Hall.muted) }
+                item { Text("The Gallery needs your PC, or the harness on this phone. Connect one in Settings.", color = Hall.muted) }
                 return@LazyColumn
             }
             if (tab == 0) {

@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -79,7 +81,7 @@ fun ThisPhoneCard(onSetUp: () -> Unit, modifier: Modifier = Modifier) {
             Text("THIS PHONE (BETA)", style = Label)
         }
         Spacer(Modifier.height(8.dp))
-        Text("Roundtable runs on this phone: no computer and no GitHub needed. About 250 MB to download once.",
+        Text("${Brand.NAME} runs on this phone: no computer and no GitHub needed. About 250 MB to download once.",
             style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(10.dp))
         Button(onClick = onSetUp, modifier = Modifier.fillMaxWidth(),
@@ -156,7 +158,7 @@ fun ThisPhoneSetupScreen(onDone: () -> Unit, onBack: () -> Unit, vm: RuntimeView
 fun TestBadge() {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text("A test build of Roundtable for this phone, signed with a public test key. The official one comes later.") } },
+        tooltip = { PlainTooltip { Text("A test build of ${Brand.NAME} for this phone, signed with a public test key. The official one comes later.") } },
         state = rememberTooltipState(),
     ) {
         Text("Test download", color = Hall.onAccent, style = MaterialTheme.typography.labelMedium,
@@ -192,7 +194,7 @@ private fun detail(state: RuntimeState, bytes: Long?): String? = when (state) {
     is RuntimeState.Downloading -> "${RuntimeFailure.mb(state.done)} of ${RuntimeFailure.mb(state.total)}"
     RuntimeState.Verifying -> "Making sure the download is genuine"
     is RuntimeState.Unpacking -> if (state.totalEntries > 0) "${state.entries} of ${state.totalEntries} files" else "${state.entries} files"
-    is RuntimeState.Starting -> "Starting Roundtable (the first start takes a minute or two)"
+    is RuntimeState.Starting -> "Starting ${Brand.NAME} (the first start takes a minute or two)"
     RuntimeState.NotInstalled -> bytes?.let { "About ${RuntimeFailure.mb(it)}" }
     else -> null
 }
@@ -208,7 +210,7 @@ private fun progress(state: RuntimeState): Float? = when (state) {
 fun CommandQuestion(vm: RuntimeViewModel) {
     var choice by rememberSaveable { mutableStateOf(vm.commandChoice) }
     Panel(Modifier.fillMaxWidth(), highlight = choice.isBlank()) {
-        Text("When Roundtable wants to run a command", style = MaterialTheme.typography.titleSmall, color = Hall.goldBright)
+        Text("When ${Brand.NAME} wants to run a command", style = MaterialTheme.typography.titleSmall, color = Hall.goldBright)
         Spacer(Modifier.height(4.dp))
         Text("Building means running commands (installing parts, running tests). A phone has no safe box for them: " +
             "they can't reach your photos or other apps, but they can change anything inside this app.",
@@ -216,7 +218,7 @@ fun CommandQuestion(vm: RuntimeViewModel) {
         Spacer(Modifier.height(8.dp))
         if (choice.isNotBlank()) {
             Text(if (choice == "run") "Run it: chosen." else "Ask me first: chosen.", color = Hall.good)
-            if (choice == "ask") Text("Coming soon: until Roundtable on this phone can ask, it carries on running commands. Your choice is kept and passed on at every start.",
+            if (choice == "ask") Text("Coming soon: until the harness on this phone can ask, it carries on running commands. Your choice is kept and passed on at every start.",
                 style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             TextButton(onClick = { val c = if (choice == "run") "ask" else "run"; vm.chooseCommands(c); choice = c }) {
                 Text(if (choice == "run") "Change to Ask me first" else "Change to Run it")
@@ -239,7 +241,7 @@ internal fun KeyForm(ui: RuntimeViewModel.Ui, onSave: (String) -> Unit, onSkip: 
     Panel(Modifier.fillMaxWidth(), highlight = true) {
         Text("ADD A KEY", style = Label)
         Spacer(Modifier.height(8.dp))
-        Text("Roundtable is running. To build, it needs your DeepSeek key. It goes straight to Roundtable on this phone; the app doesn't keep it.",
+        Text("${Brand.NAME} is running. To build, it needs your DeepSeek key. It goes straight to the harness on this phone; the app doesn't keep it.",
             style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DEEPSEEK_KEYS_URL))) }) {

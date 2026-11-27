@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -227,7 +229,7 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions, rate: com.meztking.roundta
                 p == null && plan.loading -> item { Loading("Reading the plan…") }
                 p == null -> {}
                 p.doc == null && p.tasks.isEmpty() -> item {
-                    Text("No plan yet. A plan appears here when Roundtable Hold plans a run for this project.", color = Hall.muted,
+                    Text("No plan yet. A plan appears here when ${Brand.NAME} plans a run for this project.", color = Hall.muted,
                         modifier = Modifier.padding(vertical = 24.dp))
                 }
                 else -> calmPlan(p, ui, a, rate, onUndo)

@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -116,7 +118,7 @@ private fun Pictures(v: LiveView, finished: Boolean, onTake: (() -> Unit)?, sent
                     else androidx.compose.material3.Button(onClick = onTake) { Text("Take pictures now") }
                 }
             } else Text(s?.failed?.ifBlank { null } ?: s?.note?.ifBlank { null }
-                ?: "Roundtable takes pictures of the app after every finished task. None yet.",
+                ?: "${Brand.NAME} takes pictures of the app after every finished task. None yet.",
                 color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
             return@Panel
         }
@@ -162,7 +164,7 @@ private fun Session(v: LiveView, mode: Mode?, finished: Boolean, d: LiveDetail) 
         if (v.from.isNotBlank()) Text(v.from + (s?.at?.ifBlank { null }?.let { " · ${ago(it)}" } ?: "") + if (v.running) " · updates by itself" else "",
             color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         if (t == null) {
-            Text(if (finished) "This project was built before Roundtable kept a step list." else "The steps show here once a task has run.",
+            Text(if (finished) "This project was built before ${Brand.NAME} kept a step list." else "The steps show here once a task has run.",
                 color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
             return@Panel
         }
@@ -253,7 +255,7 @@ private fun More(t: SessionTask, open: Boolean = false) {
             Text("Changed $n file${if (n > 1) "s" else ""} · +${t.changes.sumOf { it.added }} −${t.changes.sumOf { it.removed }}",
                 Modifier.padding(top = 4.dp), color = Hall.text, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             for (c in t.changes) Text("${c.path}  ${if (c.new) "new · " else ""}+${c.added} −${c.removed}", color = Hall.text,
-                fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp)
         }
     }
 }
@@ -270,8 +272,8 @@ internal fun duration(ms: Long): String {
 private fun tokens(n: Long): String = if (n >= 10_000) "${(n + 500) / 1000}k" else "%,d".format(n)
 
 // the same colours as the desktop's bar (watch.js)
-private val PART_COLOURS = mapOf("first" to Color(0xFF9C8B74), "writing" to Color(0xFFE8A33D), "model" to Color(0xFFE8A33D),
-    "tools" to Color(0xFF7FA35C), "you" to Color(0xFFD0643F), "other" to Color(0xFF6F5A46))
+private val PART_COLOURS = mapOf("first" to Color(0xFF8B8AA3), "writing" to Color(0xFFA78BFA), "model" to Color(0xFFA78BFA),
+    "tools" to Color(0xFF7FD6A4), "you" to Color(0xFFFF9D4D), "other" to Color(0xFF5E5D78))
 
 /** "26 Nov 2026" from an ISO time. */
 private fun day(iso: String): String = runCatching {
@@ -291,17 +293,17 @@ private fun Steps(steps: List<com.meztking.roundtable.data.SessionStep>) {
                     step.kind == "tool" -> TermText
                     else -> TermMuted
                 }
-                Text(step.line, color = colour, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
+                Text(step.line, color = colour, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
 }
 
 // The session reads like a terminal in both looks: dark oak (the dark tokens).
-private val TermBg = Color(0xFF1B1410)
-private val TermText = Color(0xFFF4E8D4)
-private val TermMuted = Color(0xFFB9A58C)
-private val TermGood = Color(0xFFA9C48F)
-private val TermBad = Color(0xFFF08A70)
+private val TermBg = Color(0xFF07070B)
+private val TermText = Color(0xFFECEBF4)
+private val TermMuted = Color(0xFFA3A2B8)
+private val TermGood = Color(0xFF7FD6A4)
+private val TermBad = Color(0xFFFF7A85)
 
 /** A picture full screen: pinch to zoom, drag to look around, tap Close. */
 @Composable

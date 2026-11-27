@@ -121,7 +121,7 @@ private fun CommandBlock(ask: Ask) {
     Spacer(Modifier.height(6.dp))
     Text(ask.commandShown(all), Modifier.fillMaxWidth().background(Hall.line.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
         .border(1.dp, Hall.line, RoundedCornerShape(10.dp)).padding(10.dp),
-        fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 17.sp, color = Hall.ink)
+        fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 13.sp, lineHeight = 17.sp, color = Hall.ink)
     if (ask.folded) TextButton({ all = !all }) { Text(if (all) "Show less" else "Show all (${ask.lines} lines)", color = Hall.ink) }
     if (ask.commandFoot.isNotBlank()) Text(ask.commandFoot, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
 }

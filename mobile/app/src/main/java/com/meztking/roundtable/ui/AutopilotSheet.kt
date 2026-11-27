@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -102,7 +104,7 @@ fun AutopilotSheet(state: AutopilotState?, mode: Mode?, modifier: Modifier = Mod
                 style = MaterialTheme.typography.bodyMedium, color = Hall.muted)
             Button({ onSet(false, "", null) }, colors = ParchmentButtons.main()) { Text("Turn off") }
         } else {
-            Text("While you're away, Roundtable answers what waits for you with the recommended answer and writes down every choice. It never raises a limit, never picks anything that asks “Are you sure?”, and never deletes, publishes or releases anything.",
+            Text("While you're away, ${Brand.NAME} answers what waits for you with the recommended answer and writes down every choice. It never raises a limit, never picks anything that asks “Are you sure?”, and never deletes, publishes or releases anything.",
                 style = MaterialTheme.typography.bodyMedium, color = Hall.muted)
             if (state == null) Text(if (mode == Mode.HUB) "Your PC hasn't said how autopilot stands yet. It still listens for this." else "Couldn't read autopilot from your PC.",
                 style = MaterialTheme.typography.bodySmall, color = Hall.muted)

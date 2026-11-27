@@ -1,5 +1,7 @@
 package com.meztking.roundtable.ui
 
+import com.meztking.roundtable.Brand
+
 import android.app.Application
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
@@ -87,7 +89,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val text = _crash.value ?: return
         viewModelScope.launch {
             try {
-                b.send("harness", "Roundtable Mobile crashed", text)
+                b.send("harness", "${Brand.NAME} on the phone crashed", text)
                 say("Sent to your hub. Thank you!")
             } catch (e: CancellationException) {
                 throw e
