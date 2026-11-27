@@ -689,7 +689,7 @@ class UIApp:
         if isinstance(body.get("wizard"), dict):
             return self._wizard_start(cfg, body["wizard"])
         proj = self.project(cfg, body.get("path", ""))
-        if self._busy(proj.root):
+        if self._busy(proj.root) and not str(body.get("id", "")).startswith("command:"):  # a command waits on its own run
             raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         try:
             r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
