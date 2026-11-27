@@ -20,8 +20,8 @@
    "unpriced": true
   },
   "maximum": {
-   "cost_usd": 1.0314,
-   "extra_usd": 0.2643,
+   "cost_usd": 1.0864,
+   "extra_usd": 0.3193,
    "minutes": 26.0,
    "planning_usd": 0.3545,
    "unpriced": true
@@ -32,6 +32,7 @@
  "tasks": {
   "T1": {
    "agent": "torvic",
+   "agent_name": "Torvic",
    "built_by": "a/coder",
    "built_by_label": "Coder",
    "disagreed": false,
@@ -39,7 +40,7 @@
     "Try 1: Coder – passed its check",
     "Reviewer approved – looks good"
    ],
-   "line": "Built by Coder (torvic) · checked by Reviewer · one checker is from the same company",
+   "line": "Built by Coder (Torvic) · checked by Reviewer · one checker is from the same company",
    "reviews": [
     {
      "approved": true,
@@ -56,18 +57,20 @@
   },
   "T2": {
    "agent": "pell",
+   "agent_name": "Pell",
    "built_by": "img/pic",
    "built_by_label": "Pic",
    "disagreed": false,
    "fold": [
     "Try 1: Pic – passed its check"
    ],
-   "line": "Built by Pic (pell)",
+   "line": "Built by Pic (Pell)",
    "reviews": [],
    "same_maker": false
   },
   "T3": {
    "agent": "torvic",
+   "agent_name": "Torvic",
    "built_by": "a/coder",
    "built_by_label": "Coder",
    "disagreed": false,
@@ -75,7 +78,7 @@
     "Try 1: Coder – passed its check",
     "Reviewer approved – looks good"
    ],
-   "line": "Built by Coder (torvic) · checked by Reviewer · one checker is from the same company",
+   "line": "Built by Coder (Torvic) · checked by Reviewer · one checker is from the same company",
    "reviews": [
     {
      "approved": true,

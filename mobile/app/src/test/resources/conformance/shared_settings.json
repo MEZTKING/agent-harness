@@ -5,6 +5,7 @@
   "until": null
  },
  "default_profile": null,
+ "learning": null,
  "limits": {},
  "machine": {
   "id": "pc-vm",
@@ -14,6 +15,7 @@
  "profiles": [],
  "roles": {},
  "shared": false,
+ "style": null,
  "updated_at": "",
  "updated_by": "",
  "updated_by_seat": ""

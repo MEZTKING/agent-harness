@@ -1,0 +1,51 @@
+{
+ "action": "undo",
+ "counts": {
+  "on": 0,
+  "undone": 1,
+  "waiting": 0
+ },
+ "id": "P827313",
+ "lines": [
+  {
+   "before_after": {
+    "after": {
+     "temperature": 0.3
+    }
+   },
+   "by": "you",
+   "can_put_back": true,
+   "can_undo": false,
+   "id": "P827313",
+   "kind": "options",
+   "numbers": {},
+   "role": "orchestrator",
+   "state": "undone",
+   "what": "Planner now temperature 0.3",
+   "when": "2026-11-27T21:44:09Z",
+   "why": "you undid it",
+   "words": "Planner now temperature 0.3: you undid it."
+  }
+ ],
+ "machine": "pc-vm",
+ "never": [
+  "The safety gate and “Ask me first”",
+  "Keys and the clean environment",
+  "Money",
+  "Who may see a project",
+  "Plug-ins' permissions",
+  "Your house style",
+  "What it may apply by itself, and this list",
+  "The fixed rules every agent gets"
+ ],
+ "not_here": [],
+ "ok": true,
+ "share": true,
+ "waiting": [],
+ "wallet": {
+  "allowance": 0.0,
+  "left": 0.0,
+  "on": false,
+  "words": "Learning by itself is off: it only suggests, and spends nothing on its own."
+ }
+}

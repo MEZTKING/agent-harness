@@ -1,0 +1,261 @@
+{
+ "from": "shipped",
+ "plugins": [],
+ "refreshed_at": "",
+ "skills": [
+  {
+   "author": "Darkness Harness",
+   "blurb": "Building web forms, sign-up or settings pages that everyone can use.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "accessible-forms",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Accessible forms",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "html",
+    "layout",
+    "kind:website",
+    "kind:web-app"
+   ],
+   "version": "1.0.0",
+   "when": "Building web forms, sign-up or settings pages that everyone can use."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Writing screens and logic for an Android app in Kotlin with Jetpack Compose.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "android-compose",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Android apps with Compose",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "kotlin",
+    "layout",
+    "kind:android-app"
+   ],
+   "version": "1.0.0",
+   "when": "Writing screens and logic for an Android app in Kotlin with Jetpack Compose."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "A task that is about something broken: an error, a wrong result, a crash.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "bug-fixing",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Fixing a bug",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "bugfix",
+    "tests"
+   ],
+   "version": "1.0.0",
+   "when": "A task that is about something broken: an error, a wrong result, a crash."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Writing a 2D game that runs in a browser canvas.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "canvas-games",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Canvas browser games",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "game-logic",
+    "graphics",
+    "javascript",
+    "kind:browser-game"
+   ],
+   "version": "1.0.0",
+   "when": "Writing a 2D game that runs in a browser canvas."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Making scenes and scripts for a Godot 4 game.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "godot4-scenes",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Godot 4 scenes",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "gdscript",
+    "game-logic",
+    "kind:godot-game"
+   ],
+   "version": "1.0.0",
+   "when": "Making scenes and scripts for a Godot 4 game."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Writing a Java mod for a game (for example a Minecraft mod with Fabric or similar).",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "java-mods",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Java game mods",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "java",
+    "game-logic",
+    "kind:java-mod"
+   ],
+   "version": "1.0.0",
+   "when": "Writing a Java mod for a game (for example a Minecraft mod with Fabric or similar)."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Writing or fixing Python tests with pytest.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "pytest-basics",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Pytest basics",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "tests",
+    "python"
+   ],
+   "version": "1.0.0",
+   "when": "Writing or fixing Python tests with pytest."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Making or tidying a small Python package or command-line tool.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "python-package",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Small Python packages",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "python",
+    "build",
+    "refactor"
+   ],
+   "version": "1.0.0",
+   "when": "Making or tidying a small Python package or command-line tool."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Laying out or styling pages that must work on phones and big screens.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "responsive-css",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Responsive pages with CSS",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "css",
+    "styling",
+    "layout",
+    "html"
+   ],
+   "version": "1.0.0",
+   "when": "Laying out or styling pages that must work on phones and big screens."
+  },
+  {
+   "author": "Darkness Harness",
+   "blurb": "Storing an app's data in a SQLite database, or changing its tables.",
+   "checked": "2026-11-27",
+   "commit": "",
+   "enabled": true,
+   "id": "sqlite-data",
+   "installed": true,
+   "kind": "skill",
+   "licence": "MIT",
+   "name": "Saving data with SQLite",
+   "path": "",
+   "permission_words": [
+    "Nothing special"
+   ],
+   "permissions": [],
+   "source": "builtin",
+   "tags": [
+    "database",
+    "sql",
+    "data"
+   ],
+   "version": "1.0.0",
+   "when": "Storing an app's data in a SQLite database, or changing its tables."
+  }
+ ],
+ "updated": "2026-11-27",
+ "updates": [],
+ "words": "The list has 10 skills and 0 plug-ins: it is small for now, and grows as more are checked."
+}

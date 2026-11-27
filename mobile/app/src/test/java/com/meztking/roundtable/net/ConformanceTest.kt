@@ -202,6 +202,19 @@ class ConformanceTest {
         // one planner made this plan: the PC answers {found: false} and the fold shows nothing
         assertTrue(com.meztking.roundtable.data.Council.parse(api.feature("GET", com.meztking.roundtable.data.Council.url(project))) == null)
 
+        // wave 7: what it learned (with an undo), learning's wallet, the house style, the charter, the list, recall
+        val learned = com.meztking.roundtable.data.Learned.parse(api.feature("GET", com.meztking.roundtable.data.Learned.URL))
+        assertNotNull(learned)
+        val line = learned!!.lines.first()
+        assertTrue(line.can_undo && com.meztking.roundtable.data.Learned.line(line).isNotBlank())
+        val undone = com.meztking.roundtable.data.Learned.parse(api.feature("POST", com.meztking.roundtable.data.Learned.UNDO_URL,
+            com.meztking.roundtable.data.Learned.undoBody(line.id)))
+        assertEquals("undone", undone!!.lines.first { it.id == line.id }.state)
+        assertFalse(learned.wallet.on)
+        for (path in listOf("/api/learning/wallet", "/api/style", "/api/charter", "/api/market", "/api/recall?q=bakery")) {
+            assertTrue(path, ApiJson.parseToJsonElement(api.feature("GET", path)).jsonObject.isNotEmpty())
+        }
+
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }
         assertTrue("calls.json lists calls this test doesn't make: $missed", missed.isEmpty())

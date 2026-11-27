@@ -1,14 +1,14 @@
 [
  {
-  "at": "2026-11-27T18:57:13Z",
+  "at": "2026-11-27T21:44:09Z",
   "kind": "journal:todo",
   "project": "proj",
-  "seq": 1795805833.587469,
+  "seq": 1795815849.3184543,
   "text": "check the logo colours",
   "who": "to do"
  },
  {
-  "at": "2026-11-27T18:57:13Z",
+  "at": "2026-11-27T21:44:09Z",
   "kind": "status",
   "model": "a/planner",
   "project": "proj",
@@ -19,7 +19,7 @@
   "who": "orchestrator"
  },
  {
-  "at": "2026-11-27T18:57:13Z",
+  "at": "2026-11-27T21:44:09Z",
   "kind": "status",
   "model": "a/planner",
   "project": "proj",
@@ -30,7 +30,7 @@
   "who": "orchestrator"
  },
  {
-  "at": "2026-11-27T18:57:13Z",
+  "at": "2026-11-27T21:44:09Z",
   "kind": "plan",
   "model": "a/planner",
   "project": "proj",
@@ -41,7 +41,7 @@
   "who": "orchestrator"
  },
  {
-  "at": "2026-11-27T18:57:13Z",
+  "at": "2026-11-27T21:44:08Z",
   "kind": "tool_call",
   "model": "a/planner",
   "project": "proj",
@@ -52,7 +52,7 @@
   "who": "orchestrator (planner)"
  },
  {
-  "at": "2026-11-27T18:57:13Z",
+  "at": "2026-11-27T21:44:08Z",
   "kind": "planning",
   "model": "a/planner",
   "project": "proj",
@@ -63,7 +63,7 @@
   "who": "orchestrator (planner)"
  },
  {
-  "at": "2026-11-27T18:57:12Z",
+  "at": "2026-11-27T21:44:08Z",
   "kind": "goal",
   "model": "",
   "project": "proj",

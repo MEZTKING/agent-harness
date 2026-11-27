@@ -100,6 +100,12 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
             Button(onClick = { store.identity = identity.ifBlank { "me" }; identity = store.identity; changed() }, enabled = identity != store.identity) { Text("Save") }
         }
 
+        // what the harness learned, with an Undo on each line: the PC's lab, else this phone's own harness (Hub mode has none)
+        LearnedCard(app.backend()?.parts?.let { parts ->
+            (parts[com.meztking.roundtable.data.Source.PC] as? com.meztking.roundtable.data.PcBackend)?.api
+                ?: (parts[com.meztking.roundtable.data.Source.PHONE] as? com.meztking.roundtable.data.PcBackend)?.api
+        })
+
         if (onComfort != null) ComfortEntry(com.meztking.roundtable.data.Comfort.get(ctx), onComfort)
 
         Panel(Modifier.fillMaxWidth()) {
