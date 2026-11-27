@@ -51,7 +51,8 @@ def test_the_house_style_reaches_planner_worker_and_reviewer(tmp_path):
 
 
 def test_off_means_byte_for_byte_as_before_but_the_fixed_rules_stay(tmp_path):
-    _, bare = _run(tmp_path, Orchestrator, name="a")
+    bare_cls = type("Bare", (Orchestrator,), {"SYSTEM_PARTS": ()})  # as before wave 7, hooked up or not
+    _, bare = _run(tmp_path, bare_cls, name="a")
     _, staged = _run(tmp_path, _staged(), {"on": False}, name="b")
     block = charter.fixed_block("")
     assert [f"{s}\n\n{block}" for s in bare] == staged

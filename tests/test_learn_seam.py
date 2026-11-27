@@ -298,10 +298,14 @@ class Seen(Brain):
         return super().__call__(model, system, messages, tools)
 
 
+class Bare(Orchestrator):
+    SYSTEM_PARTS = ()  # no stage's part, whichever stages are in the bases
+
+
 def test_a_bare_orchestrators_system_prompts_are_as_before(tmp_path):
     brain = Seen()
     cfg, _ = make_cfg(tmp_path, brain=brain)
-    orch = Orchestrator(cfg, tmp_path / "p")
+    orch = Bare(cfg, tmp_path / "p")
     for text in ("x", "You plan.", ""):
         assert orch._system(text, "coder") == orch._with_repo_rules(text)
     orch.start("a goal")
@@ -349,6 +353,8 @@ def test_a_failing_hook_is_reported_to_the_fault_seam(tmp_path):
     faults = []
 
     class O(om.Orchestrator):
+        SYSTEM_PARTS = ("_style_system",)  # only the broken part (the charter's own is in the bases later)
+
         def _style_system(self, name):
             raise RuntimeError("broken style")
 
