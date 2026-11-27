@@ -1,4 +1,4 @@
-# Handoff – 27 November 2026 (late evening)
+# Handoff – 27 November 2026 (night)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -28,7 +28,9 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 | Wave 4 → **1.0.0** | **Ready, not released**: the new name and the Eclipse look on the PC and the phone, the safe upgrade (old data folder, keys and pairing used where they are; an old-name starter exe; both APK names; the firewall rules moved). Put together on branch `d1-integrate`; all tests green. The `upgrade-test` CI job already passed once |
 | Wave 5 → **1.1.0** | **Ready, not released**, on branch `d2-integrate` (on top of 1.0.0): the done list and prep, stages and parts, trying what was built and fixing what breaks, the App tab's Start, play-testing, real builds of EXE/APK/mod, stuck tasks worked out with handovers, money limits (agreed amount, autopilot's allowance, priced pictures). All tests green; DEVLOG has every hook-up |
 | Beta in 1.1.0 | Only tried against stand-ins: a real Godot play, real EXE/APK/mod builds and starts, real browser journeys and the App tab's frame on Windows, the phone's done card and stage strip on a real phone |
-| Waves 6–9 | Planned (PLAN.md's table): every model at once, it learns, the parity sweep, the rows once declined |
+| Wave 6 → **1.2.0** | **Ready, not released**, on branch `d3-integrate` (on top of 1.1.0): every model at once – the checking dial (Lean, Balanced, Maximum, priced on the plan, its own allowance), rivals on hard tasks, checkers from other makers who must quote what's broken, the router and Strengths, rival planners under Maximum, named agents, limits per service and job, "who has seen this project", `makers_allowed`. All tests green; DEVLOG has every hook-up and the 10 % figures |
+| Beta in 1.2.0 | Only scripted so far: the real cost of the extra checking against the estimate, how often a checker must be asked again, real pickers and councils, OpenRouter's picture size, the phone's checking buttons on a real phone. The six starter faces are not made yet (initials show) |
+| Waves 7–9 | Planned (PLAN.md's table): it learns, the parity sweep, the rows once declined |
 | Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
 | Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
 
@@ -45,11 +47,15 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
    a mod jar, walk a web app with real Playwright, open the App tab's frame; then the small real DeepSeek run
    of a tiny browser game to watch the finishing loop with real models (estimate first, balance before and
    after).
-4. At 1.2.0: remove the old-name starter (`packaging/old_name_starter.py`, the spec's second
+4. Wave 6 / 1.2.0 (branch `d3-integrate`): make the six starter faces after the owner's yes (`agents.face_prompt`,
+   at most $3, costs in `docs/art.md`, files in `ui/static/agents/<id>.webp`); one small real run on DeepSeek plus
+   one other maker at Balanced (estimate first, balance before and after; write the real extra cost beside the
+   10 % figures in DEVLOG); then release after 1.1.0.
+5. At 1.2.0: remove the old-name starter (`packaging/old_name_starter.py`, the spec's second
    EXE, the installer lines) and point `upgrade-test` at the last 1.x installer.
-5. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending, size), Ask me
+6. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending), Ask me
    first on the phone, owner to-dos that leave the app, window pictures of an EXE and an emulator the
-   harness starts, a rejection that must quote the line it breaks (wave 6).
+   harness starts (moved to wave 8). Wave 7: the lab learning from `reviews.jsonl` and the tag stats.
 
 ## 4. Where to read more
 

@@ -6,6 +6,113 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 1.2.0: wave 6 put together ("every model at once")
+
+Asked: merge the seven wave 6 branches in order (d3-limits, d3-router, d3-panel with both its commits, d3-rivals,
+d3-council, d3-agents, d3-dial), do every hook-up line from the helpers' reports and the coordinator's decisions,
+re-run the dial's 10 % test on the real stages, one scripted end-to-end check, the screens, version 1.2.0 with its
+notes, gaps and parity. No release; the six starter faces are not made here (they cost money).
+
+What each part is, plainly:
+- **Limits** (d3-limits, c41ffea): a ledger of every charge (`<app home>/usage/<month>.jsonl`, numbers and names
+  only), limits per service (day/month dollars, day tokens) and per job on one project, "what's used" per service,
+  who has seen a project (`harness/usage.py` `UsageStage`, `ui/usageapi.py`, `static/usage.js`).
+- **The router** (d3-router, 82879a1): tasks tagged by kind of work, each sent to the model that wins that kind
+  (5 judged tries and a 0.15 lead), a capped share of easy tasks tried on newer models under Balanced; the lab's
+  numbers per tag (`harness/tasktags.py`, `router.py`, `improve/analysis.py`, `ui/strengthsapi.py`,
+  `static/strengths.js`).
+- **The panel** (d3-panel, a6f8d5e, 119d4ae): checkers from another maker, two on hard or risky tasks and a third
+  on a split; a rejection counts only when it quotes the line it breaks (`harness/panel.py`).
+- **Rivals** (d3-rivals, 55e98bc): two or three makers build a hard task in their own copies; tests then one pick
+  call choose; the others kept as branches and patches (`harness/rivals.py`).
+- **The council** (d3-council, e7f5db7): rival planners and a chair under Maximum, "Where the planners disagreed"
+  (`harness/council.py`, `ui/councilapi.py`, `static/council.js`, `Council.kt`, `CouncilFold.kt`).
+- **Agents** (d3-agents, 75f5dce): named agents per job with notes, memory and a face; `.rtagent` files; a `size`
+  option for picture models (`agents.py`, `harness/agentstage.py`, `ui/agentsapi.py`, `static/agents.js`,
+  `providers/chat_images.image_config`).
+- **The dial** (d3-dial, 4128f58): Lean, Balanced, Maximum with three prices on the plan, the extra checking's own
+  allowance, who built and who checked each task (`harness/dial.py`, `ui/tandemapi.py`, `static/tandem.js`,
+  `Tandem.kt`, `TandemLine.kt`).
+
+Merges (fc0d086 … a903746): no textual conflicts. The helpers' ready-made hook-up diffs (limits, council) applied
+cleanly.
+
+Hook-ups (37560fd, 8b41453, and this commit):
+- `orchestrator.py`: `Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage,
+  DialStage, MoneyStage, …)`. The whole MRO checked: no new clash (only wave 5's `_look_wanted` and
+  `_shots_wanted`), and no stage method shadowed by the Orchestrator's own. `_usage_out` and the `pause` of an
+  `OutOfCredit` in `_attempt_loop` and `_run`; `_blocked` at the top of the image loop; `DOC_PARTS` gains
+  `_tags_doc`; `_tags_trim(new)` right after the plan call; `meta["checking"]` written before the
+  `_council_plan` hook (so the council reads the new plan's level); `PLAN_ACTIONS` gains `checking`
+  (`dial.set_checking`, no revise needed); `_dial_agreed` after `_money_agreed` in `approve()`.
+- `agent.Budget.charge`: `on_charge` in `try`, `on_use` in `finally` (the ledger keeps the line that stopped a run).
+- **The dial no longer counts the panel's extra checkers twice**: `panel._result` puts the cost of every checker
+  after the first in `captured["panel_extra_usd"]`; `_attempt_loop` passes it to `_metric`, which leaves it out of
+  the row's `cost_usd` and writes it as `panel_extra_usd` (only when there is one, so lean rows are unchanged).
+- `showstage._learn_from_task`: `_agent_learn`. `projectsettings`: `checking`, `agent_memory`.
+- `asks._approve_ask`: "Checking: Balanced (about $0.40 of this)" in Approve's description (not for a lean plan,
+  so older projects read as before). `plandoc.render_markdown`: `council.markdown`. `routing.view`: `warnings`
+  (`panel.same_maker_warnings`).
+- `retention.py`: `not_chosen(root)`, `not_chosen_words`, `clear_not_chosen(root, task, rival)` – the attempts
+  not chosen with their size; only the owner's Clear removes them, the daily sweep never does
+  (`tests/test_not_chosen.py`). `ui/tidyapi.py`: `GET /api/tidy/not-chosen`, `POST /api/tidy/not-chosen/clear`
+  (only projects the app knows). `static/tidy.js`: the list behind More, a Clear per project with a confirm.
+- `harness_cli.py`: `roundtable improve stats [--by-tag] [--project DIR]`.
+- `ui/server.py` `FEATURE_APIS`: councilapi, usageapi, strengthsapi, agentsapi, tandemapi. `phone.py`
+  `PHONE_ROUTES`: `/api/tandem`, `/api/tandem/council`, `/api/usage`, `/api/agents` (all read only; limits,
+  faces, export and import stay on the PC). `tandemapi` names the agent by its name, not its id.
+- Conformance: `calls.json` gains tandem and council (the phone has no usage or agents screen yet, so those
+  aren't calls it makes); fixtures written again (`ROUNDTABLE_WRITE_FIXTURES=1`, timestamps only elsewhere);
+  `ConformanceTest.kt` reads both.
+- Desktop: `settings.js` – the usage card first under Spending; `models.js` – Strengths and Agents tabs, job
+  limits under the jobs table, the same-maker warning above it; `plan.js` – one fold "Models: … · Checking: …"
+  with the sets and `checkingChoice` (hidden while busy or finished), `councilFold`, the who-built-it line under
+  each task (`taskLines(tasks, who)`); `project.js` – the same line in the task list, a "Who may see it" group
+  (services, makers, agent memory and `seenList`), `checking` beside the set of models; `style.css` – `.tl-who`.
+- Phone `ProjectScreen.kt`: `CouncilFold` after the done card; `CheckingChoice` (three buttons with prices,
+  Maximum asks first with both figures and the planners' cost; sent as the plan's `checking` command, which
+  `remote.py` already passes to `plan_update`); `TaskLines` with `TandemLine` under each built task.
+- `pyproject.toml`: Pillow is a run-time dependency; package data `ui/static/agents/*`. The PyInstaller spec lists
+  `PIL.Image` and its WebP, PNG and JPEG plug-ins.
+
+Tests changed at hook-up, and why:
+- The helpers' tests subclassed `(XStage, Orchestrator)`, which can't make an MRO once the stage is a base:
+  `class O(*((Orchestrator,) if issubclass(Orchestrator, XStage) else (XStage, Orchestrator)))` (router,
+  rivals, council, agents, dial).
+- `test_tandem_seam`: "nobody defines them yet" became "only the stages define them". `test_stage_hooks.STAGES`
+  has all seven.
+- `test_router`: the trim is now checked through `plan()` (the warning in the saved document); "exploring needs
+  the dial" runs at lean (Balanced explores now).
+- `test_rivals`: the scripted rejection quotes the task's line (the real panel would re-ask an unquoted one);
+  "lean is the usual way" sets lean (new plans are Balanced).
+- `test_dial`: its `Approving` mixin is empty (approve calls the hook itself). The 10 % test now runs on the full
+  Orchestrator with every real stage (`RealStages`); the stand-in version is gone.
+
+**The 10 % test with the real stages** (made-up 4-task plan: ordinary, hard, risky, ordinary). First run: Lean 0 %,
+Balanced −7.9 %, Maximum −15.3 %. The rivals' pick call reads every rival's diff and summary but was priced as one
+review. Now priced as one review per rival (`dial._task_price`, `pick_reviews`): **Lean 0.0 %, Balanced −2.6 %,
+Maximum −4.4 %** (estimate under the spend). The unsticking allowance ($0.15, money kept for a stuck task, never
+spent in a clean run) is left out of the comparison and shown beside it.
+
+**End to end** (`tests/test_tandem_e2e.py`): a made-up board game, one hard task (game logic) under Balanced. It
+was tagged; routed to b's coder ("wins … game logic", from a's); built by two rivals from two makers, one kept
+as a branch; checked by two makers neither of them the builder's; estimate $0.207 against $0.216 spent (−4 %);
+the extras spent $0.072 of their $0.25 allowance.
+
+Screens (Playwright, Eclipse and Ash; scratchpad `v12-shots/`): the plan with the checking fold and its three
+buttons, Maximum's confirm, each task's "Built by Coder2 (Torvic) · best of 2 · checked by Reviewer and
+Reviewer3" with More, Models → Strengths ("Best at game logic: 9 of 9") and Agents (initials until the faces are
+made), Settings → Spending with "What's used", a project's "Only A has seen this project". No console errors.
+
+Decided (coordinator): no picture size sent when none is asked for (existing pictures cost the same); Pillow at
+run time; lean does nothing (not even the quote rule); `meta["checking"]` above the council hook; the panel's
+extra checkers kept out of the metrics row's cost.
+
+Still open: the six starter faces (the coordinator, after the owner's yes: `agents.face_prompt` for each, costs in
+`docs/art.md`); a real run on DeepSeek plus one other maker at Balanced to measure the real extra cost and how
+often a checker is asked again; the Agents screen on the phone; the phone's usage card; HANDOFF step 4 (the
+old-name starter) is still to do before 1.2.0 is released.
+
 ## 2026-11-27 – 1.1.0: wave 5 put together ("finished, not just built")
 
 Asked: merge the seven wave 5 branches in order (d2-money, d2-done, d2-stages, d2-unstick, d2-finish, d2-play,

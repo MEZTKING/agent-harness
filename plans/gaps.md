@@ -18,9 +18,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **Pictures: spending isn't counted safely in parallel** (27 November, same job): two pictures made at once
   overwrote each other's cost line, so the art's spending had to be added up by hand ($0.89 in all,
   `docs/art.md`). Picture spending must be counted safely when several run at once. → 1.1.0 (money).
-- **Pictures: no size option** (27 November, same job): the route can't ask for a resolution, so a 16:9
-  picture came back at 1280×720 and the Windows icon and phone art were scaled from it. A size (or "largest
-  the model allows") should be part of the request. → 1.2.0, with every model at once.
 
 - **"Ask me first" for commands on the phone isn't wired** (26 November): the phone stores the choice and
   passes `ROUNDTABLE_ASK_FIRST=1`, but `run_command` can't yet stop mid-task for an allow/deny card.
@@ -135,10 +132,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   high, so it stops runs early. It should follow the real spend where a balance is known.
   → release 2.
 
-- **Reviews can still reject for the wrong reasons** (Fable, 26 November, from the music
-  player's restyle): a rejection should quote the line of the task it breaks or not count.
-  → wave 6 (d3-panel). *The rest is fixed in 1.1.0: see Fixed.*
-
 - **References: the phone can't add one from its own screen yet.** The hub command works
   (`reference_add` with `text`, `reference_remove` with `id`), but Roundtable Mobile has no
   "Make it like this" box or "Like these" view. → release 4.
@@ -179,6 +172,24 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **Reviews can still reject for the wrong reasons** (fixed in 1.2.0, 27 November): a rejection counts only
+  when it quotes the line of the task, its done list, its don't list or the failing test output that the work
+  breaks. An unquoted one is asked once more; if it still quotes nothing, a checker from another maker decides,
+  and it is never turned into a pass by itself (`harness/panel.py`,
+  `tests/test_panel.py::test_reviews_can_no_longer_reject_for_the_wrong_reasons`). How often a real checker
+  needs asking again is only known after a real run.
+- **Pictures: no size option** (fixed in 1.2.0): `size` (1K, 2K, 4K, `largest` or WIDTHxHEIGHT) goes to the
+  image models (`providers/chat_images.py`, `image_config`). With no size nothing extra is sent, so existing
+  pictures cost the same; agents' faces ask for a 1K square. Which models read WIDTHxHEIGHT is checked at a
+  real run.
+- **"Only these services" let every maker behind a service see a project** (found and fixed in 1.2.0): a
+  project kept to OpenRouter could reach every company OpenRouter carries. "Only models made by these
+  companies" (`makers_allowed`) now sits beside it, checked in one place (`harness/makers.py`,
+  `Orchestrator._may_use`) by the router, the panel, rivals, the council, agents and the usage stage.
+- **The lab's replays ignored a project's allowed lists** (found and fixed in 1.2.0): the replay copied the
+  project without `.harness/project.yaml`, so it ran with no allowed list. The settings now travel with the
+  copy, and a project whose lists leave a role with no model is left out (`improve/evaluate.py`).
 
 - **Nothing proves the work runs** (fixed in 1.1.0, 27 November): every plan has a done list
   (`harness/donelist.py`, `donestage.py`); after the last task the finishing step starts the product, walks

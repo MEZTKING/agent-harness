@@ -18,11 +18,12 @@ code, for builders.
 
 | Project | Features | Have | Partly | Missing | Not wanted |
 |---|---|---|---|---|---|
-| Munder Difflin | 92 | 52 | 23 | 9 | 8 |
+| Munder Difflin | 92 | 55 | 20 | 9 | 8 |
 | DSH Mobile + the DeepSeek Harness | 80 | 54 | 14 | 5 | 7 |
-| **Both** | **172** | **106** | **37** | **14** | **15** |
+| **Both** | **172** | **109** | **34** | **14** | **15** |
 
-*Statuses refreshed for 1.1.0 (27 November 2026), after waves 1–5; each changed row names its wave. When
+*Statuses refreshed for 1.2.0 (27 November 2026), after waves 1–6 (wave 6: MD-05, MD-46 and MD-47 to Have,
+MD-06 widened to agents); each changed row names its wave or release. When
 this list was first written (0.9.0) the count was 47 have, 55 partly, 55 missing.*
 
 In one sentence: Roundtable is ahead on planning, proof, money and the phone-and-PC link, and behind
@@ -47,8 +48,8 @@ it's first in the ranking below.
 | MD-02 | Agents are real coding CLIs | Claude Code, Codex, Gemini CLI, Grok, Copilot, Cursor, OpenCode and more, each signed in with your own subscription | `src/shared/agentProvider.ts`, `engine.ts`, `src/main/pty.ts` | **Have**: Claude Code and Codex as workers on your own subscriptions (`providers/cli_engine.py`, wave 2) |
 | MD-03 | Mix engines in one office | Each agent picks its own engine and model | `src/shared/engineOptions.ts` | **Have** (by API): each role has its own models and fallbacks (`harness/config.py`, `routing.py`) |
 | MD-04 | API keys and local models | Ollama, LM Studio, vLLM, any key | `components/AiEnginesSettings.tsx` | **Have**: `providers/openai_compat.py`, `providers/catalog.py`, Settings → keys |
-| MD-05 | Hire an agent: name, role, model, face | A person-like agent you can name and keep | `components/AddAgentModal.tsx`, `src/shared/hire.ts` | **Partly**: jobs (roles) with plain names in Models (`routing.py`); no agent that keeps a name, face and memory across projects |
-| MD-06 | Agent Gallery and shareable hires | Ready-made agents to browse; share one as a file or link | `src/shared/hire.ts` (`hire@1` manifest, `munderdifflin://hire` link), `docs/hires/` | **Have** (on trial): kinds as folders of data, shared as `.rtkind` files, and the Gallery of finished work (`kinds/`, `static/gallery.js`, the phone's Gallery; wave 3) |
+| MD-05 | Hire an agent: name, role, model, face | A person-like agent you can name and keep | `components/AddAgentModal.tsx`, `src/shared/hire.ts` | **Have** (1.2.0): named agents, one per job, with notes, a memory across projects (off for projects with an allowed list and the owner's own repositories unless switched on) and a face from the picture job (`agents.py`, `harness/agentstage.py`, Models → Agents). The six starter faces are still to be made |
+| MD-06 | Agent Gallery and shareable hires | Ready-made agents to browse; share one as a file or link | `src/shared/hire.ts` (`hire@1` manifest, `munderdifflin://hire` link), `docs/hires/` | **Have** (on trial): kinds as folders of data, shared as `.rtkind` files, and the Gallery of finished work (`kinds/`, `static/gallery.js`, the phone's Gallery; wave 3); named agents shared as `.rtagent` files, everything shown before anything is brought in, model choices never imported (1.2.0). Files only, no links |
 | MD-07 | Temps: an agent hired for one job | Spawned for a task, torn down after | `src/shared/tempAgent.ts` | **Have**: every task is a fresh model conversation (`harness/agent.py` `run_agent`) |
 | MD-08 | A prep assistant ("Dwight") | Gathers repo context and rewrites your request before the orchestrator sees it | `src/shared/broadcast.ts`, CHANGELOG "Dwight" | **Have** (wave 5): before planning, the idea is tidied into a brief (what it is, who it's for, what's implied, what's unclear) on the planner's model, capped at 5 cents; your words stay the goal, the brief sits under More and anything it adds becomes ideas (`harness/prep.py`, `donestage.py`) |
 | MD-09 | Prefer an agent that already fits | Routes to an existing agent by name or fit before hiring | CHANGELOG "Orchestrator delegates opportunistically" | **Have**: tasks go to roles by kind of job (`harness/config.py` roles) |
@@ -98,8 +99,8 @@ it's first in the ranking below.
 | MD-43 | Only critical things reach you | Spend, deletion and scope changes ask; routine ones don't | `HIVE.md` §6 | **Have**: autopilot's rules and `confirm` on risky options (`autopilot.py`, `asks.py`) |
 | MD-44 | Mid-run control through the CLI's hooks | Pause, refuse a tool, steer, stop cleanly, without typing into the terminal | `src/main/control.ts` | **Have**: Ask me first holds one command until you say (`harness/gate.py`) and the breaker stops a task mid-run (wave 1); an instruction can reach the task working now (wave 2) |
 | MD-45 | Circuit breaker | Steer → limit → stop on loops, error storms, runaway spend | `src/main/breaker.ts` | **Have**: loops, error storms, huge output and no progress (`harness/breaker.py`, wave 1) |
-| MD-46 | Token cap per agent | One agent can't run up the bill | `src/shared/tokenCaps.ts`, `tokenLimits.ts` | **Partly**: the breaker's token limit for a task (wave 1); no cap per job across tasks |
-| MD-47 | Usage limits per engine | How much of your subscription is left | `src/main/usageLimits.ts`, `components/limits` | **Partly**: the real balance where a provider reports one (`providers/balance.py`, DeepSeek); none for others |
+| MD-46 | Token cap per agent | One agent can't run up the bill | `src/shared/tokenCaps.ts`, `tokenLimits.ts` | **Have** (1.2.0): limits per job on one project (tokens or dollars) that pause with one card, and per service a day or a month (`harness/usage.py`, Models → Who does what, Settings → Spending), on top of the breaker's limit per task |
+| MD-47 | Usage limits per engine | How much of your subscription is left | `src/main/usageLimits.ts`, `components/limits` | **Have** (1.2.0): what each service has used today and this month against your limits, and the real balance where the service reports one (DeepSeek, OpenRouter). For the coding helpers on a subscription it shows what the harness used: the subscription's own limit can't be read |
 | MD-48 | Permission mode per agent | Default, accept edits, bypass, plan | `SPEC.md` §5, `src/shared/agentRole.ts` | **Partly**: Ask me first per project – off, risky or all (wave 1); not per job |
 | MD-49 | One committer, retries, stale lock | Git never corrupts under many writers | `src/core/gitSafe.ts`, `src/main/hiveCommitQueue.ts` | **Have**: `core/store.py` GitStore, `sync.py` settling clashes file by file |
 | MD-50 | One place that deletes | A retention sweep is the only thing that removes files | `src/main/retention.ts`, `src/shared/retention.ts` | **Have**: one daily tidy-up is the only thing that deletes (`retention.py`, wave 2; rewind's old ways back after 30 days, wave 3) |
