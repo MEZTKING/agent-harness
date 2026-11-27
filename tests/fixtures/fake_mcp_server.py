@@ -57,6 +57,11 @@ if __name__ == "__main__":
     log = os.environ.get("FAKE_MCP_LOG")
     if log:
         Path(log).write_text("started\n", encoding="utf-8")
+    env_log = os.environ.get("FAKE_MCP_ENV_LOG")  # set: the whole environment it was given, as JSON
+    if env_log:
+        import json
+
+        Path(env_log).write_text(json.dumps(dict(os.environ)), encoding="utf-8")
     port = os.environ.get("FAKE_MCP_PORT")  # set: serve over HTTP at http://127.0.0.1:<port>/mcp, like Unreal
     if port:
         server.run(transport="streamable-http", host="127.0.0.1", port=int(port))

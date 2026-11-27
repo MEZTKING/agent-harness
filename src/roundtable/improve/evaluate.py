@@ -23,6 +23,7 @@ from ..core.models import utcnow
 from ..harness.agent import Budget, BudgetExceeded
 from ..harness.config import HarnessConfig
 from ..harness.orchestrator import Orchestrator, Project, Task
+from ..harness.safeenv import clean_env
 from .lab import Lab, Proposal
 from ..core.files import remove_tree
 
@@ -32,7 +33,7 @@ class EvalError(RuntimeError):
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=clean_env())
 
 
 def find_base_commit(project: Path, task: dict[str, Any]) -> str | None:

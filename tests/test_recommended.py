@@ -3,6 +3,8 @@
 import io
 import json
 import os
+
+from roundtable.core import secrets as vault
 import urllib.error
 from datetime import date
 
@@ -68,7 +70,7 @@ def test_keys_have_makers_names_and_custom_keys_load_at_start_up(paths):
     assert keys["MY_PROVIDER_API_KEY"]["label"] == "my-provider" and keys["MY_PROVIDER_API_KEY"]["set"]
     assert keys["OPENROUTER_API_KEY"]["label"] == "OpenRouter"
 
-    os.environ.pop("MY_PROVIDER_API_KEY")  # a restart: a new KeyStore loads every provider's key
+    vault.clear()  # a restart: a new KeyStore loads every provider's key
     assert "MY_PROVIDER_API_KEY" in provider_key_names(paths)
     assert "MY_PROVIDER_API_KEY" in KeyStore(paths, backend=kr).load_into_env(provider_key_names(paths))
     by_id = {p["id"]: p for p in ui(paths, ks).dispatch("GET", "/api/providers", {}, {})["providers"]}

@@ -29,6 +29,7 @@ from typing import Any
 
 from ..providers.base import ToolSpec
 from .tools import Tool, ToolError, _truncate
+from .safeenv import clean_env
 
 PREFIX = "mcp__"
 DEFAULT_TIMEOUT = 120.0
@@ -157,7 +158,7 @@ class MCPServerClient:
             return streamable_http_client(self.spec["url"], http_client=http), http
         self._errlog = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
         params = StdioServerParameters(command=self.spec["command"], args=list(self.spec.get("args") or []),
-                                       env=dict(self.spec.get("env") or {}) or None, cwd=self.spec.get("cwd"))
+                                       env=clean_env(self.spec.get("env")), cwd=self.spec.get("cwd"))
         return stdio_client(params, errlog=self._errlog), None
 
     async def _serve(self) -> None:

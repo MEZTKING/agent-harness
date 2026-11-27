@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
+from .safeenv import clean_env
 
 PALETTE_KEYS = ("background", "surface", "text", "muted", "accent", "accent_text")
 COLOUR_NAMES = {"background": "Background", "surface": "Surface (cards, panels)", "text": "Text",
@@ -234,7 +235,8 @@ def renderer() -> str | None:
     node = shutil.which("node")
     if node:
         try:
-            ok = subprocess.run([node, "-e", "require.resolve('playwright')"], capture_output=True, timeout=20)
+            ok = subprocess.run([node, "-e", "require.resolve('playwright')"], capture_output=True, timeout=20,
+                                env=clean_env())
             if ok.returncode == 0:
                 return "node"
         except (OSError, subprocess.SubprocessError):
@@ -268,7 +270,7 @@ def _render_python(jobs: list[dict[str, Any]]) -> None:
 
 def _render_node(jobs: list[dict[str, Any]]) -> None:
     res = subprocess.run([shutil.which("node") or "node", "-e", _NODE_SCRIPT], input=json.dumps(jobs),
-                         capture_output=True, text=True, timeout=60 + 30 * len(jobs))
+                         capture_output=True, text=True, timeout=60 + 30 * len(jobs), env=clean_env())
     if res.returncode != 0:
         raise RuntimeError((res.stderr or res.stdout).strip()[-400:])
 

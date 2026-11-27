@@ -4,6 +4,8 @@ import base64
 import json
 import lzma
 import os
+
+from roundtable.core import secrets as vault
 import secrets
 import sys
 import tarfile
@@ -138,7 +140,7 @@ def test_keys_are_saved_and_listed_without_values(server):
     assert json.loads(f.read_text())["DEEPSEEK_API_KEY"] == secret
     if sys.platform != "win32":
         assert (f.stat().st_mode & 0o777) == 0o600
-    assert os.environ["DEEPSEEK_API_KEY"] == secret
+    assert vault.get("DEEPSEEK_API_KEY") == secret and secret not in json.dumps(dict(os.environ))
     # an empty key removes it; an unknown provider is refused plainly
     assert {k["provider"]: k["set"] for k in call(server, "POST", "/api/keys", {"provider": "deepseek", "key": ""})[1]["keys"]}["deepseek"] is False
     status, err = call(server, "POST", "/api/keys", {"provider": "nope", "key": "x"})
@@ -152,10 +154,10 @@ def test_keys_are_loaded_at_the_next_start(clean_env, tmp_path):
     from roundtable.desktop import KeyStore, Paths
 
     KeyStore(Paths(home), file_only=True).set("DEEPSEEK_API_KEY", "sk-saved")
-    os.environ.pop("DEEPSEEK_API_KEY")
+    vault.clear()
     httpd, _ = onphone.make_local_server(home, 0, TOKEN)
     httpd.server_close()
-    assert os.environ["DEEPSEEK_API_KEY"] == "sk-saved"
+    assert vault.get("DEEPSEEK_API_KEY") == "sk-saved" and "DEEPSEEK_API_KEY" not in os.environ
 
 
 def test_file_only_keystore_never_touches_a_keyring(tmp_path):

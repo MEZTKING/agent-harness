@@ -177,8 +177,11 @@ def _local_shared_part(hub) -> dict[str, Any]:
 
 # -- which project: the same one started on two machines is recognised ----------------------------------
 def _git_out(root: Path, *args: str) -> str:
+    from .harness.safeenv import clean_env
+
     try:
-        res = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=20)
+        res = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=20,
+                             env=clean_env())
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return res.stdout.strip() if res.returncode == 0 else ""

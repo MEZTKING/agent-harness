@@ -25,6 +25,7 @@ from ..core.models import utcnow
 from . import checks as checkslib
 from . import projectsettings as ps
 from . import reporules
+from .safeenv import clean_env
 from . import showit
 
 PROTECTED = ("main", "master")
@@ -106,7 +107,7 @@ class RepoStage:
 
     def _git_out(self, *args: str) -> tuple[int, str, str]:
         res = subprocess.run(["git", *args], cwd=self.project.root, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace")
+                             encoding="utf-8", errors="replace", env=clean_env())
         return res.returncode, res.stdout.strip(), res.stderr.strip()
 
     def _detect_repository(self) -> dict[str, Any] | None:

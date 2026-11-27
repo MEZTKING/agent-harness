@@ -15,14 +15,16 @@ from pathlib import Path
 from typing import Any
 
 from ..core.models import utcnow
+from .safeenv import clean_env
 
 MAX_TAIL = 4000
 
 
 # -- running ------------------------------------------------------------------------------------
 def run(root: str | Path, command: str, env: dict[str, str] | None = None, timeout: int = 900) -> dict[str, Any]:
-    """Run a shell command in the project folder with ``env`` added to the current environment."""
-    full_env = {**os.environ, **(env or {})}
+    """Run a shell command in the project folder with ``env`` added to a cleaned copy of the
+    environment (no keys, tokens or git login: ``safeenv.clean_env``)."""
+    full_env = clean_env(env)
     full_env.setdefault("PYTHONIOENCODING", "utf-8")
     t0 = time.monotonic()
     kw: dict[str, Any] = {}

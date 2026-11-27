@@ -32,6 +32,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from ..core.models import utcnow
+from ..core import secrets as vault
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
@@ -40,6 +41,20 @@ def _lines(raw) -> list[str]:
     """References from the form: a list, or text with one per line."""
     items = raw if isinstance(raw, list) else str(raw or "").splitlines()
     return [str(x).strip() for x in items if str(x).strip()][:20]
+
+
+# Feature API modules under roundtable.ui: each has routes(app) -> {(method, path): fn}. A feature added
+# side by side with others appends its module name here (one line each), nothing else in this file.
+FEATURE_APIS: tuple[str, ...] = ()
+
+
+def _feature_routes(app) -> dict:
+    import importlib
+
+    out: dict = {}
+    for name in FEATURE_APIS:
+        out.update(importlib.import_module(f"roundtable.ui.{name}").routes(app))
+    return out
 
 
 class ApiError(Exception):
@@ -944,7 +959,7 @@ class UIApp:
             if cfg:
                 specs = {**cfg.providers, **specs}
             extra = [v.get("api_key_env") for v in specs.values() if v.get("api_key_env")]
-            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(os.environ.get(n) or ks.get(n)),
+            out["keys"] = [{"name": n, "label": key_label(n, specs), "set": bool(vault.get(n) or ks.get(n)),
                             "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
                            for n in ks.names(extra)]
             out["secure_keys"] = ks.secure
@@ -956,7 +971,7 @@ class UIApp:
 
             cfg = self.cfg()
             specs = dict(cfg.providers) if cfg else {}
-            out["keys"] = [{"name": n, "label": label, "set": bool(os.environ.get(n)),
+            out["keys"] = [{"name": n, "label": label, "set": vault.has(n),
                             "providers": [p for p, v in specs.items() if (v or {}).get("api_key_env") == n]}
                            for n, label in KNOWN_KEYS.items()]
             out["secure_keys"] = False
@@ -1435,6 +1450,7 @@ class UIApp:
             ("GET", "/api/backup"): R.backup_status,
             ("POST", "/api/backup"): R.backup_action,
             **syncapi.routes(R),  # the phone and the PC as one Roundtable (sync.py)
+            **_feature_routes(R),  # features that bring their own API module (FEATURE_APIS)
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:

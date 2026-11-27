@@ -1,6 +1,8 @@
 import json
 import os
 
+from roundtable.core import secrets as vault
+
 import pytest
 import yaml
 
@@ -35,12 +37,14 @@ def test_keystore_secure_backend(paths, monkeypatch):
     assert ks.secure
     ks.set("DEEPSEEK_API_KEY", "  sk-123 ")
     assert kr.data[(desktop.KEYRING_SERVICE, "DEEPSEEK_API_KEY")] == "sk-123"
-    assert os.environ["DEEPSEEK_API_KEY"] == "sk-123"
+    # in Roundtable's in-memory vault, never os.environ (workers' commands would inherit it)
+    assert vault.get("DEEPSEEK_API_KEY") == "sk-123" and "DEEPSEEK_API_KEY" not in os.environ
     assert not (paths.config / "keys.json").exists()  # never written to a file
-    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    vault.clear()
     assert KeyStore(paths, backend=kr).load_into_env() == ["DEEPSEEK_API_KEY"]
+    assert vault.get("DEEPSEEK_API_KEY") == "sk-123" and "DEEPSEEK_API_KEY" not in os.environ
     ks.set("DEEPSEEK_API_KEY", "")
-    assert ks.get("DEEPSEEK_API_KEY") is None and "DEEPSEEK_API_KEY" not in os.environ
+    assert ks.get("DEEPSEEK_API_KEY") is None and vault.get("DEEPSEEK_API_KEY") is None
 
 
 def test_keystore_file_fallback_and_env_wins(paths, monkeypatch):
@@ -50,8 +54,9 @@ def test_keystore_file_fallback_and_env_wins(paths, monkeypatch):
     ks.set("OPENAI_API_KEY", "sk-file")
     assert json.loads((paths.config / "keys.json").read_text(encoding="utf-8")) == {"OPENAI_API_KEY": "sk-file"}
     monkeypatch.setenv("OPENAI_API_KEY", "from-env")
+    vault.clear()  # a restart
     assert KeyStore(paths, backend=None).load_into_env() == []  # an explicit env var is not overridden
-    assert os.environ["OPENAI_API_KEY"] == "from-env"
+    assert vault.get("OPENAI_API_KEY") == "from-env"
 
 
 def test_first_run_creates_working_configs(paths):

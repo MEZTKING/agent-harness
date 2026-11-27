@@ -172,7 +172,10 @@ class GitStore(FileStore):
     # -- git plumbing -------------------------------------------------
     @staticmethod
     def _run(cmd: list[str], cwd: Path) -> str:
-        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        from . import secrets as vault
+
+        # the hub's own git: the environment plus its login (the phone's hub token), never a worker's
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env={**os.environ, **vault.git_env()})
         if res.returncode != 0:
             raise GitError(f"{' '.join(cmd)} failed: {res.stderr.strip() or res.stdout.strip()}")
         return res.stdout
