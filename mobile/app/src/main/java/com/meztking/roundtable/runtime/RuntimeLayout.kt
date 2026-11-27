@@ -48,10 +48,7 @@ class RuntimeLayout(val root: File, val cache: File) {
             add(workspaces.name)
             add(run.name)
             add(logs.name)
-            if (record != null) {
-                add(record.base.dir)
-                add(record.roundtable.dir)
-            }
+            if (record != null) addAll(record.layerDirs())
         }
         return root.listFiles().orEmpty().filter {
             it.name !in keep && (it.name.startsWith("base-") || it.name.startsWith("roundtable-") ||
@@ -92,8 +89,64 @@ data class InstalledRecord(
     val launchTokenEnv: String = "ROUNDTABLE_LAUNCH_TOKEN",
     val readinessPrefix: String = RuntimeManifest.DEFAULT_READINESS,
     val healthPath: String = "/api/health",
+    /**
+     * What was installed before this update, kept (its layer directories included) until this release has
+     * started and answered once. A release that fails its start twice is swapped for it. Null: nothing on trial.
+     */
+    val trial: PriorInstall? = null,
+    /** Starts of the release on trial that failed so far (two put the previous one back). */
+    val trialFailures: Int = 0,
+    /** Releases that failed their trial here: never installed again by themselves, only by "Try the new one again". */
+    val heldBack: List<HeldBack> = emptyList(),
 ) {
     val isTest: Boolean get() = channel == RuntimeManifest.CHANNEL_TEST
+    val onTrial: Boolean get() = trial != null
+
+    /** Every layer directory this record needs on disk, the one on trial's predecessor included. */
+    fun layerDirs(): Set<String> = buildSet {
+        add(base.dir)
+        add(roundtable.dir)
+        trial?.let { add(it.base.dir); add(it.roundtable.dir) }
+    }
+
+    fun isHeldBack(releaseId: String, sequence: Long): Boolean = heldBack.any { it.releaseId == releaseId && it.sequence == sequence }
+
+    /** This record as the state to come back to if the next one does not start. */
+    fun asPrior() = PriorInstall(
+        releaseId, sequence, channel, version, base, roundtable, entrypoint, fakeProc, resolvConf, args, env, launchTokenEnv, readinessPrefix, healthPath,
+    )
+}
+
+/** A release that failed its trial on this phone (DS-08). */
+@Serializable
+data class HeldBack(val releaseId: String, val sequence: Long, val version: String)
+
+/**
+ * An installed release as [InstalledRecord] keeps it while its successor is on trial. The shape of DSH Mobile's
+ * `PriorInstall` (app/src/main/java/com/labteto/dshmobile/runtime/RuntimeLayout.kt), with Roundtable's fields.
+ */
+@Serializable
+data class PriorInstall(
+    val releaseId: String,
+    val sequence: Long,
+    val channel: String,
+    val version: String,
+    val base: LayerRecord,
+    val roundtable: LayerRecord,
+    val entrypoint: String,
+    val fakeProc: List<RuntimeManifest.FakeProc>,
+    val resolvConf: String,
+    val args: List<String> = RuntimeManifest.DEFAULT_ARGS,
+    val env: Map<String, String> = RuntimeManifest.DEFAULT_ENV,
+    val launchTokenEnv: String = "ROUNDTABLE_LAUNCH_TOKEN",
+    val readinessPrefix: String = RuntimeManifest.DEFAULT_READINESS,
+    val healthPath: String = "/api/health",
+) {
+    fun restore(abi: String, heldBack: List<HeldBack>) = InstalledRecord(
+        releaseId = releaseId, sequence = sequence, abi = abi, channel = channel, version = version, base = base, roundtable = roundtable,
+        entrypoint = entrypoint, fakeProc = fakeProc, resolvConf = resolvConf, args = args, env = env, launchTokenEnv = launchTokenEnv,
+        readinessPrefix = readinessPrefix, healthPath = healthPath, heldBack = heldBack,
+    )
 }
 
 /** Reads and atomically replaces `installed.json`. */

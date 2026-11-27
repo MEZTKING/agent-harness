@@ -40,6 +40,12 @@ sealed interface RuntimeState {
     val needsService: Boolean get() = this is Downloading || this is Verifying || this is Unpacking || this is Starting || this is Running
 }
 
+/** An update didn't start twice, so [restored] is back; [tried] waits for "Try the new one again". */
+data class UpdateNotice(val tried: String, val restored: String) {
+    fun plain(): String = "The new version" + (if (tried.isNotBlank()) " ($tried)" else "") + " didn't start, so the one before it" +
+        (if (restored.isNotBlank()) " ($restored)" else "") + " is back. Your projects and keys are as they were."
+}
+
 /**
  * Sets up, starts and stops Roundtable on this phone. One per app process ([com.meztking.roundtable.RoundtableApp]).
  *
@@ -75,11 +81,17 @@ class RuntimeController(
 
     val installed: InstalledRecord? get() = installer.installed()
 
+    private val _notice = MutableStateFlow<UpdateNotice?>(null)
+    /** One line for the owner after an update went back to the previous release (DS-08); null when there is none. */
+    val notice: StateFlow<UpdateNotice?> = _notice.asStateFlow()
+
+    fun dismissNotice() { _notice.value = null }
+
     /** Fetch and check the newest download's description (small; no layer is fetched). */
-    suspend fun check(): RuntimeInstaller.CheckResult {
+    suspend fun check(retryHeldBack: Boolean = false): RuntimeInstaller.CheckResult {
         val before = _state.value
         _state.value = RuntimeState.Checking
-        val result = installer.check()
+        val result = installer.check(retryHeldBack)
         lastCheck = result
         _state.value = when (result) {
             is RuntimeInstaller.CheckResult.Refused -> RuntimeState.Failed(result.failure, installer.installed())
@@ -91,15 +103,22 @@ class RuntimeController(
     /** Bytes still to download (less what a cut download already has), or null before a check. */
     fun remainingBytes(): Long? = (lastCheck as? RuntimeInstaller.CheckResult.Available)?.let { installer.remainingBytes(it) }
 
+    /** "Try the new one again": the release that went back is fetched and put on trial once more, by the owner's choice. */
+    fun retryHeldBack() {
+        _notice.value = null
+        lastCheck = null
+        install(retryHeldBack = true)
+    }
+
     /** Download, check and unpack (resuming a cut download), then start. */
-    fun install() {
+    fun install(retryHeldBack: Boolean = false) {
         if (_state.value.busy) return
         job = scope.launch {
             try {
-                val result = (lastCheck as? RuntimeInstaller.CheckResult.Available) ?: check()
+                val result = (lastCheck as? RuntimeInstaller.CheckResult.Available) ?: check(retryHeldBack)
                 val available = when (result) {
                     is RuntimeInstaller.CheckResult.Available -> result
-                    is RuntimeInstaller.CheckResult.UpToDate -> { startNow(); return@launch }
+                    is RuntimeInstaller.CheckResult.UpToDate, is RuntimeInstaller.CheckResult.HeldBack -> { startNow(); return@launch }
                     is RuntimeInstaller.CheckResult.Refused -> return@launch
                 }
                 _state.value = RuntimeState.Downloading(0, available.downloadBytes)
@@ -200,8 +219,38 @@ class RuntimeController(
 
     suspend fun projectsSize(): Long = withContext(Dispatchers.IO) { runCatching { FsTree.size(fs, layout.workspaces) }.getOrDefault(0L) }
 
+    /**
+     * Start what is installed. A release on trial (just updated) that fails to start or to answer its health
+     * call is tried once more; a second failure puts the previous release back, tells the owner in one line and
+     * starts that one ([RuntimeInstaller.rollbackTrial]). A start that answers ends the trial.
+     */
     private suspend fun startNow() {
-        val record = installer.installed() ?: run { _state.value = RuntimeState.NotInstalled; return }
+        repeat(MAX_TRIAL_STARTS + 1) {
+            val state = startOnce()
+            val record = installer.installed()
+            when {
+                state is RuntimeState.Running -> {
+                    if (record?.onTrial == true) withContext(Dispatchers.IO) { installer.commitTrial() }
+                    _state.value = state
+                    return
+                }
+                record == null || !record.onTrial -> { _state.value = state; return }
+                else -> {
+                    val failures = withContext(Dispatchers.IO) { installer.trialFailed() }
+                    if (failures >= MAX_TRIAL_STARTS) {
+                        withContext(Dispatchers.IO) { runCatching { supervisor.stop() }; installer.rollbackTrial() }
+                        val back = installer.installed()
+                        _notice.value = UpdateNotice(record.version, back?.version.orEmpty())
+                        if (back == null) { _state.value = state; return }
+                    }
+                }
+            }
+        }
+        _state.value = installer.installed()?.let { RuntimeState.Stopped(it) } ?: RuntimeState.NotInstalled
+    }
+
+    private suspend fun startOnce(): RuntimeState {
+        val record = installer.installed() ?: return RuntimeState.NotInstalled
         _state.value = RuntimeState.Starting(record)
         onActive()
         val outcome = try {
@@ -229,7 +278,7 @@ class RuntimeController(
         } catch (e: Exception) {
             HarnessSupervisor.StartOutcome.LaunchFailed(e.message ?: e.javaClass.simpleName)
         }
-        _state.value = when (outcome) {
+        return when (outcome) {
             is HarnessSupervisor.StartOutcome.Ready -> RuntimeState.Running(record, outcome.port)
             is HarnessSupervisor.StartOutcome.Exited -> fail(record, "it closed straight away, code ${outcome.exitCode}")
             is HarnessSupervisor.StartOutcome.TimedOut -> fail(record, "no answer after four minutes")
@@ -259,6 +308,8 @@ class RuntimeController(
 
     companion object {
         const val START_WAIT_MS = 240_000L
+        /** Failed starts of a release on trial before the previous one is put back. */
+        const val MAX_TRIAL_STARTS = 2
 
         fun localHealthClient(): OkHttpClient = OkHttpClient.Builder()
             .proxy(Proxy.NO_PROXY)

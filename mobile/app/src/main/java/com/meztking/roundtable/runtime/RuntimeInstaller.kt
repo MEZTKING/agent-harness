@@ -1,6 +1,7 @@
 // Adapted from DSH Mobile (MIT License, Copyright (c) 2026 DSH Mobile contributors),
 // app/src/main/java/com/labteto/dshmobile/runtime/RuntimeInstaller.kt. See THIRD_PARTY_NOTICES.md.
-// Trimmed for Roundtable: no update trial, no "go back", no previous release.
+// The update trial and its rollback follow DSH Mobile's (commitTrial, rollbackTrial); its "go back to the
+// previous version" by hand and its layer reuse are left out.
 package com.meztking.roundtable.runtime
 
 import kotlinx.coroutines.CancellationException
@@ -60,6 +61,8 @@ class RuntimeInstaller(
 ) {
     sealed interface CheckResult {
         data class Refused(val failure: RuntimeFailure) : CheckResult
+        /** The newest release failed its trial here before: offered only by "Try the new one again". */
+        data class HeldBack(val manifest: RuntimeManifest, val version: String) : CheckResult
         data class UpToDate(val manifest: RuntimeManifest) : CheckResult
         data class Available(val manifest: RuntimeManifest, val decision: ManifestPolicy.Decision.Install) : CheckResult {
             /** Bytes still to fetch, counting what a cut download already has. */
@@ -74,7 +77,7 @@ class RuntimeInstaller(
         result.decision.layers.sumOf { downloader.remainingBytes(asset(result.manifest, it)) }
 
     /** Fetch the latest manifest, check its signature before reading a byte of it, and decide. */
-    suspend fun check(): CheckResult = withContext(Dispatchers.IO) {
+    suspend fun check(retryHeldBack: Boolean = false): CheckResult = withContext(Dispatchers.IO) {
         val manifestBytes: ByteArray
         val signature: ByteArray
         try {
@@ -90,7 +93,11 @@ class RuntimeInstaller(
         } catch (e: ManifestException) {
             return@withContext CheckResult.Refused(RuntimeFailure.BadManifest(e.message ?: "unreadable"))
         }
-        when (val decision = ManifestPolicy.decide(manifest, appVersion(), deviceAbis, store.read(), allowTest, signer)) {
+        val installed = store.read()
+        if (installed != null && installed.isHeldBack(manifest.releaseId, manifest.sequence) && !retryHeldBack) {
+            return@withContext CheckResult.HeldBack(manifest, manifest.version)
+        }
+        when (val decision = ManifestPolicy.decide(manifest, appVersion(), deviceAbis, installed, allowTest, signer)) {
             is ManifestPolicy.Decision.Refused -> CheckResult.Refused(decision.failure)
             is ManifestPolicy.Decision.UpToDate -> CheckResult.UpToDate(manifest)
             is ManifestPolicy.Decision.Install -> CheckResult.Available(manifest, decision)
@@ -155,12 +162,53 @@ class RuntimeInstaller(
             launchTokenEnv = manifest.runtime.launchTokenEnv,
             readinessPrefix = manifest.runtime.readinessPrefix,
             healthPath = manifest.runtime.healthPath,
+            // Every update over an installed runtime goes on trial: what it replaces stays until it has started.
+            trial = when {
+                installed == null -> null
+                installed.trial != null -> installed.trial // keep the last one known to work, not one still on trial
+                else -> installed.asPrior()
+            },
+            heldBack = installed?.heldBack.orEmpty().filterNot { it.releaseId == manifest.releaseId && it.sequence == manifest.sequence },
         )
         beforeCommit()
         store.write(record)
         cleanOrphans()
         downloader.prune()
         record
+    }
+
+    /** The release on trial started and answered: forget the one before it and free its layers. */
+    fun commitTrial(): InstalledRecord? {
+        val record = store.read() ?: return null
+        if (record.trial == null && record.trialFailures == 0) return record
+        val next = record.copy(trial = null, trialFailures = 0)
+        store.write(next)
+        cleanOrphans()
+        return next
+    }
+
+    /** One failed start of the release on trial, written down; the count so far. */
+    fun trialFailed(): Int {
+        val record = store.read() ?: return 0
+        if (record.trial == null) return 0
+        val next = record.copy(trialFailures = record.trialFailures + 1)
+        store.write(next)
+        return next.trialFailures
+    }
+
+    /**
+     * The release on trial never started: put the one before it back, whole, remember the failed one so it is
+     * not tried again by itself, and delete what only the failed one used.
+     */
+    fun rollbackTrial(): InstalledRecord? {
+        val record = store.read() ?: return null
+        val prior = record.trial ?: return record
+        val held = (record.heldBack.filterNot { it.releaseId == record.releaseId && it.sequence == record.sequence } +
+            HeldBack(record.releaseId, record.sequence, record.version)).takeLast(MAX_HELD_BACK)
+        val next = prior.restore(record.abi, held)
+        store.write(next)
+        cleanOrphans()
+        return next
     }
 
     /**
@@ -267,6 +315,7 @@ class RuntimeInstaller(
 
     companion object {
         private const val MAX_MANIFEST = 1 shl 20
+        private const val MAX_HELD_BACK = 8
         private const val READ_BUFFER = 1 shl 20
         private const val HEADROOM = 128L shl 20
         private const val LOW_SPACE = 16L shl 20
