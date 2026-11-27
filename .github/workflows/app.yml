@@ -69,7 +69,7 @@ jobs:
           built=no
           for wait in 0 90 240; do
             sleep $wait
-            if ./gradlew --no-daemon testDebugUnitTest assembleDebug; then built=yes; break; fi
+            if ./gradlew --no-daemon -ProbolectricRepo=https://maven-central.storage-download.googleapis.com/maven2 testDebugUnitTest assembleDebug; then built=yes; break; fi
             echo "Gradle failed (often Maven Central's rate limit); trying again"
           done
           [ "$built" = yes ] || exit 1
