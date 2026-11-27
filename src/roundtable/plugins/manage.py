@@ -17,6 +17,10 @@ its own; only pip packages (and plugins that list dependencies) need Python on t
 
 Nothing is installed until the owner has seen what the plugin asks for and said yes
 (``confirm``). Built-in plugins are trusted and can't be removed, only switched off.
+
+Every installed plugin runs in its own box (``sandbox.py``) unless the owner switched on
+``trusted: true`` for it (``set_trusted``, behind a plain warning). A plugin with compiled parts
+is refused before anything is asked, unless it asks to run programs.
 """
 
 from __future__ import annotations
@@ -39,6 +43,19 @@ from ..brand import NAME
 
 Confirm = Callable[[Manifest], bool]
 Runner = Callable[..., Any]
+
+
+TRUST_WARNING = (f"A Trusted plugin runs as {NAME} itself, outside its box: it can use the internet, every file on "
+                 "this computer, your programs and your saved keys, whatever it says it needs. Only trust a "
+                 "plugin you wrote yourself or have read.")
+
+
+class NeedsSure(PluginError):
+    """Making a plugin Trusted waits for the owner to read the warning and say yes."""
+
+    def __init__(self, item: Any):
+        super().__init__(TRUST_WARNING)
+        self.item = item
 
 
 class NeedsOk(PluginError):
@@ -81,7 +98,9 @@ def _host(path: Path) -> PluginHost:
 
 
 def _known(path: Path, pid: str):
-    item = _host(path).get(pid)
+    host = _host(path)
+    host.close()  # only its facts are wanted here: no box stays running
+    item = host.get(pid)
     if item is None:
         raise PluginError(f"there's no plugin {pid!r}; `roundtable plugin list` shows the ones you have")
     return item
@@ -91,10 +110,18 @@ def _known(path: Path, pid: str):
 def list_plugins(harness_path: str | Path | None = None) -> list[dict[str, Any]]:
     """Every plugin with its manifest, permissions, status and settings (for the app's card)."""
     path = _path(harness_path)
+    from .sandbox import BUILTIN_WORDS, TRUSTED_WORDS, supported
+
     state = (parse_config(merge_custom(_raw(path), load_custom(path)), path).plugins or {})
+    host = _host(path)
+    host.close()
+    boxed_words = supported()["words"]
     out = []
-    for p in _host(path).plugins:
+    for p in host.plugins:
+        trusted = bool((state.get(p.id) or {}).get("trusted")) and not p.builtin
         out.append({**p.manifest.view(), "builtin": p.builtin, "enabled": p.enabled, "status": p.status,
+                    "boxed": not p.builtin and not trusted, "trusted": trusted,
+                    "box_words": BUILTIN_WORDS if p.builtin else TRUSTED_WORDS if trusted else boxed_words,
                     "problem": p.problem, "source": (state.get(p.id) or {}).get("source", "built in" if p.builtin
                                                                                   else ""),
                     "folder": str(plugins_home() / p.id),
@@ -124,6 +151,39 @@ def set_enabled(harness_path: str | Path | None, pid: str, enabled: bool, confir
     entry["enabled"] = bool(enabled)
     _save(path, custom)
     return {"id": pid, "enabled": bool(enabled)}
+
+
+def set_trusted(harness_path: str | Path | None, pid: str, trusted: bool, sure: bool = False) -> dict[str, Any]:
+    """Let an installed plugin run as the app itself (``trusted``), or put it back in its box.
+
+    Trusting asks first: without ``sure`` it raises ``NeedsSure`` with the warning to show.
+    """
+    path = _path(harness_path)
+    item = _known(path, pid)
+    if item.builtin:
+        raise PluginError(f"{item.manifest.name} comes with {NAME}: it always runs as the app")
+    if trusted and not sure:
+        raise NeedsSure(item)
+    custom = load_custom(path)
+    entry = _entry(custom, pid)
+    if trusted:
+        entry["trusted"] = True
+    else:
+        entry.pop("trusted", None)
+    _save(path, custom)
+    return {"id": pid, "trusted": bool(trusted)}
+
+
+def refuse_compiled(manifest: Manifest, folder: Path) -> None:
+    """Compiled parts can't be watched in the box: refused unless the plugin asks to run programs."""
+    from .host import compiled_words
+    from .sandbox import compiled_files
+
+    if "shell" in manifest.permissions:
+        return
+    found = compiled_files(folder)
+    if found:
+        raise PluginError(compiled_words(manifest.name, found))
 
 
 def set_settings(harness_path: str | Path | None, pid: str, values: dict[str, Any]) -> dict[str, Any]:
@@ -231,6 +291,7 @@ def add_plugin(harness_path: str | Path | None, source: str, confirm: Confirm, r
         if manifest.id in BUILTIN_MANIFESTS:
             raise PluginError(f"{manifest.id!r} is the name of a plugin that comes with {NAME}; "
                               "the plugin needs another id")
+        refuse_compiled(manifest, folder)
         if not confirm(manifest):
             raise NeedsOk(manifest)
         code = code_home() / manifest.id
@@ -240,6 +301,12 @@ def add_plugin(harness_path: str | Path | None, source: str, confirm: Confirm, r
             shutil.rmtree(code)
         code.parent.mkdir(parents=True, exist_ok=True)
         where = _install(source, kind, folder, code, runner, link)
+        try:
+            refuse_compiled(manifest, Path(where))  # what pip brought with it
+        except PluginError:
+            if Path(where).resolve() == code.resolve() and code.exists():
+                shutil.rmtree(code, ignore_errors=True)
+            raise
     custom = load_custom(path)
     old = (custom.get("plugins") or {}).get(manifest.id) or {}
     custom.setdefault("plugins", {})[manifest.id] = {
@@ -259,9 +326,11 @@ def api(method: str, subpath: str = "", query: dict[str, Any] | None = None, bod
     POST /api/plugins  {"action": "enable"|"disable", "id", "confirmed": [permissions]}
                        {"action": "settings", "id", "values": {...}}
                        {"action": "remove", "id", "purge": false}
+                       {"action": "trust", "id", "trusted": true|false, "sure": false}
                        {"action": "add", "source", "confirmed": [permissions], "link": false}
          A reply {"ok": false, "needs_ok": {manifest}} means: show its permissions, ask, and
-         send the same request again with "confirmed" set to them.
+         send the same request again with "confirmed" set to them. {"ok": false, "needs_sure":
+         {"id", "name", "warning"}} means: show the warning, and send it again with "sure": true.
     ANY  /api/plugins/<id>/<path>            the plugin's own routes
     """
     sub = subpath.strip("/")
@@ -281,6 +350,9 @@ def api(method: str, subpath: str = "", query: dict[str, Any] | None = None, bod
         return 200, {"ok": False, "needs_ok": e.manifest.view(),
                      "message": f"{e.manifest.name} asks for: " + (", ".join(
                          p["words"] for p in e.manifest.view()["permissions"]) or "nothing special")}
+    except NeedsSure as e:
+        return 200, {"ok": False, "needs_sure": {"id": e.item.id, "name": e.item.manifest.name,
+                                                 "warning": TRUST_WARNING}, "message": TRUST_WARNING}
     except (PluginError, ValueError, FileNotFoundError) as e:
         return 400, {"ok": False, "error": str(e)}
 
@@ -296,10 +368,12 @@ def _action(harness_path: Any, body: dict[str, Any], runner: Runner) -> dict[str
         return set_enabled(harness_path, pid, action == "enable", confirm=ok)
     if action == "settings":
         return {"settings": set_settings(harness_path, pid, dict(body.get("values") or {}))}
+    if action == "trust":
+        return set_trusted(harness_path, pid, bool(body.get("trusted", True)), sure=bool(body.get("sure")))
     if action == "remove":
         remove_plugin(harness_path, pid, purge=bool(body.get("purge")))
         return {"removed": pid}
     if action == "add":
         return {"added": add_plugin(harness_path, str(body.get("source") or ""), ok, runner=runner,
                                     link=bool(body.get("link")))}
-    raise PluginError("action must be enable, disable, settings, remove or add")
+    raise PluginError("action must be enable, disable, settings, trust, remove or add")

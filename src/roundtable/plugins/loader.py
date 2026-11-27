@@ -1,7 +1,8 @@
 """Loading code named as ``module:object`` - shared by plugins and ``type: plugin`` providers.
 
-Trust rule (the same for both): this runs the plugin's own Python code with the app's full
-access. Nothing here is a sandbox; the safety is that the owner chose to install it.
+Trust rule: this runs the code with the app's full access. Nothing here is a sandbox: it is used
+for ``type: plugin`` providers and for plugins the owner marked Trusted. Every other installed
+plugin runs in its own box instead (``sandbox.py``).
 """
 
 from __future__ import annotations

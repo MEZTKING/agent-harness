@@ -24,8 +24,10 @@ logger, the project folder (read it, don't write it), the role, ``emit`` and ``s
 dict that lasts one conversation).
 
 Safety: a hook that raises, or returns the wrong type, is caught; the plugin is switched off
-until the run ends and the owner sees a plain message. Nothing stops a plugin's code doing
-anything Python can do: installing one means trusting it (see docs/plugins.md).
+until the run ends and the owner sees a plain message. An installed plugin runs in its own box
+(``sandbox.py``): no internet, no other programs and only its own folder, unless the owner said yes
+to more; inside the box ``roundtable.plugins.api`` is ``boxapi.py``, a copy of this file. Built-in
+plugins, and ones the owner marked Trusted, run in the app (see docs/plugins.md).
 """
 
 from __future__ import annotations
@@ -48,6 +50,7 @@ PERMISSIONS = {
     "network": "Can go on the internet",
     "files": "Can read and change files on this computer outside its own folder",
     "shell": "Can run programs on this computer",
+    "project:read": "Can read the project it is helping with",
 }
 SECRET_PERMISSION = "secrets:"  # secrets:<host> - may use your saved key for that host
 
@@ -78,6 +81,7 @@ class PluginContext:
     shared: dict[str, Any] = field(default_factory=dict)  # what the harness hands every plugin (e.g. token_saver)
     _emit: Callable[[str, dict[str, Any]], None] | None = field(default=None, repr=False)
     _cost: Callable[[str, Any], float | None] | None = field(default=None, repr=False)
+    _http: Callable[..., dict[str, Any]] | None = field(default=None, repr=False)
 
     @property
     def data_dir(self) -> Path:
@@ -96,6 +100,14 @@ class PluginContext:
     def cost_of(self, model: str, usage: Any) -> float | None:
         """What a call cost in US dollars (``model`` is ``provider/model``); None when unpriced."""
         return self._cost(model, usage) if self._cost else None
+
+    def http(self, method: str, url: str, headers: dict[str, str] | None = None, body: Any = None,
+             timeout: float = 30) -> dict[str, Any]:
+        """A web request to a host this plugin has ``secrets:<host>`` for, with your saved key added by the
+        harness (inside a box the key never reaches the plugin): {"status", "headers", "body"}."""
+        if not self._http:
+            raise PluginError("web requests with a saved key aren't available here")
+        return self._http(method, url, headers=headers, body=body, timeout=timeout)
 
 
 class Plugin:
