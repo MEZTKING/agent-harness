@@ -377,13 +377,16 @@ def test_estimate_adds_the_extras():
 
 # -- kinds ------------------------------------------------------------------------------------------------------
 def test_a_kind_may_say_how_to_start_and_ship_it():
+    # the shapes d2-ship made strict (ship: build + artefact; start: command, port, ready; tests/test_ship.py)
     kind = {"schema": "kind@1", "id": "web-app", "name": "Web app",
-            "start": {"command": "npm start", "url": "http://localhost:3000"}, "ship": {"command": "npm run build"}}
+            "start": {"command": "npm start", "port": 3000, "ready": "/"},
+            "ship": {"build": "npm run build", "artefact": "dist/*.zip"}}
     data, probs = kindmodel.validate(kind, known_needs=set())
     assert probs == [] and data["start"]["command"] == "npm start"
-    extra = {"schema": "extra@1", "id": "installer", "name": "Installer", "ship": {"command": "make installer"}}
+    extra = {"schema": "extra@1", "id": "installer", "name": "Installer",
+             "ship": {"build": "make installer", "artefact": "dist/*.exe"}}
     assert kindmodel.validate(extra, is_extra=True, known_needs=set())[1] == []
-    for bad in ({"command": ["npm", "start"]}, "npm start", {"command": "x" * 600}):
+    for bad in ({"command": ["npm", "start"]}, "npm start", {"command": "x" * 600}, {"url": "http://localhost"}):
         _, probs = kindmodel.validate(dict(kind, start=bad), known_needs=set())
         assert probs and "start" in probs[0]
     _, probs = kindmodel.validate(dict(extra, start={"command": "x"}), is_extra=True, known_needs=set())
