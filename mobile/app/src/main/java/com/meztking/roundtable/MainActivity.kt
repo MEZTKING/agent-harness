@@ -73,6 +73,13 @@ import com.meztking.roundtable.ui.FilesScreen
 import com.meztking.roundtable.ui.ApiFiles
 import com.meztking.roundtable.ui.SearchScreen
 import com.meztking.roundtable.ui.composerSender
+import com.meztking.roundtable.ui.ComfortScreen
+import com.meztking.roundtable.ui.NeedsList
+import com.meztking.roundtable.ui.TablePins
+import com.meztking.roundtable.ui.adaptive.AdaptiveShell
+import com.meztking.roundtable.ui.adaptive.LocalShellPlan
+import com.meztking.roundtable.ui.adaptive.ShellPlace
+import com.meztking.roundtable.data.Comfort
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.RoundtableTheme
 import com.meztking.roundtable.ui.theme.hallBackground
@@ -160,6 +167,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                     ProjectSettingsContent(vm.id, view, saving, onBack = { nav.popBackStack() }, onRefresh = vm::load, onSave = vm::save)
                 }
             }
+            composable("comfort") { ComfortScreen(Comfort.get(ctx), onBack = { nav.popBackStack() }) }
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable("notes") { NotesScreen(onBack = { nav.popBackStack() }) }
@@ -256,24 +264,31 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val needCount = hall.data?.needs?.size ?: 0
     val myUnread = hall.data?.seats?.firstOrNull { it.id == identity }?.unread ?: 0
     val where = remember(hall.data, backend) { whereLabel(backend) }
-    Scaffold(
-        containerColor = Color.Transparent,
+    val comfort = remember(ctx) { Comfort.get(ctx) }
+    val pins = TablePins(comfort.pinned, comfort.putAway, pin = comfort::pin, putAway = comfort::putAwayProject)
+    val openNeed: (com.meztking.roundtable.data.NeedView) -> Unit = { n ->
+        showNeeds = false
+        when {
+            n.kind == "message" -> { tab = 1; main.loadLetters() }
+            n.ask != null -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
+            n.actions.contains("approve") -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
+            else -> nav.navigate("project/${android.net.Uri.encode(n.project)}")
+        }
+    }
+    // on a big screen (or a foldable open like a book) what waits for the owner sits beside the Table
+    val needsPane: (@Composable () -> Unit)? = if (tab == 0 && crash == null && !searching && hall.data != null) ({
+        NeedsList(hall.data?.needs.orEmpty(), backend?.mode, busy, main::act, openNeed, Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            onAnswer = main::answer, onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) })
+    }) else null
+    AdaptiveShell(
+        places = listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needCount), ShellPlace("Letters", Icons.AutoMirrored.Filled.MenuBook, myUnread),
+            ShellPlace("Settings", Icons.Filled.Settings)),
+        selected = tab, onSelect = { tab = it },
         snackbarHost = { SnackbarHost(snack) },
-        bottomBar = {
-            NavigationBar(containerColor = Hall.panel) {
-                val colors = NavigationBarItemDefaults.colors(selectedIconColor = Hall.onAccent, indicatorColor = Hall.gold, selectedTextColor = Hall.text,
-                    unselectedIconColor = Hall.muted, unselectedTextColor = Hall.muted)
-                NavigationBarItem(tab == 0, { tab = 0 }, icon = {
-                    BadgedBox(badge = { if (needCount > 0) Badge(containerColor = Hall.ember) { Text("$needCount") } }) { Icon(Icons.Filled.TripOrigin, null) }
-                }, label = { Text("Table") }, colors = colors)
-                NavigationBarItem(tab == 1, { tab = 1 }, icon = {
-                    BadgedBox(badge = { if (myUnread > 0) Badge(containerColor = Hall.ember) { Text("$myUnread") } }) { Icon(Icons.AutoMirrored.Filled.MenuBook, null) }
-                }, label = { Text("Letters") }, colors = colors)
-                NavigationBarItem(tab == 2, { tab = 2 }, icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("Settings") }, colors = colors)
-            }
-        },
-    ) { pad ->
-        Box(Modifier.padding(pad)) {
+        beside = needsPane,
+    ) {
+        val twoPanes = LocalShellPlan.current.twoPanes
+        Box {
             crash?.let { details ->
                 // safe mode: the app closed last time; nothing loads until the owner says so
                 CrashCard(details, onSend = main::sendCrash, onTryAgain = main::crashSeen)
@@ -306,22 +321,15 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     hall, if (backend == null) null else backend.mode, where, busy, onRefresh = main::refresh,
                     onOpen = { s -> nav.navigate("project/${android.net.Uri.encode(s.id)}") },
                     onAct = main::act,
-                    onOpenNeed = { n ->
-                        showNeeds = false
-                        when {
-                            n.kind == "message" -> { tab = 1; main.loadLetters() }
-                            n.ask != null -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
-                            n.actions.contains("approve") -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
-                            else -> nav.navigate("project/${android.net.Uri.encode(n.project)}")
-                        }
-                    },
-                    showNeeds = showNeeds, onShowNeeds = { showNeeds = it },
+                    onOpenNeed = openNeed,
+                    showNeeds = showNeeds && !twoPanes, onShowNeeds = { showNeeds = it && !twoPanes },
                     onAnswer = main::answer,
                     onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) },
                     onAutopilot = main::autopilot,
                     onNotes = if (backend != null) ({ nav.navigate("notes") }) else null,
                     onSearch = if (backend != null) ({ searching = true }) else null,
                     onNewIdea = if (backend != null) ({ nav.navigate("newidea") }) else null,
+                    pins = pins, needsBeside = twoPanes,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),
@@ -329,7 +337,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onMarkAllRead = main::markAllRead,
                 )
                 else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onHarness = { nav.navigate("harness") },
-                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onChanged = {
+                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onComfort = { nav.navigate("comfort") }, onChanged = {
                     settingsTick++
                     if (!app.store.configured) nav.navigate("setup") { popUpTo(0) { inclusive = true } } else main.reset()
                 })

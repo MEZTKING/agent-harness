@@ -72,6 +72,8 @@ import com.meztking.roundtable.ui.theme.Panel
 import com.meztking.roundtable.ui.theme.Parchment
 import com.meztking.roundtable.ui.theme.ParchmentButtons
 import com.meztking.roundtable.ui.theme.Serif
+import com.meztking.roundtable.ui.theme.LocalComfort
+import com.meztking.roundtable.data.SentItem
 
 /** Everything the project screen draws, so it can be shown in previews and tests without a ViewModel. */
 data class ProjectUi(
@@ -263,7 +265,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     }
     if (hub && top.waiting) item(key = "actions") {
         val pending = p.words?.pendingChanges == true || ui.sent.keys.any { k -> listOf("note:", "choose:", "answer:", "idea:", "ask:").any { k.startsWith(it) } }
-        PlanButtons(ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
+        PlanButtons(ui.id, ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
     }
     if (top.tasks.isNotEmpty()) {
         item(key = "tasks-head") {
@@ -330,9 +332,10 @@ private fun SentLine(text: String) {
 
 /** "Tell the planner" is a small button that opens the box; Update plan shows only when changes wait. */
 @Composable
-private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: Boolean, canApprove: Boolean) {
+private fun PlanButtons(project: String, sent: Map<String, String>, a: ProjectActions, pending: Boolean, canApprove: Boolean) {
     var writing by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf("") }
+    val comfort = LocalComfort.current
     Column(Modifier.fillMaxWidth()) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (pending) Button({ a.command("revise", "revise", emptyMap()) }, enabled = "revise" !in sent) { Text("Update plan") }
@@ -350,6 +353,7 @@ private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: B
                     // the words wait in the plan for Update plan; pictures and files go to the planner with them
                     if (d.text.isBlank()) throw com.meztking.roundtable.data.ComposerProblem("Write what should change first.")
                     a.command("note:${d.text.hashCode()}", "note", mapOf("text" to d.text.trim()))
+                    comfort?.remember(project, SentItem(SentItem.NOTE, d.text.trim()))
                     if (d.files.isNotEmpty()) box.send(d, a.path, "note", read) else "Noted."
                 },
                 onSent = { writing = false; problem = null; a.refresh() },
@@ -362,7 +366,11 @@ private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: B
         } else if (writing) {
             OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth().heightIn(min = 80.dp), placeholder = { Text("What should change?") })
             Spacer(Modifier.height(6.dp))
-            OutlinedButton({ a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim())); note = ""; writing = false },
+            OutlinedButton({
+                a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim()))
+                comfort?.remember(project, SentItem(SentItem.NOTE, note.trim()))
+                note = ""; writing = false
+            },
                 enabled = note.isNotBlank()) { Text("Add this note") }
             Text("Your notes and answers wait until you press Update plan.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
@@ -377,6 +385,12 @@ private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
     var writing by rememberSaveable { mutableStateOf(false) }
     val inbox = ui.inbox
     val unread = inbox.data?.count { !it.read } ?: 0
+    val comfort = LocalComfort.current
+    val history = comfort?.let { c -> c.sentVersion.let { c.sent(ui.id) } }.orEmpty()
+    fun letter(subject: String, body: String, done: Done) = a.send(subject, body) { ok ->
+        if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), subject.trim()))
+        done(ok)
+    }
     PullToRefreshBox(inbox.loading && inbox.data != null, a.refresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -389,13 +403,24 @@ private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
             if (inbox.data == null && inbox.loading) item { Loading("Fetching the inbox…") }
             if (inbox.data?.isEmpty() == true) item { Text("No messages.", color = Hall.muted, modifier = Modifier.padding(vertical = 24.dp)) }
             items(inbox.data.orEmpty(), key = { it.id }) { m -> LetterRow(m, showTo = false, plan = ui.plan.data?.doc) { open = m.id; a.opened(m) } }
+            if (history.isNotEmpty()) item(key = "sent-history") {
+                SentHistory(history, onResend = { item ->
+                    if (item.kind == SentItem.NOTE) {
+                        a.command("note:${item.text.hashCode()}", "note", mapOf("text" to item.text))
+                        comfort?.remember(ui.id, item)
+                    } else letter(item.subject, item.text) { }
+                }, modifier = Modifier.padding(top = 8.dp))
+            }
         }
     }
     inbox.data?.firstOrNull { it.id == open }?.let { m ->
-        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok -> done(ok); if (ok) open = null } })
+        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok ->
+            if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), "Re: " + m.subject.removePrefix("Re: ")))
+            done(ok); if (ok) open = null
+        } })
     }
     if (writing) ComposeSheet(listOf(ui.id), ui.identity, ui.id, onDismiss = { writing = false }) { _, s, b, done ->
-        a.send(s, b) { ok -> done(ok); if (ok) writing = false }
+        letter(s, b) { ok -> done(ok); if (ok) writing = false }
     }
 }
 
