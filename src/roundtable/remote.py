@@ -16,7 +16,9 @@ run), run, retry, skip, steer, ask, looks (make new looks to choose from; ``text
 starting point), answer (a tapped card: ``id`` of the ask, ``chosen`` option ids, ``other`` typed
 text, ``confirmed`` after "Are you sure?", ``stamp`` so an old card can't answer a changed question;
 see asks.py; the phone reads the cards from plans/<project>.asks.json), autopilot (one switch for every
-project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``never``; see autopilot.py).
+project: ``state`` on / off / status, ``until``, ``cap``; or ``project`` with ``never``; see autopilot.py),
+show_it (pictures of the app now, after its newest finished task, and the hub's live files: "Take pictures now"
+on a finished project's Live tab).
 
 Projects Roundtable builds report through one shared hub agent (``harness``) unless the hub has a project of
 their own name; a command for one of them carries ``project_folder`` (the project's folder name), so only that
@@ -38,7 +40,7 @@ from typing import Any, Callable
 PREFIX = "roundtable:"
 FOLDER = "project_folder"  # which project a command is for, when several share one hub agent (``harness``)
 MACHINE = "machine"  # which machine a command is for (sync.this_machine()["id"]); none: whichever runs it
-LONG = {"revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer", "carry_on"}
+LONG = {"show_it", "revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer", "carry_on"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -108,6 +110,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
         r = orch.set_profile(str(kw.get("name", "")))
         costs = ", ".join(f"{n} about ${e.get('cost_usd') or 0:.2f}" for n, e in r["estimates"].items())
         return f"This project now uses the {r['profile']} setting. Estimates: {costs}."
+    if action == "show_it":
+        return orch.show_it_now()["reply"]
     if action == "steer":
         return orch.steer(kw.get("text", ""))["reply"]
     if action == "ask":

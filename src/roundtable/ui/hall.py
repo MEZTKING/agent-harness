@@ -18,8 +18,11 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from ..harness.plandoc import short_title
 
 OWN_REPOS = ("agent-harness", "roundtable-hold")
 THIS_APP = "Roundtable Hold (this app)"
@@ -71,7 +74,7 @@ def split_prefix(text: str, names: set[str]) -> tuple[str | None, str]:
 
 # -- the hub's plans (projects Roundtable builds, wherever they run) --------------------------------
 STATUS_LINE = re.compile(r"^_Plan status: (?P<state>[^·_]+?)\s*·\s*(?P<summary>.*?)\s*·\s*updated (?P<at>\S+)")
-GOAL_LINE = re.compile(r"^# Plan v\d+:\s*(?P<goal>.*)$", re.M)
+GOAL_LINE = re.compile(r"^# (?:Plan v\d+:\s*)?(?P<goal>.*)$", re.M)
 
 
 def hub_root(hub) -> Path | None:
@@ -102,13 +105,30 @@ def hub_plans(hub) -> dict[str, dict[str, Any]]:
             continue
         m = STATUS_LINE.match(text.strip().splitlines()[0] if text.strip() else "")
         g = GOAL_LINE.search(text)
+        words = read_hub_words(root, name)
+        old = bool(g and g.group(0).startswith("# Plan v"))  # published before plans had a title
+        heading = (g.group("goal").strip() if g else "")
+        title = words.get("title") or (short_title("", "", heading) if old else heading)
         out[name] = {
             "name": name, "agent": agent, "folder": folder,
             "state": (m.group("state").strip() if m else ""), "summary": (m.group("summary") if m else ""),
-            "at": (m.group("at") if m else ""), "goal": (g.group("goal").strip() if g else ""),
+            "at": (m.group("at") if m else ""), "goal": title,
+            "plan_title": title, "plan_summary": str(words.get("summary") or ""),
+            "plan_state": str(words.get("state") or ""), "waiting": list(words.get("waiting") or []),
+            "estimate": str(words.get("estimate") or ""),
             "asks": read_hub_asks(root, name), "shot": _hub_shot(root, name),
         }
     return out
+
+
+def read_hub_words(root: Path, name: str) -> dict[str, Any]:
+    """The plan in the owner's words, next to its cards: title, summary, state, waiting, estimate."""
+    try:
+        data = json.loads((root / "plans" / f"{name}.asks.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: data.get(k) for k in ("title", "summary", "state", "waiting", "estimate") if data.get(k)} \
+        if isinstance(data, dict) else {}
 
 
 def read_hub_asks(root: Path, name: str) -> list[dict[str, Any]]:
@@ -132,6 +152,70 @@ def _hub_shot(root: Path, name: str) -> dict[str, str] | None:
         return None
     return {"url": "/raw/hubshot?" + urlencode({"name": name, "file": pic}), "task": rec.get("task", ""),
             "at": rec.get("at", "")}
+
+
+def hub_live(hub, name: str) -> dict[str, Any]:
+    """A project's live files in the hub (plans/shots/<name>/): the newest pictures as addresses, and the steps."""
+    from urllib.parse import urlencode
+
+    root = hub_root(hub)
+    if not root or not SAFE_NAME.match(name or ""):
+        raise ValueError("no such project")
+    d = root / "plans" / "shots" / name
+    read = lambda f: json.loads((d / f).read_text(encoding="utf-8"))  # noqa: E731
+    try:
+        rec = read("latest.json")
+    except (OSError, ValueError):
+        rec = None
+    try:
+        session = read("session.json")
+    except (OSError, ValueError):
+        session = None
+    pictures = {k: "/raw/hubshot?" + urlencode({"name": name, "file": f})
+                for k, f in ((rec or {}).get("pictures") or {}).items() if (d / str(f)).is_file()}
+    return {"name": name, "latest": rec, "pictures": pictures, "session": session}
+
+
+NOTE_NAME = re.compile(r"^[A-Za-z0-9][\w .-]{0,80}\.md$")
+
+
+def _note_title(text: str, fallback: str) -> str:
+    for ln in text.splitlines():
+        m = re.match(r"^#{1,6}\s+(.*\S)", ln)
+        if m:
+            return m.group(1).strip()
+    return fallback
+
+
+def hub_notes(hub) -> list[dict[str, str]]:
+    """The owner's saved documents in the hub (notes/*.md), by their first heading."""
+    root = hub_root(hub)
+    d = root / "notes" if root else None
+    if not d or not d.is_dir():
+        return []
+    out = []
+    for f in sorted(d.glob("*.md")):
+        if not NOTE_NAME.match(f.name):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        out.append({"name": f.name, "title": _note_title(text, f.stem.replace("-", " ").capitalize()),
+                    "at": datetime.fromtimestamp(f.stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+    return sorted(out, key=lambda n: n["title"].lower())
+
+
+def hub_note(hub, name: str) -> dict[str, str]:
+    """One saved document (notes/<name>), only from that folder."""
+    root = hub_root(hub)
+    if not root or not NOTE_NAME.match(name or ""):
+        raise ValueError("no such note")
+    p = (root / "notes" / name).resolve()
+    if (root / "notes").resolve() not in p.parents or not p.is_file():
+        raise ValueError("no such note")
+    text = p.read_text(encoding="utf-8")
+    return {"name": name, "title": _note_title(text, p.stem), "markdown": text}
 
 
 def hub_shot_file(hub, name: str, file: str) -> Path:

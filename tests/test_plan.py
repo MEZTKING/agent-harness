@@ -392,3 +392,70 @@ def test_a_planner_cannot_say_the_owner_settled_a_choice():
                               "goal", 1)
     d = doc["decisions"][0]
     assert d["why"] == "Only the deck-opening path changes." and d["chosen"] is None
+
+
+def test_a_plan_leads_with_a_short_title_and_where_it_stands(tmp_path):
+    """Short first: the owner reads a title and one sentence; the builders' brief is folded further down."""
+    import yaml
+
+    from .test_hub import RAW as HUB_RAW
+
+    raw = json.loads(json.dumps(HUB_RAW))
+    raw["storage"] = {"type": "file", "path": str(tmp_path / "hubdata")}
+    raw["agents"]["proj"] = {"description": "a made-up project"}
+    (tmp_path / "hub.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+    hraw = json.loads(json.dumps(RAW))
+    hraw["hub"] = {"config": str(tmp_path / "hub.yaml"), "agent": "harness"}
+    orch, *_ = make(tmp_path, raw=hraw, brain=PlanBrain())
+    long_goal = ("Also ship the bakery site as an Android app (APK) and a Windows app (EXE). One code base: both wrap "
+                 "the same index.html, css and js.")
+    orch.start(long_goal, require_approval=True)
+    orch.run()
+    page = (tmp_path / "hubdata" / "plans" / "proj.md").read_text(encoding="utf-8")
+    heading = next(ln for ln in page.splitlines() if ln.startswith("# "))
+    assert heading == "# Small bakery site"  # from the summary's first sentence, not the goal
+    assert "## The builders' brief (version 1)" in page and long_goal in page
+    assert "Estimate: about $" in page and "## Sets of models" not in page.split("## The builders' brief")[0]
+    words = json.loads((tmp_path / "hubdata" / "plans" / "proj.asks.json").read_text(encoding="utf-8"))
+    assert words["title"] == "Small bakery site" and words["summary"].startswith("A small bakery site")
+    assert words["state"] == "Waiting for you: 1 choice, 1 question" and words["waiting"] == ["1 choice", "1 question"]
+    assert words["estimate"].startswith("about $") and " and " in words["estimate"]
+    orch.approve()
+    assert orch.run() == "done"
+    page = (tmp_path / "hubdata" / "plans" / "proj.md").read_text(encoding="utf-8")
+    assert "Estimate:" not in page  # only while it waits for approval
+    words = json.loads((tmp_path / "hubdata" / "plans" / "proj.asks.json").read_text(encoding="utf-8"))
+    assert words["state"] == "Finished – 3 tasks" and words["waiting"] == [] and words["estimate"] == ""
+
+
+def test_the_planners_title_wins_and_survives_a_revision():
+    doc = plandoc.doc_from_submission({**DOC, "title": "Bakery site with a logo", "tasks": []}, "a goal", 0)
+    assert plandoc.plan_title(doc) == "Bakery site with a logo"
+    new = plandoc.doc_from_submission({**DOC, "tasks": []}, "a goal", 0)
+    assert plandoc.carry_over(new, doc)["title"] == "Bakery site with a logo"
+    long = plandoc.doc_from_submission({**DOC, "title": "one two three four five six seven eight nine ten", "tasks": []}, "g", 0)
+    assert plandoc.plan_title(long) == "one two three four five six seven eight"
+
+
+def test_an_old_plan_gets_a_title_made_for_it():
+    t = plandoc.short_title
+    assert t("", "", "Also ship the player as an Android app (APK) and a Windows app (EXE). One code base: both wrap "
+                     "the same index.html, css, js") == "Also ship the player as an Android app and a Windows app"
+    assert t("", "", "Build a lantern timer web app with index.html and app.js") == "Build a lantern timer web app"
+    assert t("", "", "Plan v3: a shop for kites") == "Shop for kites"
+    assert len(t("", "word " * 40, "")) <= 60 and t("", "", "") == "The plan"
+    assert "summary" not in plandoc.submission_schema({})["required"]
+    assert "title" in plandoc.submission_schema({})["properties"]
+
+
+def test_the_state_sentence():
+    from roundtable.harness.orchestrator import Task
+
+    done = [Task(f"T{i}", "x", "coder", "d", status="done") for i in range(16)]
+    assert plandoc.state_sentence({}, done, {"status": "done", "spent_usd": 5.01, "plan_approved": True}) == \
+        "Finished – 16 tasks, $5.01"
+    mixed = done[:2] + [Task("T9", "x", "coder", "d", status="running")] + [Task("T10", "x", "coder", "d")] * 4
+    assert plandoc.state_sentence({}, mixed, {"status": "running", "plan_approved": True}) == "Building task 3 of 7"
+    assert plandoc.state_sentence(plandoc.doc_from_submission({**DOC, "tasks": []}, "g", 0), [], {}) == \
+        "Waiting for you: 1 choice, 1 question"
+    assert plandoc.estimate_line({"cost_usd": 3.449, "minutes": 45}) == "about $3.45 and 45 minutes"

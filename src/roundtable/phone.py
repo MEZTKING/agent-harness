@@ -48,7 +48,7 @@ PHONE_ROUTES = {
     ("GET", "/api/project/settings"), ("POST", "/api/project/settings"),
     ("GET", "/api/setup/recommended"), ("POST", "/api/setup/recommended"),  # the recommended setup, one tap
     # projects that run elsewhere, and the phone and the PC as one Roundtable (sync.py, ui/syncapi.py)
-    ("GET", "/api/hub/plan"), ("POST", "/api/hub/command"), ("GET", "/api/hub/session"), ("POST", "/api/hub/carry_on"),
+    ("GET", "/api/hub/plan"), ("GET", "/api/hub/live"), ("GET", "/api/notes"), ("GET", "/api/note"), ("POST", "/api/hub/command"), ("GET", "/api/hub/session"), ("POST", "/api/hub/carry_on"),
     ("GET", "/api/machines"), ("GET", "/api/settings/shared"), ("POST", "/api/settings/shared"),
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),

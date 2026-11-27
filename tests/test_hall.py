@@ -112,4 +112,57 @@ def test_a_plan_waiting_elsewhere_without_cards_offers_open_and_approve(tmp_path
     assert need["kind"] == "plan" and need["actions"] == ["open_plan", "approve"] and need["hub_name"] == \
         "harness--rain-garden"
     s = data["seats"][0]
-    assert s["id"] == "rain-garden" and s["state"].startswith("Waiting for you") and s["goal"] == "pick plants for wet soil"
+    assert s["id"] == "rain-garden" and s["state"].startswith("Waiting for you") and s["goal"] == "Pick plants for wet soil"
+
+
+def test_saved_documents_are_listed_by_their_heading_and_open_whole(tmp_path):
+    """My notes: the hub's notes/*.md, by title only until one is opened. Made-up note."""
+    repo, app_yaml = _hub_repo(tmp_path, {"me": {}})
+    (repo / "notes").mkdir()
+    (repo / "notes" / "kites.md").write_text("Intro line\n\n# Kite links\n\n| Name | Link |\n|---|---|\n"
+                                             "| Kite club | [site](https://kites.example) |\n", encoding="utf-8")
+    (repo / "notes" / "no-heading.md").write_text("just text\n", encoding="utf-8")
+    (repo / "notes" / ".hidden.md").write_text("# secret\n", encoding="utf-8")
+    app = UIApp(str(app_yaml), "missing.yaml", agent="me")
+    listed = app.notes_list({})["notes"]
+    assert [(n["name"], n["title"]) for n in listed] == [("kites.md", "Kite links"), ("no-heading.md", "No heading")]
+    assert "markdown" not in listed[0]  # short first: titles only
+    one = app.note_get({"name": ["kites.md"]})
+    assert one["title"] == "Kite links" and "[site](https://kites.example)" in one["markdown"]
+    import pytest
+
+    from roundtable.ui.server import ApiError
+
+    for bad in ("../hub.yaml", ".hidden.md", "missing.md"):
+        with pytest.raises(ApiError):
+            app.note_get({"name": [bad]})
+
+
+def test_a_hub_projects_live_files(tmp_path):
+    repo, app_yaml = _hub_repo(tmp_path, {"me": {}, "harness": {}})
+    d = repo / "plans" / "shots" / "harness--kite-shop"
+    d.mkdir(parents=True)
+    (d / "latest.json").write_text(json.dumps({"task": "T4", "at": "2026-11-26T10:00:00Z",
+                                               "pictures": {"desktop": "latest-desktop.jpg", "phone": "gone.jpg"}}))
+    (d / "latest-desktop.jpg").write_bytes(b"\xff\xd8\xff")
+    (d / "session.json").write_text(json.dumps({"task": {"id": "T4", "steps": [{"line": "● Edit a file"}]}}))
+    app = UIApp(str(app_yaml), "missing.yaml", agent="me")
+    live = app.hub_live({"name": ["harness--kite-shop"]})
+    assert list(live["pictures"]) == ["desktop"] and live["pictures"]["desktop"].startswith("/raw/hubshot?")
+    assert live["session"]["task"]["id"] == "T4" and live["latest"]["task"] == "T4"
+    empty = app.hub_live({"name": ["harness--nothing"]})
+    assert empty["latest"] is None and empty["pictures"] == {} and empty["session"] is None
+
+
+def test_a_hub_plan_carries_the_owners_words(tmp_path):
+    repo, app_yaml = _hub_repo(tmp_path, {"me": {}, "harness": {}})
+    (repo / "plans").mkdir()
+    (repo / "plans" / "harness--kite-shop.md").write_text(
+        "_Plan status: done · plan ready · updated 2026-11-26T10:00:00Z by Roundtable Hold_\n\n# Kite shop\n", encoding="utf-8")
+    (repo / "plans" / "harness--kite-shop.asks.json").write_text(json.dumps({
+        "asks": [], "title": "Kite shop for phone and PC", "summary": "A small shop.", "state": "Finished – 4 tasks, $1.20",
+        "waiting": []}), encoding="utf-8")
+    app = UIApp(str(app_yaml), "missing.yaml", agent="me")
+    p = hall.hub_plans(app.hub)["harness--kite-shop"]
+    assert p["plan_title"] == p["goal"] == "Kite shop for phone and PC" and p["plan_state"] == "Finished – 4 tasks, $1.20"
+    assert p["plan_summary"] == "A small shop." and p["waiting"] == []
