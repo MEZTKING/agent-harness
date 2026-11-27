@@ -17,6 +17,8 @@ from roundtable.harness.tools import Tool, Workspace, _obj
 from roundtable.providers import cli_engine as ce
 from roundtable.providers.base import ProviderError, ToolSpec
 
+from .test_harness import task_line
+
 FAKE = [sys.executable, str(Path(__file__).parent / "fixtures" / "fake_cli.py")]
 RAW = {
     "providers": {"a": {"type": "scripted"}},
@@ -361,7 +363,8 @@ def test_a_whole_task_through_the_orchestrator_with_a_retry(tmp_path, monkeypatc
             if last["role"] == "tool":
                 return reply("ok")
             ok = next(verdicts)
-            return reply(calls=[("submit_review", {"approved": ok, "feedback": "fine" if ok else "say it twice"})])
+            return reply(calls=[("submit_review", {"approved": ok, "feedback": "fine" if ok else "say it twice",
+                                                     "breaks": task_line(messages)})])
         return reply("Final report: all done.")
 
     cfg = parse_config(raw)

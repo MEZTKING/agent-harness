@@ -40,6 +40,8 @@ class ModelStats:
     seconds: float = 0.0
     owner_good: int = 0
     owner_bad: int = 0
+    rival_wins: int = 0  # approved builds that were picked from several rivals (wave 6)
+    rival_losses: int = 0  # rival builds that were not picked: never a failure, kept apart
 
     @property
     def judged(self) -> int:
@@ -66,8 +68,14 @@ class ModelStats:
 
 
 @dataclass
+class TagStats(ModelStats):
+    tag: str = ""
+
+
+@dataclass
 class Dataset:
     stats: dict[tuple[str, str], ModelStats] = field(default_factory=dict)
+    by_tag: dict[tuple[str, str, str], TagStats] = field(default_factory=dict)  # (role, model, tag)
     rejections: list[dict[str, Any]] = field(default_factory=list)
     owner_feedback: list[dict[str, Any]] = field(default_factory=list)
     projects: list[Path] = field(default_factory=list)
@@ -86,6 +94,84 @@ def _read_jsonl(p: Path) -> list[dict[str, Any]]:
     return out
 
 
+def row_tags(row: dict[str, Any]) -> list[str]:
+    """A metrics row's tags (what the task was about, wave 6), each once."""
+    raw = row.get("tags") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    out: list[str] = []
+    for t in raw:
+        t = str(t).strip().lower()
+        if t and t not in out:
+            out.append(t)
+    return out
+
+
+def count_row(st: ModelStats, row: dict[str, Any], firsts: set, key: tuple) -> None:
+    """Count one metrics row (not the owner's ratings) into ``st``. ``firsts``: the (key, task) pairs already
+    seen, so only a task's first judged try (whoever made it) counts as a first try; ``key``: () for the main
+    table, (tag,) for one kind of work.
+
+    A rival build that was not picked (``rival_lost``) is counted on its own and never as a failure: it may
+    have been good work that another rival bettered. A picked rival that was approved is a rival win too."""
+    outcome = row.get("outcome")
+    if outcome == "rival_lost":
+        st.rival_losses += 1
+        return
+    st.attempts += 1
+    if outcome == "approved":
+        st.approved += 1
+        if row.get("rival"):
+            st.rival_wins += 1
+    elif outcome == "rejected":
+        st.rejected += 1
+    elif outcome == "error":
+        st.errors += 1
+    else:
+        st.other_fail += 1
+    if outcome in QUALITY_OUTCOMES and (key, row.get("task")) not in firsts:
+        firsts.add((key, row.get("task")))
+        st.first_tries += 1
+        st.first_try_ok += outcome == "approved"
+    if row.get("cost_usd"):
+        st.cost += row["cost_usd"]
+        st.priced_attempts += 1
+    st.seconds += row.get("seconds") or 0
+
+
+def tag_stats(metric_files: list[Path]) -> dict[tuple[str, str, str], TagStats]:
+    """(role, model, tag) -> stats from metrics files (the router's history: numbers only, any project)."""
+    out: dict[tuple[str, str, str], TagStats] = {}
+    for f in metric_files:
+        firsts: set[tuple] = set()
+        for row in _read_jsonl(Path(f)):
+            if row.get("outcome") == "owner_feedback":
+                continue
+            key = (row.get("role", "?"), row.get("model", "?"))
+            for tag in row_tags(row):
+                count_row(out.setdefault((*key, tag), TagStats(*key, tag=tag)), row, firsts, (tag,))
+    return out
+
+
+def strengths(ds: Dataset | dict, min_n: int = 5) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """{role: {tag: [{model, quality, approved, n, cost_per_success}]}}, best first, for every (role, tag) where
+    a model has at least ``min_n`` judged tries. ``ds``: a Dataset, or tag_stats' dict."""
+    table = ds.by_tag if isinstance(ds, Dataset) else ds
+    out: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for (role, model, tag), s in table.items():
+        if s.judged < max(1, min_n) or s.quality is None:
+            continue
+        cps = s.cost_per_success
+        out.setdefault(role, {}).setdefault(tag, []).append({
+            "model": model, "quality": round(s.quality, 3), "approved": s.approved, "n": s.judged,
+            "cost_per_success": round(cps, 6) if cps is not None else None})
+    for tags in out.values():
+        for rows in tags.values():
+            rows.sort(key=lambda r: (-r["quality"], r["cost_per_success"] if r["cost_per_success"] is not None
+                                     else float("inf"), r["model"]))
+    return out
+
+
 def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
     ds = Dataset()
     seen = set()
@@ -96,7 +182,7 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
         ds.projects.append(proj)
         tasks = {t["id"]: t for t in json.loads((proj / ".harness/tasks.json").read_text(encoding="utf-8") or "[]")}
         ds.tasks += len(tasks)
-        firsts: set[str] = set()
+        firsts: set[tuple] = set()
         for row in _read_jsonl(proj / ".harness/metrics.jsonl"):
             key = (row.get("role", "?"), row.get("model", "?"))
             st = ds.stats.setdefault(key, ModelStats(*key))
@@ -108,24 +194,9 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
                 ds.owner_feedback.append({**row, "project": proj.name,
                                           "title": tasks.get(row.get("task"), {}).get("title", "")})
                 continue
-            st.attempts += 1
-            outcome = row.get("outcome")
-            if outcome == "approved":
-                st.approved += 1
-            elif outcome == "rejected":
-                st.rejected += 1
-            elif outcome == "error":
-                st.errors += 1
-            else:
-                st.other_fail += 1
-            if outcome in QUALITY_OUTCOMES and row.get("task") not in firsts:
-                firsts.add(row.get("task"))
-                st.first_tries += 1
-                st.first_try_ok += outcome == "approved"
-            if row.get("cost_usd"):
-                st.cost += row["cost_usd"]
-                st.priced_attempts += 1
-            st.seconds += row.get("seconds") or 0
+            count_row(st, row, firsts, ())
+            for tag in row_tags(row):
+                count_row(ds.by_tag.setdefault((*key, tag), TagStats(*key, tag=tag)), row, firsts, (tag,))
         for t in tasks.values():
             for a in t.get("attempts", []):
                 if a.get("outcome") == "rejected" and a.get("review"):
@@ -134,7 +205,18 @@ def collect(lab: Lab, extra: list[Path] | None = None) -> Dataset:
     return ds
 
 
-def stats_table(ds: Dataset) -> str:
+def stats_table(ds: Dataset, by_tag: bool = False) -> str:
+    """The table of how each model did per role; ``by_tag``: one line per kind of work too (the tag column)."""
+    if by_tag:
+        lines = [f"{'role':12} {'model':38} {'tag':16} {'tries':>5} {'ok':>4} {'qual':>5} {'1st':>5} {'err':>4} "
+                 f"{'avg $':>8} {'rival +/-':>9}"]
+        for (role, model, tag), s in sorted(ds.by_tag.items()):
+            q = f"{s.quality:.0%}" if s.quality is not None else "-"
+            ft = f"{s.first_try_ok / s.first_tries:.0%}" if s.first_tries else "-"
+            cost = f"{s.avg_cost:.4f}" if s.avg_cost is not None else "-"
+            lines.append(f"{role:12} {model:38} {tag:16} {s.attempts:5} {s.approved:4} {q:>5} {ft:>5} {s.errors:4} "
+                         f"{cost:>8} {s.rival_wins:>4}/{s.rival_losses:<4}")
+        return "\n".join(lines)
     lines = [f"{'role':12} {'model':38} {'tries':>5} {'ok':>4} {'qual':>5} {'1st':>5} {'err':>4} {'avg $':>8} {'owner +/-':>9}"]
     for (role, model), s in sorted(ds.stats.items()):
         q = f"{s.quality:.0%}" if s.quality is not None else "-"

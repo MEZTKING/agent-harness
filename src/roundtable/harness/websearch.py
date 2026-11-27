@@ -152,7 +152,7 @@ def project_choice(root: Path | str | None) -> tuple[str, bool]:
                 v = raw["web_search"]
                 choice = "on" if v is True else "off" if v is False else str(v or "").strip().lower()
     choice = choice if choice in ("on", "off") else ""
-    return choice, bool(st.values.get("providers_allowed"))
+    return choice, bool(st.values.get("providers_allowed") or st.values.get("makers_allowed"))
 
 
 def allowed(cfg: Any, role: Any, root: Path | str | None = None, s: dict[str, Any] | None = None) -> bool:

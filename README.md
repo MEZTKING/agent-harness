@@ -27,6 +27,34 @@ The app's look is **Eclipse**: a dark ring of lights, one for each project, roun
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\DarknessHarness` (or `%APPDATA%\RoundtableHold` if you had the app before 1.0.0) and is kept if you uninstall.
 
+### What's new in 1.2.0
+
+Every model at once: several makers' models now build, check and plan together, and you choose how much.
+
+- **Checking: Lean, Balanced or Maximum**, one choice per project, with each price shown on the plan before
+  anything is built. New plans start at Balanced: tasks the planner marks hard get two builders and two
+  checkers, risky ones two checkers. Maximum asks first and shows what it adds. Plans made before 1.2.0 stay
+  Lean. The extra checking has its own share of the money you agreed; when that is used, the rest is built
+  the usual way.
+- **Best of two**: on a hard task two models from different makers build it side by side; the tests and a
+  checker from a third maker pick the better one. The other is kept, with the reason, until you clear it on
+  the Tidy card.
+- **Checked by another maker**: work is checked by a model from a different company than the one that built
+  it. A rejection only counts when it quotes the line of the task it breaks.
+- **Each task to the model that does it best**: tasks are tagged by kind of work (game logic, layout,
+  shaders…), and the harness learns which model wins each kind. See it under Models → Strengths.
+- **Rival plans** under Maximum: two or three planners each plan the idea and your planner merges them. The
+  plan shows where they disagreed.
+- **Named agents**: one per job, with a name, your notes and what they learn (Models → Agents). Share one as
+  a file; nothing is brought in before you have read all of it.
+- **Limits per service and per job**, what each service has used this month (Settings → Spending), and who
+  has seen each project (its Settings).
+- **Privacy**: "Only models made by these companies" for a project, honoured by every part of the harness and
+  by the lab's replays.
+- **Beta until a real run**: the real cost of the extra checking, and how often a checker has to be asked
+  again to quote the line, are only known after a real run with two makers. Each task shows who built it
+  and who checked it, so you can see it as it happens.
+
 ### What's new in 1.1.0
 
 Finished, not just built: the harness now checks the thing works before it calls it done.

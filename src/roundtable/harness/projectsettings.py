@@ -51,8 +51,15 @@ SETTINGS: tuple[Setting, ...] = (
             "are always kept)."),
     Setting("providers_allowed", "lines", [], "Only these AI providers may see this project (e.g. deepseek). Empty: "
             "any. A role whose models are all from other providers stops the run with a message.", example="[deepseek]"),
+    Setting("makers_allowed", "lines", [], "Only models made by these companies may see this project (e.g. anthropic, "
+            "openai, deepseek), whichever service they come through. Empty: any.", example="[anthropic, deepseek]"),
+    Setting("agent_memory", "choice", "", "Let your named agents use and add to what they learned on other projects. "
+            "Empty: yes, except for projects kept to some services or makers and your own repositories. on: always. "
+            "off: never.", ("", "on", "off")),
     Setting("profile", "choice", "", "Which set of models builds it (e.g. Budget, Balanced, Quality). Empty: the "
             "app's own choice."),
+    Setting("checking", "choice", "", "How much extra checking this project gets: lean, balanced or maximum. Empty: "
+            "the app's choice.", ("", "lean", "balanced", "maximum")),
     Setting("limits", "number-map", {}, "Money and effort limits for this project only: max_real_usd_per_run, "
             "max_cost_usd, max_attempts_per_task, max_steps_per_task.", example="max_real_usd_per_run: 2"),
     Setting("look", "choice", "auto", "Offer looks to choose from before building. auto: only for new apps with screens, "

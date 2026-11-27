@@ -92,12 +92,48 @@
    "value": []
   },
   {
+   "choices": [],
+   "default": [],
+   "description": "Only models made by these companies may see this project (e.g. anthropic, openai, deepseek), whichever service they come through. Empty: any.",
+   "key": "makers_allowed",
+   "source": "default",
+   "type": "lines",
+   "value": []
+  },
+  {
+   "choices": [
+    "",
+    "on",
+    "off"
+   ],
+   "default": "",
+   "description": "Let your named agents use and add to what they learned on other projects. Empty: yes, except for projects kept to some services or makers and your own repositories. on: always. off: never.",
+   "key": "agent_memory",
+   "source": "default",
+   "type": "choice",
+   "value": ""
+  },
+  {
    "choices": [
     ""
    ],
    "default": "",
    "description": "Which set of models builds it (e.g. Budget, Balanced, Quality). Empty: the app's own choice.",
    "key": "profile",
+   "source": "default",
+   "type": "choice",
+   "value": ""
+  },
+  {
+   "choices": [
+    "",
+    "lean",
+    "balanced",
+    "maximum"
+   ],
+   "default": "",
+   "description": "How much extra checking this project gets: lean, balanced or maximum. Empty: the app's choice.",
+   "key": "checking",
    "source": "default",
    "type": "choice",
    "value": ""

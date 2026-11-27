@@ -23,7 +23,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 45   # the Windows suite takes ~20 minutes since 1.1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

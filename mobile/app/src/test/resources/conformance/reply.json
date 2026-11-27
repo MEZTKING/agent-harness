@@ -1,12 +1,12 @@
 {
  "body": "thanks",
- "created_at": "2026-11-27T17:33:50Z",
+ "created_at": "2026-11-27T18:57:14Z",
  "hops": 1,
- "id": "20261127T173350395702Z-58bacf",
- "in_reply_to": "20261127T173349459133Z-c42fbc",
+ "id": "20261127T185714630856Z-dbc1e5",
+ "in_reply_to": "20261127T185713588262Z-0731ad",
  "kind": "reply",
  "recipient": "frontend",
  "sender": "proj",
  "subject": "Re: hello",
- "thread_id": "20261127T173349459133Z-c42fbc"
+ "thread_id": "20261127T185713588262Z-0731ad"
 }

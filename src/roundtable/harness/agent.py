@@ -7,6 +7,7 @@ steps, or the budget is exhausted.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -28,18 +29,30 @@ class OutOfCredit(BudgetExceeded):
 
 @dataclass
 class Budget:
+    """The run's money. ``charge`` is safe from several threads (its own lock).
+
+    ``on_charge(cost)``: for spend logs. ``on_use(ref, usage, cost, role)``: who spent it (a model ref,
+    its token ``Usage``, the role), called after ``on_charge`` for every charge, even an unpriced one.
+    """
     limit_usd: float
     spent_usd: float = 0.0
     unpriced_calls: int = 0
     on_charge: Any = field(default=None, repr=False, compare=False)  # callback(cost) for spend logs
+    on_use: Any = field(default=None, repr=False, compare=False)  # callback(ref, usage, cost, role)
+    _lock: Any = field(default_factory=threading.RLock, init=False, repr=False, compare=False)
 
-    def charge(self, cost: float | None) -> None:
-        if cost is None:
-            self.unpriced_calls += 1
-        else:
-            self.spent_usd += cost
-            if self.on_charge and cost:
-                self.on_charge(cost)
+    def charge(self, cost: float | None, *, ref: Any = None, usage: Any = None, role: str | None = None) -> None:
+        with self._lock:
+            if cost is None:
+                self.unpriced_calls += 1
+            else:
+                self.spent_usd += cost
+            try:
+                if self.on_charge and cost:
+                    self.on_charge(cost)
+            finally:  # who spent it is written even when the spend log stops the run
+                if self.on_use:
+                    self.on_use(ref, usage, cost, role)
 
     def check(self) -> None:
         if self.spent_usd >= self.limit_usd:
@@ -136,7 +149,7 @@ def run_agent(
     step = 0
 
     for step in range(1, max_steps + 1):
-        cost += plugins.compact(messages, str(ref), budget.charge, toolbox, step)  # long tasks: older steps summed up
+        cost += plugins.compact(messages, str(ref), lambda c: budget.charge(c, ref=ref, role=role), toolbox, step)  # long tasks: older steps summed up
         budget.check()
         sys_sent, msgs_sent = plugins.before_model_call(str(ref), system, messages)
         m0 = clock()
@@ -145,7 +158,7 @@ def run_agent(
         model_s += took
         plugins.after_model_call(str(ref), resp, resp.usage)
         c = cfg.cost(ref, resp.usage)
-        budget.charge(c)
+        budget.charge(c, ref=ref, usage=resp.usage, role=role)
         cost += c or 0.0
         total = total + resp.usage
         messages.append(resp.as_message())

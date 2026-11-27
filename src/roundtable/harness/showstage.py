@@ -217,6 +217,7 @@ class ShowStage(ProofStage):
             line = memory.learn_from_task(self.project.root, task, self.cfg)
             if line:
                 self.emit("remembered", {"task": task.id, "text": line[:300]})
+                self._hook("_agent_learn", task, line)  # the hired agent keeps it too, where allowed (agentstage.py)
         except Exception as e:  # memory is a help; never fail a run over it
             self.emit("memory_error", {"error": str(e)[:300]})
 

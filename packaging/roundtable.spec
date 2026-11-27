@@ -20,6 +20,7 @@ hidden = (
     + collect_submodules("segno")  # phone access: pairing QR code
     + ["cryptography.x509", "cryptography.hazmat.primitives.asymmetric.ec"]  # phone access: TLS certificate
     + ["webview", "yaml"]
+    + ["PIL.Image", "PIL.WebPImagePlugin", "PIL.PngImagePlugin", "PIL.JpegImagePlugin"]  # agents' faces (agents.py)
     # MCP tool servers for roles (Unreal's editor and others): the client and what it pulls in
     + collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
     + collect_submodules("mcp_types")

@@ -8,6 +8,8 @@ import { kindCard } from "./kinds.js";
 import { doneCard } from "./donelist.js";
 import { stagedTaskList } from "./stages.js";
 import { pounds } from "./pounds.js";
+import { checkingChoice, checkingLabel, tandemFor, tandemRow } from "./tandem.js";
+import { councilFold } from "./council.js";
 
 const SETS = { budget: ["Budget", "Cheapest that still works"], balanced: ["Balanced", "Strong models where it matters, cheaper ones for the rest"], quality: ["Quality", "The strongest model for every job"] };
 const setName = (n) => (SETS[n] || [n[0].toUpperCase() + n.slice(1)])[0];
@@ -26,8 +28,9 @@ export async function planTab(seat) {
 // (the builders' brief, scope, spec, the second opinion, prices, history) folded under "More about this plan".
 async function localPlan(seat, redraw) {
   const path = seat.path, qp = q({ path });
-  const [d, aq] = await Promise.all([get(`/api/plan?${qp}`), get(`/api/asks?${qp}&answered=1`).catch(() => ({ asks: [] }))]);
+  const [d, aq, tq] = await Promise.all([get(`/api/plan?${qp}`), get(`/api/asks?${qp}&answered=1`).catch(() => ({ asks: [] })), tandemFor(path)]);
   const doc = d.doc;
+  const who = (t) => tandemRow(tq && (tq.tasks || {})[t.id]);  // "Built by … · checked by …" under a task (tandem.js)
   const edit = async (body, ok) => { try { await post("/api/plan", { path, ...body }); if (ok) toast(ok); await redraw(); } catch (e) { toast(e.message, true); } };
   const startJob = async (body, ok) => { try { await post("/api/plan", { path, ...body }); toast(ok); await refreshHall(); setTimeout(redraw, 1500); } catch (e) { toast(e.message, true); } };
   if (!doc) {
@@ -75,7 +78,7 @@ async function localPlan(seat, redraw) {
   const input = waiting.length && !locked ? h("div", { class: "asks" }, waiting.map(cardFor)) : null;
   const done = d.tasks.filter((t) => t.status === "done").length;
   const tasks = d.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, `${done} of ${d.tasks.length} done`)),
-    stagedTaskList(d.tasks, doc.stages, taskLines)) : null;  // under a heading per stage when the plan has stages
+    stagedTaskList(d.tasks, doc.stages, (ts) => taskLines(ts, who))) : null;  // under a heading per stage when the plan has stages
 
   // More about this plan: each part its own fold
   const ests = doc.estimates || {};
@@ -91,13 +94,15 @@ async function localPlan(seat, redraw) {
       const pick = c.options.find((op) => op.id === (c.chosen || c.recommended));
       return h("li", {}, h("b", {}, c.question), " ", pick ? pick.label : "", h("span", { class: "muted small" }, c.chosen ? " (your choice)" : " (recommended)"));
     }))) : null,
-    Object.keys(ests).length ? fold("Sets of models and their prices",
-      locked ? h("ul", {}, Object.keys(ests).map((n) => h("li", {}, `${setName(n)}: about ${money(ests[n].cost_usd || 0)}`, n === doc.profile ? h("span", { class: "muted small" }, " (used)") : null)))
+    Object.keys(ests).length || doc.checking_estimates ? fold(checkingLabel(doc, doc.profile ? setName(doc.profile) : ""),
+      Object.keys(ests).length ? (locked ? h("ul", {}, Object.keys(ests).map((n) => h("li", {}, `${setName(n)}: about ${money(ests[n].cost_usd || 0)}`, n === doc.profile ? h("span", { class: "muted small" }, " (used)") : null)))
         : seg(Object.keys(ests).map((n) => [n, `${setName(n)} · about ${money(ests[n].cost_usd || 0)}`, (SETS[n] || [])[1] || ""]), doc.profile, (n) => n !== doc.profile && edit({ action: "profile", name: n }, `This project now uses the ${setName(n)} set`), "Set of models")) : null,
+      d.busy || finished ? null : checkingChoice(doc, (name) => edit({ action: "checking", name }, `Checking is now ${name[0].toUpperCase() + name.slice(1)}`))) : null,
     fold("What it does and doesn't do", scopeLists(doc, locked || d.busy, edit)),
     (doc.spec || []).length ? fold(`The parts (${doc.spec.length})`, (doc.spec || []).map((sp) => specPart(sp, bySection[sp.id], d.tasks, locked || d.busy, edit))) : null,
     (doc.references || []).length || !locked ? fold("Make it like these", likeSection(doc.references || [], d.busy || locked, edit)) : null,
     (doc.look || {}).directions && (doc.look.directions.length || !locked) ? fold("Looks", lookSection(doc.look || {}, d.busy || locked, edit, startJob)) : null,
+    councilFold(doc),  // where the rival planners disagreed (council.js); nothing for a plan by one planner
     cr ? fold(`Second opinion${cr.verdict === "good" ? ": looks good" : ""}`, h("p", { class: "muted small" }, `From ${modelName(cr.model)}`),
       h("ul", {}, (cr.points || []).map((pt) => h("li", {}, h("span", { class: "pill " + ({ high: "bad", medium: "warn" }[pt.severity] || "") }, { high: "Important", medium: "Worth doing", low: "Small" }[pt.severity] || pt.severity), " ", pt.text,
         pt.suggestion ? h("div", { class: "muted small" }, "Suggestion: ", pt.suggestion) : null)))) : null,
@@ -110,11 +115,13 @@ async function localPlan(seat, redraw) {
 }
 
 // one line a task: a tick when done, a dot otherwise
-export function taskLines(tasks) {
+export function taskLines(tasks, who = null) {
   const mark = { done: ["✓", "good"], running: ["●", "busy"], failed: ["!", "bad"], skipped: ["–", "muted"] };
   return h("ol", { class: "task-lines" }, tasks.map((t) => {
     const [m, c] = mark[t.status] || ["○", "muted"];
-    return h("li", { class: t.status, title: `${t.title} · ${jobName(t.role || "")}` }, h("span", { class: "tl-mark " + c, "aria-label": t.status }, m), h("span", { class: "tl-title" }, t.title));
+    const line = who ? who(t) : null;  // who built it and who checked it, once it has been built (tandem.js)
+    return h("li", { class: t.status, title: `${t.title} · ${jobName(t.role || "")}` }, h("span", { class: "tl-mark " + c, "aria-label": t.status }, m), h("span", { class: "tl-title" }, t.title),
+      line ? h("div", { class: "tl-who" }, line) : null);
   }));
 }
 

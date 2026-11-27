@@ -167,7 +167,7 @@ def brief(orch, goal: str, goal_index: int = 0) -> dict[str, Any]:
         return {**rec, "why": "error", "error": str(e)[:300]}
     cost = orch.cfg.cost(ref, resp.usage)
     try:
-        orch.budget.charge(cost)
+        orch.budget.charge(cost, ref=ref, usage=resp.usage, role=orch.cfg.planner_role)
     except Exception:  # noqa: BLE001 - charging is bookkeeping
         pass
     rec["cost_usd"] = round(cost or 0.0, 6)

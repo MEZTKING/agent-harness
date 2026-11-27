@@ -673,7 +673,7 @@ def run_cli_agent(
     usage = st.usage
     reported = st.reported_usd
     cost = reported if (provider.bill == "api" and reported is not None) else 0.0
-    budget.charge(cost)
+    budget.charge(cost, ref=ref, usage=usage, role=role)
     seconds = time.monotonic() - t0
     text = st.final or st.last_text
 

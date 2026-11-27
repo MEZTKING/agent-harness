@@ -16,6 +16,8 @@ import { terminalTab } from "./terminal.js";
 import { poundsTag } from "./pounds.js";
 import { doneLine } from "./donelist.js";
 import { stagesStrip } from "./stages.js";
+import { tandemFor, tandemRow } from "./tandem.js";
+import { seenList } from "./usage.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
@@ -121,7 +123,7 @@ async function overview(seat, now) {
   let lastSig = "";
   every(grid, async () => {
     const s = now();
-    const [d, asks, plan] = await Promise.all([get(`/api/project?${qp}`), get(`/api/asks?${qp}`).catch(() => ({ asks: [] })), get(`/api/plan?${qp}`).catch(() => null)]);
+    const [d, asks, plan, tq] = await Promise.all([get(`/api/project?${qp}`), get(`/api/asks?${qp}`).catch(() => ({ asks: [] })), get(`/api/plan?${qp}`).catch(() => null), tandemFor(path)]);
     const sig = JSON.stringify([d.meta.status, d.meta.spent_usd, d.tasks.map((t) => [t.status, t.attempts.length]), (asks.asks || []).map((a) => a.stamp), d.summary.length]);
     if (sig === lastSig) return;
     lastSig = sig;
@@ -129,7 +131,7 @@ async function overview(seat, now) {
     items.sort((a, b) => a.rank - b.rank);
     patch(waits, JSON.stringify(items.map((i) => [i.ask.id, i.ask.stamp, i.busy])), () => items.length ? [h("h2", { class: "section-title" }, "Waiting for you"),
       items.map((i) => needCard(i, () => { lastSig = ""; }, { showProject: false }))] : null);
-    fill(tasksBox, tasksCard(seat, d));
+    fill(tasksBox, tasksCard(seat, d, tq));
     doneLine(path).then((el) => fill(doneBox, el)).catch(() => {});  // "Done when: 5 of 7 ✓" (donelist.js)
     fill(stagesBox, stagesStrip(seat));  // nothing shows for a plan without stages (stages.js)
     fill(money_, moneyCard(d, plan));
@@ -142,7 +144,7 @@ async function overview(seat, now) {
   return grid;
 }
 
-function tasksCard(seat, d) {
+function tasksCard(seat, d, tq = null) {
   const tasks = d.tasks;
   if (!tasks.length) return card("Tasks", h("p", { class: "muted" }, d.meta.status === "planning" ? "The planner is making the plan: the tasks appear here when it's done." : "No tasks yet: the planner makes them first."));
   const done = tasks.filter((t) => t.status === "done").length;
@@ -158,6 +160,7 @@ function tasksCard(seat, d) {
       h("div", { class: "task-top" }, h("b", {}, t.title), taskPill(t.status)),
       h("div", { class: "task-meta" }, jobName(t.role), model ? [" · ", h("span", { title: modelName(model) }, modelName(model, true))] : null,
         t.attempts.length > 1 ? ` · ${t.attempts.length} tries` : "", t.depends_on.length ? h("span", { title: "It waits for these tasks to finish first" }, ` · after ${t.depends_on.map((x) => titleOf(tasks, x)).join(", ")}`) : null),
+      tandemRow(tq && (tq.tasks || {})[t.id]),  // "Built by … · checked by … · they disagreed" (tandem.js)
       t.summary && t.status === "done" ? h("p", { class: "task-sum" }, t.summary.slice(0, 280)) : null,
       why ? h("p", { class: "task-why" }, "Why it stopped: ", why.slice(0, 300)) : null,
       busy ? null : h("div", { class: "row task-acts" },
@@ -242,16 +245,20 @@ const ABOUT = { test: "The command that checks the app after each task. A task t
   env: "Settings that command needs, one a line, like NAME=value. Never keys or passwords.", setup: "A command run once before the first task, to get the app ready.",
   timeout: "How long the check or set-up may take.", branch: "Where the harness's work goes in an existing app; never its main line.",
   rules_files: "The app's own rule files, which every model follows.", rules_budget: "At most this much of those rules goes to the models.",
-  providers_allowed: "Only these AI services may see this project. None ticked: any of them.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
+  providers_allowed: "Only these AI services may see this project. None ticked: any of them.",
+  makers_allowed: "Only models made by these companies may see this project, whichever service they come through (for example anthropic, openai, deepseek). Empty: any.",
+  checking: "How much extra checking it gets. Lean: one builder and one checker. Balanced: a second builder and checker on hard or risky tasks. Maximum: several on every task, and rival planners.",
+  agent_memory: "Whether your named agents use and add to what they learned on other projects. The app's choice: yes, except for projects kept to some services or makers and your own repositories.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
   limits: "Money and effort limits for this project only. Empty: the app's own.", look: "Offer looks to choose from before building.",
   show_it: "Take pictures of the app's screens after each task.", notes: "Anything the planner should know about this project, in your own words." };
 const LABELS = { test: ["Check command", "How the app is checked after each task"], env: ["Settings for the check", ""], setup: ["Set-up command", ""],
   timeout: ["Time allowed for the check (seconds)", ""], branch: ["Where the work goes", ""], rules_files: ["The app's own rules", ""],
-  rules_budget: ["How much of those rules the models read (characters)", ""], providers_allowed: ["Only these AI services may see it", ""],
-  profile: ["Set of models", ""], limits: ["Limits", ""], look: ["Choose a look first", ""], show_it: ["Pictures after each task", ""], notes: ["Notes for the planner", ""] };
-const CHOICE_WORDS = { "": "The app's choice", auto: "When it makes sense", on: "Always", off: "Never" };
+  rules_budget: ["How much of those rules the models read (characters)", ""], providers_allowed: ["Only these AI services may see it", ""], makers_allowed: ["Only models made by these companies may see it", ""],
+  checking: ["Checking", ""], agent_memory: ["Agents remember across projects", ""], profile: ["Set of models", ""], limits: ["Limits", ""], look: ["Choose a look first", ""], show_it: ["Pictures after each task", ""], notes: ["Notes for the planner", ""] };
+const CHOICE_WORDS = { "": "The app's choice", auto: "When it makes sense", on: "Always", off: "Never", lean: "Lean", balanced: "Balanced", maximum: "Maximum" };
 const LIMIT_WORDS = { max_real_usd_per_run: "Most it may spend in one go ($)", max_cost_usd: "Most it may spend in all ($)", max_attempts_per_task: "Tries per task", max_steps_per_task: "Steps per try" };
-const GROUPS = [["What it costs and who builds it", ["profile", "limits", "providers_allowed"]], ["What you see", ["look", "show_it", "notes"]],
+const GROUPS = [["What it costs and who builds it", ["profile", "checking", "limits"]], ["Who may see it", ["providers_allowed", "makers_allowed", "agent_memory"]],
+  ["What you see", ["look", "show_it", "notes"]],
   ["How it's checked (for an existing app)", ["test", "setup", "env", "timeout", "branch", "rules_files", "rules_budget"]]];
 
 async function settingsTab(seat) {
@@ -307,8 +314,9 @@ async function settingsTab(seat) {
     fill(box, (st.warnings || []).concat(st.errors || []).map((w) => h("p", { class: "warn" }, w)),
       GROUPS.map(([title, keys], i) => {
         const fields = keys.filter((k) => by[k]).map((k) => field(by[k]));
+        if (title === "Who may see it") fields.push(seenList(seat.path));  // which makers have had this project (usage.js)
         const c = card(title, fields);
-        return i === 2 ? h("details", { class: "card fold" }, h("summary", {}, title), fields) : c;
+        return i === GROUPS.length - 1 ? h("details", { class: "card fold" }, h("summary", {}, title), fields) : c;
       }),
       card("Autopilot", h("label", { class: "check", title: "When on, every question on this project waits for you, even while autopilot is on" },
         h("input", { type: "checkbox", checked: never, onchange: (ev) => act(null, () => post("/api/autopilot", { action: "never", project: seat.id, never: ev.target.checked }),

@@ -21,6 +21,8 @@ from typing import Any, Callable
 
 from ..core.models import utcnow
 from ..harness.agent import Budget, BudgetExceeded
+from ..harness import makers
+from ..harness import projectsettings as ps
 from ..harness.config import HarnessConfig
 from ..harness.orchestrator import Orchestrator, Project, Task
 from ..harness.safeenv import clean_env
@@ -52,10 +54,33 @@ def find_base_commit(project: Path, task: dict[str, Any]) -> str | None:
     return None
 
 
-def benchmark_tasks(lab: Lab, role: str, limit: int) -> list[tuple[Path, dict[str, Any], dict[str, Any], list[dict]]]:
-    """Recent past tasks for ``role`` that can be replayed: (project, meta, task, all tasks)."""
+def _kept_out(proj: Path, role: str, cfgs: tuple[HarnessConfig, ...]) -> bool:
+    """Does the project's own allowed list leave ``role`` (or the judging reviewer) with no model in one of
+    ``cfgs``? Such a project is never replayed: its work may only be seen by the models it allows."""
+    if not cfgs:
+        return False
+    values = ps.load(proj).values
+    if not (values.get("providers_allowed") or values.get("makers_allowed")):
+        return False
+    for c in cfgs:
+        for name in {role, c.reviewer_role} - {None, ""}:
+            spec = c.roles.get(name)
+            if spec is None or not any(makers.allowed(values, m) for m in spec.models):
+                return True
+    return False
+
+
+def benchmark_tasks(lab: Lab, role: str, limit: int,
+                    cfgs: tuple[HarnessConfig, ...] = ()) -> list[tuple[Path, dict[str, Any], dict[str, Any], list[dict]]]:
+    """Recent past tasks for ``role`` that can be replayed: (project, meta, task, all tasks).
+
+    ``cfgs``: the set-ups the replay will use (current and candidate). A project whose allowed lists
+    (``providers_allowed``, ``makers_allowed``) leave the role or the reviewer with no model in any of
+    them is left out."""
     found = []
     for proj in lab.projects():
+        if _kept_out(proj, role, cfgs):
+            continue
         meta = json.loads((proj / ".harness/project.json").read_text(encoding="utf-8"))
         tasks = json.loads((proj / ".harness/tasks.json").read_text(encoding="utf-8"))
         for t in tasks:
@@ -82,6 +107,12 @@ def _prepare(project: Path, meta: dict, task: dict, all_tasks: list[dict]) -> Pa
     else:
         work.mkdir(parents=True)
         _git(work, "init", "-q")
+    # the project's own settings (git-ignored, so not in the clone): its allowed lists hold in the replay too
+    src = project / ps.PROJECT_FILE
+    if src.is_file():
+        dst = work / ps.PROJECT_FILE
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
 
     # minimal task board: the task's (transitive) dependencies as done, the task itself pending
     by_id = {t["id"]: t for t in all_tasks}
@@ -137,10 +168,6 @@ def evaluate(cfg: HarnessConfig, lab: Lab, proposal: Proposal, samples: int = 3,
     if not cfg.reviewer_role:
         raise EvalError("replay tests need a reviewer_role to judge results")
 
-    bench = benchmark_tasks(lab, proposal.role, samples)
-    if not bench:
-        raise EvalError(f"no replayable past tasks for role {proposal.role!r} yet; run some projects first")
-
     def variant(c: HarnessConfig) -> HarnessConfig:
         v = c.variant()
         v.limits.max_attempts_per_task = 1  # measure first-try quality
@@ -148,6 +175,10 @@ def evaluate(cfg: HarnessConfig, lab: Lab, proposal: Proposal, samples: int = 3,
         return v
 
     current, candidate = variant(cfg), variant(lab.candidate_config(cfg, proposal))
+    bench = benchmark_tasks(lab, proposal.role, samples, (current, candidate))
+    if not bench:
+        raise EvalError(f"no replayable past tasks for role {proposal.role!r} yet; run some projects first")
+
     budget = Budget(max_cost)
     runs: dict[str, list[dict[str, Any]]] = {"current": [], "candidate": []}
     note = ""

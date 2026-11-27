@@ -168,7 +168,8 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
         new["look"] = old["look"]  # the looks aren't the planner's: they stay as they were
     if old.get("references"):
         new["references"] = old["references"]  # the owner's, read by the scout: never the planner's to drop
-    for k in ("done_list", "stages", "parts", "prep", "warnings"):  # the stages' parts (wave 5) last too
+    # the stages' parts (wave 5) last too, and the council's record and the dial's prices (wave 6)
+    for k in ("done_list", "stages", "parts", "prep", "warnings", "council", "checking_estimates"):
         if old.get(k) and not new.get(k):
             new[k] = old[k]
     new["version"] = old.get("version", 1) + 1
@@ -354,6 +355,9 @@ def history_by_role(metric_files: list[Path]) -> dict[str, dict[str, float]]:
         try:
             for ln in f.read_text(encoding="utf-8").splitlines():
                 d = json.loads(ln)
+                # a rival's extra build (and the winner's row) are the dial's extras, priced on their own
+                if d.get("rival") or d.get("outcome") == "rival_lost":
+                    continue
                 if d.get("role") and d.get("outcome") != "owner_feedback":
                     rows.setdefault(d["role"], []).append(d)
         except (OSError, ValueError):
@@ -597,6 +601,10 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
         older = f" (of version {of}; this version may already answer it)" if of and of != doc.get("version") else ""
         L += [f"## Critique by {c.get('model', 'a second model')}{older}"] + [
             f"- [{p.get('severity', '?')}] {p.get('text', '')}" for p in c["points"]] + [""]
+    if doc.get("council"):
+        from . import council as _council  # lazy: "Where the planners disagreed"
+
+        L += _council.markdown(doc)
     if tasks:
         from . import stages as _stages  # under a heading per stage; the same "## Tasks" list with none
 

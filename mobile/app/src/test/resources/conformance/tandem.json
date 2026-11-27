@@ -1,0 +1,95 @@
+{
+ "allowance": {
+  "spent": 0,
+  "usd": 0.25,
+  "used_up": false
+ },
+ "estimates": {
+  "balanced": {
+   "cost_usd": 0.4126,
+   "extra_usd": 0.0,
+   "minutes": 19.0,
+   "planning_usd": 0.0,
+   "unpriced": true
+  },
+  "lean": {
+   "cost_usd": 0.4126,
+   "extra_usd": 0.0,
+   "minutes": 19.0,
+   "planning_usd": 0.0,
+   "unpriced": true
+  },
+  "maximum": {
+   "cost_usd": 1.0314,
+   "extra_usd": 0.2643,
+   "minutes": 26.0,
+   "planning_usd": 0.3545,
+   "unpriced": true
+  }
+ },
+ "label": "Checking: Balanced",
+ "level": "balanced",
+ "tasks": {
+  "T1": {
+   "agent": "torvic",
+   "built_by": "a/coder",
+   "built_by_label": "Coder",
+   "disagreed": false,
+   "fold": [
+    "Try 1: Coder – passed its check",
+    "Reviewer approved – looks good"
+   ],
+   "line": "Built by Coder (torvic) · checked by Reviewer · one checker is from the same company",
+   "reviews": [
+    {
+     "approved": true,
+     "breaks": "",
+     "counted": true,
+     "feedback": "looks good",
+     "maker": "a",
+     "model": "a/reviewer",
+     "reasked": false,
+     "seat": 1
+    }
+   ],
+   "same_maker": true
+  },
+  "T2": {
+   "agent": "pell",
+   "built_by": "img/pic",
+   "built_by_label": "Pic",
+   "disagreed": false,
+   "fold": [
+    "Try 1: Pic – passed its check"
+   ],
+   "line": "Built by Pic (pell)",
+   "reviews": [],
+   "same_maker": false
+  },
+  "T3": {
+   "agent": "torvic",
+   "built_by": "a/coder",
+   "built_by_label": "Coder",
+   "disagreed": false,
+   "fold": [
+    "Try 1: Coder – passed its check",
+    "Reviewer approved – looks good"
+   ],
+   "line": "Built by Coder (torvic) · checked by Reviewer · one checker is from the same company",
+   "reviews": [
+    {
+     "approved": true,
+     "breaks": "",
+     "counted": true,
+     "feedback": "looks good",
+     "maker": "a",
+     "model": "a/reviewer",
+     "reasked": false,
+     "seat": 1
+    }
+   ],
+   "same_maker": true
+  }
+ },
+ "words": "Checking: Balanced"
+}

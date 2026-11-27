@@ -147,7 +147,13 @@ def _plan_asks(orch, doc: dict[str, Any], meta: dict[str, Any]) -> list[dict[str
             at = orch.cheap_start_at()
         except Exception:  # a price question must never hide the approve card
             at = None
-        asks.append(_approve_ask(doc, at.strftime("%H:%M") if at else None))
+        try:
+            from .harness import dial
+
+            checking = dial.words(orch) if dial.level(orch) != "lean" else ""  # a plan before 1.2.0: as before
+        except Exception:  # noqa: BLE001 - the words must never hide the approve card
+            checking = ""
+        asks.append(_approve_ask(doc, at.strftime("%H:%M") if at else None, checking))
     return asks
 
 
@@ -238,10 +244,12 @@ def profile_ask(cfg, doc: dict[str, Any] | None = None) -> dict[str, Any]:
                 source={"profiles": list(cfg.profiles)})
 
 
-def _approve_ask(doc: dict[str, Any], cheap_at: str | None = None) -> dict[str, Any]:
+def _approve_ask(doc: dict[str, Any], cheap_at: str | None = None, checking: str = "") -> dict[str, Any]:
     pending = len(doc.get("pending") or [])
     est = doc.get("estimate") or {}
     cost = f"About {_money(est.get('cost_usd'))}, about {round(est.get('minutes') or 0)} minutes."
+    if checking:  # "Checking: Balanced (about $0.40 of this)" (dial.py)
+        cost += f" {checking}."
     if pending:
         opts = [{"id": "revise", "label": "Update the plan", "description":
                  "The planner applies your changes. You see the new plan before anything is built."},
@@ -307,6 +315,14 @@ def _money_asks(orch, meta: dict[str, Any]) -> list[dict[str, Any]]:
         from .harness import moneystage
 
         card = moneystage.over_estimate_ask(orch)
+        if not card:
+            return []
+        return [_ask("money", "money", "Money", card["question"], card["options"], recommended=card["recommended"],
+                     other_hint="Anything to tell it before it carries on?", source=card["source"])]
+    elif status == "paused" and why in ("job_cap", "service_cap"):
+        from .harness import usage
+
+        card = usage.job_cap_ask(orch)
         if not card:
             return []
         return [_ask("money", "money", "Money", card["question"], card["options"], recommended=card["recommended"],
@@ -478,6 +494,10 @@ def _apply_money(orch, ask, picked, other):
         from .harness import moneystage
 
         return moneystage.apply_answer(orch, ask["source"]["pause"], choice)
+    if ask["source"]["pause"] in ("job_cap", "service_cap"):
+        from .harness import usage
+
+        return usage.apply_answer(orch, ask["source"]["pause"], choice)
     if ask["source"]["pause"] in ("budget", "paused_budget"):
         limit = orch.raise_budget(ask["source"]["extra"])
         return {"reply": f"The limit is now {_money(limit)}. Carrying on.", "then": "run"}
