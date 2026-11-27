@@ -60,7 +60,7 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
           # a refused download (429 Too Many Requests) is tried again once, a minute later
-          ./gradlew --no-daemon testDebugUnitTest assembleDebug || (sleep 60 && ./gradlew --no-daemon testDebugUnitTest assembleDebug)
+          for wait in 0 90 240; do sleep $wait; ./gradlew --no-daemon testDebugUnitTest assembleDebug && exit 0; echo "Gradle failed (often Maven Central's rate limit); trying again"; done; exit 1
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' ../pyproject.toml)
           mkdir -p ../dist
           # the same APK under two names: phones on Roundtable Mobile (before 1.0.0) look only for the old
