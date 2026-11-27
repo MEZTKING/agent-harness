@@ -201,11 +201,15 @@ def _combine(proposal: Proposal, replay: dict[str, Any] | None, yard: dict[str, 
              if s and s != "inconclusive"]
     if not sides:
         return "inconclusive", False, ""
-    for bad in ("worse", "costlier"):
-        if bad in sides:
-            return bad, False, ""
+    if "worse" in sides:
+        return "worse", False, ""
+    # the plan's rule: not worse on either, and better on one. Equal results at a higher cost on one side is not
+    # worse: it passes when the other side is better (and says so), and fails on its own
     if "better" in sides:
-        return "better", True, ""
+        return "better", True, ("It got the same results on past tasks for more money, and did better on the practice "
+                                "tasks." if "costlier" in sides else "")
+    if "costlier" in sides:
+        return "costlier", False, ""
     cur = float((replay or {}).get("cur_cost") or 0) + (float(yard["current"]["cost_usd"]) if yn else 0)
     cand = float((replay or {}).get("cand_cost") or 0) + (float(yard["candidate"]["cost_usd"]) if yn else 0)
     if cur > 0 and cand > 0 and cand <= 0.8 * cur:

@@ -52,7 +52,7 @@ def test_every_lines_words_come_from_numbers_and_hold_no_project_name(tmp_path):
     v = ledger.view(cfg, lab)
     first = next(x for x in v["lines"] if x["id"] == p.id)
     assert first["words"] == "Coder now starts with Coder2, then Coder: it passed 9 of 10 against 6 of 10, for $0.80 instead of $1.20."
-    assert first["by"] == "by itself" and first["state"] == "on" and first["can_undo"]
+    assert first["by"] == "by itself" and first["state"] == "watching" and first["can_undo"]  # watched after it
     assert any(x["by"] == "you" for x in v["lines"])
     blob = json.dumps(v)
     for secret in (SECRET_PROJECT, "croissant", "ugly", "T9"):
@@ -123,7 +123,7 @@ def test_what_waits_for_the_owner_with_why_and_apply_or_turn_down(tmp_path, monk
     assert [w["id"] for w in v["waiting"]] == [p.id]
     assert v["waiting"][0]["why"] == "The checker's instructions change only with your yes."
     out = ledger.act(cfg, lab, {"action": "apply", "id": p.id})
-    assert out["waiting"] == [] and out["lines"][0]["state"] == "on" and out["lines"][0]["by"] == "you"
+    assert out["waiting"] == [] and out["lines"][0]["state"] == "watching" and out["lines"][0]["by"] == "you"
     q = _options(lab)
     monkeypatch.setattr(charter, "may_auto", lambda proposal: proposal.kind != "options")
     assert [w["id"] for w in ledger.view(cfg, lab)["waiting"]] == [q.id]
@@ -133,7 +133,8 @@ def test_what_waits_for_the_owner_with_why_and_apply_or_turn_down(tmp_path, monk
 
 def test_the_never_list_is_asked_of_the_charter_and_the_wallet_has_one_line(tmp_path, monkeypatch):
     cfg, lab = make_cfg(tmp_path)
-    assert ledger.view(cfg, lab)["never"] == []  # the stub has no list; nothing is copied here
+    assert ledger.view(cfg, lab)["never"] == charter.never()  # the charter's own words, asked (nothing copied)
+    assert all(isinstance(x, str) and "{" not in x for x in charter.never())
     monkeypatch.setattr(charter, "never", lambda: ["Your money limits", "Which makers may see a project"],
                         raising=False)
     v = ledger.view(cfg, lab)

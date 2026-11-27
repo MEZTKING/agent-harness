@@ -616,6 +616,11 @@ def _check_kind_tweak(p: Any) -> None:
     _no_protected(p.change, "This kind tweak")
 
 
+def never() -> list[str]:
+    """What learning can never change by itself, one short line each (the ledger's folded list, the phone's)."""
+    return [r["title"] for r in NEVER]
+
+
 def view() -> dict[str, Any]:
     """The charter as the apps show it (GET /api/charter): what it can never change, with details behind More."""
     return {"never": [dict(r) for r in NEVER],

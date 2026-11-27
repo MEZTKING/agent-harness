@@ -441,3 +441,13 @@ def test_evidence_never_changes_what_the_charter_protects(tmp_path, monkeypatch)
         assert set(row) <= {"at", "task", "version", "job", "key", "side", "passed", "cost_usd", "steps", "seconds",
                             "approved", "fault_approved"}
     assert cfg.roles["coder"].prompt == "coder" and CAREFUL not in cfg.prompt_text("coder")
+
+
+def test_better_on_the_yardstick_and_equal_but_dearer_on_replays_passes():
+    """The plan's rule: not worse on either, better on one. Equal-but-dearer alone still fails; worse always fails."""
+    p = Proposal(id="P1", kind="routing", role="coder", change={"models": ["b/coder2"]}, rationale="made up")
+    yard = {"n": 12, "verdict": "better", "veto": "", "current": {"cost_usd": 0.1}, "candidate": {"cost_usd": 0.2}}
+    verdict, passed, note = ev._combine(p, {"verdict": "costlier"}, yard)
+    assert (verdict, passed) == ("better", True) and "more money" in note
+    assert ev._combine(p, {"verdict": "costlier"}, None)[:2] == ("costlier", False)
+    assert ev._combine(p, {"verdict": "worse"}, yard)[:2] == ("worse", False)

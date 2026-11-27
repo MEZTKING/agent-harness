@@ -12,6 +12,7 @@ from roundtable.core.store import FileStore
 from roundtable.improve import canary, charter, ledger, share, wallet
 from roundtable.improve.lab import Lab, Proposal
 
+from .test_charter import REVIEWER_OK
 from .test_improve import GOOD_PROMPT, make_cfg
 
 SECRET = "Moonbakery Deluxe"
@@ -44,7 +45,7 @@ class Machine:
                 test={"tasks_compared": 4, "passed": True,
                       "current": {"approved": 2, "cost_usd": 0.4, "runs": [{"task": "T7", "title": TASK_TITLE}]},
                       "candidate": {"approved": 4, "cost_usd": 0.3, "runs": [{"task": "T7", "feedback": REVIEW}]}}))
-            self.lab.apply(p, self.cfg)
+            self.lab.apply(p, self.cfg, by_owner=True)  # applied on that machine (with the owner's tap if needed)
             p = self.lab.proposal(p.id)
             p.applied_at = at  # a fixed time, so the order between machines is known
             self.lab.save_proposal(p)
@@ -160,7 +161,7 @@ def test_a_pulled_change_that_breaks_the_charter_is_not_applied(tmp_path, hub, m
 
 def test_a_pulled_change_the_charter_wants_a_tap_for_waits_and_is_watched_once_used(tmp_path, hub, monkeypatch):
     a, b = _both(tmp_path, hub, monkeypatch)
-    a.apply("prompt", {"prompt_text": GOOD_PROMPT}, "2026-11-27T10:00:01Z", role="reviewer")
+    a.apply("prompt", {"prompt_text": REVIEWER_OK}, "2026-11-27T10:00:01Z", role="reviewer")
     a.tick()
 
     def check(cfg, proposal, lab=None, by_owner=False):
@@ -194,7 +195,7 @@ def test_the_hub_holds_no_project_name_title_or_review_text(tmp_path, hub, monke
     a, b = _both(tmp_path, hub, monkeypatch)
     a.apply("routing", {"models": ["b/coder2", "a/coder"]}, "2026-11-27T10:00:01Z")
     a.apply("prompt", {"prompt_text": GOOD_PROMPT}, "2026-11-27T10:00:02Z")
-    a.apply("prompt", {"prompt_text": GOOD_PROMPT + f" Remember the {SECRET} colours."}, "2026-11-27T10:00:03Z",
+    a.apply("prompt", {"prompt_text": REVIEWER_OK + f" Remember the {SECRET} colours."}, "2026-11-27T10:00:03Z",
             role="reviewer")
     monkeypatch.setattr(charter, "scrub", lambda text, lab=None: text.replace(SECRET, "a project"))
     monkeypatch.setattr(wallet, "spent_week", lambda lab: 0.12, raising=False)
@@ -220,6 +221,7 @@ def test_the_hub_holds_no_project_name_title_or_review_text(tmp_path, hub, monke
 def test_tools_travel_as_waiting_items_only(tmp_path, hub, monkeypatch):
     from roundtable.improve.lab import KindSpec, register_kind, KINDS
 
+    real = KINDS.get("tool")  # the real kind (improve/toolkind.py) is put back afterwards
     register_kind(KindSpec("tool", lambda p, c: None, lambda p: "a tool", lambda o, pr, p, c: None, needs_role=False))
     try:
         a, b = _both(tmp_path, hub, monkeypatch)
@@ -236,6 +238,8 @@ def test_tools_travel_as_waiting_items_only(tmp_path, hub, monkeypatch):
         assert not b.lab.proposals()
     finally:
         KINDS.pop("tool", None)
+        if real is not None:
+            KINDS["tool"] = real
 
 
 def test_tick_respects_the_setting_and_never_fails_the_sync(tmp_path, hub, monkeypatch):

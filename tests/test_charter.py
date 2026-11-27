@@ -263,6 +263,11 @@ def test_charter_never_changes_what_the_charter_protects(tmp_path):
         _refused(cfg, _p("options", {"options": {key: 1}}), lab, by_owner=True)
 
 
+# the owner's own setters: the plug-in manager and the list's install (plugins), the learning allowance (improve:,
+# only from the owner's Settings tap or the owner's figure shared from another machine)
+OWNER_SETTERS = {"plugins/manage.py": {"plugins"}, "plugins/market.py": {"plugins"}, "improve/wallet.py": {"improve"}}
+
+
 def test_no_module_in_the_lab_or_plugins_writes_the_owners_settings():
     """Only the owner's own plug-in manager (plugins/manage.py: install, switch on, remove from the app) writes
     custom.yaml, and only its plugins part. Nothing else under improve/ or plugins/ writes either file."""
@@ -271,15 +276,20 @@ def test_no_module_in_the_lab_or_plugins_writes_the_owners_settings():
         for f in sorted((SRC / folder).rglob("*.py")):
             text = f.read_text(encoding="utf-8")
             rel = f.relative_to(SRC).as_posix()
-            if rel == "plugins/manage.py":
+            if rel in OWNER_SETTERS:  # the owner's own taps, each writing only its own part of custom.yaml
                 keys = set(re.findall(r"\bcustom(?:\[|\.get\(|\.setdefault\(|\.pop\()\s*['\"](\w+)['\"]", text))
-                assert keys == {"plugins"}, keys
+                assert keys <= OWNER_SETTERS[rel], (rel, keys)
             elif re.search(r"\bsave_custom\b", text):
                 bad.append(f"{rel}: save_custom")
             for line in text.splitlines():
                 if re.search(r"(harness|custom)\.yaml", line) and re.search(r"write_text|open\(.*['\"][wa]", line):
                     bad.append(f"{f.name}: {line.strip()[:80]}")
     assert not bad, bad
+    # the allowance is only ever set from the owner's side (the API and sync), never by the lab or a plug-in
+    for folder in ("improve", "plugins"):
+        for f in sorted((SRC / folder).rglob("*.py")):
+            text = f.read_text(encoding="utf-8")
+            assert not re.search(r"\bsave_allowance\(", text.replace("def save_allowance(", "")), f.name
 
 
 # -- the fixed block in every system prompt ------------------------------------------------------------

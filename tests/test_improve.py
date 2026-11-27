@@ -47,10 +47,17 @@ def make_cfg(tmp_path, raw=RAW, brain=None, improve=None):
 
 
 def run_projects(cfg, tmp_path, n=2):
-    for i in range(n):
-        orch = Orchestrator(cfg, tmp_path / f"p{i}")
-        orch.start(f"goal {i}")
-        assert orch.run() == "done"
+    """Made-up past runs. With a learning allowance a run learns by itself afterwards (paid from the wallet);
+    the set-up runs here don't, so each test drives the cycle itself."""
+    allowance = cfg.improve.pop("allowance_usd_per_week", None)
+    try:
+        for i in range(n):
+            orch = Orchestrator(cfg, tmp_path / f"p{i}")
+            orch.start(f"goal {i}")
+            assert orch.run() == "done"
+    finally:
+        if allowance is not None:
+            cfg.improve["allowance_usd_per_week"] = allowance
 
 
 def test_projects_register_and_base_commits_recorded(tmp_path):

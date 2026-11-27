@@ -177,7 +177,9 @@ def test_a_cycle_stops_at_the_cap_mid_test_and_says_so(tmp_path):
 
 
 def test_a_wallet_cycle_tests_then_applies_within_the_allowance(tmp_path):
-    cfg, lab = make_cfg(tmp_path, improve={"min_samples": 2, "allowance_usd_per_week": 5, "auto_apply": "low"})
+    # min_samples high: the free rules make no rival proposal for the same job (ids are random, so which of two
+    # would be applied first, and which then waits while the first is watched, would be chance)
+    cfg, lab = make_cfg(tmp_path, improve={"min_samples": 50, "allowance_usd_per_week": 5, "auto_apply": "low"})
     run_projects(cfg, tmp_path, 1)
     p = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["b/coder2"]},
                                   rationale="r", risk="low", source="llm"))

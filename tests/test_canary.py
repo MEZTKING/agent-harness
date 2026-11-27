@@ -39,7 +39,7 @@ def add_rows(root, role, outcomes, start, cost=0.01, **extra):
 def applied(lab, cfg, role="coder", models=("b/coder2",), at=None):
     p = lab.add_proposal(Proposal(id="", kind="routing", role=role, change={"models": list(models)},
                                   rationale="r", risk="low"))
-    lab.apply(p, cfg)
+    lab.apply(p, cfg, by_owner=True)  # a made-up change the owner applied (a new maker for a job needs their tap)
     p = lab.proposal(p.id)
     if at is not None:  # pretend it was applied then (the rows are written around it)
         p.watch["since"] = iso(at)

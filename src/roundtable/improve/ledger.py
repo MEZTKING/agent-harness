@@ -161,6 +161,16 @@ def numbers(p: Proposal) -> dict[str, Any]:
             test[side] = {"ok": _int(ok) or 0, "cost_usd": _num(s.get("cost_usd"))}
         if t.get("yardstick") or t.get("veto") is not None:
             test["yardstick"] = True
+        y = t.get("yardstick") if isinstance(t.get("yardstick"), dict) else {}
+        if y and _int((y.get("candidate") or {}).get("of") or (y.get("current") or {}).get("of")):
+            cur, cand = (y.get("current") or {}), (y.get("candidate") or {})
+            practice = {"n": _int(cand.get("of") or cur.get("of")) or 0,
+                        "current": {"ok": _int(cur.get("passed")) or 0, "cost_usd": _num(cur.get("cost_usd"))},
+                        "candidate": {"ok": _int(cand.get("passed")) or 0, "cost_usd": _num(cand.get("cost_usd"))}}
+            if not test["n"]:  # tested on the practice tasks alone (no past tasks to replay): their counts
+                test.update(practice, practice=True)
+            else:  # both: past tasks first, the practice tasks beside them
+                test["practice_tasks"] = practice
         out["test"] = test
     ev = p.evidence if isinstance(p.evidence, dict) else {}
     for side in ("primary", "candidate"):
@@ -218,10 +228,16 @@ def reason(p: Proposal, cfg: HarnessConfig | None = None, nums: dict[str, Any] |
     if t.get("n"):
         n = t["n"]
         cur, cand = (t.get("current") or {}), (t.get("candidate") or {})
-        words = f"it passed {cand.get('ok', 0)} of {n} against {cur.get('ok', 0)} of {n}"
+        tasks = " practice tasks" if t.get("practice") else ""
+        words = f"it passed {cand.get('ok', 0)} of {n}{tasks} against {cur.get('ok', 0)} of {n}"
         c0, c1 = cur.get("cost_usd"), cand.get("cost_usd")
         if c0 is not None and c1 is not None and c1 < c0 and cand.get("ok", 0) >= cur.get("ok", 0):
             words += f", for ${c1:.2f} instead of ${c0:.2f}"
+        pt = t.get("practice_tasks") or {}
+        if pt.get("n"):
+            m = pt["n"]
+            words += (f", and {(pt.get('candidate') or {}).get('ok', 0)} of {m} practice tasks against "
+                      f"{(pt.get('current') or {}).get('ok', 0)} of {m}")
         return words
     pr, ca = nums.get("primary") or {}, nums.get("candidate") or {}
     if pr.get("n") and ca.get("n") and pr.get("quality") is not None and ca.get("quality") is not None:
@@ -339,12 +355,19 @@ def _never() -> list[str]:
             except Exception:  # noqa: BLE001
                 continue
             if isinstance(out, (list, tuple)):
-                return [str(x) for x in out if str(x).strip()]
+                return [w for w in map(_never_line, out) if w]
     for name in ("NEVER", "NEVER_WORDS"):
         val = getattr(charter, name, None)
         if isinstance(val, (list, tuple)):
-            return [str(x) for x in val]
+            return [w for w in map(_never_line, val) if w]
     return []
+
+
+def _never_line(x: Any) -> str:
+    """One line of the never-list in words: a row's title (a dict from the charter's table), or the text."""
+    if isinstance(x, dict):
+        return str(x.get("title") or x.get("words") or "").strip()
+    return str(x).strip()
 
 
 def _wallet(cfg: HarnessConfig, lab: Lab) -> dict[str, Any]:

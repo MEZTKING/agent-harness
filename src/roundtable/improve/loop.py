@@ -79,34 +79,13 @@ def _num(cfg: HarnessConfig, key: str, default: float) -> float:
 
 
 def _test_with(cfg: HarnessConfig, lab: Lab, p: Proposal, b: Any, samples: int, on_event) -> dict[str, Any]:
-    """Test ``p`` paid by the wallet's budget ``b``: on the yardstick when it has tasks for the job, else by
-    replaying past tasks. Returns {"verdict", "passed", "cost"}."""
-    from . import wallet, yardstick
+    """Test ``p`` paid by the wallet's budget ``b``, through ``evaluate``: the yardstick when it has tasks for
+    the job, and replays of past tasks when there are some; one verdict from both, kept on the proposal.
+    Returns {"verdict", "passed", "cost", "note"}."""
+    from . import yardstick
 
-    if yardstick.available(cfg, p.role) > 0:
-        b.what = "yardstick"
-        res = yardstick.run(cfg, lab, p, b, on_event=on_event)
-        if res is not None:
-            return {"verdict": res.get("verdict", ""), "passed": bool(res.get("passed")), "cost": None}
-    b.what = "replay"
-    if "budget" in inspect.signature(evaluate).parameters:
-        res = evaluate(cfg, lab, p, samples=samples, budget=b, on_event=on_event)  # type: ignore[call-arg]
-        return {"verdict": res["verdict"], "passed": res["passed"], "cost": None, "note": res.get("note", "")}
-    # evaluate keeps its own Budget: cap it at the wallet's room, then count each replay as the wallet's
-    res = evaluate(cfg, lab, p, samples=samples, max_cost=b.limit_usd, on_event=on_event)
-    for side in ("current", "candidate"):
-        for run in (res.get(side) or {}).get("runs") or []:
-            try:
-                wallet.lump(b, float(run.get("cost_usd") or 0), ref=run.get("model"), role=p.role)
-            except BudgetExceeded:
-                pass  # counted; the cap is told below
-    rest = float(res.get("eval_cost_usd") or 0) - b.spent_usd
-    if rest > 1e-9:
-        role = cfg.roles.get(p.role)
-        try:
-            wallet.lump(b, rest, ref=role.models[0] if role and role.models else None, role=p.role)
-        except BudgetExceeded:
-            pass
+    b.what = "yardstick" if yardstick.available(cfg, p.role) > 0 else "replay"
+    res = evaluate(cfg, lab, p, samples=samples, budget=b, on_event=on_event, yard=True)
     return {"verdict": res["verdict"], "passed": res["passed"], "cost": res.get("eval_cost_usd"),
             "note": res.get("note", "")}
 
@@ -158,7 +137,11 @@ def cycle(
             except (EvalError, BudgetExceeded) as e:
                 report["skipped"].append({"id": p.id, "reason": str(e)})
         if policy != "none" and auto_apply_allowed(p, policy) and _may_apply_now(lab, p, report) and healthy(p):
-            version = lab.apply(p, cfg, reason=f"auto ({policy} policy)")
+            try:
+                version = lab.apply(p, cfg, reason=f"auto ({policy} policy)")
+            except charter.CharterError as e:  # needs the owner's tap (offered), or never: the cycle carries on
+                report["skipped"].append({"id": p.id, "reason": str(e)})
+                continue
             lab.apply_learned(cfg)  # later proposals in this cycle see the new state
             report["applied"].append({"id": p.id, "version": version, "summary": p.summary()})
             emit("applied", {"id": p.id, "version": version})
@@ -216,7 +199,8 @@ def _wallet_cycle(cfg: HarnessConfig, lab: Lab, use_llm: bool, test: bool, sampl
                 report["skipped"].append({"id": p.id, "reason": str(e)})
                 continue
             ran_out = b.spent_usd >= b.limit_usd - 1e-9 and b.cap in ("week", "day")
-            if ran_out or (w.left(cfg, lab) <= 0 and str(got.get("note", "")).startswith("stopped early")):
+            cut_short = "stopped early" in str(got.get("note", ""))  # the replays' or the yardstick's (evaluate)
+            if ran_out or (w.left(cfg, lab) <= 0 and cut_short):
                 _back_to_proposed(lab, p)  # a half-done test proves nothing: it waits for next week
                 stop(w.AllowanceUsed(b.words or w.stop_words(cfg)))
                 break
