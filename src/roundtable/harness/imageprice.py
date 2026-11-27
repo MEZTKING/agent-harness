@@ -9,13 +9,55 @@ In order:
    leaves the plan for them.
 
 Nothing here reaches the network: an estimate is made before anything runs.
+
+Several pictures made at once (wave 8): :func:`record` writes one cost line per picture under one lock, appended
+in a single write and never read, changed and written back, so two pictures at once both count; :func:`spent`
+adds the lines up.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import threading
 from pathlib import Path
 from typing import Any, Iterable
+
+_LOCK = threading.Lock()
+
+
+def record(path: Path | str, row: dict[str, Any]) -> None:
+    """Append one picture's cost line (``{"model", "cost_usd", ...}``) to ``path`` (a metrics or spend file).
+
+    One lock for every thread of this program, and one ``write`` of the whole line on a file opened for
+    appending (the system puts each such write at the end, so another program's line isn't torn either)."""
+    line = (json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
+    p = Path(path)
+    with _LOCK:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            os.write(fd, line)
+        finally:
+            os.close(fd)
+
+
+def spent(metric_files: Iterable[Path]) -> float:
+    """Everything the cost lines in these files add up to (rows that aren't errors or the owner's notes)."""
+    total = 0.0
+    for f in metric_files or []:
+        try:
+            lines = Path(f).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for ln in lines:
+            try:
+                d = json.loads(ln)
+                if isinstance(d, dict) and d.get("outcome") not in ("owner_feedback", "error"):
+                    total += float(d.get("cost_usd") or 0)
+            except (ValueError, TypeError):
+                continue
+    return round(total, 9)
 
 
 def reported(metric_files: Iterable[Path]) -> dict[str, float]:
