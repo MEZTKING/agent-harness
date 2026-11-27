@@ -166,6 +166,12 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     /** The machines in the hub and who builds what (raw: Sync.parseMachines reads it). */
     suspend fun machines(): String = call("GET", "/api/machines")
 
+    // search and memory (ui/searchapi.py): raw JSON, read by data/Search.kt
+    suspend fun search(query: String, kinds: String = ""): String = call("GET", "/api/search?q=${q(query)}&kinds=${q(kinds)}")
+    suspend fun peek(path: String, file: String, line: Int): String = call("GET", "/api/search/peek?path=${q(path)}&file=${q(file)}&line=$line")
+    suspend fun memory(path: String, machine: Boolean, archive: Boolean): String =
+        call("GET", "/api/memory?" + (if (machine) "machine=1" else "path=${q(path)}") + (if (archive) "&archive=1" else ""))
+
     /** A live session published to the hub, read by this machine (raw: SessionLog reads it). */
     suspend fun hubSession(name: String, run: String = ""): String =
         call("GET", "/api/hub/session?name=${q(name)}" + if (run.isNotBlank()) "&run=${q(run)}" else "")

@@ -39,10 +39,11 @@ import re
 import shutil
 import sys
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 FILE = "memory.md"
 ARCHIVE = "memory-archive.md"
@@ -519,5 +520,19 @@ def view(path: Path) -> dict[str, Any]:
     return {"markdown": text, "counts": counts, "archived": archived, "words": words, "exists": path.is_file()}
 
 
-__all__ = ["memory_block", "learn_from_task", "learn_answer", "add_note", "pin", "add_rule", "trim",
-           "refresh_machine", "machine_facts", "project_path", "machine_path", "view", "save_text", "settings"]
+__all__ = [
+    "add_note",
+    "add_rule",
+    "learn_answer",
+    "learn_from_task",
+    "machine_facts",
+    "machine_path",
+    "memory_block",
+    "pin",
+    "project_path",
+    "refresh_machine",
+    "save_text",
+    "settings",
+    "trim",
+    "view",
+]

@@ -25,9 +25,10 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any
 
 MAX_FILE_BYTES = 512 * 1024  # bigger files are found by name only
 MAX_FILES = 5000  # per project
@@ -35,7 +36,7 @@ MAX_TEXT_BYTES = 24 * 1024 * 1024  # text read from one project's files, in all
 SKIP_DIRS = {".git", ".harness", "node_modules", ".venv", "venv", "env", "__pycache__", ".godot", ".gradle", ".idea",
              ".vscode", "dist", "build", ".next", ".cache", "target", ".pytest_cache", ".mypy_cache", "site-packages"}
 SECRET_NAME = re.compile(r"^(\.env(\..*)?|.*\.(pem|key|p12|pfx|jks|keystore)|id_(rsa|ed25519|ecdsa)(\.pub)?|"
-                         r"\.npmrc|\.pypirc|\.netrc|credentials(\.json)?)$", re.I)
+                         r"\.npmrc|\.pypirc|\.netrc|credentials(\.json)?)$", re.IGNORECASE)
 KIND_WEIGHT = {"memory": 3, "plan": 3, "task": 2, "journal": 2, "letter": 2, "note": 2, "hub_plan": 2, "file": 0}
 KIND_WORDS = {"memory": "Memory", "plan": "Plan", "task": "Task", "journal": "Journal", "letter": "Letter",
               "note": "My notes", "hub_plan": "Plan", "file": "File"}
@@ -377,4 +378,4 @@ def _stamp(ts: str) -> float:
         return 0.0
 
 
-__all__ = ["search", "terms", "score", "snippet", "safe_file", "peek_file", "walk_files", "Hit", "KINDS"]
+__all__ = ["KINDS", "Hit", "peek_file", "safe_file", "score", "search", "snippet", "terms", "walk_files"]
