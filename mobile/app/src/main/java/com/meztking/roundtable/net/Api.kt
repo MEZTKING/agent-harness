@@ -225,6 +225,12 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         return call(method, path, body)
     }
 
+    /** Calls of the newer features (rewind, proof, kinds and gallery, rates, a task's live command); nothing else. */
+    suspend fun feature(method: String, path: String, body: String? = null): String {
+        require(FEATURE_PREFIXES.any { path.startsWith(it) }) { "not a feature call" }
+        return call(method, path, body)
+    }
+
     suspend fun closeTodo(agent: String, id: String) { call("POST", "/api/journal/${q(agent)}/${q(id)}/close", "{}") }
     suspend fun logEntry(agent: String, kind: String, text: String, priority: String = "normal") {
         call("POST", "/api/journal/${q(agent)}", obj { put("kind", kind); put("text", text); put("priority", priority) })
@@ -244,6 +250,7 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     }
 
     companion object {
+        val FEATURE_PREFIXES = listOf("/api/rewind", "/api/proof", "/api/kinds", "/api/gallery", "/api/rates", "/api/terminal/task")
         private val JSON = "application/json".toMediaType()
         private fun obj(build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject(build).toString()
 
