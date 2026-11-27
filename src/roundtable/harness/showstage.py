@@ -10,12 +10,147 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import threading
+
 from . import godot as godotlib
+from . import proof as prooflib
 from . import session as sessionlib
 from . import showit
 
 
-class ShowStage:
+class ProofStage:
+    """Before and after for every task (proof.py): pictures when the task starts, pictures and the
+    tests when it is reviewed (with a model that can see as advice for the reviewer), and
+    ``proof.json`` when it is finished.
+
+    Hook-up: ``_proof_before(task)`` before a task runs, ``_proof_text(task, checks)`` in the review
+    prompt; ``_proof_after`` is called by ``_after_task``. Every step is a help, never a reason to fail."""
+
+    def _proof_box(self) -> dict[str, Any]:
+        box = self.__dict__.get("_proof_state")
+        if box is None:
+            box = self.__dict__.setdefault("_proof_state", {"lock": threading.Lock(), "tasks": {}})
+        return box
+
+    def _proof_entry(self, task_id: str) -> dict[str, Any]:
+        box = self._proof_box()
+        with box["lock"]:
+            return box["tasks"].setdefault(task_id, {"spent": 0.0})
+
+    def _proof_on(self) -> bool:
+        return prooflib.Settings.from_config(self.cfg).enabled
+
+    def _proof_plan(self) -> list[dict[str, Any]]:
+        """The kind's proof list as a plan (kinds, KindStage._kind_proof), when there is one."""
+        get = getattr(self, "_kind_proof", None)
+        if not callable(get):
+            return []
+        try:
+            return prooflib.plan_for(get() or [])
+        except Exception:  # a kind is a help here too
+            return []
+
+    def _proof_root(self):
+        return self._work_root() if hasattr(self, "_work_root") else self.project.root
+
+    def _proof_before(self, task) -> dict[str, Any] | None:
+        """The pictures of the project as this task finds it (reused by commit when there are some)."""
+        try:
+            if not self._proof_on() or not self._shots_wanted():
+                return None
+            rec = prooflib.before(self.project.root, task, work_root=self._proof_root(),
+                                  render=getattr(self, "shot_renderer", None), godot=self.cfg.godot)
+            self._proof_entry(task.id)["before"] = rec
+            self.emit("proof_before", {"task": task.id, "commit": rec.get("commit", ""), "reused": bool(rec.get("reused")),
+                                       "pictures": list(rec.get("pictures") or {})})
+            return rec
+        except Exception as e:
+            self.emit("proof_error", {"task": getattr(task, "id", ""), "error": str(e)[:300]})
+            return None
+
+    def _proof_text(self, task, checks: dict[str, Any] | None = None) -> str:
+        """For the review prompt: the pictures after the work (taken now, of the task's own folder), what
+        changed, the tests, and the judge's advice. "" when there is nothing to show."""
+        try:
+            entry = self._proof_entry(task.id)
+            if checks is not None:
+                entry["checks"] = checks
+            if not self._proof_on():
+                return ""
+            s = prooflib.Settings.from_config(self.cfg)
+            after = None
+            if self._shots_wanted():
+                after = showit.take_shots(self._proof_root(), task.id, render=getattr(self, "shot_renderer", None),
+                                          godot=self.cfg.godot, out_dir=showit.shots_root(self.project.root)
+                                          / showit._safe_task(task.id), latest=False)
+            before = entry.get("before")
+            prs = prooflib.pairs(self.project.root, before, after)
+            tests = prooflib.tests_part(self._proof_baseline(), entry.get("checks"))
+            judged = prooflib.judge(self.cfg, task, prs, tests, self.budget, project_root=self.project.root,
+                                    before_rec=before, after_rec=after, spent=entry["spent"], settings=s)
+            entry["spent"] += float(judged.get("cost_usd") or 0.0)
+            entry.update(after=after, pairs=prs, tests=tests, judge=judged)
+            if not prs and not tests:
+                return ""
+            rec = prooflib.build(self.project.root, task, before, after, tests, judged, prs, self._proof_plan())
+            prooflib.write(self.project.root, rec)  # ok: None until the review is done
+            self.emit("proof", {"task": task.id, "words": rec["words"], "verdict": judged.get("verdict"),
+                                "cost_usd": judged.get("cost_usd", 0.0)})
+            return prooflib.review_text(rec, strict=s.strict)
+        except Exception as e:
+            self.emit("proof_error", {"task": getattr(task, "id", ""), "error": str(e)[:300]})
+            return ""
+
+    def _proof_baseline(self) -> dict[str, Any] | None:
+        get = getattr(self, "_checks_baseline", None)
+        try:
+            return get() if callable(get) else self.project.meta().get("baseline")
+        except Exception:
+            return None
+
+    def _proof_shots(self, task) -> dict[str, Any] | None:
+        """The pictures the review saw, as the task's pictures now it is approved (no second render)."""
+        entry = self._proof_box()["tasks"].get(task.id) or {}
+        after = entry.get("after")
+        if not after or not after.get("pictures"):
+            return None
+        rec = {**after, "commit": showit.commit_of(self.project.root)}
+        showit._write_record(showit.shots_root(self.project.root) / str(after.get("dir") or task.id), rec)
+        self.emit("shots", {"task": task.id, "dir": rec.get("dir", ""), "pictures": list(rec.get("pictures") or {}),
+                            "errors": len(rec.get("errors") or []), "title": rec.get("title", ""),
+                            "note": rec.get("failed") or rec.get("note", "")})
+        return rec
+
+    def _proof_after(self, task, ok: bool, checks: dict[str, Any] | None = None,
+                     shots: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """``proof.json`` for the finished task, and its pictures kept by commit for the next tasks."""
+        try:
+            box = self._proof_box()
+            with box["lock"]:
+                entry = box["tasks"].pop(task.id, None) or {}
+            if not self._proof_on():
+                return None
+            after = shots if shots is not None else entry.get("after")
+            if shots is not None and shots.get("commit"):
+                prooflib.keep_by_commit(self.project.root, shots)
+            before = entry.get("before")
+            tests = entry.get("tests")
+            if checks is not None or tests is None:
+                tests = prooflib.tests_part(self._proof_baseline(), checks or entry.get("checks"))
+            prs = prooflib.pairs(self.project.root, before, after) if shots is not None else entry.get("pairs") or []
+            judged = entry.get("judge") or ({"looked": False, "why": "not_asked", "words": prooflib.NOBODY}
+                                            if prs else None)
+            if not prs and not tests:
+                return None  # nothing to show for this task
+            rec = prooflib.build(self.project.root, task, before, after, tests, judged, prs, self._proof_plan(), ok=ok)
+            prooflib.write(self.project.root, rec)
+            return rec
+        except Exception as e:
+            self.emit("proof_error", {"task": getattr(task, "id", ""), "error": str(e)[:300]})
+            return None
+
+
+class ShowStage(ProofStage):
     def _hub_name(self) -> str:
         """The project's name in the hub: its own hub project, or <harness agent>--<folder>."""
         agent = self._hub_agent()
@@ -67,7 +202,11 @@ class ShowStage:
 
     def _after_task(self, task, ok: bool) -> None:
         self._learn_from_task(task)
-        record = self._show_it(task) if ok else None
+        record = None
+        if ok:  # the pictures the review already saw, else fresh ones
+            record = self._proof_shots(task) if self._shots_wanted() else None
+            record = record or self._show_it(task)
+        self._proof_after(task, ok, shots=record)
         self._publish_live(record)
 
     def _learn_from_task(self, task) -> None:
