@@ -9,6 +9,16 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-27
 
+- **Darkness Harness: Fable's plan, followed.** Built on Roundtable; 1.0.0 is the new name and look
+  only (your installed app updates into it; projects, keys, phone pairing and hub kept, nothing moved or
+  deleted; a test on GitHub upgrades the old app before it ships). Then 1.1 finished apps and games,
+  1.2 every model at once, 1.3 it improves itself, 1.4 and 1.5 everything else the other harnesses do.
+  Names machines read stay as they are (the `roundtable` command, the data folder, the phone app's id), so
+  nothing breaks. **Name check:** no app called "Darkness Harness" was found; a software company called
+  Harness exists (different name). **Waiting for you:** the look (Eclipse, Obsidian Forge or Abyss), the
+  art budget (up to $15 suggested) and keeping the phone app the same underneath (recommended, assumed
+  until you say otherwise).
+
 - **Asked Fable about wave 3's big questions (0.12.0).** Fable's advice, followed as given:
   - *Web search for builders* sends their search words to a search service: on for builders and the
     planner, at most 6 searches a task, anything that looks like a key removed first, off for projects
