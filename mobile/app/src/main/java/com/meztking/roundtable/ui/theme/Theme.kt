@@ -1,6 +1,15 @@
 package com.meztking.roundtable.ui.theme
 
 import android.provider.Settings
+import android.view.HapticFeedbackConstants
+import com.meztking.roundtable.data.Accent
+import com.meztking.roundtable.data.Comfort
+import com.meztking.roundtable.data.Haptics
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Density
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
@@ -178,18 +187,67 @@ private fun typography(p: OakPalette) = Typography(
 val Label: TextStyle
     get() = TextStyle(fontFamily = NunitoSans, fontSize = 12.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, color = Hall.muted)
 
+/** The dark palette on a true-black floor (saves battery on OLED screens); the cards stay a warm, very dark oak. */
+val BlackOak = OakPalette(
+    background = Color(0xFF000000), surface = Color(0xFF17110D), text = DarkOak.text, muted = DarkOak.muted,
+    accent = DarkOak.accent, accentText = Color(0xFF000000), candle = DarkOak.candle, oakLine = Color(0xFF3A2C20),
+    sunken = Color(0xFF0B0806), accentSoft = DarkOak.accentSoft, good = DarkOak.good, bad = DarkOak.bad, warn = DarkOak.warn,
+)
+
+/** [base] with the owner's [accent] and, when dark, true black. Amber on the usual floor is the palette itself. */
+fun paletteFor(dark: Boolean, accent: Accent = Accent.AMBER, trueBlack: Boolean = false): OakPalette {
+    val base = if (!dark) LightOak else if (trueBlack) BlackOak else DarkOak
+    if (accent == Accent.AMBER) return base
+    val a = Color(if (dark) accent.dark else accent.light)
+    return OakPalette(
+        background = base.background, surface = base.surface, text = base.text, muted = base.muted,
+        accent = a, accentText = base.accentText, candle = base.candle, oakLine = base.oakLine, sunken = base.sunken,
+        accentSoft = lerp(base.surface, a, if (dark) 0.22f else 0.18f),
+        good = base.good, bad = base.bad, warn = base.warn,
+    )
+}
+
+/** The comfort settings for the screens that read them (Live's detail, haptics); null outside the app. */
+val LocalComfort = staticCompositionLocalOf<Comfort?> { null }
+
 @Composable
 fun RoundtableTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val p = if (dark) DarkOak else LightOak
+    val ctx = LocalContext.current
+    val comfort = remember(ctx) { runCatching { Comfort.get(ctx) }.getOrNull() }
+    val p = paletteFor(dark, comfort?.accent ?: Accent.AMBER, comfort?.trueBlack == true)
     if (Hall.palette !== p) Hall.palette = p
+    val density = LocalDensity.current
+    val scale = comfort?.textScale ?: 1f
     MaterialTheme(
         colorScheme = scheme(p, dark),
         typography = typography(p),
         shapes = Shapes(extraSmall = RoundedCornerShape(8.dp), small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(14.dp),
             large = RoundedCornerShape(18.dp), extraLarge = RoundedCornerShape(24.dp)),
     ) {
-        // text drawn straight on the page (not inside a Surface) uses the theme's text colour
-        CompositionLocalProvider(LocalContentColor provides p.text, content = content)
+        // text drawn straight on the page (not inside a Surface) uses the theme's text colour; the owner's text size
+        // multiplies the phone's own
+        CompositionLocalProvider(
+            LocalContentColor provides p.text,
+            LocalComfort provides comfort,
+            LocalDensity provides if (scale == 1f) density else Density(density.density, density.fontScale * scale),
+            content = content,
+        )
+    }
+}
+
+/** A short buzz at the owner's chosen strength (nothing when Haptics is off). */
+@Composable
+fun rememberHaptics(): () -> Unit {
+    val view = LocalView.current
+    val comfort = LocalComfort.current
+    return remember(view, comfort) {
+        {
+            when (comfort?.haptics ?: Haptics.LIGHT) {
+                Haptics.OFF -> {}
+                Haptics.LIGHT -> view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                Haptics.STRONG -> view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            }
+        }
     }
 }
 
