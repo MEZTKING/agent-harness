@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,7 +42,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,16 +54,19 @@ import androidx.compose.ui.window.DialogProperties
 import com.meztking.roundtable.data.LiveView
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.data.SessionSummary
+import com.meztking.roundtable.data.SessionTask
 import com.meztking.roundtable.data.ago
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.Label
 import com.meztking.roundtable.ui.theme.Panel
+import kotlin.math.roundToInt
 
 private fun bitmap(bytes: ByteArray): ImageBitmap? =
     runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()
 
 /**
- * The Live tab: the newest pictures of the project's app, and the latest task's steps as lines. A finished
+ * The Live tab: the newest pictures of the project's app, and the latest task's steps as lines (several tasks at
+ * once: a short row each, with where its time went and how full its context is). A finished
  * project shows its final pictures (or a button to take them) and folds its steps.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -129,15 +137,18 @@ private fun Shot(label: String, bytes: ByteArray, modifier: Modifier, open: (Str
     }
 }
 
-/** The latest task's steps, like the lines of a terminal. */
+/** The latest task's steps, like the lines of a terminal. Several tasks at once: one short row each, side by side
+ * in a list (title, state, what it's doing, the time bar and the context gauge), their steps folded. */
 @Composable
 private fun Session(v: LiveView, mode: Mode?, finished: Boolean) {
     val s: SessionSummary? = v.session
-    val t = s?.task
+    val shown = s?.shown.orEmpty()
+    val t = shown.lastOrNull()
     Panel(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (finished && !v.running) "WHAT IT DID LAST" else "WHAT IT'S DOING", style = Label, color = Hall.muted, modifier = Modifier.weight(1f))
-            if (v.running) Text("● Live" + if (v.progress.isNotBlank()) " · ${v.progress}" else "", color = Hall.good, style = MaterialTheme.typography.labelMedium)
+            Text(if (finished && !v.running) "WHAT IT DID LAST" else if (shown.size > 1) "WORKING ON ${shown.size} TASKS AT ONCE" else "WHAT IT'S DOING",
+                style = Label, color = Hall.muted, modifier = Modifier.weight(1f))
+            if (v.running) Text("● Live" + if (v.progress.isNotBlank() && shown.size < 2) " · ${v.progress}" else "", color = Hall.good, style = MaterialTheme.typography.labelMedium)
         }
         if (v.from.isNotBlank()) Text(v.from + (s?.at?.ifBlank { null }?.let { " · ${ago(it)}" } ?: "") + if (v.running) " · updates by itself" else "",
             color = Hall.muted, style = MaterialTheme.typography.bodySmall)
@@ -146,15 +157,110 @@ private fun Session(v: LiveView, mode: Mode?, finished: Boolean) {
                 color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
             return@Panel
         }
-        Text("[${t.id}] ${t.title}", color = Hall.text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-        Text(listOfNotNull(t.role.ifBlank { null }, t.status.ifBlank { null }, if (t.cost > 0) "$%.4f".format(t.cost) else null)
-            .joinToString(" · "), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(8.dp))
-        if (finished && !v.running) Fold("Its steps (${t.steps.size})") { Steps(t.steps) } else Steps(t.steps)
+        if (shown.size > 1) {
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { for (task in shown) TaskRow(task) }
+            for (task in shown) Fold("Steps: ${task.title.ifBlank { task.id }} (${task.steps.size})") { Steps(task.steps) }
+        } else {
+            Text("[${t.id}] ${t.title}", color = Hall.text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text(listOfNotNull(t.role.ifBlank { null }, t.status.ifBlank { null }, if (t.cost > 0) "$%.4f".format(t.cost) else null)
+                .joinToString(" · "), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+            TimeLine(t, Modifier.padding(top = 6.dp))
+            Spacer(Modifier.height(8.dp))
+            if (finished && !v.running) Fold("Its steps (${t.steps.size})") { Steps(t.steps) } else Steps(t.steps)
+            More(t)
+        }
         if (mode == Mode.HUB && v.from.isBlank() && !finished) Text("Only the latest task's last steps come through the hub; the PC app shows every step and change.",
             Modifier.padding(top = 8.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     }
 }
+
+private val STATE_WORDS = mapOf("running" to "Being built", "done" to "Done", "failed" to "Didn't work", "paused" to "Paused")
+
+/** One running task as a short row: title, state, what it's doing now, the time bar and the gauge. */
+@Composable
+private fun TaskRow(t: SessionTask) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.dp, Hall.line, RoundedCornerShape(10.dp)).padding(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t.title.ifBlank { t.id }, Modifier.weight(1f), color = Hall.text, fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(STATE_WORDS[t.status] ?: t.status, color = if (t.status == "failed") Hall.bad else Hall.good, style = MaterialTheme.typography.labelMedium)
+        }
+        Text(t.now.ifBlank { "Starting" }, color = Hall.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        TimeLine(t, Modifier.padding(top = 6.dp))
+        More(t)
+    }
+}
+
+/** The bar of where the time went and the context gauge, on one line; nothing when neither was recorded. */
+@Composable
+private fun TimeLine(t: SessionTask, modifier: Modifier = Modifier) {
+    val time = t.time?.takeIf { it.parts.isNotEmpty() }
+    val ctx = t.context
+    if (time == null && ctx == null) return
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (time != null) {
+            val total = time.total.coerceAtLeast(1)
+            Row(Modifier.width(120.dp).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Hall.line)
+                .semantics { contentDescription = "Where the time went: " + time.parts.joinToString(", ") { "${it.label} ${duration(it.ms)}" } }) {
+                for (p in time.parts) Box(Modifier.weight(maxOf(p.ms.toFloat(), total / 100f)).fillMaxHeight().background(PART_COLOURS[p.key] ?: Hall.muted))
+            }
+            Text(duration(time.total), color = Hall.text, style = MaterialTheme.typography.bodySmall)
+        }
+        if (ctx != null) {
+            val share = ctx.share
+            if (share != null) {
+                Box(Modifier.width(44.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Hall.line)) {
+                    Box(Modifier.fillMaxWidth(share.toFloat().coerceIn(0.03f, 1f)).fillMaxHeight()
+                        .background(if (share >= 0.85) PART_COLOURS.getValue("you") else if (share >= 0.6) PART_COLOURS.getValue("model") else PART_COLOURS.getValue("tools")))
+                }
+                Text("${(share * 100).roundToInt()}% full", color = Hall.text, style = MaterialTheme.typography.bodySmall)
+            } else Text("${tokens(ctx.used)} tokens", color = Hall.text, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/** The details, folded under one "More": the time in words, the context, the cache and the files changed. */
+@Composable
+private fun More(t: SessionTask) {
+    val time = t.time?.takeIf { it.parts.isNotEmpty() }
+    if (time == null && t.context == null && t.changes.isEmpty()) return
+    val n = t.changes.size
+    Fold(if (n > 0) "More · changed $n file${if (n > 1) "s" else ""}" else "More") {
+        time?.parts?.forEach { p ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(10.dp).height(10.dp).clip(RoundedCornerShape(2.dp)).background(PART_COLOURS[p.key] ?: Hall.muted))
+                Text("  ${p.label}: ${duration(p.ms)}", color = Hall.text, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        t.context?.let { c ->
+            Text("Context: ${"%,d".format(c.used)} tokens" + (c.window?.let { " of ${"%,d".format(it)}" } ?: " (how much this model holds isn't known)"),
+                Modifier.padding(top = 4.dp), color = Hall.text, style = MaterialTheme.typography.bodySmall)
+            c.cache_hit?.let { Text("From the cache: ${(it * 100).roundToInt()}% of what the models read (cheaper)", color = Hall.muted, style = MaterialTheme.typography.bodySmall) }
+        }
+        if (n > 0) {
+            Text("Changed $n file${if (n > 1) "s" else ""} · +${t.changes.sumOf { it.added }} −${t.changes.sumOf { it.removed }}",
+                Modifier.padding(top = 4.dp), color = Hall.text, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            for (c in t.changes) Text("${c.path}  ${if (c.new) "new · " else ""}+${c.added} −${c.removed}", color = Hall.text,
+                fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        }
+    }
+}
+
+/** "under a second", "42s", "3m 10s", "1h 5m". */
+internal fun duration(ms: Long): String {
+    if (ms < 1000) return "under a second"
+    val sec = (ms + 500) / 1000
+    if (sec < 60) return "${sec}s"
+    val m = sec / 60
+    return if (m >= 60) "${m / 60}h ${m % 60}m" else if (sec % 60 == 0L) "${m}m" else "${m}m ${sec % 60}s"
+}
+
+private fun tokens(n: Long): String = if (n >= 10_000) "${(n + 500) / 1000}k" else "%,d".format(n)
+
+// the same colours as the desktop's bar (watch.js)
+private val PART_COLOURS = mapOf("first" to Color(0xFF9C8B74), "writing" to Color(0xFFE8A33D), "model" to Color(0xFFE8A33D),
+    "tools" to Color(0xFF7FA35C), "you" to Color(0xFFD0643F), "other" to Color(0xFF6F5A46))
 
 /** "26 Nov 2026" from an ISO time. */
 private fun day(iso: String): String = runCatching {
