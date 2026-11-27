@@ -318,3 +318,42 @@ def test_a_long_command_is_folded_on_the_card(tmp_path):
     card = seen["card"]
     assert card["folded"] and card["lines"] == 40 and card["command"] == long
     assert card["preview"].count("\n") == g.FOLD_LINES - 1
+
+
+# -- wave 8: the job's own mode, extra reasons, the box line, and other tools' cards (harness/perms.py) ---------
+def test_check_can_decide_by_a_jobs_own_mode(tmp_path):
+    gate = Gate(tmp_path, poll=0.01, timeout=0.05)  # the project says risky (the default)
+    assert gate.check("echo hi") is None
+    assert gate.check("echo hi", mode="all").startswith("Nobody answered")
+    assert gate.check("git push x", mode="off") is None
+    assert gate.check("x" * (g.MAX_COMMAND_BYTES + 1), mode="off").startswith("This command is")  # never too long
+
+
+def test_extra_reasons_and_the_box_line_are_on_the_card(tmp_path):
+    gate = Gate(tmp_path, poll=0.02, timeout=5)
+    extra = [g.Finding("it deletes node_modules, which is shared", "rm -rf node_modules/", True, "rm -rf node_modules/")]
+    t, seen = answer_when_asked(tmp_path, g.ALWAYS)
+    assert gate.check("rm -rf node_modules/", extra=extra, note="It runs in a box with the internet off.") is None
+    t.join(2)
+    raw = Gate(tmp_path).allowed()
+    assert seen["card"]["reasons"] == ["it deletes node_modules, which is shared"]
+    assert [p["text"] for p in raw] == ["rm -rf node_modules/"]  # Always allow kept the exact command
+    assert gate.check("rm -rf node_modules/", extra=extra) is None  # and it doesn't ask again
+
+
+def test_a_tool_card_goes_through_the_same_machinery(tmp_path):
+    gate = Gate(tmp_path, poll=0.02, timeout=5)
+    kept = []
+    t, seen = answer_when_asked(tmp_path, g.ALWAYS)
+    assert gate.ask("Delete notes.txt", ["it deletes something"], tool="delete_file", remember="this tool",
+                    on_always=lambda: kept.append(1)) is None
+    t.join(2)
+    card = seen["card"]
+    assert card["kind"] == "command" and card["command"] == "Delete notes.txt" and card["options"][1]["id"] == "always"
+    assert kept == [1] and not list((tmp_path / g.GATE_DIR).glob("*.ask.json"))  # the card went
+    t, _ = answer_when_asked(tmp_path, g.DENY, note="not that one")
+    out = gate.ask("Delete notes.txt", ["it deletes something"], tool="delete_file", remember="this tool")
+    t.join(2)
+    assert out.startswith("The owner didn't allow this (delete notes.txt)") and out.endswith("not that one")
+    quick = Gate(tmp_path, poll=0.01, timeout=0.05)
+    assert quick.ask("Use x", ["new"], tool="mcp__a__x", remember="x").startswith("Nobody answered within")

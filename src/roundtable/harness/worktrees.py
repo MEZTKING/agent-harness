@@ -25,12 +25,22 @@ breaker stops only the task it caught, as one attempt, and the others carry on);
 tasks go back to waiting and their worktrees stay for the next run. Projects without git, or with
 ``max_parallel: 1``, run one task at a time exactly as before.
 
-Settings (``harness.yaml``): ``limits.max_parallel``, and ``parallel: {keep_worktrees: true}`` to keep every
-worktree after its merge (for looking at later).
+Linked dependencies (``link_deps``): a new worktree doesn't reinstall everything. Each folder in
+``parallel.link`` (by default those found of ``node_modules``, ``.venv``, ``.gradle``, ``.godot/imported``) is
+linked into the lane from the project folder – a directory junction on Windows (no administrator rights
+needed), a symbolic link elsewhere – only when the lane's lockfiles (``package-lock.json``,
+``requirements*.txt``, ``gradle.lockfile``, ``pyproject.toml``…) are the same as the project's, and only when
+git ignores the link (so it is never committed). Otherwise the lane runs its setup as before. When the lane is
+removed its links are taken away first, never followed: the project's own folder and every file in it stay.
+
+Settings (``harness.yaml``): ``limits.max_parallel``, ``parallel: {keep_worktrees: true}`` to keep every
+worktree after its merge (for looking at later), and ``parallel: {link: [node_modules]}`` (``false``: never link).
 """
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import threading
@@ -48,6 +58,16 @@ from .safeenv import clean_env
 WORKTREES = Path(".harness") / "worktrees"
 BRANCH_PREFIX = "roundtable-task/"
 MAX_WIDTH = 8  # never more tasks at once than this, whatever the setting says
+LINKS_FILE = Path(".harness") / "links.json"  # which folders are linked into which lane
+DEFAULT_LINKS = ("node_modules", ".venv", ".gradle", ".godot/imported")
+LOCKFILES: dict[str, tuple[str, ...]] = {  # what must be the same in the lane and the project to share a folder
+    "node_modules": ("package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
+                     "package.json"),
+    ".venv": ("requirements*.txt", "pyproject.toml", "poetry.lock", "uv.lock", "Pipfile.lock"),
+    ".gradle": ("gradle.lockfile", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+                "gradle/libs.versions.toml"),
+    ".godot/imported": ("project.godot",),
+}
 
 
 class RunHalted(BudgetExceeded):
@@ -73,6 +93,137 @@ class MergeResult:
     ok: bool
     conflicts: list[str] = field(default_factory=list)
     output: str = ""
+
+
+# -- linked dependencies ----------------------------------------------------------------------------------------
+def _is_link(p: Path) -> bool:
+    """A symbolic link or a Windows junction (never its target's own folder)."""
+    try:
+        if os.path.islink(p):
+            return True
+        is_junction = getattr(p, "is_junction", None)  # Python 3.12
+        if is_junction is not None and is_junction():
+            return True
+        st = os.lstat(p)
+    except OSError:
+        return False
+    return bool(getattr(st, "st_file_attributes", 0) & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+
+
+def _unlink(p: Path) -> bool:
+    """Take a link away without following it. False when it couldn't (or it's no link: then it's left)."""
+    if not _is_link(p):
+        return False
+    try:
+        os.unlink(p)  # a symbolic link (and a junction on recent Pythons)
+    except OSError:
+        try:
+            os.rmdir(p)  # a junction or a directory symlink on Windows: removes the link, never what it points at
+        except OSError:
+            return False
+    return not os.path.lexists(p)
+
+
+def _points_at(link: Path, target: Path) -> bool:
+    try:
+        return os.path.realpath(link) == os.path.realpath(target)
+    except (OSError, ValueError):
+        return False
+
+
+def _make_link(source: Path, dest: Path) -> None:
+    if os.name == "nt":
+        import _winapi  # type: ignore[import-not-found]
+
+        _winapi.CreateJunction(str(source), str(dest))  # a junction: no administrator rights needed
+    else:
+        os.symlink(source, dest, target_is_directory=True)
+
+
+def _clean_rel(rel: Any) -> str | None:
+    """A folder in the project as a plain relative path; None for anything outside it or the harness's own."""
+    r = str(rel or "").replace("\\", "/").strip()
+    if r.startswith("/") or r.startswith("~"):
+        return None  # only folders inside the project
+    r = r.strip("/")
+    while r.startswith("./"):
+        r = r[2:]
+    parts = r.split("/") if r else []
+    if not parts or any(x in ("", ".", "..") for x in parts) or re.match(r"^[A-Za-z]:", r) or \
+            parts[0] in (".git", ".harness"):
+        return None
+    return "/".join(parts)
+
+
+def _lock_texts(folder: Path, names: tuple[str, ...]) -> dict[str, bytes]:
+    out = {}
+    for pat in names:
+        for f in sorted(folder.glob(pat)) if any(c in pat for c in "*?[") else [folder / pat]:
+            try:
+                if f.is_file():
+                    out[f.relative_to(folder).as_posix()] = f.read_bytes()
+            except OSError:
+                out[str(pat)] = b"\0unreadable"
+    return out
+
+
+def _locks_match(root: Path, lane: Path, rel: str) -> tuple[bool, str]:
+    names = LOCKFILES.get(rel) or tuple(dict.fromkeys(n for v in LOCKFILES.values() for n in v))
+    mine, theirs = _lock_texts(root, names), _lock_texts(lane, names)
+    if not mine and not theirs:
+        return False, "there's no lockfile to say the two need the same things"
+    if mine != theirs:
+        diff = sorted(set(mine) ^ set(theirs) | {k for k in mine if k in theirs and mine[k] != theirs[k]})
+        return False, f"{', '.join(diff[:3])} differ{'s' if len(diff) == 1 else ''} from the project's"
+    return True, ""
+
+
+def _read_links(root: Path) -> dict[str, dict[str, str]]:
+    try:
+        data = json.loads((root / LINKS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(k): dict(v) for k, v in data.items() if isinstance(v, dict)} if isinstance(data, dict) else {}
+
+
+def _write_links(root: Path, data: dict[str, dict[str, str]]) -> None:
+    p = root / LINKS_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps({k: v for k, v in data.items() if v}, indent=1), encoding="utf-8")
+    os.replace(tmp, p)
+
+
+_LINKS_LOCK = threading.Lock()
+EXCLUDE_MARK = "# Darkness Harness: dependency folders linked into task worktrees (never committed)"
+
+
+def _exclude_link(lane: Path, rel: str) -> bool:
+    """Add ``/rel`` to the repository's own ``info/exclude`` (shared by its worktrees, never committed)."""
+    res = _git(lane, "rev-parse", "--git-common-dir")
+    if res.returncode != 0 or not res.stdout.strip():
+        return False
+    common = Path(res.stdout.strip())
+    if not common.is_absolute():
+        common = (lane / common).resolve()
+    f = common / "info" / "exclude"
+    line = "/" + rel
+    try:
+        text = f.read_text(encoding="utf-8") if f.is_file() else ""
+        if line in text.splitlines():
+            return True
+        f.parent.mkdir(parents=True, exist_ok=True)
+        add = ("" if not text or text.endswith("\n") else "\n") + (EXCLUDE_MARK + "\n" if EXCLUDE_MARK not in text else "")
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write(add + line + "\n")
+    except OSError:
+        return False
+    return True
+
+
+def linked_folders(root: str | Path) -> list[str]:
+    """Every folder linked into some lane of this project (for the guard: deleting one asks)."""
+    return sorted({rel for v in _read_links(Path(root).resolve()).values() for rel in v})
 
 
 class Worktrees:
@@ -113,6 +264,91 @@ class Worktrees:
             raise RuntimeError(f"couldn't make a worktree for {task_id}: {res.stderr.strip()}")
         return p, False
 
+    # -- linked dependencies -------------------------------------------------------------------------------------
+    def link_candidates(self, settings: dict[str, Any] | None = None) -> list[str]:
+        """The folders to link: ``parallel.link`` when given (``false`` or [] for none), else the defaults found."""
+        settings = settings or {}
+        want = settings.get("link", None)
+        if want is False or want == []:
+            return []
+        if want is None or want is True:
+            names = [r for r in DEFAULT_LINKS if (self.root / r).is_dir()]
+        else:
+            names = [want] if isinstance(want, str) else list(want) if isinstance(want, (list, tuple)) else []
+        return list(dict.fromkeys(r for r in (_clean_rel(n) for n in names) if r))
+
+    def link_deps(self, lane: str | Path, settings: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Link the project's dependency folders into a lane (``lane``: a task id or the worktree's folder).
+        Returns {linked: [folders], skipped: [{folder, why}], complete}: complete when every folder found was
+        linked (the lane then needn't run its setup)."""
+        path = Path(lane) if isinstance(lane, Path) else self.path(lane)
+        name = path.name
+        out: dict[str, Any] = {"linked": [], "skipped": []}
+        for rel in self.link_candidates(settings):
+            why = self._link_one(path, rel)
+            if why:
+                out["skipped"].append({"folder": rel, "why": why})
+            else:
+                out["linked"].append(rel)
+        if out["linked"]:
+            with _LINKS_LOCK:
+                data = _read_links(self.root)
+                data[name] = {**data.get(name, {}), **{r: str(self.root / r) for r in out["linked"]}}
+                _write_links(self.root, data)
+        out["complete"] = bool(out["linked"]) and not out["skipped"]
+        return out
+
+    def _link_one(self, lane: Path, rel: str) -> str:
+        """Link one folder; the reason it wasn't, else ""."""
+        source, dest = self.root / rel, lane / rel
+        if not source.is_dir():
+            return "the project has no such folder"
+        if os.path.lexists(dest):
+            return "the lane has its own already"
+        ok, why = _locks_match(self.root, lane, rel)
+        if not ok:
+            return why
+        # ignored as a link, else never. "node_modules/" in .gitignore ignores the folder but not a link of that
+        # name: then (only then) the link's own name goes in the repository's info/exclude, which is never committed
+        if _git(lane, "check-ignore", "-q", "--", rel).returncode != 0:
+            if _git(lane, "check-ignore", "-q", "--", rel + "/").returncode != 0:
+                return "git doesn't ignore it here, so it could be committed"
+            if not _exclude_link(lane, rel) or _git(lane, "check-ignore", "-q", "--", rel).returncode != 0:
+                return "git ignores the folder but not a link to it, so it could be committed"
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            _make_link(source, dest)
+        except (OSError, ImportError, AttributeError) as e:
+            return f"the link couldn't be made ({type(e).__name__})"
+        seen = _git(lane, "status", "--porcelain", "--untracked-files=all", "--", rel)
+        if seen.returncode != 0 or seen.stdout.strip():
+            _unlink(dest)
+            return "git would see the link, so it was taken away again"
+        return ""
+
+    def unlink_deps(self, lane: str | Path) -> list[str]:
+        """Take every link out of a lane, never following one. Returns the folders whose link is still there
+        (then the lane must be kept)."""
+        path = Path(lane) if isinstance(lane, Path) else self.path(lane)
+        with _LINKS_LOCK:
+            data = _read_links(self.root)
+            recorded = list(data.get(path.name, {}))
+            stuck = []
+            for rel in dict.fromkeys([*recorded, *DEFAULT_LINKS]):
+                dest = path / rel
+                if not _is_link(dest):
+                    continue  # gone already, or the lane's own folder now: it goes with the lane
+                if rel not in recorded and not _points_at(dest, self.root / rel):
+                    continue  # a link that isn't ours (the project may keep one in git): left as it is
+                if not _unlink(dest):
+                    stuck.append(rel)
+            if stuck:
+                data[path.name] = {r: v for r, v in data.get(path.name, {}).items() if r in stuck}
+            else:
+                data.pop(path.name, None)
+            _write_links(self.root, data)
+        return stuck
+
     def start_merge(self, task_id: str, other_task: str) -> list[str]:
         """In ``task_id``'s worktree, begin merging ``other_task``'s branch without committing: the clashes
         stay in the files for the fix-up task to settle. Returns the clashing files."""
@@ -138,12 +374,21 @@ class Worktrees:
         """Commit everything in the worktree (a fix-up's merge included); False when there was nothing."""
         p = self.path(task_id)
         _git(p, "add", "-A")
+        self._unstage_links(p)
         if not _git(p, "status", "--porcelain").stdout.strip() and not self._merging(p):
             return False
         res = _git(p, "commit", "-q", "--no-verify", "-m", message)
         if res.returncode != 0:
             raise RuntimeError(f"couldn't commit {task_id}'s work: {res.stderr.strip() or res.stdout.strip()}")
         return True
+
+    def _unstage_links(self, p: Path) -> None:
+        """A linked folder never goes in a commit, whatever git was told to ignore since."""
+        links = list(_read_links(self.root).get(p.name, {})) + [r for r in DEFAULT_LINKS if _is_link(p / r)]
+        staged = _git(p, "diff", "--cached", "--name-only", "--no-renames").stdout.splitlines()
+        for rel in dict.fromkeys(links):
+            if any(f == rel or f.startswith(rel + "/") for f in staged):
+                _git(p, "rm", "-q", "--cached", "-r", "--ignore-unmatch", "--", rel)
 
     def merge_into_project(self, task_id: str, message: str) -> MergeResult:
         """Merge the task's branch into the branch the project is on. A clash is undone, never forced."""
@@ -178,6 +423,9 @@ class Worktrees:
             return False, "git couldn't say whether it holds unsaved work, so it was kept"
         if state:
             return False, "it holds changes that were never committed, so it was kept"
+        stuck = self.unlink_deps(task_id)  # first, so removing the lane can never reach the project's own folders
+        if stuck:
+            return False, f"the link to {', '.join(stuck)} couldn't be taken away, so it was kept"
         res = _git(self.root, "worktree", "remove", str(self.path(task_id)))
         if res.returncode != 0:
             return False, f"git wouldn't remove it ({res.stderr.strip()[:200]}), so it was kept"
@@ -255,7 +503,8 @@ class ParallelStage:
                           context=lambda: {"id": task.id, "title": task.title},
                           timeout=getattr(main, "timeout", None))
         try:
-            tl.baseline = self._lane_baseline(task, path, fresh)
+            linked = self._link_lane(task, path, fresh)
+            tl.baseline = self._lane_baseline(task, path, fresh and not linked)
             self._proof_before(task)  # the pictures as the task finds it (proof.py)
             ok = self._run_task(task, tasks)
             return ("ok" if ok else "failed"), None
@@ -272,6 +521,19 @@ class ParallelStage:
         finally:
             for name in ("task", "root", "ws", "baseline"):
                 tl.__dict__.pop(name, None)
+
+    def _link_lane(self, task, path: Path, fresh: bool) -> bool:
+        """The project's dependency folders linked into a new lane; True when all were (setup needn't run)."""
+        if not fresh:
+            return False
+        try:
+            out = Worktrees(self.project.root).link_deps(path, self._parallel_settings())
+        except Exception as e:  # noqa: BLE001 - a help: without links the lane runs its setup as before
+            self.emit("stage_error", {"stage": "link_deps", "task": task.id, "error": str(e)[:300]})
+            return False
+        if out["linked"] or out["skipped"]:
+            self.emit("deps_linked", {"task": task.id, "linked": out["linked"], "skipped": out["skipped"]})
+        return bool(out["complete"])
 
     def _lane_baseline(self, task, path: Path, fresh: bool) -> dict[str, Any] | None:
         """Setup in a new worktree, and the checks' starting point for this one (checks.prepare_worktree)."""
