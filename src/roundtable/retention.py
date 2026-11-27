@@ -4,18 +4,22 @@ What it removes (and nothing else), each with a limit in ``retention:`` in harne
 
 * the app's old log files (``<home>/logs``): files older than ``logs_days``; ``app.log`` cut to its newest
   half once it is bigger than ``app_log_mb``
-* each project's event log (``.harness/events.jsonl``) cut to its newest half once bigger than ``events_mb``
+* nothing of a project's event log: once ``.harness/events.jsonl`` is bigger than ``events_mb`` its older half
+  moves into a compressed archive beside it (harness/eventlog.py; the Session view still reads it all)
 * the token saver's spill files (``.harness/spill/``) older than ``spill_days``
 * old pictures (``.harness/shots/<task>/``): only the newest ``shots_keep`` folders stay (and the latest one)
 * the runs kept in the hub (``sessions/<project>/<run>.jsonl``): only the newest ``hub_sessions_keep`` per project
-* task worktrees (``.harness/worktrees/``) whose branch is already merged and which hold no unsaved work
-  (``worktrees_merged``; never while ``parallel.keep_worktrees`` is on)
-* attachments (``.harness/attachments/`` or ``attachments_dir`` under ``.harness``) of finished projects,
-  older than ``attachments_days``
+* task worktrees (``.harness/worktrees/``) of tasks that are done, whose branch is merged, and which hold no
+  uncommitted, untracked or ignored files that matter (build caches like node_modules don't count) –
+  removed the way the run itself does it (``worktrees.json`` updated, a ``worktree_removed`` event);
+  ``worktrees_merged``; never while ``parallel.keep_worktrees`` is on
 
-Safety: never a project's own files – every path is checked to be inside one of the folders above; never
-anything touched in the last ``min_age_minutes``; never a project that is running; symbolic links are
-removed as links, never followed. Every sweep writes what it removed and how much space it freed to
+Never: a project's own files, anything the owner sent (attachments), anything touched in the last
+``min_age_minutes``, a project that is running or paused – every path is checked to be inside one of the
+folders above; symbolic links are removed as links, never followed.
+
+The owner's switch "Tidy up old files automatically" (Settings → Advanced, ``ui/tidyapi.py``) is kept in
+``<home>/tidy.json``; off, the daily sweep doesn't run (``roundtable tidy`` still works). Every sweep writes what it removed and how much space it freed to
 ``<home>/logs/retention.jsonl``. ``dry_run`` says what it would remove and removes nothing.
 
 Run once a day by the desktop app's auto-sync (``run_daily``) and by hand with ``roundtable tidy``.
@@ -33,7 +37,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -42,23 +46,26 @@ DEFAULTS: dict[str, Any] = {
     "enabled": True,
     "logs_days": 30,  # a month of app logs is enough to find out what went wrong last time
     "app_log_mb": 20,  # the running app's log: cut in half beyond this (about a month of busy use)
-    "events_mb": 20,  # a project's event log: Watch only reads its tail; cut in half beyond this
+    "events_mb": 20,  # a project's event log: its older half is archived (compressed) beyond this
     "spill_days": 14,  # spill files are only read back during the task that made them
     "shots_keep": 30,  # picture folders per project: enough to compare a month of tasks
     "hub_sessions_keep": 20,  # runs per project in the hub: the phone's list shows the last few
     "worktrees_merged": True,  # a merged task's copy of the project is no longer needed
-    "attachments_days": 30,  # files sent with ideas, once the project is finished
-    "attachments_dir": ".harness/attachments",
     "min_age_minutes": 60,  # a safety floor: never touch what was written in the last hour
 }
 LOG_NAME = "retention.jsonl"
 LOG_KEEP = 2000  # lines of the sweep's own log
+SWITCH = "tidy.json"  # the owner's switch: {"auto": true|false}
+# Ignored files that never stop a worktree being removed: things any build makes again.
+CACHE_NAMES = {"node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+               "dist", "build", ".godot", ".gradle", "target", ".next", ".cache", ".parcel-cache", ".turbo",
+               ".tox", ".eggs"}
 MB = 1024 * 1024
 
 
 @dataclass
 class Removed:
-    what: str  # logs, app_log, events, spill, shots, hub_sessions, worktrees, attachments
+    what: str  # logs, app_log, events (archived), spill, shots, hub_sessions, worktrees
     path: str
     bytes: int
     note: str = ""
@@ -126,7 +133,7 @@ def settings(cfg: Any = None) -> dict[str, Any]:
             out[k] = (str(v).lower() not in ("0", "false", "off", "no")) if isinstance(d, bool) else type(d)(v)
         except (TypeError, ValueError):
             continue
-    for k in ("logs_days", "app_log_mb", "events_mb", "spill_days", "attachments_days", "min_age_minutes"):
+    for k in ("logs_days", "app_log_mb", "events_mb", "spill_days", "min_age_minutes"):
         out[k] = max(out[k], 0)
     for k in ("shots_keep", "hub_sessions_keep"):
         out[k] = max(out[k], 1)  # always keep the newest
@@ -182,7 +189,7 @@ class Sweep:
         self.limits = limits
         self.dry_run = dry_run
         self.now = now if now is not None else time.time()
-        self.result = Result(dry_run=dry_run, at=datetime.now().astimezone().isoformat(timespec="seconds"))
+        self.result = Result(dry_run=dry_run, at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     def fresh(self, p: Path) -> bool:
         return self.now - _newest_mtime(p) < self.limits["min_age_minutes"] * 60
@@ -254,12 +261,11 @@ class Sweep:
         if not hdir.is_dir() or hdir.is_symlink():
             return
         meta = _meta(hdir)
-        if meta.get("status") == "running":
-            self.result.skipped.append(f"{root.name}: running, left alone")
+        status = str(meta.get("status") or "")
+        if status == "running" or status.startswith("paused"):
+            self.result.skipped.append(f"{root.name}: {status}, left alone")
             return
-        events = hdir / "events.jsonl"
-        if not self.fresh(events):
-            self.trim("events", events, hdir, self.limits["events_mb"] * MB)
+        self.archive_events(root)
         spill = hdir / "spill"
         if spill.is_dir() and not spill.is_symlink():
             for f in sorted(spill.iterdir()):
@@ -268,8 +274,22 @@ class Sweep:
         self.shots(hdir / "shots")
         if self.limits["worktrees_merged"]:
             self.worktrees(root, cfg)
-        if meta.get("status") == "done":
-            self.attachments(root, hdir)
+
+    def archive_events(self, root: Path) -> None:
+        from .harness import eventlog
+
+        live = root / ".harness" / eventlog.LIVE
+        if not live.is_file() or self.fresh(live):
+            return
+        try:
+            done = eventlog.archive_older_half(root, self.limits["events_mb"] * MB, dry_run=self.dry_run,
+                                               now=self.now)
+        except OSError as e:
+            self.result.errors.append(f"{live}: {e}")
+            return
+        if done:
+            self.result.removed.append(Removed("events", str(live), done["saved"],
+                                               f"older part kept in {Path(done['archive']).name}"))
 
     def shots(self, shots: Path) -> None:
         if not shots.is_dir() or shots.is_symlink():
@@ -296,38 +316,36 @@ class Sweep:
                 return
         except Exception:  # noqa: BLE001
             pass
-        from .harness.worktrees import BRANCH_PREFIX, Worktrees
+        from .harness.worktrees import BRANCH_PREFIX, Worktrees, safe_name
 
         merged = _merged_branches(root)
         if merged is None:
             return
+        done = {safe_name(t.get("id", "")): t.get("id", "") for t in _tasks(root / ".harness")
+                if t.get("status") == "done" and t.get("id")}
         trees = Worktrees(root)
         for d in sorted(trees_dir.iterdir()):
-            if not d.is_dir() or d.is_symlink() or f"{BRANCH_PREFIX}{d.name}" not in merged or self.fresh(d):
+            if not d.is_dir() or d.is_symlink() or not _inside(d, trees_dir) or self.fresh(d):
                 continue
-            if not _inside(d, trees_dir):
+            task_id = done.get(d.name)
+            if not task_id:
+                continue  # not done: a retry carries on from here
+            if f"{BRANCH_PREFIX}{d.name}" not in merged:
+                continue
+            why = _unsaved(d)
+            if why:
+                self.result.skipped.append(f"{d}: {why}")
                 continue
             size = _size(d)
             if self.dry_run:
-                if trees.dirty(d.name) is False:
-                    self.result.removed.append(Removed("worktrees", str(d), size, "merged"))
+                self.result.removed.append(Removed("worktrees", str(d), size, f"task {task_id} is done"))
                 continue
-            ok, why = trees.remove(d.name)
-            if ok:
-                self.result.removed.append(Removed("worktrees", str(d), size, "merged"))
-            else:
+            ok, why = trees.remove(task_id)
+            if not ok:
                 self.result.skipped.append(f"{d}: {why}")
-
-    def attachments(self, root: Path, hdir: Path) -> None:
-        rel = str(self.limits["attachments_dir"] or "").strip()
-        if not rel:
-            return
-        d = root / rel
-        if not d.is_dir() or d.is_symlink() or not _inside(d, hdir):
-            return
-        for f in sorted(d.iterdir()):
-            if self.older_than(f, self.limits["attachments_days"]):
-                self.remove("attachments", f, d)
+                continue
+            _forget_worktree(root, task_id)
+            self.result.removed.append(Removed("worktrees", str(d), size, f"task {task_id} is done"))
 
     def hub_sessions(self, hub: Any, lock: Any = None) -> None:
         root = getattr(getattr(hub, "store", None), "root", None)
@@ -362,6 +380,51 @@ def _meta(hdir: Path) -> dict[str, Any]:
         return json.loads((hdir / "project.json").read_text(encoding="utf-8")) or {}
     except (OSError, ValueError):
         return {}
+
+
+def _tasks(hdir: Path) -> list[dict[str, Any]]:
+    try:
+        data = json.loads((hdir / "tasks.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [t for t in data if isinstance(t, dict)] if isinstance(data, list) else []
+
+
+def _unsaved(tree: Path) -> str:
+    """Why a worktree must stay: changes, untracked files, or ignored files that aren't a build cache; else ""."""
+    from .harness.safeenv import clean_env
+
+    try:
+        res = subprocess.run(["git", "status", "--porcelain", "--ignored", "--untracked-files=all"],
+                             cwd=str(tree), capture_output=True, text=True, env=clean_env(), encoding="utf-8",
+                             errors="replace", timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"git couldn't look at it ({e}), so it was kept"
+    if res.returncode != 0:
+        return "git couldn't say whether it holds unsaved work, so it was kept"
+    for line in res.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        code, path = line[:2], line[3:].strip().strip('"')
+        if code == "!!" and set(Path(path.rstrip("/")).parts) & CACHE_NAMES:
+            continue
+        what = {"!!": "files git ignores", "??": "files never committed"}.get(code, "changes never committed")
+        return f"it holds {what} ({path}), so it was kept"
+    return ""
+
+
+def _forget_worktree(root: Path, task_id: str) -> None:
+    """What the run does when it removes a worktree itself: drop its record and say so in the events."""
+    from .core.models import utcnow
+    from .harness.orchestrator import _IO_LOCK, Project
+
+    project = Project(root)
+    with _IO_LOCK:
+        records = project._read("worktrees.json", {})
+        if isinstance(records, dict) and records.pop(task_id, None) is not None:
+            project._write("worktrees.json", records)
+        project.append("events.jsonl", {"at": utcnow(), "event": "worktree_removed", "task": task_id,
+                                        "by": "tidy"})
 
 
 def _merged_branches(root: Path) -> set[str] | None:
@@ -447,6 +510,45 @@ def tidy(cfg: Any = None, home: Path | None = None, hub: Any = None, hub_lock: A
     return sweep.result
 
 
+def auto_on(home: Path) -> bool:
+    """The owner's switch "Tidy up old files automatically" (on unless turned off)."""
+    try:
+        return bool(json.loads((Path(home) / SWITCH).read_text(encoding="utf-8")).get("auto", True))
+    except (OSError, ValueError, AttributeError):
+        return True
+
+
+def set_auto(home: Path, on: bool) -> bool:
+    Path(home).mkdir(parents=True, exist_ok=True)
+    (Path(home) / SWITCH).write_text(json.dumps({"auto": bool(on)}), encoding="utf-8")
+    return bool(on)
+
+
+GROUP_NAMES = {"logs": "Old app logs", "app_log": "The app's log, shortened", "events": "Old history, packed away",
+               "spill": "Spill files", "shots": "Old pictures", "hub_sessions": "Old runs in the hub",
+               "worktrees": "Working copies of finished tasks"}
+
+
+def details(groups: dict[str, Any]) -> list[str]:
+    """One plain line per kind of thing removed, for "More"."""
+    return [f"{GROUP_NAMES.get(k, k)}: {g.get('count', 0)} ({size_text(int(g.get('bytes', 0)))})"
+            for k, g in (groups or {}).items()]
+
+
+def activity_items(home: Path, limit: int = 10) -> list[dict[str, Any]]:
+    """One line for the Activity feed per real sweep that removed something; the list is behind More."""
+    out = []
+    for e in entries(home, limit=200):
+        if e.get("dry_run") or not e.get("removed"):
+            continue
+        out.append({"at": e.get("at", ""), "seq": 0, "project": "", "kind": "tidy", "who": "Roundtable",
+                    "task": "", "role": "", "model": "", "text": e.get("message", ""),
+                    "details": details(e.get("groups") or {})})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _state_path(home: Path) -> Path:
     return Path(home) / "retention-state.json"
 
@@ -462,7 +564,7 @@ def run_daily(cfg: Any = None, home: Path | None = None, hub: Any = None, hub_lo
         state = json.loads(_state_path(home).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         state = {}
-    if busy or state.get("last_day") == today:
+    if busy or state.get("last_day") == today or not auto_on(home):
         return None
     try:
         home.mkdir(parents=True, exist_ok=True)
