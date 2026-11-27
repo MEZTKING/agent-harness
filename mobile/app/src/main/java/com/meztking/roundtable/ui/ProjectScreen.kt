@@ -102,6 +102,7 @@ class ProjectActions(
 @Composable
 fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    com.meztking.roundtable.notify.QuietWhileOpen(ui.id)  // no notification for this project while it's on screen
     val doc = ui.status.data
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -42,6 +42,7 @@ Everything else:
     roundtable init                       write starter hub.yaml and harness.yaml
     roundtable update [--check] [--ref BRANCH] [--force]   built-in updater
     roundtable version
+    roundtable automation [list | run ID] [--watch 60]   schedules, GitHub issues and failed checks that start work
     roundtable backup now|list|where|restore FILE   back up settings, learned settings and plans
                                           (to Google Drive's folder or --to PATH; never API keys)
     roundtable app                        open the desktop app (window) from a source install
@@ -97,6 +98,10 @@ def main(argv: list[str] | None = None) -> None:
         return _remote(argv)
     if cmd == "autopilot":
         return _autopilot(argv)
+    if cmd == "automation":
+        from .automation import main as automation_main
+
+        return automation_main([a for a in argv if a != "automation"])
     if cmd == "backup":
         from .backup import main as backup_main
 

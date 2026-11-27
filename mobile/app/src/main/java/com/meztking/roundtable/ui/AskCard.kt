@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -78,6 +79,7 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
         }
         Text(ask.question, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 26.sp, color = Hall.ink)
         if (ask.detail.isNotBlank()) Text(ask.detail, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
+        if (ask.kind == "command") CommandBlock(ask)
         if (sent == null && hint.isNotBlank()) Text(hint, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(8.dp))
         if (sent != null) {
@@ -110,6 +112,18 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
             if (otherOpen && ask.options.isNotEmpty()) TextButton({ otherOpen = false; other = "" }) { Text("Cancel", color = Hall.inkSoft) }
         }
     }
+}
+
+/** The command a builder wants to run, in full, or folded with Show all when it's long ("Ask me first"). */
+@Composable
+private fun CommandBlock(ask: Ask) {
+    var all by rememberSaveable(ask.id) { mutableStateOf(false) }
+    Spacer(Modifier.height(6.dp))
+    Text(ask.commandShown(all), Modifier.fillMaxWidth().background(Hall.line.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+        .border(1.dp, Hall.line, RoundedCornerShape(10.dp)).padding(10.dp),
+        fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 17.sp, color = Hall.ink)
+    if (ask.folded) TextButton({ all = !all }) { Text(if (all) "Show less" else "Show all (${ask.lines} lines)", color = Hall.ink) }
+    if (ask.commandFoot.isNotBlank()) Text(ask.commandFoot, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
 }
 
 /** One big answer: its label (marked when recommended) and a line saying what it does. */

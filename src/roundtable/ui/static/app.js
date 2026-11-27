@@ -10,10 +10,13 @@ import { viewLetters } from "./letters.js";
 import { viewActivity } from "./activity.js";
 import { viewModels } from "./models.js";
 import { viewSettings, viewSetup } from "./settings.js";
+import { viewTools } from "./tools.js";
+import "./notify.js";
+import { viewAutomations } from "./automation.js";
 
-const ROOMS = { hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
+const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
   activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup };
-const ROOM_OF = { new: "projects", p: "projects", setup: "settings" };
+const ROOM_OF = { new: "projects", p: "projects", setup: "settings", automations: "settings" };
 
 // old addresses (bookmarks, links in letters and the autopilot's log) still land in the right place
 function translate(parts) {

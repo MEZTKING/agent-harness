@@ -288,6 +288,8 @@ def make_local_server(home: Path, port: int, token: str):
         raise ValueError(f"ROUNDTABLE_LAUNCH_TOKEN must be set (at least {MIN_TOKEN} characters)")
     home = Path(home).expanduser()
     os.environ["ROUNDTABLE_HOME"] = str(home)
+    if os.environ.get("ROUNDTABLE_ASK_FIRST") == "1":  # the app's "Ask me first": every command waits (harness/gate.py)
+        os.environ["ROUNDTABLE_GATE"] = "all"
     paths = Paths(home)
     setup = ensure_phone_setup(paths)
     keys = KeyStore(paths, file_only=True)
