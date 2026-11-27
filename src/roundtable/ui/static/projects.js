@@ -61,7 +61,13 @@ export async function viewNew() {
   const withFiles = await has("/api/attach/start");  // the message box (compose.js): pictures and files with the idea
   const pictures = withFiles ? composer({ key: "new-idea", textless: true, label: "Pictures or files for your idea" }) : null;
   const answers = {};
-  let step = 0;
+  // "Make another like this" and "Start one" (kinds.js startWizard): the answers they fill in, once
+  try {
+    const pre = JSON.parse(sessionStorage.getItem("rt-wizard-prefill") || "null");
+    sessionStorage.removeItem("rt-wizard-prefill");
+    if (pre) for (const [k, v] of Object.entries(pre)) if (k === "extras" || w.asks.some((a) => a.id === k)) answers[k] = v;
+  } catch { /* storage unavailable: the wizard starts empty */ }
+  let step = Math.max(0, w.asks.findIndex((a) => !answers[a.id]));
   const root = h("div", { class: "wizard" });
   const said = (a) => {
     const ans = answers[a.id] || {};

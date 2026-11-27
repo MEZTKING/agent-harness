@@ -1,0 +1,15 @@
+schema: extra@1
+id: apk
+name: Android app (APK)
+blurb: Packs the web app as an app for Android phones.
+status: trial
+match: [android, apk, phone app, mobile app, on my phone]
+needs: [java, android]
+targets: [apk]
+pc_only: true
+task: "Add a last task that wraps the finished web app as an Android APK (a WebView shell), builds it and puts the .apk in dist/."
+plan:
+  dont:
+    - {text: "No Play Store release", why: "It needs the owner's own signing key"}
+proof:
+  - {id: apk_built, how: file_exists, path: "dist/*.apk", words: "The APK was built"}

@@ -1,0 +1,17 @@
+{
+ "choices": [
+  {
+   "id": "website",
+   "name": "Website",
+   "score": 2.0,
+   "why": "because you said “site” and “bakery”"
+  },
+  {
+   "id": "other",
+   "name": "Something else",
+   "score": 0.0,
+   "why": "if it's none of these"
+  }
+ ],
+ "extras": []
+}

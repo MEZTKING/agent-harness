@@ -5,6 +5,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -92,6 +95,17 @@ import kotlin.math.sin
 /** Above this many seats the table becomes a list (the round table fits about eight). */
 const val TABLE_MAX = 8
 
+/**
+ * Pinned and put-away projects on this phone (Comfort): pinned ones sit first, put-away ones wait behind
+ * "Put away" (hidden, never deleted). [pin] and [putAway] change them.
+ */
+class TablePins(
+    val pinned: Set<String> = emptySet(),
+    val away: Set<String> = emptySet(),
+    val pin: (String, Boolean) -> Unit = { _, _ -> },
+    val putAway: (String, Boolean) -> Unit = { _, _ -> },
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TableScreen(
@@ -111,16 +125,25 @@ fun TableScreen(
     onNotes: (() -> Unit)? = null,
     onSearch: (() -> Unit)? = null,
     onNewIdea: (() -> Unit)? = null,
+    /** Everything finished, and what Roundtable can make (GalleryScreen). */
+    onGallery: (() -> Unit)? = null,
+    /** Pinned and put-away projects; null shows every project in the hub's order, with no menu. */
+    pins: TablePins? = null,
+    /** What waits for the owner is drawn beside the Table (two panes), so the peek at the bottom isn't needed. */
+    needsBeside: Boolean = false,
 ) {
     val data = hall.data
     var showAutopilot by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
-    val seats = data?.seats.orEmpty()
+    val all = data?.seats.orEmpty()
+    val (seats, awaySeats) = remember(all, pins?.pinned, pins?.away) {
+        com.meztking.roundtable.data.Comfort.arrange(all, { it.id }, pins?.pinned.orEmpty(), pins?.away.orEmpty())
+    }
     val needs = data?.needs.orEmpty()
     // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
     val waits = remember(needs) { NeedsOrder.organise(needs).associate { it.project to it.summary } }
     Column(Modifier.fillMaxSize()) {
-        Header(whereLabel, mode, hall.loading, onRefresh, onNotes, onSearch, onNewIdea)
+        Header(whereLabel, mode, hall.loading, onRefresh, onNotes, onSearch, onNewIdea, onGallery)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
         UpdateBanner(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
@@ -130,7 +153,7 @@ fun TableScreen(
                 when {
                     data == null && hall.loading -> item { Loading("Gathering the table…") }
                     data == null -> {}
-                    seats.isEmpty() -> item {
+                    all.isEmpty() -> item {
                         Panel(Modifier.fillMaxWidth()) {
                             Text("The table is empty", style = MaterialTheme.typography.titleMedium, color = Hall.goldBright)
                             Text("No projects in the hub yet. Add them under agents: in hub.yaml (or with roundtable connect on your PC), then pull down to refresh.",
@@ -138,8 +161,8 @@ fun TableScreen(
                         }
                     }
                     seats.size > TABLE_MAX -> {
-                        item { CentreBanner(needs.size) { onShowNeeds(true) } }
-                        items(seats, key = { it.id }) { SeatRow(it, waits[it.id]) { onOpen(it) } }
+                        if (needs.isNotEmpty()) item { CentreBanner(needs.size) { onShowNeeds(true) } }
+                        items(seats, key = { it.id }) { SeatRow(it, waits[it.id], pins) { onOpen(it) } }
                     }
                     else -> {
                         item {
@@ -149,15 +172,16 @@ fun TableScreen(
                         }
                         item {
                             val s = seats.firstOrNull { it.id == selected }
-                            if (s != null) SeatSummary(s, waits[s.id]) { onOpen(s) }
+                            if (s != null) SeatSummary(s, waits[s.id], pins) { onOpen(s) }
                             else Text("Tap a seat to see where it stands. Tap it again to open it.", color = Hall.muted,
                                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         }
                     }
                 }
+                if (awaySeats.isNotEmpty() && pins != null) item(key = "put-away") { PutAway(awaySeats, pins, onOpen) }
                 item { Spacer(Modifier.height(56.dp)) }
             }
-            if (data != null) NeedsPeek(needs, Modifier.align(Alignment.BottomCenter)) { onShowNeeds(true) }
+            if (data != null && !needsBeside) NeedsPeek(needs, Modifier.align(Alignment.BottomCenter)) { onShowNeeds(true) }
         }
     }
     if (showNeeds) {
@@ -179,22 +203,29 @@ fun TableScreen(
 
 @Composable
 private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null,
-                   onSearch: (() -> Unit)? = null, onNewIdea: (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        TableMark(Modifier.size(34.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Roundtable Hold", fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, color = Hall.text)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).background(if (mode == null) Hall.muted else Hall.good, CircleShape))
-                Spacer(Modifier.width(6.dp))
-                Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                   onSearch: (() -> Unit)? = null, onNewIdea: (() -> Unit)? = null, onGallery: (() -> Unit)? = null) {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TableMark(Modifier.size(34.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Roundtable Hold", fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, color = Hall.text,
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).background(if (mode == null) Hall.muted else Hall.good, CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
+            if (onSearch != null) IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search everything", tint = Hall.gold) }
+            IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
         }
-        if (onNewIdea != null) TextButton(onClick = onNewIdea) { Text("+ New idea", color = Hall.gold) }
-        if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold) }
-        if (onSearch != null) IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search everything", tint = Hall.gold) }
-        IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
+        // The word buttons get a row of their own, so the title is never squeezed (owner's screenshot, 27 Nov).
+        if (onNewIdea != null || onNotes != null || onGallery != null) Row(Modifier.fillMaxWidth().padding(start = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (onNewIdea != null) TextButton(onClick = onNewIdea) { Text("+ New idea", color = Hall.gold, maxLines = 1) }
+            if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold, maxLines = 1) }
+            if (onGallery != null) TextButton(onClick = onGallery) { Text("Gallery", color = Hall.gold, maxLines = 1) }
+        }
     }
 }
 
@@ -322,7 +353,7 @@ fun SeatRing(s: SeatView, selected: Boolean, size: Dp, badgeTip: String? = null)
 
 /** The card under the table for the seat that is tapped. */
 @Composable
-fun SeatSummary(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
+fun SeatSummary(s: SeatView, waits: String? = null, pins: TablePins? = null, onOpen: () -> Unit) {
     Panel(Modifier.fillMaxWidth(), highlight = s.status == "waiting") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).background(Hall.status(s.status), CircleShape))
@@ -332,8 +363,10 @@ fun SeatSummary(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Chip(s.status, Hall.status(s.status))
             if (s.autopilot) { Spacer(Modifier.width(6.dp)); AutopilotMark() }
+            if (pins != null && s.id in pins.pinned) { Spacer(Modifier.width(6.dp)); PinMark() }
             Spacer(Modifier.weight(1f))
             if (s.lastActivity.isNotBlank()) Text(ago(s.lastActivity), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+            if (pins != null) SeatMenu(s, pins)
         }
         // short first: one line under the name (what waits for the owner, else where it stands); the rest is a tap away
         val line = when {
@@ -358,14 +391,24 @@ fun SeatSummary(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
 
 /** B's roll call: one row per project, for when there are too many seats for the table. */
 @Composable
-fun SeatRow(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun SeatRow(s: SeatView, waits: String? = null, pins: TablePins? = null, onOpen: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val buzz = com.meztking.roundtable.ui.theme.rememberHaptics()
+    Box {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Hall.panel)
         .border(if (s.status == "waiting") 2.dp else 1.dp, if (s.status == "waiting") Hall.candle else Hall.line, RoundedCornerShape(14.dp))
-        .clickable(onClick = onOpen).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        .combinedClickable(onClick = onOpen, onLongClickLabel = if (pins != null) "Pin or put away" else null,
+            onLongClick = if (pins != null) ({ buzz(); menu = true }) else null)
+        .padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
         SeatRing(s, false, 46.dp, waits)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(s.id, style = MaterialTheme.typography.titleSmall, color = Hall.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(s.id, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall, color = Hall.text, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+                if (pins != null && s.id in pins.pinned) { Spacer(Modifier.width(6.dp)); PinMark() }
+            }
             if (!waits.isNullOrBlank()) Text("Waits for you: $waits", style = MaterialTheme.typography.bodySmall, color = Hall.candle, maxLines = 1,
                 overflow = TextOverflow.Ellipsis)
             Text(listOf(s.statusText, if (s.building.isBlank()) s.lives else "").filter { it.isNotBlank() }.joinToString(" · "),
@@ -378,6 +421,57 @@ fun SeatRow(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
             }
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Hall.goldDim)
+    }
+    if (pins != null) SeatMenuItems(s, pins, menu) { menu = false }
+    }
+}
+
+/** A small pin by a pinned project's name. */
+@Composable
+fun PinMark() {
+    Icon(Icons.Filled.PushPin, "Pinned to the top", Modifier.size(14.dp), tint = Hall.gold)
+}
+
+/** The ⋮ on a seat's card: pin it to the top, or put it away. */
+@Composable
+private fun SeatMenu(s: SeatView, pins: TablePins) {
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        TipIcon("Pin or put away", { menu = true }) { Icon(Icons.Filled.MoreVert, "Pin or put away", tint = Hall.gold) }
+        SeatMenuItems(s, pins, menu) { menu = false }
+    }
+}
+
+@Composable
+private fun SeatMenuItems(s: SeatView, pins: TablePins, open: Boolean, close: () -> Unit) {
+    val buzz = com.meztking.roundtable.ui.theme.rememberHaptics()
+    androidx.compose.material3.DropdownMenu(open, close, containerColor = Hall.panel) {
+        val pinned = s.id in pins.pinned
+        androidx.compose.material3.DropdownMenuItem(text = { Text(if (pinned) "Unpin" else "Pin to the top") },
+            onClick = { pins.pin(s.id, !pinned); buzz(); close() })
+        androidx.compose.material3.DropdownMenuItem(
+            text = {
+                Column {
+                    Text("Put away")
+                    Text("Hidden from the Table on this phone. Nothing is deleted.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+                }
+            },
+            onClick = { pins.putAway(s.id, true); buzz(); close() })
+    }
+}
+
+/** Put-away projects, folded at the bottom: each can be opened or brought back. */
+@Composable
+private fun PutAway(seats: List<SeatView>, pins: TablePins, onOpen: (SeatView) -> Unit) {
+    Fold("Put away (${seats.size})") {
+        Text("Hidden from the Table on this phone; nothing was deleted.", color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+        seats.forEach { s ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(s.id, Modifier.weight(1f).clickable { onOpen(s) }.padding(vertical = 8.dp), color = Hall.text,
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                TextButton(onClick = { pins.putAway(s.id, false) }) { Text("Bring back") }
+            }
+        }
     }
 }
 

@@ -4,6 +4,7 @@
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, dialog, fileSize, plural, jobName, modelName, every, has } from "./core.js";
 import { notifySettings } from "./notify.js";
 import { tidyCard } from "./tidy.js";
+import { poundsSettings } from "./pounds.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let Roundtable use each AI maker"], ["services", "AI services", "Which AI services Roundtable can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
@@ -131,9 +132,10 @@ const LIMITS = [["max_usd_per_day", "Most for one day, on every project", "When 
   ["max_cost_usd", "Most for one project", "A project stops at this and asks you before spending more."],
   ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."]];
 async function spendingPart() {
+  const gbp = await poundsSettings().catch(() => null);  // dollars only, or pounds beside them (pounds.js)
   if (!S.ov.hub || !(await has("/api/settings/shared"))) {
-    return card("Spending", h("p", {}, "Each project has its own limit (on its Settings tab). Connect the hub to set limits every machine shares, your phone included."),
-      h("a", { class: "btn", href: "#/settings/hub" }, "Connect the hub"));
+    return [card("Spending", h("p", {}, "Each project has its own limit (on its Settings tab). Connect the hub to set limits every machine shares, your phone included."),
+      h("a", { class: "btn", href: "#/settings/hub" }, "Connect the hub")), gbp ? h("section", { class: "card" }, gbp) : null];
   }
   let st;
   try { st = await get("/api/settings/shared"); } catch (e) { return card("Spending", h("p", {}, e.message)); }
@@ -150,7 +152,7 @@ async function spendingPart() {
       for (const [k] of LIMITS) { const v = inputs[k].value.trim(); if (v !== "" && Number(v) !== Number(st.limits[k])) limits[k] = Number(v); }
       if (!Object.keys(limits).length) return toast("Nothing changed");
       act(ev.currentTarget, () => post("/api/settings/shared", { changes: { limits } }), "Saved, for every machine", (r) => { st = r; });
-    } }, "Save")));
+    } }, "Save")), gbp);
 }
 
 // ---------- hub ----------

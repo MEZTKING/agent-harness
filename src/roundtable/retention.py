@@ -7,6 +7,9 @@ What it removes (and nothing else), each with a limit in ``retention:`` in harne
 * nothing of a project's event log: once ``.harness/events.jsonl`` is bigger than ``events_mb`` its older half
   moves into a compressed archive beside it (harness/eventlog.py; the Session view still reads it all)
 * the token saver's spill files (``.harness/spill/``) older than ``spill_days``
+* a task's live command output (``.harness/live/*.log``) older than ``logs_days``
+* the ways back that rewind keeps (``refs/roundtable/undo/…``) older than ``rewind_days``: "Put it back" is
+  offered that long; the copies in ``.harness/rewinds/`` and ``rewinds.jsonl`` stay
 * old pictures (``.harness/shots/<task>/``): only the newest ``shots_keep`` folders stay (and the latest one)
 * the runs kept in the hub (``sessions/<project>/<run>.jsonl``): only the newest ``hub_sessions_keep`` per project
 * task worktrees (``.harness/worktrees/``) of tasks that are done, whose branch is merged, and which hold no
@@ -48,6 +51,7 @@ DEFAULTS: dict[str, Any] = {
     "app_log_mb": 20,  # the running app's log: cut in half beyond this (about a month of busy use)
     "events_mb": 20,  # a project's event log: its older half is archived (compressed) beyond this
     "spill_days": 14,  # spill files are only read back during the task that made them
+    "rewind_days": 30,  # "Put it back" after an undo stays offered a month (the owner's question 2, 27 Nov 2026)
     "shots_keep": 30,  # picture folders per project: enough to compare a month of tasks
     "hub_sessions_keep": 20,  # runs per project in the hub: the phone's list shows the last few
     "worktrees_merged": True,  # a merged task's copy of the project is no longer needed
@@ -65,7 +69,7 @@ MB = 1024 * 1024
 
 @dataclass
 class Removed:
-    what: str  # logs, app_log, events (archived), spill, shots, hub_sessions, worktrees
+    what: str  # logs, app_log, events (archived), spill, live, rewind, shots, hub_sessions, worktrees
     path: str
     bytes: int
     note: str = ""
@@ -133,7 +137,7 @@ def settings(cfg: Any = None) -> dict[str, Any]:
             out[k] = (str(v).lower() not in ("0", "false", "off", "no")) if isinstance(d, bool) else type(d)(v)
         except (TypeError, ValueError):
             continue
-    for k in ("logs_days", "app_log_mb", "events_mb", "spill_days", "min_age_minutes"):
+    for k in ("logs_days", "app_log_mb", "events_mb", "spill_days", "rewind_days", "min_age_minutes"):
         out[k] = max(out[k], 0)
     for k in ("shots_keep", "hub_sessions_keep"):
         out[k] = max(out[k], 1)  # always keep the newest
@@ -271,9 +275,33 @@ class Sweep:
             for f in sorted(spill.iterdir()):
                 if self.older_than(f, self.limits["spill_days"]):
                     self.remove("spill", f, spill)
+        live = hdir / "live"
+        if live.is_dir() and not live.is_symlink():
+            for f in sorted(live.glob("*.log")):
+                if self.older_than(f, self.limits["logs_days"]):
+                    self.remove("live", f, live)
+        self.rewind_refs(root)
         self.shots(hdir / "shots")
         if self.limits["worktrees_merged"]:
             self.worktrees(root, cfg)
+
+    def rewind_refs(self, root: Path) -> None:
+        """Ways back older than ``rewind_days`` (harness/rewind.py); only refs under refs/roundtable/undo/."""
+        if not (root / ".git").exists():
+            return
+        from .harness import rewind
+
+        try:
+            old = rewind.expired_refs(root, int(self.limits["rewind_days"]), now=datetime.fromtimestamp(self.now, timezone.utc))
+        except Exception as e:  # git missing or broken: nothing is removed
+            self.result.errors.append(f"{root.name}: ways back: {e}"[:300])
+            return
+        for ref in old:
+            if self.dry_run or rewind.drop_ref(root, ref):
+                self.result.removed.append(Removed("rewind", f"{root}:{ref}", 0, "a way back older than "
+                                                   f"{self.limits['rewind_days']} days"))
+            else:
+                self.result.errors.append(f"{root.name}: couldn't remove {ref}")
 
     def archive_events(self, root: Path) -> None:
         from .harness import eventlog

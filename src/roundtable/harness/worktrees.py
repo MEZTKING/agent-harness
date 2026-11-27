@@ -214,6 +214,9 @@ class ParallelStage:
         from ..providers import cli_engine
 
         cli_engine.stop_all()  # a coding CLI is closed at once, with everything it started
+        from . import livecmd
+
+        livecmd.stop_strays(self.project.root)  # and a task's running command (tests, a server) with it
 
     # -- the budget, shared by several threads ----------------------------------------------------------------
     def _arm_budget(self) -> None:
@@ -253,6 +256,7 @@ class ParallelStage:
                           timeout=getattr(main, "timeout", None))
         try:
             tl.baseline = self._lane_baseline(task, path, fresh)
+            self._proof_before(task)  # the pictures as the task finds it (proof.py)
             ok = self._run_task(task, tasks)
             return ("ok" if ok else "failed"), None
         except RunHalted as e:

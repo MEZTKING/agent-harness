@@ -150,6 +150,13 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
             .takeIf { it.title.isNotBlank() }
     }
 
+    /** The plan's kind card (kinds), or null when the plan has none. */
+    suspend fun planKind(path: String): com.meztking.roundtable.data.PlanKind? {
+        val o = ApiJson.parseToJsonElement(call("GET", "/api/plan?path=${q(path)}")) as? kotlinx.serialization.json.JsonObject ?: return null
+        val doc = o["doc"] as? kotlinx.serialization.json.JsonObject ?: return null
+        return com.meztking.roundtable.data.Kinds.planKind(doc.toString())
+    }
+
     suspend fun live(path: String): String = call("GET", "/api/project/live?inline=1&path=${q(path)}")
     /** The latest task's steps as short lines. */
     suspend fun session(path: String): String = call("GET", "/api/project/session?compact=1&path=${q(path)}")
@@ -225,6 +232,12 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         return call(method, path, body)
     }
 
+    /** Calls of the newer features (rewind, proof, kinds and gallery, rates, a task's live command); nothing else. */
+    suspend fun feature(method: String, path: String, body: String? = null): String {
+        require(FEATURE_PREFIXES.any { path.startsWith(it) }) { "not a feature call" }
+        return call(method, path, body)
+    }
+
     suspend fun closeTodo(agent: String, id: String) { call("POST", "/api/journal/${q(agent)}/${q(id)}/close", "{}") }
     suspend fun logEntry(agent: String, kind: String, text: String, priority: String = "normal") {
         call("POST", "/api/journal/${q(agent)}", obj { put("kind", kind); put("text", text); put("priority", priority) })
@@ -244,6 +257,7 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     }
 
     companion object {
+        val FEATURE_PREFIXES = listOf("/api/rewind", "/api/proof", "/api/kinds", "/api/gallery", "/api/rates", "/api/terminal/task")
         private val JSON = "application/json".toMediaType()
         private fun obj(build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject(build).toString()
 
@@ -275,6 +289,9 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
 
         /** Pair with a PC using the offer from its QR code (or typed code). */
         suspend fun pair(offer: PairingOffer, deviceName: String, code: String = offer.code): PcLink {
+            // a PC found on the Wi-Fi: its code must belong to the certificate about to be pinned, checked before
+            // the code is sent, so a stand-in on the same Wi-Fi never sees it (discovery.py bound_code)
+            if (offer.found) Discovery.requireCode(code, offer.fingerprint)
             val tmp = Api(PcLink(offer.pcName, offer.hosts, offer.port, offer.fingerprint, ""))
             val body = obj { put("code", code); put("device_name", deviceName) }
             val r: PairResult = ApiJson.decodeFromString(tmp.call("POST", "/api/pair/claim", body))

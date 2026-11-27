@@ -43,6 +43,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -72,6 +73,8 @@ import com.meztking.roundtable.ui.theme.Panel
 import com.meztking.roundtable.ui.theme.Parchment
 import com.meztking.roundtable.ui.theme.ParchmentButtons
 import com.meztking.roundtable.ui.theme.Serif
+import com.meztking.roundtable.ui.theme.LocalComfort
+import com.meztking.roundtable.data.SentItem
 
 /** Everything the project screen draws, so it can be shown in previews and tests without a ViewModel. */
 data class ProjectUi(
@@ -107,6 +110,9 @@ class ProjectActions(
     val composer: ComposerSender? = null,
     /** The project's folder on that machine, for the message box's @. */
     val path: String? = null,
+    /** The machine that has the project (the PC, or this phone's Roundtable): Undo…, proof, kinds and pounds.
+     *  Null in Hub mode, where those wait for the PC. */
+    val machine: com.meztking.roundtable.net.Api? = null,
 )
 
 @Composable
@@ -114,6 +120,20 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     com.meztking.roundtable.notify.QuietWhileOpen(ui.id)  // no notification for this project while it's on screen
     val doc = ui.status.data
+    // pounds beside the dollars, read through the PC (the phone asks no outside service)
+    var rate by remember { mutableStateOf<com.meztking.roundtable.data.Rate?>(null) }
+    LaunchedEffect(a.machine) {
+        val m = a.machine
+        rate = if (m == null) null else runCatching { com.meztking.roundtable.data.Pounds.parse(m.feature("GET", "/api/rates")) }.getOrNull()
+    }
+    var undo by remember { mutableStateOf<String?>(null) }  // the finished task whose Undo… sheet is open
+    val undoTask = undo
+    val machine = a.machine
+    val folder = a.path
+    if (undoTask != null && machine != null && folder != null) {
+        RewindSheet(machine, folder, undoTask) { words -> undo = null; if (words.isNotBlank()) a.refresh() }
+    }
+    val canUndo = machine != null && folder != null && ui.seat?.status != "running"
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = a.back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Hall.gold) }
@@ -146,9 +166,10 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
         Box(Modifier.weight(1f)) {
             when (tab) {
                 0 -> StatusTab(ui.status, a.refresh)
-                1 -> PlanTab(ui, a)
+                1 -> PlanTab(ui, a, rate, if (canUndo) ({ t: String -> undo = t }) else null)
                 3 -> LiveTab(ui.live, ui.mode, a.refresh, finished = ui.seat?.status == "done" || ui.plan.data?.let { PlanTop.of(it, ui.id).finished } == true,
-                    onTakePictures = { a.command("show_it", "show_it", emptyMap()) }, sent = ui.sent["show_it"])
+                    onTakePictures = { a.command("show_it", "show_it", emptyMap()) }, sent = ui.sent["show_it"],
+                    proof = if (machine != null && folder != null) proofLoader(machine, folder) else null)
                 else -> MessagesTab(ui, a)
             }
         }
@@ -195,7 +216,8 @@ private fun StatusTab(status: Load<StatusDoc>, onRefresh: () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
+private fun PlanTab(ui: ProjectUi, a: ProjectActions, rate: com.meztking.roundtable.data.Rate? = null,
+                    onUndo: ((String) -> Unit)? = null) {
     val plan = ui.plan
     PullToRefreshBox(plan.loading && plan.data != null, a.refresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -208,7 +230,7 @@ private fun PlanTab(ui: ProjectUi, a: ProjectActions) {
                     Text("No plan yet. A plan appears here when Roundtable Hold plans a run for this project.", color = Hall.muted,
                         modifier = Modifier.padding(vertical = 24.dp))
                 }
-                else -> calmPlan(p, ui, a)
+                else -> calmPlan(p, ui, a, rate, onUndo)
             }
         }
     }
@@ -236,7 +258,9 @@ data class PlanTop(val title: String, val state: String, val summary: String, va
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView, ui: ProjectUi, a: ProjectActions) {
+private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView, ui: ProjectUi, a: ProjectActions,
+                                                                   rate: com.meztking.roundtable.data.Rate? = null,
+                                                                   onUndo: ((String) -> Unit)? = null) {
     val top = PlanTop.of(p, ui.id)
     val d = p.doc
     val cards = ui.asks.data.orEmpty()
@@ -252,9 +276,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
             }
             if (top.summary.isNotBlank()) Text(top.summary, Modifier.padding(top = 6.dp), color = Hall.muted,
                 style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            if (top.estimate.isNotBlank()) Text(top.estimate, Modifier.padding(top = 4.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+            if (top.estimate.isNotBlank()) Text(top.estimate + com.meztking.roundtable.data.Pounds.besideText(top.estimate, rate),
+                Modifier.padding(top = 4.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         }
     }
+    // what kind of thing it is; the question itself comes as a card (kind "kind"), so here it only says what it is
+    val kind = p.kind
+    if (kind != null && cards.none { it.kind == "kind" }) item(key = "kind") { KindCard(kind, onChoose = null) }
     if (cards.isNotEmpty() && !top.finished) {
         val agreed = d?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
         items(cards, key = { "ask:" + it.id }) { c ->
@@ -263,19 +291,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     }
     if (hub && top.waiting) item(key = "actions") {
         val pending = p.words?.pendingChanges == true || ui.sent.keys.any { k -> listOf("note:", "choose:", "answer:", "idea:", "ask:").any { k.startsWith(it) } }
-        PlanButtons(ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
+        PlanButtons(ui.id, ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
     }
     if (top.tasks.isNotEmpty()) {
         item(key = "tasks-head") {
             SectionTitle("Tasks · ${top.tasks.count { it.status == "done" }} of ${top.tasks.size} done")
         }
-        item(key = "tasks") { Column { top.tasks.forEach { TaskLine(it) } } }
+        item(key = "tasks") { Column { top.tasks.forEach { TaskLine(it, if (it.status == "done") onUndo else null) } } }
     }
     if (d != null) item(key = "more") { MoreAboutPlan(d, showSummary = top.summary.isBlank()) }
 }
 
 @Composable
-private fun TaskLine(t: PlanDoc.PlanTask) {
+private fun TaskLine(t: PlanDoc.PlanTask, onUndo: ((String) -> Unit)? = null) {
     val (mark, color) = when (t.status) {
         "done" -> "✓" to Hall.good
         "running" -> "●" to Hall.amber
@@ -287,6 +315,8 @@ private fun TaskLine(t: PlanDoc.PlanTask) {
         Text(mark, Modifier.width(22.dp), color = color, fontWeight = FontWeight.Bold)
         Text(Markdown.plain(t.title), Modifier.weight(1f), color = if (t.status == "done") Hall.text else Hall.muted, maxLines = 1,
             overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+        // see which files would change back, then choose; it can be put back afterwards (the PC's rewind)
+        if (onUndo != null) TextButton(onClick = { onUndo(t.id) }) { Text("Undo…", color = Hall.gold, maxLines = 1) }
     }
 }
 
@@ -330,9 +360,10 @@ private fun SentLine(text: String) {
 
 /** "Tell the planner" is a small button that opens the box; Update plan shows only when changes wait. */
 @Composable
-private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: Boolean, canApprove: Boolean) {
+private fun PlanButtons(project: String, sent: Map<String, String>, a: ProjectActions, pending: Boolean, canApprove: Boolean) {
     var writing by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf("") }
+    val comfort = LocalComfort.current
     Column(Modifier.fillMaxWidth()) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (pending) Button({ a.command("revise", "revise", emptyMap()) }, enabled = "revise" !in sent) { Text("Update plan") }
@@ -350,6 +381,7 @@ private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: B
                     // the words wait in the plan for Update plan; pictures and files go to the planner with them
                     if (d.text.isBlank()) throw com.meztking.roundtable.data.ComposerProblem("Write what should change first.")
                     a.command("note:${d.text.hashCode()}", "note", mapOf("text" to d.text.trim()))
+                    comfort?.remember(project, SentItem(SentItem.NOTE, d.text.trim()))
                     if (d.files.isNotEmpty()) box.send(d, a.path, "note", read) else "Noted."
                 },
                 onSent = { writing = false; problem = null; a.refresh() },
@@ -362,7 +394,11 @@ private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: B
         } else if (writing) {
             OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth().heightIn(min = 80.dp), placeholder = { Text("What should change?") })
             Spacer(Modifier.height(6.dp))
-            OutlinedButton({ a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim())); note = ""; writing = false },
+            OutlinedButton({
+                a.command("note:${note.hashCode()}", "note", mapOf("text" to note.trim()))
+                comfort?.remember(project, SentItem(SentItem.NOTE, note.trim()))
+                note = ""; writing = false
+            },
                 enabled = note.isNotBlank()) { Text("Add this note") }
             Text("Your notes and answers wait until you press Update plan.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
@@ -377,6 +413,12 @@ private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
     var writing by rememberSaveable { mutableStateOf(false) }
     val inbox = ui.inbox
     val unread = inbox.data?.count { !it.read } ?: 0
+    val comfort = LocalComfort.current
+    val history = comfort?.let { c -> c.sentVersion.let { c.sent(ui.id) } }.orEmpty()
+    fun letter(subject: String, body: String, done: Done) = a.send(subject, body) { ok ->
+        if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), subject.trim()))
+        done(ok)
+    }
     PullToRefreshBox(inbox.loading && inbox.data != null, a.refresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -389,13 +431,24 @@ private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
             if (inbox.data == null && inbox.loading) item { Loading("Fetching the inbox…") }
             if (inbox.data?.isEmpty() == true) item { Text("No messages.", color = Hall.muted, modifier = Modifier.padding(vertical = 24.dp)) }
             items(inbox.data.orEmpty(), key = { it.id }) { m -> LetterRow(m, showTo = false, plan = ui.plan.data?.doc) { open = m.id; a.opened(m) } }
+            if (history.isNotEmpty()) item(key = "sent-history") {
+                SentHistory(history, onResend = { item ->
+                    if (item.kind == SentItem.NOTE) {
+                        a.command("note:${item.text.hashCode()}", "note", mapOf("text" to item.text))
+                        comfort?.remember(ui.id, item)
+                    } else letter(item.subject, item.text) { }
+                }, modifier = Modifier.padding(top = 8.dp))
+            }
         }
     }
     inbox.data?.firstOrNull { it.id == open }?.let { m ->
-        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok -> done(ok); if (ok) open = null } })
+        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok ->
+            if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), "Re: " + m.subject.removePrefix("Re: ")))
+            done(ok); if (ok) open = null
+        } })
     }
     if (writing) ComposeSheet(listOf(ui.id), ui.identity, ui.id, onDismiss = { writing = false }) { _, s, b, done ->
-        a.send(s, b) { ok -> done(ok); if (ok) writing = false }
+        letter(s, b) { ok -> done(ok); if (ok) writing = false }
     }
 }
 
@@ -407,4 +460,9 @@ fun TipIcon(tip: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
         tooltip = { PlainTooltip { Text(tip) } }, state = androidx.compose.material3.rememberTooltipState()) {
         IconButton(onClick = onClick) { icon() }
     }
+}
+
+/** The PC's proof of one task, for the Live tab (null when it can't be read). */
+private fun proofLoader(machine: com.meztking.roundtable.net.Api, folder: String): suspend (String) -> String? = { t ->
+    runCatching { machine.feature("GET", com.meztking.roundtable.data.Proof.url(folder, t)) }.getOrNull()
 }

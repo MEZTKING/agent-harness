@@ -1,0 +1,8 @@
+{
+ "can_run": false,
+ "commands": [],
+ "here": true,
+ "path": "/home/owner/lab/proj",
+ "test_command": "",
+ "why_not": "This project has no test command yet: add one in the project's Settings (Checks)."
+}

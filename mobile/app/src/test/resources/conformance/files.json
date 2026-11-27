@@ -1,0 +1,23 @@
+{
+ "crumbs": [
+  {
+   "dir": "",
+   "name": "Project"
+  }
+ ],
+ "dir": "",
+ "here": true,
+ "items": [
+  {
+   "folder": false,
+   "kind": "markdown",
+   "name": "README.md",
+   "path": "README.md",
+   "size": 19
+  }
+ ],
+ "more": 0,
+ "name": "proj",
+ "path": "/home/owner/lab/proj",
+ "test_command": ""
+}

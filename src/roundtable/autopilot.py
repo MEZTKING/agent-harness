@@ -349,7 +349,7 @@ def _money(x: float | None) -> str:
 def decide(orch, ask: dict[str, Any], state: dict[str, Any], now: datetime | None = None) -> tuple[list[str] | None, str]:
     """What autopilot answers to one card: (option ids, why) or (None, why it's left for the owner)."""
     kind = ask["kind"]
-    if kind in ("decision", "question", "look", "profile", "idea"):
+    if kind in ("decision", "question", "look", "profile", "idea", "kind"):  # kind: keeps Roundtable's guess
         rec = ask.get("recommended")
         if not rec:
             return None, "there's no recommended answer"

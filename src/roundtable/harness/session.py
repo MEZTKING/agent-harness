@@ -88,6 +88,10 @@ def tool_step(d: dict[str, Any]) -> dict[str, Any]:
         step.update(label=f"List {path or 'the project'}", detail=str(a.get("pattern") or ""), output=result)
     elif name == "search":
         step.update(label=f"Search `{str(a.get('pattern', ''))[:120]}`", output=result)
+    elif name in ("web_search", "web_read"):  # "Searched the web for …", "Read a page: …" (websearch.py)
+        from .websearch import step as web_step
+
+        step.update(web_step(name, a, result))
     elif name == "finish_task":
         step.update(kind="finish", label="Finished", text=str(a.get("summary") or ""))
     elif name == "submit_review":

@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 
+from roundtable import discovery
+
 DEFAULT_PORT = 8766
 PAIR_TTL_S = 300
 PAIR_TRIES = 5
@@ -58,6 +60,17 @@ PHONE_ROUTES = {
     # projects that run elsewhere, and the phone and the PC as one Roundtable (sync.py, ui/syncapi.py)
     ("GET", "/api/hub/plan"), ("GET", "/api/hub/live"), ("GET", "/api/notes"), ("GET", "/api/note"), ("POST", "/api/hub/command"), ("GET", "/api/hub/session"), ("POST", "/api/hub/carry_on"),
     ("GET", "/api/machines"), ("GET", "/api/settings/shared"), ("POST", "/api/settings/shared"),
+    # undo a task, go back, put it back, try another way (ui/rewindapi.py)
+    ("GET", "/api/rewind"), ("GET", "/api/rewind/preview"), ("POST", "/api/rewind"), ("POST", "/api/rewind/undo"),
+    ("POST", "/api/rewind/fork"),
+    ("GET", "/api/proof"), ("GET", "/api/proof/list"),  # before and after each task (ui/proofapi.py)
+    # a task's live command output and its Stop; never the command line itself (ui/terminalapi.py)
+    ("GET", "/api/terminal/task"), ("POST", "/api/terminal/task/stop"),
+    ("GET", "/api/rates"),  # pounds beside dollars, read through the PC (ui/moneyapi.py)
+    # kinds and the Gallery; import and export stay on the PC (ui/kindsapi.py)
+    ("GET", "/api/kinds"), ("GET", "/api/kinds/one"), ("POST", "/api/kinds/propose"), ("POST", "/api/kinds/set"),
+    ("GET", "/api/gallery"), ("GET", "/api/gallery/one"), ("POST", "/api/gallery/hide"), ("POST", "/api/gallery/star"),
+    ("POST", "/api/gallery/again"),
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))
@@ -130,6 +143,8 @@ def cert_fingerprint(cert: Path) -> str:
 class PhoneAccess:
     """Paired devices, pairing codes, the certificate and the phone server's life cycle."""
 
+    discovery_port = discovery.PORT  # UDP: the phone's "who's there?" on the Wi-Fi (tests use 0: any free port)
+
     def __init__(self, app, home: Path, name: str | None = None):
         self.app, self.home = app, Path(home)
         self.name = name or socket.gethostname() or "this PC"
@@ -137,6 +152,7 @@ class PhoneAccess:
         self.cert, self.key = self.home / "phone-cert.pem", self.home / "phone-key.pem"
         self._lock = threading.Lock()
         self._pairing: dict[str, Any] | None = None
+        self._beacon: discovery.Responder | None = None
         self.httpd: ThreadingHTTPServer | None = None
         self.port = 0  # the port actually listening (settings may say 0: any free port)
         self.error = ""
@@ -217,9 +233,15 @@ class PhoneAccess:
         self.error = ""
         self.httpd, self.port = httpd, httpd.server_address[1]
         threading.Thread(target=httpd.serve_forever, daemon=True, name="phone-server").start()
+        # the phone can find this PC on the Wi-Fi (answers only when asked, private senders only, no code)
+        self._beacon = discovery.Responder(self.name, self.port, cert_fingerprint(self.cert),
+                                           listen_port=self.discovery_port).start()
 
     def stop(self) -> None:
         httpd, self.httpd, self.port = self.httpd, None, 0
+        beacon, self._beacon = getattr(self, "_beacon", None), None
+        if beacon:
+            beacon.stop()
         if httpd:
             httpd.shutdown()
             httpd.server_close()
@@ -228,8 +250,8 @@ class PhoneAccess:
     def start_pairing(self) -> dict[str, Any]:
         if not self.httpd:
             raise RuntimeError("Turn on phone access first, then press Pair a phone.")
-        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I: easy to type
-        code = "".join(secrets.choice(alphabet) for _ in range(8))
+        # 8 letters, the last two bound to this PC's certificate: a stand-in PC fails the phone's check
+        code = discovery.bound_code(cert_fingerprint(self.cert))
         self._pairing = {"code": code, "expires": time.time() + PAIR_TTL_S, "tries": 0}
         return self.status()["pairing"]
 

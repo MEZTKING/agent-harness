@@ -10,6 +10,8 @@ data class PairingOffer(
     val port: Int,
     val code: String,
     val fingerprint: String,
+    /** It came from "Look for my PC" (the Wi-Fi), not the PC's QR code: the typed code is checked first. */
+    val found: Boolean = false,
 )
 
 object Pairing {

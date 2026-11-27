@@ -1,0 +1,18 @@
+{
+ "job": {
+  "ended": "",
+  "error": "",
+  "id": "7f0cd107",
+  "kind": "run",
+  "log": [
+   "13:54:07  Approved: building has started."
+  ],
+  "log_size": 1,
+  "result": null,
+  "started": "2026-11-27T13:54:08Z",
+  "status": "running",
+  "target": "/home/owner/lab/proj",
+  "title": "run proj"
+ },
+ "reply": "Approved: building has started."
+}

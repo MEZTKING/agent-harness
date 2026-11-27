@@ -1,0 +1,67 @@
+{
+ "asks": [
+  {
+   "allow_other": true,
+   "answer": null,
+   "busy": false,
+   "detail": "Changing it re-plans the work: about the cost of one plan (usually a few cents).",
+   "header": "Kind",
+   "id": "kind",
+   "kind": "kind",
+   "multi": false,
+   "options": [
+    {
+     "description": "",
+     "id": "website",
+     "label": "Website"
+    },
+    {
+     "description": "",
+     "id": "other",
+     "label": "Something else"
+    }
+   ],
+   "other_hint": "Something else? Say what it is",
+   "path": "/home/owner/lab/proj",
+   "project": "proj",
+   "question": "This looks like a Website, because you said “site” and “bakery”. Right?",
+   "recommended": "website",
+   "source": {
+    "extras": [],
+    "kind": "website"
+   },
+   "stamp": "cdfbec2f0b"
+  },
+  {
+   "allow_other": true,
+   "answer": null,
+   "busy": false,
+   "detail": "",
+   "header": "Plan",
+   "id": "approve",
+   "kind": "approve",
+   "multi": false,
+   "options": [
+    {
+     "description": "Builds it now. About $0.27, about 12 minutes.",
+     "id": "approve",
+     "label": "Approve and start"
+    },
+    {
+     "description": "Keep the plan; nothing is built yet.",
+     "id": "not_now",
+     "label": "Not now"
+    }
+   ],
+   "other_hint": "Change something… (say what)",
+   "path": "/home/owner/lab/proj",
+   "project": "proj",
+   "question": "Is the plan right? Start building?",
+   "recommended": "approve",
+   "source": {
+    "version": 1
+   },
+   "stamp": "52a2c96a01"
+  }
+ ]
+}

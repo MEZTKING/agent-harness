@@ -25,10 +25,12 @@ def lab_raw(tmp_path, raw=None):
     return raw
 
 
-def planned(tmp_path, raw=None, brain=None):
+def planned(tmp_path, raw=None, brain=None, confirm_kind=True):
     """A project whose plan waits for the owner, registered in the lab (so autopilot sees it)."""
     orch, *_ = make(tmp_path, raw=lab_raw(tmp_path, raw), brain=brain or CardBrain())
     orch.start("bakery site", require_approval=True)
+    if confirm_kind:  # as the wizard does; the kind card has its own tests
+        orch.set_kind("website", by="owner", replan=False)
     assert orch.run() == "awaiting_approval"
     return orch
 
@@ -374,3 +376,12 @@ def test_the_command_line(tmp_path, home, monkeypatch, capsys):
     main(["autopilot", "log"])
     out = capsys.readouterr().out
     assert "Autopilot off: you turned it off." in out and "Autopilot on" in out
+
+
+def test_autopilot_keeps_the_recommended_kind(tmp_path, home):
+    orch = planned(tmp_path, confirm_kind=False)
+    priced(orch)
+    autopilot.turn_on(home=home)
+    out = tick(orch, home)
+    assert chosen(out)[0] == ("kind", ["website"])
+    assert orch.project.meta()["kind"]["confirmed"] and orch.project.meta()["kind"]["id"] == "website"

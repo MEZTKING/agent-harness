@@ -1,0 +1,15 @@
+{
+ "ended": "",
+ "error": "",
+ "id": "229f2126",
+ "kind": "tests",
+ "log": [
+  "13:54:06  $ python --version"
+ ],
+ "log_size": 1,
+ "result": null,
+ "started": "2026-11-27T13:54:06Z",
+ "status": "running",
+ "target": "/home/owner/lab/proj",
+ "title": "run the tests of proj"
+}

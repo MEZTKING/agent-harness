@@ -112,6 +112,9 @@ fun ConnectionsContent(rows: List<ConnectionRow>, hubSet: Boolean, phoneJoined: 
                     }
                     Source.PC -> if (!r.set) TipButton("Pair with your PC", "Opens the camera: point it at the code Roundtable Hold shows on your PC.", main = true) { onAction("pc.pair") }
                     else {
+                        if (r.ok == false) TipButton(if (busy == "find") "Looking…" else "Look for it",
+                            "Looks for your PC on this Wi-Fi, in case its address changed. Only your own PC's answer is used.",
+                            main = true, enabled = busy == null) { onAction("pc.find") }
                         TipButton("Pair again", "Scan a new code, for example after reinstalling Roundtable Hold.") { onAction("pc.pair") }
                         TextButton(onClick = { onAction("pc.remove") }) { Text("Unpair", color = Hall.bad) }
                     }
@@ -299,6 +302,7 @@ fun ConnectionsScreen(
                     "phone.join" -> vm.joinHub()
                     "pc.pair" -> scan.launch(com.journeyapps.barcodescanner.ScanOptions().setPrompt("Point at the code on your PC").setBeepEnabled(false)
                         .setOrientationLocked(false).setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE))
+                    "pc.find" -> vm.findPc(onChanged)
                     "hub.add" -> onHub()
                     "pc.remove", "hub.remove" -> confirm = a
                 }

@@ -1,0 +1,9 @@
+{
+ "claims": [],
+ "machines": [],
+ "this": {
+  "id": "pc-vm",
+  "kind": "pc",
+  "name": "PC (VM)"
+ }
+}

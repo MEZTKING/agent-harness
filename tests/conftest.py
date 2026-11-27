@@ -15,3 +15,11 @@ def _empty_key_vault():
     vault.clear()
     yield
     vault.clear()
+
+
+@pytest.fixture(autouse=True)
+def _discovery_on_a_free_port(monkeypatch):
+    """A phone server started in a test answers the Wi-Fi probe on any free port, never this PC's real one."""
+    from roundtable.phone import PhoneAccess
+
+    monkeypatch.setattr(PhoneAccess, "discovery_port", 0)

@@ -103,7 +103,7 @@ def start(app, b: dict[str, Any]) -> dict[str, Any]:
     """A new project, with the draft's files attached to the idea first (so the planner's very first call has
     them): from the wizard's answers ({wizard}) or typed ({dir, goal, approve, references}). The same steps as
     the server's own starts (POST /api/asks {wizard}, POST /api/projects)."""
-    from ..asks import wizard_project
+    from ..asks import apply_wizard_kind, wizard_project
     from ..harness.orchestrator import HarnessError
     from .server import ApiError, _lines
 
@@ -133,6 +133,7 @@ def start(app, b: dict[str, Any]) -> dict[str, Any]:
     def run(job):
         orch = app._orch(cfg, path, job)
         orch.start(goal, require_approval=approve, references=w["references"])
+        apply_wizard_kind(orch, w)  # the wizard's "What do you want to make?" (kinds)
         if w["profile"]:
             orch.set_profile(w["profile"])
         if w["look"] is not None:

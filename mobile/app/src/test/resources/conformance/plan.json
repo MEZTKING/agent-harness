@@ -1,0 +1,159 @@
+{
+ "approved": false,
+ "busy": false,
+ "doc": {
+  "critique": null,
+  "decisions": [],
+  "dont": [],
+  "estimate": {
+   "at": "2026-11-27T13:54:05Z",
+   "by_role": {
+    "coder": {
+     "basis": "default",
+     "cost_usd": 0.2674,
+     "minutes": 11.0,
+     "model": "a/coder",
+     "tasks": 2
+    },
+    "designer": {
+     "basis": "default",
+     "cost_usd": null,
+     "minutes": 0.5,
+     "model": "img/pic",
+     "tasks": 1
+    }
+   },
+   "cost_usd": 0.2674,
+   "minutes": 11.5,
+   "note": "rough: from past runs where there are some, else typical sizes; unpriced models aren't counted",
+   "proof_usd": 0.0,
+   "tasks": 3,
+   "unpriced": [
+    "img/pic"
+   ]
+  },
+  "goal": "bakery site",
+  "goal_index": 0,
+  "has_ui": null,
+  "history": [
+   {
+    "at": "2026-11-27T13:54:05Z",
+    "change": "first plan",
+    "version": 1
+   }
+  ],
+  "ideas": [],
+  "in_scope": [],
+  "kind": {
+   "blurb": "A site to read and look at: a shop window, a portfolio, a blog.",
+   "by": "roundtable",
+   "change_words": "Changing it re-plans the work: about the cost of one plan (usually a few cents).",
+   "choices": [
+    {
+     "id": "website",
+     "name": "Website",
+     "recommended": true
+    },
+    {
+     "id": "other",
+     "name": "Something else",
+     "recommended": false
+    }
+   ],
+   "confirmed": false,
+   "extras": [],
+   "fixed": false,
+   "frozen": false,
+   "id": "website",
+   "name": "Website",
+   "question": "This looks like a Website, because you said “site” and “bakery”. Right?",
+   "status": "trial",
+   "status_words": "On trial",
+   "why": "because you said “site” and “bakery”"
+  },
+  "out_of_scope": [],
+  "pending": [],
+  "questions": [],
+  "references": [],
+  "spec": [],
+  "summary": "",
+  "title": "",
+  "version": 1
+ },
+ "line": "plan ready (about $0.27 + unpriced models, ~12 min)",
+ "name": "proj",
+ "open": {
+  "choices": 0,
+  "ideas": 0,
+  "pending": 0,
+  "questions": 0
+ },
+ "path": "/home/owner/lab/proj",
+ "status": "awaiting_approval",
+ "tasks": [
+  {
+   "acceptance": "hello.py prints hi",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [],
+   "description": "create hello.py",
+   "goal_index": 0,
+   "id": "T1",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "",
+   "previous_attempts": [],
+   "role": "coder",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "hello module"
+  },
+  {
+   "acceptance": "png exists",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [],
+   "description": "a bakery logo",
+   "goal_index": 0,
+   "id": "T2",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "assets/logo.png",
+   "previous_attempts": [],
+   "role": "designer",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "logo"
+  },
+  {
+   "acceptance": "tests pass",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [
+    "T1"
+   ],
+   "description": "add test",
+   "goal_index": 0,
+   "id": "T3",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "",
+   "previous_attempts": [],
+   "role": "coder",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "tests"
+  }
+ ],
+ "words": {
+  "estimate": "about $0.27 and 12 minutes (some models have no price yet)",
+  "state": "Ready for you to approve",
+  "title": "Bakery site"
+ }
+}

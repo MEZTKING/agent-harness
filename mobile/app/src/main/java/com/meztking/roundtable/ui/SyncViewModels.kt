@@ -134,6 +134,31 @@ class ConnectionsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The paired PC didn't answer: look for it on this Wi-Fi (it may have a new address). Only an answer with the
+     *  certificate this phone pinned is used, and only for its address (net/Discovery.kt). Beta. */
+    fun findPc(onMoved: () -> Unit) {
+        val link = rt.store.link ?: return say("Pair with your PC first.")
+        viewModelScope.launch {
+            _busy.value = "find"
+            try {
+                val moved = com.meztking.roundtable.net.Discovery.relocate(rt, link)
+                if (moved == null) say("Your PC didn't answer on this Wi-Fi. Is it on, with phone access on, and on the same Wi-Fi?")
+                else {
+                    rt.store.link = moved
+                    say("Found your PC at ${moved.hosts.first()}.")
+                    onMoved()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                say(friendly(e))
+            } finally {
+                _busy.value = null
+                refresh()
+            }
+        }
+    }
+
     fun unpair() { rt.store.link = null; forgot() }
     fun removeHub() { rt.store.githubToken = null; forgot() }
 

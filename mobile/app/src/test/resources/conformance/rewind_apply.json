@@ -1,0 +1,17 @@
+{
+ "back_to_todo": [
+  "T1"
+ ],
+ "files": [
+  {
+   "change": "removed",
+   "path": "hello.py",
+   "words": "goes"
+  }
+ ],
+ "hand_edits_kept": true,
+ "id": "20261127T135408536699Z",
+ "ok": true,
+ "ref": "refs/roundtable/undo/20261127T135408536699Z",
+ "words": "Undid “hello module”. Put it back any time from the history."
+}

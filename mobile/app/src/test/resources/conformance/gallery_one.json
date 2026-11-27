@@ -1,0 +1,64 @@
+{
+ "cost": {
+  "counted_usd": 0.0007,
+  "real_usd": null
+ },
+ "cover": "",
+ "extras": [],
+ "finished_at": "2026-11-27T13:54:08Z",
+ "goal": "goal-1",
+ "hidden": false,
+ "kind": "website",
+ "kind_name": "Website",
+ "line": "27 Nov · $0.00 · 0 min",
+ "minutes": 0.0,
+ "more": {
+  "commit": "11a18f063976f3176773797d085350d7d03660a1",
+  "models": [
+   {
+    "model": "a/coder",
+    "role": "coder",
+    "task": "T1"
+   },
+   {
+    "model": "img/pic",
+    "role": "designer",
+    "task": "T2"
+   },
+   {
+    "model": "a/coder",
+    "role": "coder",
+    "task": "T3"
+   }
+  ],
+  "profile": null
+ },
+ "outputs": [],
+ "path": "/home/owner/lab/proj",
+ "pictures": [],
+ "project": "proj",
+ "proof": [
+  {
+   "checkable": true,
+   "id": "starts",
+   "optional": false,
+   "passed": null,
+   "status": "trial",
+   "words": "It opens with no errors"
+  },
+  {
+   "checkable": true,
+   "id": "tests",
+   "optional": true,
+   "passed": null,
+   "status": "trial",
+   "words": "Its tests pass"
+  }
+ ],
+ "proof_words": "It opens with no errors – not checked yet · Its tests pass – not checked yet",
+ "proven": false,
+ "starred": false,
+ "summary": "",
+ "tasks": 3,
+ "title": "bakery site"
+}

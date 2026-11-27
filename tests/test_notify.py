@@ -151,6 +151,7 @@ def setup_hall(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "_backup_home", lambda: tmp_path / "home", raising=False)
     orch._register_with_lab()
     orch.start("bakery site", require_approval=True)
+    orch.set_kind("website", by="owner", replan=False)  # as the wizard does: only the approval waits
     assert orch.run() == "awaiting_approval"
     return app, orch
 
