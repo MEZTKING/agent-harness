@@ -1,13 +1,32 @@
 // The answer card: one shape for every question, choice, idea, look, plan approval, failed task and money stop.
 // The recommended answer comes first and is marked; "Other…" opens a box for your own words. Number keys pick,
 // Enter sends. An option that spends past the estimate or can't be undone asks "Are you sure?" on the card first.
+// A command waiting for "Ask me first" shows the whole command (a long one folded, with Show all).
 import { h, fill, post, toast, projectName } from "./core.js";
 
 const KIND_WORDS = { decision: "Choice", question: "Question", look: "Look", profile: "Models", idea: "Idea", approve: "Plan",
-  failed: "Stopped", money: "Money", wizard: "" };
+  failed: "Stopped", money: "Money", command: "Command", wizard: "" };
 const HINTS = { decision: "Tap the choice you want.", question: "Tap an answer, or Other… to type your own.", idea: "Add it to the plan, or leave it out.",
   look: "Tap the look you like.", approve: "Nothing is built until you say so.", failed: "Try it again, or carry on without it.",
-  money: "Nothing more is spent until you say so.", profile: "Which set of models does the work." };
+  money: "Nothing more is spent until you say so.", profile: "Which set of models does the work.",
+  command: "It waits for your tap. Read the command first." };
+
+// The command on a command card: all of it, or its first lines with Show all for a long one.
+export function commandBlock(ask) {
+  const full = String(ask.command || "");
+  const pre = h("pre", { class: "log short ask-cmd", "aria-label": "The command" }, ask.folded ? ask.preview || full.slice(0, 1200) : full);
+  const t = ask.task || {};
+  const until = ask.expires_at ? new Date(ask.expires_at) : null;
+  const foot = h("p", { class: "muted small" },
+    t.id ? `Task ${t.id}${t.title ? ` “${t.title}”` : ""}. ` : "",
+    until && !isNaN(until) ? `If nobody answers by ${until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, it doesn't run.` : "");
+  if (!ask.folded) return h("div", { class: "ask-command" }, pre, foot);
+  let open = false;
+  const btn = h("button", { class: "link-btn", type: "button", title: "Show the whole command before you answer",
+    onclick: () => { open = !open; pre.textContent = open ? full : ask.preview || full.slice(0, 1200); btn.textContent = open ? "Show less" : `Show all (${ask.lines || 1} lines)`; } },
+  `Show all (${ask.lines || 1} lines)`);
+  return h("div", { class: "ask-command" }, pre, h("div", { class: "row" }, btn), foot);
+}
 
 // opts: {pictures: {id: src}, onSkip, compact, project, sendLabel, disabled, extra, hint}
 export function askCard(ask, onAnswer, opts = {}) {
@@ -77,6 +96,7 @@ export function askCard(ask, onAnswer, opts = {}) {
         ask.answer ? h("span", { class: "pill good" }, "Answered") : null),
       h("h3", { class: "ask-q" }, ask.question),
       ask.detail ? h("p", { class: "ask-detail" }, ask.detail) : null,
+      ask.kind === "command" ? commandBlock(ask) : null,
       opts.hint !== false && HINTS[ask.kind] ? h("p", { class: "ask-hint" }, HINTS[ask.kind]) : null,
       textOnly ? null : h("div", { class: "ask-opts" + (Object.keys(opts.pictures || {}).length ? " pics" : "") }, optButtons, otherBtn),
       ask.allow_other !== false ? otherRow : null,

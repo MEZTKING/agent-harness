@@ -3,8 +3,8 @@
 import { h, fill, get, post, toast, act, S, onHall, refreshHall, projectName, projectHref, page, empty, dot, ago, plural, patch, q, dialog, seatOf } from "./core.js";
 import { askCard, answerHere, answerHub, skipHere, hubCommand } from "./asks.js";
 
-const RANK_WORDS = ["Questions and decisions", "Money and stopped work", "To-dos", "Letters"];
-const askRank = (a) => (a.kind === "money" || a.kind === "failed" ? 1 : 0);
+const RANK_WORDS = ["Questions and decisions", "Money, commands and stopped work", "To-dos", "Letters"];
+const askRank = (a) => (a.kind === "money" || a.kind === "failed" || a.kind === "command" ? 1 : 0);
 const after = async (done) => { await refreshHall(); if (done) await done(); };
 
 // What waits, as items: {project, rank, kind, ...}; local projects' every card from /api/asks, the rest from the Hall.
@@ -18,7 +18,8 @@ export async function gather(rt, full = true) {
         const seat = rt.seats.find((s) => s.path === a.path) || seatOf(a.project);
         const id = seat ? seat.id : a.project;
         local.add(id);
-        items.push({ project: id, rank: askRank(a), kind: "local-ask", ask: a, busy: a.busy });
+        // a waiting command is answered while its project works: that's the point of it
+        items.push({ project: id, rank: askRank(a), kind: "local-ask", ask: a, busy: a.busy && a.kind !== "command" });
       }
     } catch { /* fall back to the Hall's first cards */ }
   }
@@ -45,7 +46,7 @@ export function needCard(it, done, opts = {}) {
   const more = it.more > 0 ? h("a", { class: "btn small", href: "#/needs", title: "See every card waiting for you" }, `${it.more} more here`) : null;
   if (it.kind === "local-ask") {
     const a = it.ask;
-    const skippable = !["approve", "money", "failed"].includes(a.kind);
+    const skippable = !["approve", "money", "failed", "command"].includes(a.kind);
     return askCard(a, async (ans) => {
       const r = await answerHere(a, ans);
       if (r.job) toast("Working on it: watch it on the project's page");

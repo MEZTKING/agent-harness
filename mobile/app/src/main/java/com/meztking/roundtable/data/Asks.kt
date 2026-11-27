@@ -21,6 +21,10 @@ data class AskOption(
     val picture: String? = null,
 )
 
+/** The task a waiting command comes from ("Ask me first"). */
+@Serializable
+data class AskTask(val id: String = "", val title: String = "")
+
 @Serializable
 data class AskAnswer(val chosen: List<String> = emptyList(), val other: String = "")
 
@@ -44,7 +48,27 @@ data class Ask(
     val required: Boolean = false,
     /** Built on the phone from the plan's markdown (the hub has no asks file): answered with the plan's own commands. */
     val local: Boolean = false,
-)
+    // a command waiting for "Ask me first" (kind "command", harness/gate.py): the whole command, its first
+    // lines when it's long (folded: "Show all"), why it asks, the task, what "Always allow" keeps, when it gives up
+    val command: String = "",
+    val preview: String = "",
+    val folded: Boolean = false,
+    val lines: Int = 1,
+    val reasons: List<String> = emptyList(),
+    val task: AskTask? = null,
+    val remember: String = "",
+    val expires_at: String = "",
+) {
+    /** What the card shows of the command: all of it, or the first lines of a long one until Show all. */
+    fun commandShown(all: Boolean): String = if (folded && !all) preview.ifBlank { command.take(1200) } else command
+
+    /** The line under the command: the task, and that it won't run if nobody answers. */
+    val commandFoot: String
+        get() = listOfNotNull(
+            task?.takeIf { it.id.isNotBlank() }?.let { "Task ${it.id}" + if (it.title.isNotBlank()) " “${it.title}”." else "." },
+            if (expires_at.isNotBlank()) "If nobody answers in time, it doesn't run." else null,
+        ).joinToString(" ")
+}
 
 @Serializable
 private data class AskList(val asks: List<Ask> = emptyList())
@@ -135,6 +159,7 @@ object Asks {
             "approve" -> "Tap to start building, or Not now to keep the plan as it is."
             "money" -> "Tap to carry on (it spends more of your credit) or to stop here."
             "failed" -> "Tap what to do with this task: try again, accept it or skip it."
+            "command" -> "Read the command, then tap. It waits for you."
             else -> "Tap an answer, or Other… to type your own."
         }
     }
