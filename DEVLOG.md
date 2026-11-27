@@ -4,6 +4,31 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 0.10.0: wave 1 – safety and several tasks at once
+
+From plans/parity.md, Fable's order (plans/notes-for-owner.md). Six helpers, merged here with the hook-up lines.
+- Breaker and timings (45f0115): `harness/breaker.py` (`Breaker`, `BreakerSettings`, `call_key`, `work_tokens`),
+  `run_agent` steer → refuse → stop (`stop="breaker"`), `ms` on every model/tool event, `agent_done` totals.
+  Policy after Munder Difflin `src/main/breaker.ts` (MIT).
+- Ask me first (1a74e9e, ee98920): `harness/gate.py` (`classify`, `mode_for`, `Gate`), `run_command` waits on a
+  `command` card (asks.py), files in `.harness/gate/`, default `risky`; desktop and phone cards; project setting
+  `ask_first`; the phone's switch; server lets command cards through while the run works. Behaviour after DSH
+  Mobile's ON-DEVICE.md, no code taken.
+- Several tasks at once (473232f…d61c558): `harness/worktrees.py` (`Worktrees`, `ParallelStage`), merges in task
+  order, `<task>-merge` fix-ups, kept worktrees with a reason, money/claim/stop_all stop all, task ids on every
+  event, `max_parallel` read from harness.yaml (default 1). Removal rule after Munder Difflin's worktreeFate.ts
+  (idea only).
+- Notifications (8b92ce6): `notify.py` (`classify`, `Feed`), `ui/notifyapi.py`, `static/notify.js` (bell, pop-ups),
+  phone `notify/` (Classifier twin, channels, answer buttons), shared test cases.
+- Automations (5d5cf99): `automation.py` (schedules, GitHub issues, failed checks, once per slot across restarts and
+  machines, money asks first), `ui/automationapi.py`, `static/automation.js`, `roundtable automation`, AutoSync tick.
+  Ported from Munder Difflin `src/shared/weeklySchedule.ts` and DSH Mobile `AutomationPresentation.kt` (MIT).
+- Tools (42195fc): `prereq.py` (12 tools found/installed, MCP servers added/tested/given to jobs via custom.yaml),
+  `ui/toolsapi.py`, `static/tools.js`, the Tools tab. Catalogue shape after Munder Difflin toolCatalog.ts/toolsStatus.ts.
+- Coordinator: `config.section()` and `FEATURE_APIS` seams; showstage's Godot tool uses the task's worktree; lab
+  replays never wait on Ask me first. 669 tests; phone tests and build pass; no console errors on the new pages.
+Needs the owner's PC/phone: real installs, notifications and their buttons, command cards on the phone.
+
 ## 2026-11-27 – 0.9.2: keys kept away from the helpers' commands
 
 The owner: "go ahead and work with Fable and add everything" (from plans/parity.md). Fable's plan (in

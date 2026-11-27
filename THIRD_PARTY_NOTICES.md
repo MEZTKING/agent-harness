@@ -223,3 +223,20 @@ into the app.
   Android 8 to 12. https://github.com/str4d/ed25519-java. Licence: CC0 1.0 (public domain dedication).
 - XZ for Java 1.10 (`org.tukaani:xz`) unpacks the runtime's `.tar.xz` layers. https://tukaani.org/xz/java.html.
   Licence: 0BSD.
+
+## Munder Difflin (MEZTKING/munder-difflin), MIT, Copyright (c) 2026 Chaitanya Giri
+
+Ported to Python or used as the pattern, credited in each file's header:
+- `src/roundtable/harness/breaker.py` – the circuit breaker's policy (steer, then constrain, then stop; the
+  defaults; the tool-call key) from `src/main/breaker.ts`.
+- `src/roundtable/automation.py` – schedules (catch-up window, early wake, a schedule's own time zone, the
+  "Weekdays at 09:00" summary) from `src/shared/weeklySchedule.ts`.
+- `src/roundtable/prereq.py` – the shape of the tools catalogue from `src/shared/toolCatalog.ts` and
+  `src/main/toolsStatus.ts`.
+Its pixel art and other assets (LICENSE-ASSETS) are not used.
+
+### DSH Mobile: the automation wording
+
+- `src/roundtable/ui/static/automation.js` `inWords` – the next-run words from
+  `app/src/main/java/com/labteto/dshmobile/ui/screens/main/AutomationPresentation.kt` (MIT, Copyright (c) 2026
+  DSH Mobile contributors; licence text above).

@@ -27,6 +27,23 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.10.0
+
+- **A safety switch for stuck helpers**: the same step over and over, error after error, huge output, too
+  many tokens or no progress – Roundtable warns the helper, then blocks it for a step, then stops the task
+  (`breaker:` in harness.yaml). Every step records how long it took.
+- **Ask me first**: risky commands (deleting outside the project, sending code to GitHub, installing from
+  the internet, administrator rights…) wait for your tap – Allow once, Always allow in this project, or
+  Don't allow – on the desktop, the phone and through the hub. "all" asks for every command; "off" never.
+- **Several tasks at once** (`limits.max_parallel`, default still 1; wave 2 turns it to 3): each task in
+  its own copy of the project, merged back in order; a clash becomes a small fix-up task.
+- **Notifications**: finished, needs you, failed, money, idle – never twice; answer buttons on the phone's
+  notifications; a bell and pop-ups on the desktop (Settings → Notifications).
+- **Automations** (Settings → Automations): schedules, GitHub issues with a label, failed checks – they
+  plan by themselves and build only with your OK (or within a spending limit you set).
+- **Tools** (new tab): what this computer has for building – Git, Node, Python, Godot, Unreal, Blender,
+  Claude Code… – with Install buttons, and the tool servers (Unreal, Godot, Blender) your helpers use.
+
 ### What's new in 0.9.2
 
 - **Your keys are kept away from the AI helpers' commands**: anything a helper runs (commands, tests,
