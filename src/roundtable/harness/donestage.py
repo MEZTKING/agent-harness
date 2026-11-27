@@ -262,6 +262,12 @@ def apply_not_finished(orch, ask: dict[str, Any], picked: list[str], other: str)
     meta = orch.project.meta()
     for k in ROUND_KEYS:
         meta.pop(k, None)
+    try:  # the finishing step's own round counter starts again too (finishstage.py)
+        from . import finishstage
+
+        finishstage.clear_rounds(root)
+    except Exception:  # noqa: BLE001 - a help
+        pass
     meta["done_fix_rounds"] = int(ask["source"].get("fixes") or 0) + 1
     orch.project.save_meta(meta)
     return {"reply": f"Trying again: {len(added)} fix{'es' * (len(added) != 1)} added.", "then": "run"}

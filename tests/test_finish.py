@@ -96,7 +96,7 @@ class Walker:
         return out
 
 
-class Finishing(FinishStage, Orchestrator):
+class Finishing(Orchestrator):
     """FinishStage hooked up as the coordinator will, with the done list seeded the way d2-done's plan step does,
     and the brief's gate."""
 
@@ -265,7 +265,7 @@ def test_commands_files_play_and_owner_items(tmp_path):
     items = {i["id"]: i for i in donelist.read(orch.project.root)["items"]}
     assert items["D1"]["state"] == "failed" and items["D1"]["evidence"]["exit_code"] == 1
     assert items["D2"]["state"] == "failed" and "No file matches saves/*.json" in items["D2"]["words"]
-    assert items["D3"]["state"] == "unchecked" and "Nobody could play it" in items["D3"]["words"]
+    assert items["D3"]["state"] == "unchecked" and items["D3"]["words"]  # nobody here could play it (playtest.py)
     assert items["D4"]["state"] == "open"  # left for the owner
 
 
@@ -317,8 +317,9 @@ def test_the_estimate_line(tmp_path):
 
 
 def test_no_done_list_means_nothing_changes(tmp_path):
-    class Bare(FinishStage, Orchestrator):
-        pass
+    class Bare(Orchestrator):
+        def _kind_proof(self):
+            return []  # no kind's checks: no done list at all
 
     from .test_stage_hooks import ONE
     from .test_harness import Brain

@@ -4,7 +4,7 @@ name: Android app
 blurb: A native app for Android phones, written in Kotlin.
 group: Mobile apps
 status: trial
-match: [android app, native android, kotlin, jetpack compose, android studio, native app, android phone app]
+match: [native android, android native, kotlin, jetpack compose, android studio, native app, android phone app]
 examples: ["an Android app that counts my steps", "a Kotlin app for my shopping list"]
 needs: [java, android]
 roles:

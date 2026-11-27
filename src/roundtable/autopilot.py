@@ -372,6 +372,14 @@ def decide(orch, ask: dict[str, Any], state: dict[str, Any], now: datetime | Non
         return _decide_failed(orch, ask)
     if kind == "money":
         return None, "money pauses always wait for you: autopilot never raises a limit or spends more"
+    if kind == "not_finished":  # "Try fixing again" at most once, within its money; never "Accept as it is"
+        from .harness.donestage import decide_not_finished
+
+        return decide_not_finished(orch, ask, state)
+    if kind == "stuck":
+        from .harness.unstick import AUTOPILOT_REASON
+
+        return None, AUTOPILOT_REASON
     return None, "autopilot doesn't answer this kind of question"
 
 

@@ -1,7 +1,8 @@
 """Step 0 of wave 5: the stages' seam (Orchestrator._hook and the ordered names, add_tasks, the done list).
 
-A bare Orchestrator has none of the hooks, so it must run exactly as before; a stage is a mixin that adds
-them. Every project here is made up, in tmp_path; the models are scripted.
+The seam is tested on ``Seam``: the Orchestrator without the wave 5 stage mixins, which has none of the
+hooks and must run exactly as before. The full Orchestrator has its stages; with no done list, stages or
+kind it still runs as before. Every project here is made up, in tmp_path; the models are scripted.
 """
 
 import json
@@ -11,7 +12,15 @@ import pytest
 from roundtable.harness import donelist, plandoc
 from roundtable.harness.agent import BudgetExceeded
 from roundtable.harness.config import FEATURE_SECTIONS, parse_config
+from roundtable.harness.donestage import DoneStage
+from roundtable.harness.finishstage import FinishStage
+from roundtable.harness.moneystage import MoneyStage
 from roundtable.harness.orchestrator import HarnessError, Orchestrator
+from roundtable.harness.playtest import PlayStage
+from roundtable.harness.prep import PrepStage
+from roundtable.harness.shipstage import ShipStage
+from roundtable.harness.stages import StagesStage
+from roundtable.harness.unstick import UnstickStage
 from roundtable.kinds import model as kindmodel
 from roundtable.providers.scripted import ScriptedImages, ScriptedProvider
 
@@ -28,7 +37,13 @@ HOOKS = (*Orchestrator.PLAN_PARTS, *Orchestrator.SCHEMA_PARTS, *Orchestrator.DOC
          "_money_agreed", "_money_gate", "_money_charge")
 
 
-def build(tmp_path, cls=Orchestrator, raw=RAW, brain=None):
+STAGES = (MoneyStage, DoneStage, PrepStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage)
+# the Orchestrator's own methods over the stages that were there before wave 5 (it uses no zero-argument super)
+Seam = type("Seam", tuple(b for b in Orchestrator.__bases__ if b not in STAGES),
+            {k: v for k, v in vars(Orchestrator).items() if k not in ("__dict__", "__weakref__")})
+
+
+def build(tmp_path, cls=Seam, raw=RAW, brain=None):
     cfg = parse_config(json.loads(json.dumps(raw)))
     brain = brain or Brain()
     for name in ("a", "b"):
@@ -46,7 +61,36 @@ def kinds(events):
 # -- a bare Orchestrator is as before ---------------------------------------------------------------------------
 def test_a_bare_orchestrator_has_none_of_the_stage_hooks():
     for name in HOOKS:
-        assert not callable(getattr(Orchestrator, name, None)), name
+        assert not callable(getattr(Seam, name, None)), name
+
+
+def test_every_hook_of_the_full_orchestrator_comes_from_a_stage():
+    assert all(issubclass(Orchestrator, st) for st in STAGES)
+    for name in HOOKS:
+        assert name not in vars(Orchestrator), name  # the seam itself defines none of them
+        owner = next((c for c in Orchestrator.__mro__ if name in vars(c)), None)
+        assert owner is None or owner in STAGES, (name, owner)
+
+
+class NoKind(Orchestrator):
+    def _kind_proof(self):
+        return []  # the kind guessed for a made-up project would bring its own checks
+
+
+def test_the_full_orchestrator_with_no_done_list_stages_or_kind_runs_as_before(tmp_path):
+    orch, events, brain = build(tmp_path, cls=NoKind, brain=Brain(plan=ONE))
+    orch.start("a made-up tool")
+    assert orch.run() == "done"
+    t = orch.project.tasks()[0]
+    assert t.status == "done" and (t.stage, t.part, t.added_by, t.fix_of, t.parked) == ("", "", "", "", "")
+    assert not {"stage_error", "tasks_added", "finish_start", "not_finished", "ship"} & set(kinds(events))
+    doc = orch.project.plan_doc()
+    for k in ("done_list", "stages", "parts", "prep", "warnings"):
+        assert k not in doc
+    assert not donelist.path(orch.project.root).exists()
+    # the only line it adds to the estimate is the small allowance for working out a stuck task
+    assert [e["id"] for e in doc["estimate"]["extras"]] == ["unstick"]
+    assert orch._end_steps(orch.project.tasks()) is None
 
 
 def test_a_bare_orchestrator_runs_exactly_as_before(tmp_path):
@@ -80,7 +124,7 @@ def test_the_planner_can_give_files_stage_and_part(tmp_path):
 
 
 # -- _hook ------------------------------------------------------------------------------------------------------
-class Hooks(Orchestrator):
+class Hooks(Seam):
     def _done_plan_part(self):
         raise ValueError("the done list broke")
 
@@ -107,7 +151,7 @@ def test_a_stage_error_is_written_down_never_raised(tmp_path):
 
 
 # -- every call site --------------------------------------------------------------------------------------------
-class AllStages(Orchestrator):
+class AllStages(Seam):
     calls: list
 
     def _prep_plan_part(self):
@@ -203,7 +247,7 @@ def test_the_doc_parts_run_after_a_revision_too(tmp_path):
     assert r["version"] == 2 and orch.project.plan_doc()["done_list"] == ["You can open it"]
 
 
-class Stops(Orchestrator):
+class Stops(Seam):
     def _done_gate(self, tasks):
         return "not_done"
 
@@ -215,7 +259,7 @@ def test_an_end_step_can_stop_the_run_with_its_own_status(tmp_path):
     assert not (orch.project.dir / "summary.md").exists()  # not finished: no report
 
 
-class Loops(Orchestrator):
+class Loops(Seam):
     def _finish_step(self, tasks):
         return "again"  # without adding work: must not go round for ever
 
@@ -227,7 +271,7 @@ def test_again_without_new_work_does_not_go_round_for_ever(tmp_path):
     assert any(k == "stage_error" and d["stage"] == "_finish_step" for k, d in events)
 
 
-class Gated(Orchestrator):
+class Gated(Seam):
     def _money_gate(self):
         self._set_status("paused", pause="over_estimate")
         return "paused"
@@ -240,7 +284,7 @@ def test_the_money_gate_stops_a_run(tmp_path):
     assert orch.project.tasks()[0].status == "pending"
 
 
-class Unstick(Orchestrator):
+class Unstick(Seam):
     def _unstick_task(self, task, tasks):
         self.unstuck = getattr(self, "unstuck", []) + [task.id]
         return False

@@ -48,7 +48,7 @@ def _lines(raw) -> list[str]:
 # side by side with others appends its module name here (one line each), nothing else in this file.
 FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "filesapi", "whatsnewapi", "tidyapi",
                                 "searchapi", "attachapi", "rewindapi", "proofapi", "terminalapi", "moneyapi",
-                                "websearchapi", "kindsapi")
+                                "websearchapi", "kindsapi", "doneapi", "stagesapi", "appapi")
 
 
 def _feature_routes(app) -> dict:
@@ -610,7 +610,7 @@ class UIApp:
         gi = doc["goal_index"] if doc else len(meta.get("goals", [])) - 1
         busy = any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values())
         words = {"title": plandoc.plan_title(doc), "state": plandoc.state_sentence(doc, tasks, meta),
-                 "estimate": plandoc.estimate_line(doc.get("estimate")) if doc.get("estimate") else ""} if doc else {}
+                 "estimate": plandoc.estimate_line(doc.get("estimate"), meta.get("agreed")) if doc.get("estimate") else ""} if doc else {}
         return {"path": str(proj.root), "name": proj.root.name, "doc": doc, "status": meta.get("status"), "words": words,
                 "approved": bool(meta.get("plan_approved")), "busy": busy,
                 "tasks": [asdict(t) for t in tasks if t.goal_index == gi],
@@ -1514,7 +1514,9 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
             self.send_header("X-Content-Type-Options", "nosniff")
             extra = dict(extra or {})
             self.send_header("X-Frame-Options", extra.pop("X-Frame-Options", "DENY"))  # a project's PDF: SAMEORIGIN
-            frames = f"; frame-src 'self' {app.preview.origin}" if app.preview.origin else ""
+            from . import appapi  # an app started with a command shows in a frame on its own port
+
+            frames = f"; frame-src 'self' {app.preview.origin + ' ' if app.preview.origin else ''}{appapi.FRAME_SRC}"
             self.send_header("Content-Security-Policy", extra.pop("Content-Security-Policy", None) or
                              "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                              "script-src 'self'" + frames)
@@ -1622,3 +1624,15 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nstopped")
+    finally:
+        stop_apps()
+
+
+def stop_apps() -> None:
+    """At exit: every app the App tab started is stopped (appapi.py); never fails the exit."""
+    try:
+        from . import appapi
+
+        appapi.stop_all()
+    except Exception:  # noqa: BLE001
+        pass

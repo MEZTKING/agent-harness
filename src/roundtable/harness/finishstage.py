@@ -237,14 +237,24 @@ class FinishStage:
         (mains or out)[0]["main"] = True
         return out
 
+    def _finish_shipped(self) -> set[str]:
+        """The files the ship step builds (an extra's "The EXE was built"): checked there, after the build."""
+        try:
+            fn = getattr(self, "_ship_recipes", None)
+            return {str(r.get("artefact") or "") for r in (fn() if callable(fn) else [])} - {""}
+        except Exception:  # noqa: BLE001
+            return set()
+
     # -- the step -----------------------------------------------------------------------------------------
     def _finish_step(self, tasks: list) -> str | None:
         s = self._finish_settings()
         if not s.enabled:
             return None
         root = self.project.root
+        shipped = self._finish_shipped()
         items = [i for i in donelist.read(root)["items"]
-                 if i.get("state") in CHECKED_STATES and i.get("how") != "owner" and not str(i["id"]).startswith("ship:")]
+                 if i.get("state") in CHECKED_STATES and i.get("how") != "owner" and not str(i["id"]).startswith("ship:")
+                 and not (i.get("how") == "file_exists" and i.get("path") in shipped)]  # the ship step builds those
         if not items:
             return None
         gi = self._finish_goal()
@@ -278,6 +288,11 @@ class FinishStage:
         if not failed:
             _save_goal(root, gi, g)
             self._journal("note", words + ".")
+            return None
+        failed = [i for i in failed if i.get("must", True)]  # a nice-to-have that fails is shown, never paid for
+        if not failed:
+            _save_goal(root, gi, g)
+            self._journal("note", words + " (only nice-to-haves failed: left as they are).")
             return None
         why_not = self._finish_why_not(g, s, tasks)
         if why_not:
@@ -510,6 +525,9 @@ class FinishStage:
         cmd = str(item.get("command") or "").strip()
         if not cmd:
             return {"passed": None, "words": "It has no command to run.", "evidence": {}}
+        if re.match(r"^npm\s", cmd) and not (Path(part["folder"]) / "package.json").is_file():
+            return {"passed": None, "words": f"“{cmd[:80]}” has nothing to run yet: there's no package.json.",
+                    "evidence": {"command": cmd}}  # a kind's check for a project that has no npm side
         s = self._finish_settings()
         ws = self.ws
         if Path(part["folder"]) != Path(ws.root).resolve():  # a part: its own folder, the same gate and rules
@@ -578,6 +596,12 @@ class FinishStage:
         s = self._finish_settings()
         if not s.enabled:
             return None
+        try:  # nothing on the done list to check: no finishing step, so no line in the estimate
+            if not any(i.get("how") != "owner" and not str(i.get("id", "")).startswith("ship:")
+                       for i in donelist.read(self.project.root)["items"]):
+                return None
+        except Exception:  # noqa: BLE001
+            pass
         planner = self.cfg.roles.get(self.cfg.planner_role)
         plan_cost = (self.cfg.cost(planner.models[0], Usage(*FIX_PLAN_TOKENS)) if planner and planner.models else 0) or 0.0
         coder = next((self.cfg.roles[t.role] for t in tasks if t.role in self.cfg.roles

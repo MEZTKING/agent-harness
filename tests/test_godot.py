@@ -254,7 +254,9 @@ class GameBrain(Brain):
 
 def test_a_godot_project_gets_run_game_and_pictures_after_each_task(tmp_path, has_screen):
     exe = fake_godot(tmp_path / "bin")
-    raw = {**json.loads(json.dumps(RAW)), "godot": {"path": str(exe), "frames": 9, "timeout": 60}}
+    # the game is broken on purpose; playing it at the end would rightly stop it as not finished (test_playtest)
+    raw = {**json.loads(json.dumps(RAW)), "godot": {"path": str(exe), "frames": 9, "timeout": 60},
+           "playtest": {"enabled": "off"}}
     brain = GameBrain()
     orch, *_r, events = make(tmp_path, raw=raw, brain=brain)
     game(orch.project.root / "game", broken=True)

@@ -244,8 +244,20 @@ class KindStage:
 
     # -- the Gallery -------------------------------------------------------------------------------------------------------------
     def _kind_proof_lines(self, tasks: list, kind: kindlib.Kind | None) -> list[dict[str, Any]]:
-        """Each proof check with passed True, False or None (not checked). The proof stage's own results win
-        when it has them (``proof.results_for(root, items, tasks)``); otherwise what Roundtable can see here."""
+        """Each proof check with passed True, False or None (not checked). The done list's pass or fail wins
+        for a line (the finished thing was started and used, donelist.py); otherwise the proof stage's own
+        results (``proof.results_for(root, items, tasks)``), else what the harness can see here."""
+        lines = self._kind_proof_base(tasks, kind)
+        try:
+            from . import donelist
+
+            done = {d["id"]: d["passed"] for d in donelist.proof_lines(self.project.root) or []
+                    if d.get("passed") is not None}
+        except Exception:  # noqa: BLE001 - the done list is a help
+            done = {}
+        return [{**ln, "passed": done[ln["id"]]} if ln["id"] in done else ln for ln in lines]
+
+    def _kind_proof_base(self, tasks: list, kind: kindlib.Kind | None) -> list[dict[str, Any]]:
         items = kindlib.proof_plan(kind) if kind else []
         if not items:
             return []
@@ -294,7 +306,9 @@ class KindStage:
         root = self.project.root
         out = []
         for pattern, what in (("dist/*.apk", "apk"), ("*.apk", "apk"), ("dist/*.exe", "exe"), ("*.exe", "exe"),
-                              ("dist/*.zip", "zip"), ("index.html", "page"), ("public/index.html", "page")):
+                              ("dist/*.zip", "zip"), ("index.html", "page"), ("public/index.html", "page"),
+                              ("build/libs/*.jar", "jar"), ("app/build/outputs/apk/debug/*.apk", "apk"),
+                              ("android/app/build/outputs/apk/debug/*.apk", "apk")):
             for p in sorted(root.glob(pattern))[:3]:
                 out.append({"kind": what, "path": p.relative_to(root).as_posix()})
         return out[:8]

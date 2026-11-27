@@ -278,7 +278,7 @@ def test_the_godot_test_command(tmp_path):
 
 
 # -- the stage ------------------------------------------------------------------------------------------------------
-class O(P.PlayStage, Orchestrator):
+class O(Orchestrator):
     pass
 
 

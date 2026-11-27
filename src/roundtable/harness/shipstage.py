@@ -11,7 +11,8 @@ and its extras (``ship:``, checked by kinds/model.py; read by harness/ship.py):
   an APK is checked with the SDK's own tools and installed only on an emulator that is already running; a mod
   jar must hold its mod file) and records ``ship:<target>`` in the done list. A failed build becomes one fix
   task per target (``add_tasks(by="ship")``, then "again"); after that it is a failed done item for the gate.
-  A target this machine can't build is ``unchecked`` with a plain reason, never dropped.
+  A target this machine can't build is ``unchecked`` with a plain reason, never dropped, and not a must
+  (so it never stops the project being called done).
 
 Whose commands run: a built-in recipe runs under the project's own "Ask me first" rules. A recipe from the
 owner's own or an imported kind always waits for the owner's "Allow" the first time in each project, with the
@@ -201,11 +202,18 @@ class ShipStage:
             have = next((i for i in donelist.read(root)["items"] if i["id"] == item_id), None)
             if have and have.get("state") == "passed":
                 continue
-            if have is None:
-                donelist.add_item(root, {"id": item_id, "text": f"The {r['name']} is built and starts",
-                                         "how": "command", "must": True, "by": "kind",
-                                         "command": r["build"], "path": r["artefact"]})
             ok, why = ship.can_build(r, rows, os_name)
+            # a target this machine can't build never traps the project: it is shown as not checked, with
+            # the reason, and isn't a must until the machine can build it (unchecked items never block)
+            if have is None or bool(have.get("must", True)) != ok:
+                donelist.add_item(root, {"id": item_id, "text": f"The {r['name']} is built and starts",
+                                         "how": "command", "must": ok, "by": "kind",
+                                         "command": r["build"], "path": r["artefact"]})
+            for same in self._ship_same_file(r):  # an extra's own "The EXE was built" follows the same rule
+                if bool(same.get("must", True)) != ok and same.get("by") != "owner":
+                    donelist.add_item(root, {k: v for k, v in same.items()
+                                             if k not in ("state", "words", "evidence", "checked_by", "checked_at")}
+                                      | {"must": ok})
             if not ok:
                 self._ship_result(r, None, why, {"reason": "machine"})
                 continue
@@ -229,9 +237,16 @@ class ShipStage:
         except Exception:  # noqa: BLE001
             return 0
 
+    def _ship_same_file(self, r: dict[str, Any]) -> list[dict[str, Any]]:
+        """Other done-list items that only ask for the file this recipe builds (an extra's proof line)."""
+        return [i for i in donelist.read(self.project.root)["items"]
+                if i.get("how") == "file_exists" and i.get("path") == r["artefact"] and i["id"] != f"ship:{r['target']}"]
+
     def _ship_result(self, r: dict[str, Any], passed: bool | None, words: str, evidence: dict[str, Any]) -> None:
         item_id = f"ship:{r['target']}"
         donelist.record(self.project.root, item_id, passed, words, evidence, by="ship")
+        for same in self._ship_same_file(r):
+            donelist.record(self.project.root, same["id"], passed, words, evidence, by="ship")
         st = self._ship_state()
         st["results"][r["target"]] = {"state": "unchecked" if passed is None else ("passed" if passed else "failed"),
                                       "words": words, "path": evidence.get("path", ""), "at": utcnow()}

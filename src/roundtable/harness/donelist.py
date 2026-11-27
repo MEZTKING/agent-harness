@@ -390,7 +390,7 @@ def for_task(items: list[dict[str, Any]], task: Any) -> list[dict[str, Any]]:
 
 def markdown(doc: dict[str, Any] | None) -> list[str]:
     """The plan's "Done when" section (plandoc.render_markdown), ids in braces for the phone's commands."""
-    items = (doc or {}).get("done_list") or []
+    items = [i for i in (doc or {}).get("done_list") or [] if isinstance(i, dict) and i.get("text")]
     if not items:
         return []
     out = ["## Done when"]
@@ -398,18 +398,18 @@ def markdown(doc: dict[str, Any] | None) -> list[str]:
         tail = [] if i.get("must", True) else ["nice to have"]
         if i.get("by") == "owner":
             tail.append("yours")
-        out.append(f"- {i['text']}" + (f" ({', '.join(tail)})" if tail else "") + f" {{{i['id']}}}")
+        out.append(f"- {i['text']}" + (f" ({', '.join(tail)})" if tail else "") + f" {{{i.get('id', '')}}}")
     return out + [""]
 
 
 def context(doc: dict[str, Any] | None) -> str:
     """What every task and review is told (plandoc.context_text): what "finished" means for this plan."""
-    items = (doc or {}).get("done_list") or []
+    items = [i for i in (doc or {}).get("done_list") or [] if isinstance(i, dict) and i.get("text")]
     if not items:
         return ""
     lines = ["Done when (what a person must be able to do with the finished thing; the work isn't finished "
              "while one of these fails):"]
-    lines += [f"- [{i['id']}] {i['text']}" + ("" if i.get("must", True) else " (nice to have)") for i in items]
+    lines += [f"- [{i.get('id', '')}] {i['text']}" + ("" if i.get("must", True) else " (nice to have)") for i in items]
     acc = (doc or {}).get("done_accepted")
     if acc:
         lines.append("The owner accepted it as it is, with these not working: "

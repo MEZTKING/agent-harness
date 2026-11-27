@@ -18,12 +18,8 @@ from .test_parallel import raw as parallel_raw
 from .test_parallel import tid_of
 
 
-class O(StagesStage, Orchestrator):
-    """The stage hooked up as the coordinator will: the after-task hook and the stop at a boundary."""
-
-    def _after_task(self, task, ok):
-        super()._after_task(task, ok)
-        self._hook("_stage_after_task", task)
+class O(Orchestrator):
+    """The full Orchestrator: the after-task hook and the stop at a boundary are hooked up in the run."""
 
 
 STAGES = [{"id": "M1", "title": "A first slice", "shows": "a page that opens"},
@@ -171,7 +167,7 @@ def test_the_markdown_has_a_heading_per_stage_and_is_as_before_without():
     doc = {"stages": STAGES, "parts": [{"id": "game", "name": "Game", "folder": "game"}], "goal_index": 0}
     md = "\n".join(st.markdown(doc, tasks))
     assert "### Stage 1: A first slice [M1]" in md and "At the end you can try: a page that opens" in md
-    assert "- [B] pending task B (coder) · Game" in md and "### Added along the way" in md
+    assert "- [B] pending task B · Game (coder)" in md and "### Added along the way" in md
     assert "Parts: Game (in game/)" in md
 
 
@@ -257,9 +253,9 @@ def test_stage_stop_each_waits_for_the_owner_once(tmp_path):
     (orch.project.dir).mkdir(parents=True, exist_ok=True)
     (orch.project.dir / "project.yaml").write_text("stage_stop: each\n", encoding="utf-8")
     assert orch._stage_stop_setting() == "each"
-    orch.run()
+    assert orch.run() == "paused"  # the run's hook-up hands out "paused" once
     assert starts(events) == ["A1"]
-    assert orch._stage_stop() == "paused"  # what the run's hook-up returns, once
+    assert orch._stage_stop() is None
     assert orch.project.meta()["pause"] == "stage"
     assert st.read(orch.project.root)["boundaries"]["M1"]["stopped"] is True
     again, events2 = build(tmp_path, StageBrain(PLAN3))

@@ -98,14 +98,15 @@ def test_a_run_can_start_above_the_estimate_the_owner_saw(tmp_path, no_history):
     orch.approve()
     agreed = orch.project.meta()["agreed"]
     assert agreed["usd"] == pytest.approx(est["cost_usd"], abs=1e-3) and agreed["by"] == "owner"
-    per = est["cost_usd"] / 5
+    per = (est["cost_usd"] - sum(e["usd"] for e in est.get("extras") or [])) / 5  # a task, without the extra lines
     # round one adds six more tasks (about 1.2 times what was agreed): within the room, it carries on;
     # round two adds seven (about 1.4 times): it stops and asks
     assert orch.run() == "paused"
     meta = orch.project.meta()
     assert meta["status"] == "paused" and meta["pause"] == "over_estimate"
     p = meta["over_estimate"]
-    assert p["now_usd"] == pytest.approx(7 * per + p["spent_usd"], abs=1e-3)
+    assert p["now_usd"] == pytest.approx(p["left_usd"] + p["spent_usd"], abs=1e-3)
+    assert p["left_usd"] >= 7 * per - 1e-3  # round two's seven tasks (and any extra lines) still to come
     assert p["now_usd"] > p["limit_usd"] == pytest.approx(agreed["usd"] * 1.25, abs=1e-3)
     assert sum(1 for t in orch.project.tasks() if t.status == "done") == 11  # round one's tasks did run
     ask = card(orch)

@@ -566,6 +566,9 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
     if doc.get("dont"):
         L += ["## Don't"] + [f"- {x['text']}" + (f" ({x['why']})" if x.get("why") else "") + f" {{{x['id']}}}"
                              for x in doc["dont"]] + [""]
+    from . import donelist  # lazy: donelist imports nothing from here
+
+    L += donelist.markdown(doc)  # "Done when"
     for s in doc.get("spec", []):
         L += [f"## {s['title']} [{s['id']}]", s.get("text", ""), ""]
     if doc.get("decisions"):
@@ -595,7 +598,9 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
         L += [f"## Critique by {c.get('model', 'a second model')}{older}"] + [
             f"- [{p.get('severity', '?')}] {p.get('text', '')}" for p in c["points"]] + [""]
     if tasks:
-        L += ["## Tasks"] + [f"- [{t.id}] {t.status} {t.title} ({t.role})" for t in tasks] + [""]
+        from . import stages as _stages  # under a heading per stage; the same "## Tasks" list with none
+
+        L += _stages.markdown(doc, tasks)
     return "\n".join(L)
 
 
@@ -610,6 +615,11 @@ def context_text(doc: dict[str, Any] | None) -> str:
         L.append("Out of scope: " + "; ".join(doc["out_of_scope"]))
     if doc.get("dont"):
         L.append("Don't: " + "; ".join(x["text"] for x in doc["dont"]))
+    from . import donelist
+
+    c = donelist.context(doc)
+    if c:
+        L.append(c)
     for d in doc.get("decisions", []):
         pick = d.get("chosen") or d.get("recommended")
         opt = next((o for o in d["options"] if o["id"] == pick), None)

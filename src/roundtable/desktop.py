@@ -534,6 +534,7 @@ def main(argv: list[str] | None = None) -> int:
             webview.create_window(NAME, url, width=1280, height=860, min_size=(420, 600))
             webview.start()  # blocks until the window is closed
             httpd.shutdown()
+            _stop_apps()
             return 0
         except Exception as e:  # no GUI toolkit: fall back to the browser
             print(f"native window unavailable ({e}); opening the browser", flush=True)
@@ -545,7 +546,15 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(3600)
     except KeyboardInterrupt:
         httpd.shutdown()
+        _stop_apps()
     return 0
+
+
+def _stop_apps() -> None:
+    """The apps the App tab started stop with the window (ui/appapi.py)."""
+    from .ui.server import stop_apps
+
+    stop_apps()
 
 
 if __name__ == "__main__":

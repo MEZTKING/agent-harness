@@ -35,15 +35,10 @@ BASES = (Orchestrator,) if issubclass(Orchestrator, DoneStage) else (DoneStage, 
 
 
 class O(*BASES):
-    """The done stage over a bare Orchestrator; ``_finish`` adds the report note as the hook-up line will."""
+    """The full Orchestrator (``_finish`` adds the report note itself)."""
 
     def _kind_proof(self):
         return []  # the kind guessed for a made-up project would add its checks; a test asks for them itself
-
-    def _finish(self, tasks):
-        super()._finish(tasks)
-        p = self.project.dir / "summary.md"
-        p.write_text(p.read_text(encoding="utf-8") + self._hook("_done_report_note", default=""), encoding="utf-8")
 
 
 def with_done(brain, items):
@@ -185,12 +180,15 @@ def test_the_plan_gets_a_done_list_and_tasks_hear_about_it(tmp_path):
 
     orch, _ = build(tmp_path, brain=spy)
     orch.start("a made-up game")
+    orch.plan()
+    data = donelist.read(orch.project.root)  # as planned: nothing checked yet
+    assert [i["state"] for i in data["items"]] == ["open"] * 4
     orch.run()
     doc = orch.project.plan_doc()
     assert [i["id"] for i in doc["done_list"]] == ["D1", "D2", "D3", "D4"]
     assert doc["done_list"][2]["how"] == "look" and doc["done_list"][3]["must"] is False
-    data = donelist.read(orch.project.root)
-    assert [i["state"] for i in data["items"]] == ["open"] * 4
+    # the finishing step checked what it could here (no browser): never a pass it didn't see
+    assert "passed" not in [i["state"] for i in donelist.read(orch.project.root)["items"]]
     plan_prompt = next(p for names, p, _ in seen if "submit_plan" in names)
     assert "# Done when" in plan_prompt and "expect_text" in plan_prompt
     tool = next(t for names, _, tools in seen if "submit_plan" in names for t in tools if t.name == "submit_plan")

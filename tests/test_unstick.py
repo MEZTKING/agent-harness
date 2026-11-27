@@ -17,7 +17,7 @@ from .test_harness import RAW, Brain, tool_names
 from .test_parallel import ParallelBrain, raw as parallel_raw
 
 
-class O(UnstickStage, Orchestrator):
+class O(Orchestrator):
     """With the cards it raised kept (there's no hub here for _attention to write to)."""
 
     def _attention(self, key, text, details=""):

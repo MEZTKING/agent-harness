@@ -63,6 +63,8 @@ class MoneyStage:
         on the card): the new figure, counted from the same starting point."""
         meta = self.project.meta()
         doc = self.project.plan_doc() or {}
+        if not doc or not self.project.tasks():
+            return {}  # approved before there was a plan: no estimate was seen, so nothing was agreed
         spent = float(self.budget.spent_usd or 0)
         old = meta.get("agreed") or {}
         if again and old:

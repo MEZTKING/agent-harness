@@ -37,11 +37,14 @@ def made_kind(ship_block, source="builtin", targets=("zip",)):
                   source=source)
 
 
-class O(ShipStage, Orchestrator):
+class O(Orchestrator):
     made = None  # the kind this test's project has
 
     def _ship_recipes(self):  # the project's own kind stays as it is; only the recipes are made up
         return ship.recipes(self.made)
+
+    def _kind_proof(self):
+        return []  # only the shipping items here: the guessed kind's own checks would join the done list
 
 
 def build(tmp_path, kind, system=None, plan=ONE):
@@ -259,7 +262,8 @@ def test_a_failed_build_makes_one_fix_task_and_only_once(tmp_path):
     cmd = script(root, "build.py", "import sys; print('error: missing semicolon'); sys.exit(3)\n")
     orch, events = build(tmp_path, made_kind({"build": cmd, "artefact": "out/*.zip", "smoke": "none"}))
     orch.start("a made-up tool")
-    assert orch.run() == "done"  # no done gate in this test: the failed item waits for it
+    assert orch.run() == "blocked"  # its one fix didn't mend it: the done gate waits for the owner
+    assert orch.project.meta()["pause"] == "not_finished"
     tasks = orch.project.tasks()
     fixes = [t for t in tasks if t.added_by == "ship"]
     assert len(fixes) == 1 and fixes[0].fix_of == "ship:zip" and fixes[0].status == "done"
@@ -298,7 +302,9 @@ def test_a_target_this_machine_cant_build_is_unchecked_and_the_plan_says_why(tmp
     exe, jar = item(orch, "ship:exe"), item(orch, "ship:jar")
     assert exe["state"] == jar["state"] == "unchecked"
     assert exe["words"] == "No Windows here: the EXE can't be built on this machine."
-    assert donelist.verdict(orch.project.root)["unchecked"] == ["ship:jar", "ship:exe"]
+    # what this machine can't build never traps the project: shown as not checked, and not a must
+    assert not exe["must"] and not jar["must"]
+    assert donelist.verdict(orch.project.root) == {"done": True, "failed": [], "unchecked": []}
     assert not [t for t in orch.project.tasks() if t.added_by]  # nothing to fix: it just can't be built here
     est = orch._ship_estimate([])
     assert est["minutes"] == 0 and est["usd"] == 0 and "not checked" in est["words"]

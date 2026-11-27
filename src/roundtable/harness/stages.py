@@ -256,7 +256,8 @@ def markdown(doc: dict[str, Any], tasks: list[Any] | None) -> list[str]:
     tasks = list(tasks or [])
     if not tasks:
         return []
-    line = lambda t: f"- [{t.id}] {t.status} {t.title} ({t.role})"
+    # the part goes before the role, so "- [T1] done Title (role)" still reads the same in every parser
+    line = lambda t, part="": f"- [{t.id}] {t.status} {t.title}{part} ({t.role})"
     stages = doc.get("stages") or []
     if not stages:
         return ["## Tasks"] + [line(t) for t in tasks] + [""]
@@ -272,7 +273,7 @@ def markdown(doc: dict[str, Any], tasks: list[Any] | None) -> list[str]:
             L.append(f"At the end you can try: {s['shows']}")
         for t in tasks:
             if t.id in s["tasks"]:
-                L.append(line(t) + (f" · {pname[t.part]}" if t.part in pname else ""))
+                L.append(line(t, f" · {pname[t.part]}" if t.part in pname else ""))
     free = [t for t in tasks if not stage_of(t, stages, gi)]
     if free:
         L.append("### Added along the way")

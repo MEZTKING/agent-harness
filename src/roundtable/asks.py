@@ -74,7 +74,10 @@ def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
     meta = orch.project.meta()
     doc = orch.project.plan_doc()
     tasks = orch.project.tasks()
+    from .harness import donestage  # here, not at the top: the harness imports this module
+
     asks = command_asks(orch.project.root) + _money_asks(orch, meta) + _failed_asks(orch, meta, tasks)
+    asks += [a for a in [donestage.not_finished_ask(orch, meta)] if a]  # the done gate stopped it
     if doc and not meta.get("plan_approved"):  # once building, the plan's questions are settled
         asks += _plan_asks(orch, doc, meta)
     name = orch.project.root.name
@@ -258,6 +261,11 @@ def _approve_ask(doc: dict[str, Any], cheap_at: str | None = None) -> dict[str, 
 def _failed_asks(orch, meta: dict[str, Any], tasks) -> list[dict[str, Any]]:
     if meta.get("status") != "blocked":
         return []
+    from .harness import unstick
+
+    card = unstick.stuck_ask(orch, tasks)  # worked out and parked: one card for them all
+    if card:
+        return [card]
     out = []
     for t in tasks:
         if t.status != "failed":
@@ -295,6 +303,14 @@ def _money_asks(orch, meta: dict[str, Any]) -> list[dict[str, Any]]:
         more = {"id": "more", "label": f"Carry on with {_money(extra)} more",
                 "description": "Starts the run again with the same limit.",
                 "confirm": f"This can spend up to {_money(extra)} more of your credit. Carry on?"}
+    elif status == "paused" and why in ("over_estimate", "allowance"):
+        from .harness import moneystage
+
+        card = moneystage.over_estimate_ask(orch)
+        if not card:
+            return []
+        return [_ask("money", "money", "Money", card["question"], card["options"], recommended=card["recommended"],
+                     other_hint="Anything to tell it before it carries on?", source=card["source"])]
     elif status == "paused" and why == "credit":
         q = f"An account ran out of credit ({meta.get('reason', '')[:120]}). Top it up, then carry on."
         more = {"id": "more", "label": "I've topped it up: carry on", "description": "Starts the run again."}
@@ -458,6 +474,10 @@ def _apply_money(orch, ask, picked, other):
     if choice == "budget":
         r = orch.set_profile(next(n for n in orch.base_cfg.profiles if n.lower() == "budget"))
         return {"reply": f"Switched to the {r['profile']} setting. Carrying on.", "then": "run"}
+    if ask["source"]["pause"] in ("over_estimate", "allowance"):
+        from .harness import moneystage
+
+        return moneystage.apply_answer(orch, ask["source"]["pause"], choice)
     if ask["source"]["pause"] in ("budget", "paused_budget"):
         limit = orch.raise_budget(ask["source"]["extra"])
         return {"reply": f"The limit is now {_money(limit)}. Carrying on.", "then": "run"}
@@ -498,7 +518,16 @@ def _apply_kind(orch, ask, picked, other):
 
 
 APPLY = {"kind": _apply_kind, "command": _apply_command, "decision": _apply_decision, "question": _apply_question, "idea": _apply_idea, "look": _apply_look,
-         "profile": _apply_profile, "approve": _apply_approve, "failed": _apply_failed, "money": _apply_money}
+         "profile": _apply_profile, "approve": _apply_approve, "failed": _apply_failed, "money": _apply_money,
+         "not_finished": lambda *a: _lazy("donestage", "apply_not_finished")(*a),
+         "stuck": lambda *a: _lazy("unstick", "apply_stuck")(*a)}
+
+
+def _lazy(module: str, name: str):
+    """A stage's own answer function, imported when it's needed (the stages import the orchestrator)."""
+    import importlib
+
+    return getattr(importlib.import_module(f".harness.{module}", __package__), name)
 
 
 def finish(orch, result: dict[str, Any]) -> str:
