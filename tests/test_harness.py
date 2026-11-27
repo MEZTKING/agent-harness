@@ -40,6 +40,12 @@ def tool_names(tools):
     return {t.name for t in tools}
 
 
+def task_line(messages):
+    """The task's own description line from a review prompt: what a scripted rejection quotes (the panel
+    counts a rejection only when it quotes the line it breaks)."""
+    return messages[0]["content"].split("\n", 2)[1]
+
+
 class Brain:
     """Scripted multi-role behaviour keyed on which terminal tool is offered."""
 
@@ -61,7 +67,8 @@ class Brain:
                 return reply("ok")
             self.reviews += 1
             if self.reject_first and self.reviews == 1:
-                return reply(calls=[("submit_review", {"approved": False, "feedback": "missing newline"})])
+                return reply(calls=[("submit_review", {"approved": False, "feedback": "missing newline",
+                                                     "breaks": task_line(messages)})])
             return reply(calls=[("submit_review", {"approved": True, "feedback": "looks good"})])
         if "finish_task" in names:
             prompt = messages[0]["content"]
@@ -532,6 +539,7 @@ def test_reviewer_is_told_what_later_tasks_will_do(tmp_path):
 def test_after_a_rejection_the_next_reviewer_model_judges(tmp_path):
     raw = json.loads(json.dumps(RAW))
     raw["roles"]["reviewer"]["fallback"] = ["b/strong-reviewer"]
+    raw["tandem"] = {"default": "lean"}  # one reviewer, as before 1.2.0 (the panel picks by maker: test_panel.py)
     raw["pricing"]["b/strong-reviewer"] = {"input": 1, "output": 1}
     orch, a, b, *_ = make(tmp_path, raw=raw, brain=Brain(reject_first=True, plan=PLAN[:1]))
     orch.start("goal")

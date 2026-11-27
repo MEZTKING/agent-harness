@@ -13,7 +13,7 @@ from roundtable.harness.orchestrator import Orchestrator, Task
 from roundtable.harness.stages import StagesStage
 from roundtable.providers.scripted import ScriptedImages, ScriptedProvider
 
-from .test_harness import RAW, reply
+from .test_harness import RAW, reply, task_line
 from .test_parallel import raw as parallel_raw
 from .test_parallel import tid_of
 
@@ -83,7 +83,8 @@ class StageBrain:
                 self.active.discard(tid)
             if tid in self.reject and tid not in self.rejected:
                 self.rejected.add(tid)
-                return reply(calls=[("submit_review", {"approved": False, "feedback": "the page is blank"})])
+                return reply(calls=[("submit_review", {"approved": False, "feedback": "the page is blank",
+                                                         "breaks": task_line(messages)})])
             return reply(calls=[("submit_review", {"approved": True, "feedback": "fine"})])
         if "finish_task" in names:
             if last["role"] == "user":

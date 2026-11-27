@@ -15,6 +15,8 @@ from roundtable.providers.cli_engine import CliEngine
 from roundtable.providers.scripted import ScriptedProvider, reply
 from roundtable.ui.server import FEATURE_APIS
 
+from .test_harness import task_line
+
 
 def ROLES(coder):
     return {"orchestrator": {"model": "a/x"}, "reviewer": {"model": "a/x"}, "coder": {"model": coder}}
@@ -137,7 +139,8 @@ def test_memory_reaches_the_planner_and_the_workers_and_learns_from_a_rejection(
             if last["role"] == "tool":
                 return reply("ok")
             ok = next(verdicts)
-            return reply(calls=[("submit_review", {"approved": ok, "feedback": "fine" if ok else "Add a full stop."})])
+            return reply(calls=[("submit_review", {"approved": ok, "feedback": "fine" if ok else "Add a full stop.",
+                                                     "breaks": task_line(messages)})])
         if "finish_task" not in names:
             return reply("All done.")  # the final report
         if last["role"] == "tool":
