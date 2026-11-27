@@ -125,8 +125,8 @@ export async function appTab(seat, now) {
 
 // "Take pictures now": for a finished project built before Roundtable took pictures
 function takeButton(fn) {
-  return h("button", { class: "primary", title: "Opens the app as it is now and takes its pictures (no AI, no cost)",
-    onclick: (ev) => act(ev.currentTarget, fn, "Taking the pictures: they show here in a minute", () => refreshHall()) }, "Take pictures now");
+  return h("div", { class: "row" }, h("button", { class: "primary", title: "Opens the app as it is now and takes its pictures (no AI, no cost)",
+    onclick: (ev) => act(ev.currentTarget, fn, "Taking the pictures: they show here in a minute", () => refreshHall()) }, "Take pictures now"));
 }
 
 // a project another computer builds: the pictures and steps it published to the hub
@@ -147,7 +147,7 @@ async function hubApp(seat, now) {
         finished ? takeButton(() => hubCommand(s, "show_it")) : null]));
   }, () => (now().status === "running" ? 6000 : 30000));
 }
-const day = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); } catch { return String(iso).slice(0, 10); } };
+const day = (iso) => { try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(iso).slice(0, 10); } };
 function liveApp(L) {
   if (!L.preview) {
     return card("The app", h("p", { class: "muted" }, L.entry ? "The app opens here in the Roundtable Hold desktop app." : "Nothing to open yet: the app's first page hasn't been made."),
