@@ -173,7 +173,7 @@ function moneyCard(d, plan) {
   const est = plan && plan.doc && plan.doc.estimate ? plan.doc.estimate.cost_usd || 0 : 0;
   const unpriced = d.meta.unpriced_calls || 0;
   const pct = est ? Math.min(100, (100 * spent) / est) : 0;
-  return card("Money", h("p", { class: "big" }, money(spent), poundsTag(spent), h("span", { class: "muted" }, est ? ` of about ${money(est)}` : " spent")),
+  return card("Money", h("p", { class: "big" }, money(spent), spent > 0 ? poundsTag(spent) : null, h("span", { class: "muted" }, est ? ` of about ${money(est)}` : " spent")),
     est ? h("div", { class: "bar wide" + (spent > est * 1.2 ? " over" : ""), title: `${Math.round((100 * spent) / est)}% of the estimate` }, h("i", { style: `width:${pct}%` })) : null,
     spent > est * 1.2 && est ? h("p", { class: "warn small" }, "It has gone past the estimate. It stops at the project's limit and asks you before spending more.") : null,
     unpriced ? h("p", { class: "muted small", title: "Add their price in Settings → AI services so they count towards the limit" }, `${plural(unpriced, "call")} to models with no price yet aren't counted.`) : null,

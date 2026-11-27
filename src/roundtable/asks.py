@@ -530,7 +530,7 @@ def wizard_asks(cfg) -> list[dict[str, Any]]:
 
     options = kindlib.wizard_options(_kinds_home())  # the kinds usable now; the rest greyed under "Coming"
     make = _ask("kind", "wizard", "Make", "What do you want to make?", options, recommended="web-app",
-                other_hint="Something else? Say what")
+                other_hint="Say what it is in your own words")
     extra = {o["id"]: o for o in options}
     for o in make["options"]:
         o.update({k: extra[o["id"]][k] for k in ("group", "disabled", "tip") if k in extra.get(o["id"], {})})
