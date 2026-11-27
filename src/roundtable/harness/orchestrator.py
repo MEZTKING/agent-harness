@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 import os
+import re
 import subprocess
 import threading
 import time
@@ -26,6 +27,8 @@ from typing import Any, Callable
 from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
+from . import dial
+from . import makers
 from . import plandoc
 from . import livecmd
 from . import websearch
@@ -84,6 +87,11 @@ class Task:
     fix_of: str = ""  # the done-list item or task it fixes
     handoff_from: str = ""  # the stuck task whose work it carries on
     parked: str = ""  # why it was put aside (a stuck task worked out another way), empty when not
+    # wave 6 (models in tandem): what the task is about, and whether the planner marked it hard or risky
+    tags: list[str] = field(default_factory=list)  # at most 6 short lower-case words, like "ui" or "database"
+    hard: bool = False  # the planner expects it to be hard: more builders and checkers when the dial allows
+    risky: bool = False  # a mistake here would be costly (money, data, security): more checkers
+    why_hard: str = ""  # the planner's words for why it is hard or risky
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -186,6 +194,21 @@ def due_cheap_runs(cfg) -> list[Path]:
     return out
 
 
+MAX_TAGS = 6
+
+
+def _tags(raw: Any) -> list[str]:
+    """A task's tags as the planner gave them: at most six short lower-case words, no repeats."""
+    if isinstance(raw, str):
+        raw = raw.split(",")
+    out: list[str] = []
+    for t in raw if isinstance(raw, list) else []:
+        tag = re.sub(r"\s+", "-", str(t).strip().lower())[:24]
+        if tag and tag not in out:
+            out.append(tag)
+    return out[:MAX_TAGS]
+
+
 def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Task]) -> list[Task]:
     if not isinstance(raw_tasks, list) or not raw_tasks:
         raise ValueError("tasks must be a non-empty list")
@@ -216,6 +239,10 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
                 files=[str(f) for f in t.get("files") or [] if str(f).strip()],
                 stage=str(t.get("stage") or ""),
                 part=str(t.get("part") or ""),
+                tags=_tags(t.get("tags")),
+                hard=t.get("hard") is True,
+                risky=t.get("risky") is True,
+                why_hard=str(t.get("why_hard") or "").strip()[:300],
             )
         )
     for t in new:
@@ -266,6 +293,7 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         self.budget = Budget(limit_usd=limit, spent_usd=meta.get("spent_usd", 0.0))
         # every charge (plans, tasks, reviews, reports, images) is logged, so "spent today" is exact
         self.budget.on_charge = self._on_charge
+        self.budget.on_use = getattr(self, "_usage_use", None)  # who spent it (a stage's, wave 6), else nobody
         self._broke: set[str] = set()  # providers that said "out of credit" during this run
         self._last_real_check = 0.0
         self._mcp = None  # the MCP servers' clients for this run (mcp_tools.MCPPool), started on first use
@@ -287,6 +315,14 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
     DOC_PARTS = ("_prep_doc", "_done_doc", "_stages_doc")  # (doc, args): adds its part to the plan document
     WORKER_PARTS = ("_done_worker_part", "_stages_worker_part", "_handoff_worker_part")  # (task) -> str
     ESTIMATE_PARTS = ("_unstick_estimate", "_finish_estimate", "_play_estimate", "_ship_estimate")  # (tasks) -> extra
+    # wave 6 (models in tandem): tags, the router, the panel, rivals, the council, named agents and the dial
+    PLAN_PARTS += ("_tags_plan_part",)
+    SCHEMA_PARTS += ("_council_schema",)
+    DOC_PARTS += ("_council_doc", "_dial_doc")
+    WORKER_PARTS += ("_agent_worker_part",)
+    ESTIMATE_PARTS += ("_router_estimate", "_dial_estimate")
+    ATTEMPT_PARTS = ("_router_attempt", "_panel_attempt", "_rivals_attempt", "_agent_attempt")  # (task, ref) -> dict merged into the attempt
+    METRIC_PARTS = ("_tags_metric", "_rivals_metric", "_agent_metric")  # (task, ref) -> dict merged into the metrics row
     END_STEPS = ("_finish_step", "_ship_step", "_done_gate")  # (tasks) -> None, "again", or a status to stop with
 
     def _hook(self, name: str, *a: Any, default: Any = None) -> Any:
@@ -380,6 +416,9 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         tid = getattr(self._tl, "task", None)
         if tid and "task" not in data:  # every event of a task says which (Watch shows several at once)
             data = {"task": tid, **data}
+        rival = getattr(self._tl, "rival", None)
+        if rival and "rival" not in data:  # and which rival attempt, when several build it at once (wave 6)
+            data = {**data, "rival": rival}
         with self._lock:
             row = {"at": utcnow(), "event": kind, **data}
             self.project.append("events.jsonl", row)
@@ -753,6 +792,13 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                           "description": "optional: the files this task creates or changes"},
                 "stage": {"type": "string", "description": "optional: the build stage this task belongs to"},
                 "part": {"type": "string", "description": "optional: the part of the build this task makes"},
+                "tags": {"type": "array", "items": {"type": "string"},
+                         "description": "optional: up to 6 short lower-case words for what the task is about, "
+                                        "like ui, database, game-logic, tests, docs"},
+                "hard": {"type": "boolean", "description": "optional: true when the task is hard to get right"},
+                "risky": {"type": "boolean",
+                          "description": "optional: true when a mistake would be costly (money, data, security)"},
+                "why_hard": {"type": "string", "description": "optional: one short sentence on why it is hard or risky"},
                 "image_options": {
                     "type": "object",
                     "description": "image tasks only: e.g. {style, width, height, remove_bg, tile_x, tile_y}",
@@ -769,9 +815,16 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         schema["required"] = ["id", "title", "role", "description", "acceptance", "depends_on"]
         return schema
 
-    def _plan_call(self, job: str, reserved: list[Task]) -> tuple[list[Task], dict[str, Any]]:
-        """Ask the planner for a plan document + tasks; returns the validated tasks and the raw submission."""
-        role = self.cfg.roles[self.cfg.planner_role]
+    def _plan_call(self, job: str, reserved: list[Task], role: RoleSpec | str | None = None
+                   ) -> tuple[list[Task], dict[str, Any]]:
+        """Ask the planner for a plan document + tasks; returns the validated tasks and the raw submission.
+
+        ``role``: who plans (a RoleSpec, such as the planner's role with one rival model, or a role name);
+        the planner's role when None. Nothing changes but the money spent, so rival planners may call it."""
+        if role is None:
+            role = self.cfg.roles[self.cfg.planner_role]
+        elif isinstance(role, str):
+            role = self.cfg.roles[role]
         captured: dict[str, Any] = {}
         roles = self.cfg.roles
         last_error: list[str] = []
@@ -919,7 +972,8 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
               "answer, worthwhile ideas), has_ui (true when people will look at its screens) and the tasks, each "
               "linked to its spec section."
         )
-        new, args = self._plan_call(job, existing)
+        got = self._hook("_council_plan", job, existing)  # rival planners and a chair (wave 6), else one planner
+        new, args = got or self._plan_call(job, existing)
         for t in new:
             t.goal_index = goal_index
         tasks = existing + new
@@ -931,13 +985,17 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         kind_doc = self._kind_doc()
         if kind_doc:
             doc["kind"] = kind_doc  # the first card on the plan: "This looks like a website. Right?"
+        meta = self.project.meta()
+        meta["checking"] = dial.level_for_new_plan(self)  # how much extra checking this plan gets (dial.py)
+        self.project.save_meta(meta)
         doc["estimate"] = self._estimate(new, doc.get("has_ui"))
         if self.base_cfg.profiles:
             doc["estimates"] = self.profile_estimates(doc.get("has_ui"))
             doc["profile"] = self.profile()
         self.project.save_plan_doc(doc, tasks)
         self.emit("plan", {"tasks": [f"{t.id} [{t.role}] {t.title}" for t in new], "notes": doc["summary"][:500]})
-        self._critique()
+        if not doc.get("council"):  # a council's chair has already weighed rival plans: no second opinion
+            self._critique()
         self._look_stage()
         doc = self.project.plan_doc() or doc
         new = [t for t in self.project.tasks() if t.goal_index == goal_index]
@@ -1204,6 +1262,9 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         last: Exception | None = None
         self._require_models(role)
         for ref in role.models:
+            if self._blocked(ref):  # its account is empty this run, or a stage's limit for it is reached
+                last = last or ProviderError(f"{ref} was skipped: no credit or its limit is reached")
+                continue
             try:
                 res = run_agent(self.cfg, ref, self._with_repo_rules(system), prompt, box, self.budget,
                                 max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
@@ -1268,7 +1329,10 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                      "must know.")
         return "\n\n".join(parts)
 
-    def _review(self, task: Task, worker_summary: str, stronger: bool = False) -> tuple[bool, str, AgentResult | None]:
+    def _review(self, task: Task, worker_summary: str, stronger: bool = False,
+                built_by: ModelRef | None = None) -> tuple[bool, str, AgentResult | None]:
+        """The verdict on a task's work: the project's own tests first, then the reviewer. ``built_by``: the
+        model that built it (a panel of checkers avoids its maker)."""
         reviewer = self.cfg.roles.get(self.cfg.reviewer_role or "")
         role = self.cfg.roles[task.role]
         checks = self._task_checks(task)  # the project's own test command, when it has one
@@ -1276,10 +1340,22 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
             return False, checks["feedback"], None
         if not reviewer or not role.review:
             return True, "(review skipped)", None
-        if stronger and len(reviewer.models) > 1:
-            from dataclasses import replace as _replace
+        got = self._hook("_panel_review", task, worker_summary, checks, stronger, built_by)  # several checkers (wave 6)
+        if got:
+            return got
+        models = reviewer.models
+        if stronger and len(models) > 1:
+            models = models[1:] + models[:1]
+        ok, fb, res, _ = self._review_once(task, worker_summary, checks, models)
+        return ok, fb, res
 
-            reviewer = _replace(reviewer, models=reviewer.models[1:] + reviewer.models[:1])
+    def _review_once(self, task: Task, worker_summary: str, checks: dict[str, Any] | None, models: list[ModelRef],
+                     note: str = "") -> tuple[bool, str, AgentResult | None, dict[str, Any]]:
+        """One reviewer's verdict with ``models`` (tried in turn on provider errors): (approved, feedback, its
+        result, the raw verdict with ``breaks`` when it gave one). ``note``: extra words for this reviewer."""
+        from dataclasses import replace as _replace
+
+        reviewer = _replace(self.cfg.roles[self.cfg.reviewer_role], models=list(models))
         verdict: dict[str, Any] = {}
 
         def submit_review(args: dict) -> str:
@@ -1295,7 +1371,9 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         box.add(Tool(
             ToolSpec("submit_review", "Record your verdict. approved=true only if every acceptance criterion is met.",
                      _obj({"approved": {"type": "boolean"}, "feedback": {"type": "string",
-                           "description": "what is wrong and exactly how to fix it (or brief confirmation)"}},
+                           "description": "what is wrong and exactly how to fix it (or brief confirmation)"},
+                           "breaks": {"type": "string", "description": "when rejecting: the exact words of the "
+                                      "task or its done-when that the work breaks"}},
                           ["approved", "feedback"])),
             submit_review, terminal=True,
         ))
@@ -1315,12 +1393,13 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
             "Verify the work (read files, run tests if relevant), then call submit_review. Judge THIS task "
             "against its own acceptance criteria: the plan, the design file and later tasks are context, so don't "
             "reject for work a later task will do, or for small harmless changes the criteria don't forbid."
+            + (f"\n\n{note}" if note else "")
         )
         res = self._run_with_fallback(reviewer, self.cfg.prompt_text(reviewer.prompt), prompt, box,
                                       require="submit_review", done=lambda: bool(verdict))
         if not verdict:
-            return False, f"reviewer gave no verdict ({res.stop}): {res.text[:500]}", res
-        return bool(verdict.get("approved")), str(verdict.get("feedback", "")), res
+            return False, f"reviewer gave no verdict ({res.stop}): {res.text[:500]}", res, verdict
+        return bool(verdict.get("approved")), str(verdict.get("feedback", "")), res, verdict
 
     def _later_tasks_text(self, task: Task) -> str:
         """The tasks still to come, so a reviewer doesn't ask this one to do their work."""
@@ -1329,16 +1408,27 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
             return ""
         return "# Still to come (not this task's job)\n" + "".join(f"- [{t.id}] {t.title}\n" for t in later[:20]) + "\n"
 
+    def _parts(self, names: tuple[str, ...], task: Task, ref: ModelRef, row: dict[str, Any]) -> dict[str, Any]:
+        """``row`` with every stage's (task, ref) -> dict laid over it (ATTEMPT_PARTS, METRIC_PARTS)."""
+        for name in names:
+            extra = self._hook(name, task, ref)
+            if isinstance(extra, dict):
+                row.update(extra)
+        return row
+
+    def _add_attempt(self, task: Task, ref: ModelRef, row: dict[str, Any]) -> None:
+        task.attempts.append(self._parts(self.ATTEMPT_PARTS, task, ref, row))
+
     def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0,
                 review_saved: int = 0) -> None:
-        self.project.append("metrics.jsonl", {
+        self.project.append("metrics.jsonl", self._parts(self.METRIC_PARTS, task, ref, {
             "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": outcome,
             "steps": res.steps if res else 0, "seconds": res.seconds if res else 0,
             "input_tokens": res.usage.input_tokens if res else 0,
             "output_tokens": res.usage.output_tokens if res else 0,
             "cost_usd": round((res.cost_usd if res else 0) + review_cost, 6),
             "saved_tokens_est": (res.saved_tokens_est if res else 0) + review_saved,
-        })
+        }))
 
     def _run_image_task(self, task: Task, role: RoleSpec) -> bool:
         rel = task.output_path or f"assets/{task.id.lower()}.png"
@@ -1369,12 +1459,12 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
             path.write_bytes(data)
             style = task.image_options.get("style") or role.options.get("style")
             task.summary = f"generated image {rel} with {ref}" + (f" (style {style})" if style else "")
-            task.attempts.append({"model": str(ref), "outcome": "approved", "cost_usd": cost})
-            self.project.append("metrics.jsonl", {
+            self._add_attempt(task, ref, {"model": str(ref), "outcome": "approved", "cost_usd": cost})
+            self.project.append("metrics.jsonl", self._parts(self.METRIC_PARTS, task, ref, {
                 "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": "approved",
                 "steps": 1, "seconds": round(time.monotonic() - t0, 2), "input_tokens": usage.input_tokens,
                 "output_tokens": usage.output_tokens, "cost_usd": cost or 0,
-            })
+            }))
             return True
         task.summary = f"image generation failed: {last}"
         return False
@@ -1386,16 +1476,52 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         self._require_models(role)
         if role.kind == "image":
             return self._run_image_task(task, role)
+        got = self._hook("_rivals_run", task, tasks)  # several builders at once (wave 6); None: the usual way
+        if got is not None:
+            return bool(got)
+        models = (self.stronger_models(task) if task.stronger else []) or role.models
+        if not task.stronger:  # the owner's "stronger" choice is never routed elsewhere
+            models = self._routed(task, role, models)
+        return self._attempt_loop(task, tasks, models)
+
+    def _may_use(self, ref: ModelRef | str) -> bool:
+        """May this model see the project? Its allowed services and makers (makers.py); every stage asks."""
+        try:
+            values = self.project_settings().values
+        except Exception:  # noqa: BLE001 - settings with a mistake: nothing extra is sent anywhere
+            return False
+        return makers.allowed(values, ref)
+
+    def _blocked(self, ref: ModelRef) -> bool:
+        """Skip this model: its account is empty this run, or a stage's limit for its service is reached."""
+        return ref.provider in self._broke or bool(self._hook("_usage_blocked", ref, default=False))
+
+    def _routed(self, task: Task, role: RoleSpec, models: list[ModelRef]) -> list[ModelRef]:
+        """The models for this task, as a router stage would order them (wave 6). Its answer is used only when
+        it is a non-empty list of models the project allows; otherwise the role's own models."""
+        got = self._hook("_route_models", task, role, list(models))
+        if isinstance(got, list) and got and all(isinstance(m, ModelRef) and self._may_use(m) for m in got):
+            return got
+        return models
+
+    def _attempt_loop(self, task: Task, tasks: list[Task], models: list[ModelRef], *,
+                      feedback: list[str] | None = None, attempts: int | None = None, review: bool = True) -> bool:
+        """Build ``task`` with ``models`` in turn: the next model after a provider error, or after two rejections.
+
+        ``feedback``: what earlier attempts were told (added to as it goes). ``attempts``: how many tries (the
+        project's ``max_attempts_per_task`` when None). ``review=False`` (a rival attempt): a finished build is
+        recorded as ``"built"``, with no metrics row and no review, and returns True."""
+        role = self.cfg.roles[task.role]
         self.ws.live = (self.project.root, task.id)  # its commands shown as they print (livecmd.py)
 
-        feedback: list[str] = []
+        feedback = [] if feedback is None else feedback
         model_idx = 0
         rejections_on_model = 0
         ran_out_once = False
-        models = (self.stronger_models(task) if task.stronger else []) or role.models
-        for attempt in range(1, self.cfg.limits.max_attempts_per_task + 1):
-            while model_idx < len(models) and models[model_idx].provider in self._broke:
-                model_idx += 1  # that account is empty: no point trying it again this run
+        limit = self.cfg.limits.max_attempts_per_task if attempts is None else attempts
+        for attempt in range(1, limit + 1):
+            while model_idx < len(models) and self._blocked(models[model_idx]):
+                model_idx += 1  # that account is empty (or its limit reached): no point trying it again this run
             if model_idx >= len(models):
                 if all(m.provider in self._broke for m in models):
                     raise OutOfCredit("no credit left with " + ", ".join(sorted({m.provider for m in models})))
@@ -1428,14 +1554,14 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                 if getattr(e, "out_of_credit", False):
                     self._broke.add(ref.provider)
                 self.emit("provider_error", {"task": task.id, "model": str(ref), "error": str(e)})
-                task.attempts.append({"model": str(ref), "outcome": "error", "error": str(e)})
+                self._add_attempt(task, ref, {"model": str(ref), "outcome": "error", "error": str(e)})
                 self._metric(task, ref, "error", None)
                 model_idx += 1
                 rejections_on_model = 0
                 continue
 
             if res.stop in ("refusal", "max_steps", "breaker") and not summary:
-                task.attempts.append({"model": str(ref), "outcome": res.stop, "cost_usd": res.cost_usd})
+                self._add_attempt(task, ref, {"model": str(ref), "outcome": res.stop, "cost_usd": res.cost_usd})
                 self._metric(task, ref, res.stop, res)
                 if res.stop == "max_steps" and model_idx + 1 >= len(models) and not ran_out_once:
                     # no fallback model: the files it wrote are still there, so let it carry on once
@@ -1452,13 +1578,19 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                 continue
 
             worker_summary = summary.get("summary") or res.text or "(no summary)"
+            if not review:  # a rival's build: the rivals stage compares them and has the best one checked
+                self._add_attempt(task, ref, {"model": str(ref), "outcome": "built", "summary": worker_summary[:1000],
+                                              "cost_usd": round(res.cost_usd, 6)})
+                task.summary = worker_summary
+                return True
             # after a rejection, the next verdict comes from the next (stronger) reviewer model
             approved, fb, rev = self._review(task, worker_summary,
-                                             stronger=any(a.get("outcome") == "rejected" for a in task.attempts))
+                                             stronger=any(a.get("outcome") == "rejected" for a in task.attempts),
+                                             built_by=ref)
             review_cost = rev.cost_usd if rev else 0.0
             outcome = "approved" if approved else "rejected"
-            task.attempts.append({"model": str(ref), "outcome": outcome, "summary": worker_summary[:1000],
-                                  "review": fb[:2000], "cost_usd": round(res.cost_usd + review_cost, 6)})
+            self._add_attempt(task, ref, {"model": str(ref), "outcome": outcome, "summary": worker_summary[:1000],
+                                          "review": fb[:2000], "cost_usd": round(res.cost_usd + review_cost, 6)})
             self._metric(task, ref, outcome, res, review_cost, rev.saved_tokens_est if rev else 0)
             self.emit("review", {"task": task.id, "approved": approved, "feedback": fb[:500]})
             if approved:
@@ -1803,6 +1935,10 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
             if isinstance(e, OutOfCredit):
                 self._set_status("paused", reason=str(e), pause="credit")
                 self._attention("money", f"{e}: top up that account, then run the project again")
+                return "paused"
+            if getattr(e, "pause", None):  # a stage's own money stop, such as a cap for one service (wave 6)
+                self._set_status("paused", pause=e.pause, reason=str(e))
+                self._attention("money", str(e))
                 return "paused"
             self._set_status("paused_budget", reason=str(e), pause="budget")
             self._attention("budget", "Paused at this project's spending limit: choose Carry on to give it more",

@@ -242,16 +242,17 @@ const ABOUT = { test: "The command that checks the app after each task. A task t
   env: "Settings that command needs, one a line, like NAME=value. Never keys or passwords.", setup: "A command run once before the first task, to get the app ready.",
   timeout: "How long the check or set-up may take.", branch: "Where the harness's work goes in an existing app; never its main line.",
   rules_files: "The app's own rule files, which every model follows.", rules_budget: "At most this much of those rules goes to the models.",
-  providers_allowed: "Only these AI services may see this project. None ticked: any of them.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
+  providers_allowed: "Only these AI services may see this project. None ticked: any of them.",
+  makers_allowed: "Only models made by these companies may see this project, whichever service they come through (for example anthropic, openai, deepseek). Empty: any.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
   limits: "Money and effort limits for this project only. Empty: the app's own.", look: "Offer looks to choose from before building.",
   show_it: "Take pictures of the app's screens after each task.", notes: "Anything the planner should know about this project, in your own words." };
 const LABELS = { test: ["Check command", "How the app is checked after each task"], env: ["Settings for the check", ""], setup: ["Set-up command", ""],
   timeout: ["Time allowed for the check (seconds)", ""], branch: ["Where the work goes", ""], rules_files: ["The app's own rules", ""],
-  rules_budget: ["How much of those rules the models read (characters)", ""], providers_allowed: ["Only these AI services may see it", ""],
+  rules_budget: ["How much of those rules the models read (characters)", ""], providers_allowed: ["Only these AI services may see it", ""], makers_allowed: ["Only models made by these companies may see it", ""],
   profile: ["Set of models", ""], limits: ["Limits", ""], look: ["Choose a look first", ""], show_it: ["Pictures after each task", ""], notes: ["Notes for the planner", ""] };
 const CHOICE_WORDS = { "": "The app's choice", auto: "When it makes sense", on: "Always", off: "Never" };
 const LIMIT_WORDS = { max_real_usd_per_run: "Most it may spend in one go ($)", max_cost_usd: "Most it may spend in all ($)", max_attempts_per_task: "Tries per task", max_steps_per_task: "Steps per try" };
-const GROUPS = [["What it costs and who builds it", ["profile", "limits", "providers_allowed"]], ["What you see", ["look", "show_it", "notes"]],
+const GROUPS = [["What it costs and who builds it", ["profile", "limits", "providers_allowed", "makers_allowed"]], ["What you see", ["look", "show_it", "notes"]],
   ["How it's checked (for an existing app)", ["test", "setup", "env", "timeout", "branch", "rules_files", "rules_budget"]]];
 
 async function settingsTab(seat) {

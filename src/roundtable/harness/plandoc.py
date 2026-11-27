@@ -168,7 +168,8 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
         new["look"] = old["look"]  # the looks aren't the planner's: they stay as they were
     if old.get("references"):
         new["references"] = old["references"]  # the owner's, read by the scout: never the planner's to drop
-    for k in ("done_list", "stages", "parts", "prep", "warnings"):  # the stages' parts (wave 5) last too
+    # the stages' parts (wave 5) last too, and the council's record and the dial's prices (wave 6)
+    for k in ("done_list", "stages", "parts", "prep", "warnings", "council", "checking_estimates"):
         if old.get(k) and not new.get(k):
             new[k] = old[k]
     new["version"] = old.get("version", 1) + 1
