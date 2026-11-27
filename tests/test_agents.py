@@ -82,7 +82,7 @@ def test_starters_one_hired_per_job_with_initials_until_a_face(home):
     assert all(a.hired and a.built_in for a in team)
     torvic = ag.hired_for(home, "builder")
     assert torvic.name == "Torvic" and ag.initials("Torvic") == "T" and ag.initials("Ann Ruby Lee") == "AR"
-    assert ag.card(home, torvic)["face"] == ""  # no face yet: the app draws the ring with initials
+    assert ag.card(home, torvic)["face"].startswith("data:image/")  # the starter face shipped with the app (initials only when none)
 
 
 def test_one_hired_agent_per_job_and_renaming(home):
