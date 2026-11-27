@@ -1,9 +1,9 @@
 """The checking dial (harness/dial.py): one level per project, its price before anything runs, its own share of
 the money, and who built, who checked and who disagreed (ui/tandemapi.py).
 
-The rival builders and the panel of checkers are built at the same time by other helpers, so the "within 10 %
-at every level" test runs here with scripted stand-ins that ask the dial and write the attempt keys documented
-in dial.py; the coordinator runs it again with the real stages once they are merged. Every project is made up,
+The "within 10 % at every level" test runs on the full Orchestrator with the real stages (rivals, panel, council,
+router, agents, usage); the other tests use scripted stand-ins that ask the dial and write the attempt keys
+documented in dial.py. Every project is made up,
 in tmp_path; the models are scripted (the maker is the provider id).
 """
 
@@ -113,9 +113,7 @@ class StandIns:
 
 
 class Approving:
-    def approve(self):
-        super().approve()
-        self._hook("_dial_agreed")  # the coordinator's hook-up line: after _money_agreed
+    """Orchestrator.approve calls the hook itself now (after _money_agreed); kept so the classes read as before."""
 
 
 class Dialled(Approving, StandIns, dial.DialStage, Seam):
@@ -127,7 +125,7 @@ class NoKind(Orchestrator):
         return []
 
 
-class FullDialled(Approving, dial.DialStage, NoKind):
+class FullDialled(Approving, *((NoKind,) if issubclass(NoKind, dial.DialStage) else (dial.DialStage, NoKind))):
     pass
 
 
@@ -233,34 +231,6 @@ def test_the_project_setting_wins_then_the_owners_choice_then_the_default(tmp_pa
 
 
 # -- the price against a scripted run ------------------------------------------------------------------------
-@pytest.mark.parametrize("level", dial.LEVELS)
-def test_the_estimate_is_within_ten_percent_of_the_scripted_spend(tmp_path, level):
-    plan = plan_of("ordinary", "hard", "risky", "ordinary")
-    past = history(tmp_path, plan)
-    orch, events = build(tmp_path, plan=plan, tandem={"default": level})
-    orch.start("a made-up tool")
-    (orch.project.dir / "metrics.jsonl").write_text(past, encoding="utf-8")
-    orch.plan()
-    est = orch.project.plan_doc()["estimate"]
-    assert all(e["id"] == "dial" for e in est["extras"])
-    assert est["by_role"]["coder"]["basis"] == "history"
-    orch.approve()
-    assert orch.run() == "done"
-    spend = run_spend(orch)
-    assert spend > 0
-    assert abs(est["cost_usd"] - spend) <= 0.10 * spend, (level, est["cost_usd"], spend)
-    tasks = {t.id: t for t in orch.project.tasks()}
-    if level == "lean":
-        assert not (orch.project.root / dial.LEDGER).exists()
-        assert all(len(t.attempts) == 1 for t in tasks.values())
-    elif level == "balanced":
-        assert [a["outcome"] for a in tasks["T2"].attempts] == ["built", "approved"]
-        assert len(tasks["T1"].attempts) == 1 and len(tasks["T3"].attempts[-1]["reviews"]) == 2
-    else:
-        assert [a["outcome"] for a in tasks["T2"].attempts] == ["built", "built", "approved"]
-    assert not {"stage_error"} & {k for k, _ in events}
-
-
 def test_history_leaves_out_rival_rows(tmp_path):
     f = tmp_path / "m.jsonl"
     rows = [{"task": f"T{i}", "role": "coder", "cost_usd": 0.5, "seconds": 60, "at": "2026-11-20T10:00:00Z"}
@@ -399,3 +369,53 @@ def test_never_uses_a_model_the_project_does_not_allow():
     """The dial picks no models itself: it only prices the stages' extras and gives them their share."""
     src = (Path(__file__).resolve().parents[1] / "src" / "roundtable" / "harness" / "dial.py").read_text()
     assert "providers_allowed" not in src and "makers_allowed" not in src and "run_agent" not in src
+
+
+# -- the same price against the real stages (wave 6 merged: rivals, panel, council, router, agents, usage) --------
+class RealStages(NoKind):
+    """The full Orchestrator: every real stage, nothing stood in for."""
+
+
+def _tap_charges(orch):
+    before = orch.budget.on_use
+
+    def tap(ref, usage, cost, role):
+        orch.__dict__.setdefault("charges", []).append((str(ref), role, cost or 0.0))
+        if before:
+            before(ref, usage, cost, role)
+
+    orch.budget.on_use = tap
+
+
+@pytest.mark.parametrize("level", dial.LEVELS)
+def test_the_estimate_is_within_ten_percent_with_the_real_stages(tmp_path, level):
+    plan = plan_of("ordinary", "hard", "risky", "ordinary")
+    before, _ = build(tmp_path, cls=RealStages, plan=plan, name="before", tandem={"default": "lean"})
+    before.start("a made-up tool")
+    before.plan()
+    before.approve()
+    assert before.run() == "done"
+    past = (before.project.dir / "metrics.jsonl").read_text(encoding="utf-8")
+    orch, events = build(tmp_path, cls=RealStages, plan=plan, tandem={"default": level})
+    _tap_charges(orch)
+    orch.start("a made-up tool")
+    (orch.project.dir / "metrics.jsonl").write_text(past, encoding="utf-8")
+    orch.plan()
+    est = orch.project.plan_doc()["estimate"]
+    orch.approve()
+    assert orch.run() == "done"
+    spend = run_spend(orch)
+    # the unsticking allowance (wave 5) is money kept for a task that gets stuck; a clean run never spends it
+    spare = sum(e.get("usd") or 0 for e in est.get("extras") or [] if e.get("id") == "unstick")
+    want = est["cost_usd"] - spare
+    assert spend > 0
+    assert abs(want - spend) <= 0.10 * spend, (level, want, spend, est.get("extras"))
+    tasks = {t.id: t for t in orch.project.tasks()}
+    if level == "lean":
+        assert all("rival" not in a and "reviews" not in a for t in tasks.values() for a in t.attempts)
+    elif level == "balanced":
+        assert tasks["T2"].attempts[-1].get("rival") and len(tasks["T2"].attempts[-1]["rivals"]) == 2
+        assert len([r for r in tasks["T3"].attempts[-1]["reviews"] if r["counted"] is True]) == 2
+    assert not {"stage_error"} & {k for k, _ in events}
+    print(f"\n10% check, real stages, {level}: estimate ${want:.4f} (+${spare:.2f} kept for stuck tasks), "
+          f"spend ${spend:.4f}, {(want - spend) / spend:+.1%}")

@@ -22,7 +22,7 @@ from roundtable.providers.scripted import ScriptedImages, ScriptedProvider
 from .test_harness import RAW, Brain
 
 
-class O(RouterStage, Orchestrator):
+class O(*((Orchestrator,) if issubclass(Orchestrator, RouterStage) else (RouterStage, Orchestrator))):
     def _kind_proof(self):
         return []  # the kind guessed for a made-up project would bring its own checks
 
@@ -207,9 +207,8 @@ def test_an_over_marked_plan_is_trimmed(tmp_path):
     plan[7]["risky"] = True
     orch, _ = build(tmp_path, plan)
     orch.start("a made-up game")
-    orch.plan()  # without the hook-up in plan(): the document part trims the saved tasks
-    doc = {"goal_index": 0}
-    orch._tags_doc(doc, {})
+    orch.plan()  # plan() trims the new tasks (_tags_trim) and the document part keeps the warning
+    doc = orch.project.plan_doc()
     tasks = orch.project.tasks()
     assert [t.id for t in tasks if t.hard] == ["T1", "T2"]  # a quarter of 8
     assert tasks[2].why_hard == "" and tasks[7].why_hard == "tricky"  # a risky task keeps its reason
@@ -313,7 +312,8 @@ def test_a_dear_or_unpriced_model_is_never_tried(tmp_path, explore):
 
 def test_exploring_needs_the_dial(tmp_path):
     raw = _raw(pool={"coder": ["c/newbie"]}, explore={"share": 1.0, "max_usd_per_goal": 50})
-    orch, _ = planned(tmp_path, [_task("T1", ["logic"])], raw=raw)  # the stub dial never explores
+    raw["tandem"] = {"default": "lean"}
+    orch, _ = planned(tmp_path, [_task("T1", ["logic"])], raw=raw)  # at lean the dial never explores
     assert orch.run() == "done" and _explored(orch) == []
 
 
@@ -399,7 +399,7 @@ def test_the_count_cap_holds_even_when_every_task_hashes_in(tmp_path, explore, m
 def test_the_full_orchestrator_with_the_router_at_lean_runs_as_before(tmp_path):
     from .test_tandem_seam import NoKind, _run, _shape
 
-    class Routed(RouterStage, NoKind):
+    class Routed(*((NoKind,) if issubclass(NoKind, RouterStage) else (RouterStage, NoKind))):
         pass
 
     bare, _, _ = _run(tmp_path / "bare", NoKind, level="lean")

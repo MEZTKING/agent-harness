@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -652,3 +653,95 @@ def main(argv: list[str]) -> None:
     for e in result.errors:
         print(f"couldn't: {e}", file=sys.stderr)
     print(result.message())
+
+
+# -- attempts not chosen (wave 6: rivals.py) ---------------------------------------------------------------------
+# When two or three models built a task side by side, the ones not chosen keep their branch
+# (roundtable-task/<task>-r<n>) and a patch (.harness/rivals/<task>/<rN>.patch). Nothing clears them by itself:
+# the Tidy page lists them with their size, and only the owner's Clear removes them.
+NOT_CHOSEN_BRANCH = re.compile(r"^roundtable-task/(?P<task>.+)-(?P<rival>r\d+)$")
+
+
+def _git_out(root: Path, *args: str) -> tuple[int, str]:
+    from .harness.safeenv import clean_env
+
+    try:
+        res = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True, env=clean_env(),
+                             encoding="utf-8", errors="replace", timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return 1, ""
+    return res.returncode, res.stdout
+
+
+def not_chosen(root: Path) -> list[dict[str, Any]]:
+    """One project's attempts not chosen: [{task, rival, model, why, branch, patch, size, bytes}], oldest first."""
+    root = Path(root)
+    hdir = root / ".harness"
+    try:
+        records = json.loads((hdir / "rivals.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        records = {}
+    info: dict[tuple[str, str], dict[str, Any]] = {}
+    for task, rounds in (records.items() if isinstance(records, dict) else []):
+        for rnd in rounds if isinstance(rounds, list) else []:
+            for r in (rnd or {}).get("rivals") or []:
+                if isinstance(r, dict) and not r.get("picked"):
+                    info[(str(task), str(r.get("id", "")))] = {"model": r.get("model", ""), "why": rnd.get("why", "")
+                                                                or r.get("why", "")}
+    items: dict[tuple[str, str], dict[str, Any]] = {}
+    code, out = _git_out(root, "branch", "--list", "roundtable-task/*", "--format=%(refname:short)")
+    merged = _merged_branches(root) or set()
+    if code == 0:
+        for b in (ln.strip() for ln in out.splitlines()):
+            m = NOT_CHOSEN_BRANCH.match(b)
+            if m and b not in merged:
+                items[(m["task"], m["rival"])] = {"task": m["task"], "rival": m["rival"], "branch": b, "patch": ""}
+    pdir = hdir / "rivals"
+    if pdir.is_dir():
+        for p in sorted(pdir.glob("*/*.patch")):
+            key = (p.parent.name, p.stem)
+            items.setdefault(key, {"task": key[0], "rival": key[1], "branch": ""})["patch"] = \
+                str(p.relative_to(root)).replace("\\", "/")
+    rows = []
+    for key, it in sorted(items.items()):
+        size = 0
+        if it.get("patch"):
+            size += _size(root / it["patch"])
+        rows.append({**it, **info.get(key, {"model": "", "why": ""}), "bytes": size, "size": size_text(size)})
+    return rows
+
+
+def not_chosen_words(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return "No attempts waiting: every task's chosen attempt is in its project."
+    tasks = len({(r.get("project", ""), r["task"]) for r in rows})
+    n = len(rows)
+    return (f"{n} attempt{'s' * (n != 1)} not chosen, on {tasks} task{'s' * (tasks != 1)}. Each is kept as a branch "
+            "and a small patch until you clear it.")
+
+
+def clear_not_chosen(root: Path, task: str = "", rival: str = "") -> dict[str, Any]:
+    """The owner's Clear: removes the branches and patches of attempts not chosen (one, one task's, or all).
+    Never called by the sweep. A branch that has been merged since is left alone."""
+    root = Path(root)
+    cleared, kept = [], []
+    for it in not_chosen(root):
+        if (task and it["task"] != task) or (rival and it["rival"] != rival):
+            continue
+        ok = True
+        if it.get("branch"):
+            code, _ = _git_out(root, "branch", "-D", it["branch"])  # not merged (listed only then): -D is needed
+            ok = code == 0
+        if it.get("patch"):
+            p = root / it["patch"]
+            if _inside(p, root / ".harness" / "rivals"):
+                try:
+                    p.unlink()
+                    if p.parent.is_dir() and not any(p.parent.iterdir()):
+                        p.parent.rmdir()
+                except OSError:
+                    ok = False
+        (cleared if ok else kept).append(f"{it['task']} {it['rival']}")
+    return {"cleared": cleared, "kept": kept,
+            "reply": (f"Cleared {len(cleared)} attempt{'s' * (len(cleared) != 1)} not chosen."
+                      if cleared else "Nothing to clear.") + (f" {len(kept)} couldn't be cleared." if kept else "")}

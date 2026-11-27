@@ -785,6 +785,17 @@
     "stages",
     "words"
    ]
+  },
+  {
+   "name": "council",
+   "method": "GET",
+   "path": "/api/tandem/council",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "found"
+   ]
   }
  ]
 }

@@ -261,6 +261,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--llm", action="store_true", help="also ask the analyst model for proposals")
     s.add_argument("--max-cost", type=float, default=2.0)
     s.add_argument("--project", action="append", default=[], help="extra project dirs to learn from")
+    s = isub.add_parser("stats", help="how each model has done, from the projects' metrics")
+    s.add_argument("--by-tag", action="store_true", help="per kind of work (game logic, shaders, layout...)")
+    s.add_argument("--project", action="append", default=[], help="extra project dirs to learn from")
     s = isub.add_parser("propose", help="suggest your own change")
     s.add_argument("role")
     g = s.add_mutually_exclusive_group(required=True)
@@ -319,7 +322,7 @@ def _show_proposal(p) -> None:
 
 
 def _improve(args, cfg) -> None:
-    from .improve.analysis import analyze, stats_table
+    from .improve.analysis import analyze, collect, stats_table
     from .improve.evaluate import evaluate
     from .improve.loop import cycle
 
@@ -343,6 +346,9 @@ def _improve(args, cfg) -> None:
             print(f"        {p.rationale}")
         if new:
             print("\nNext: roundtable improve show ID, then test / apply / reject")
+    elif args.icmd == "stats":
+        ds = collect(lab, extra=[Path(p) for p in args.project])
+        print(stats_table(ds, by_tag=args.by_tag) if ds.stats else "(no metrics yet - run some projects first)")
     elif args.icmd == "propose":
         from .improve.lab import Proposal
 

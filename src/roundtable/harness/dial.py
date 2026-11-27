@@ -406,7 +406,10 @@ def _task_price(cfg: Any, lvl: str, task: Any, history: dict[str, Any]) -> dict[
         return None
     build, review, attempts = _units(cfg, role, history.get(task.role))
     picks = 1 if builders and reviewer else 0  # one "pick" call when several rivals pass
-    rivals_usd = None if build is None or (picks and review is None) else builders * build + picks * (review or 0)
+    # the pick call reads every rival's diff and summary: about one review's worth of reading per rival (measured
+    # with the real rivals stage at integration: a quarter of a build, or one review, came out 8 to 15 % under)
+    pick_reviews = picks * (builders + 1)
+    rivals_usd = None if build is None or (picks and review is None) else builders * build + pick_reviews * (review or 0)
     panel_usd = None if checkers and review is None else checkers * (review or 0) * attempts
     usd = None if rivals_usd is None or panel_usd is None else rivals_usd + panel_usd
     minutes = (picks + checkers) * plandoc.REVIEW_MINUTES  # rival builders work side by side
@@ -417,7 +420,7 @@ def _task_price(cfg: Any, lvl: str, task: Any, history: dict[str, Any]) -> dict[
 def price(cfg: Any, tasks: list[Any], level: str, history: dict[str, Any] | None = None) -> dict[str, Any]:
     """What a level's extra checking adds to these tasks, before anything runs: {usd, minutes, parts: {rivals,
     panel}, words, tasks (how many get extras), unpriced}. An extra checker is one review; a rival is one build
-    with no retry allowance, plus one pick call a task; a third checker is counted at one task in four under
+    with no retry allowance, plus one pick call a task (one review per rival); a third checker is counted at one task in four under
     Balanced and one in three under Maximum. ``usd`` None when a model has no price."""
     lvl = _known(level) or "lean"
     history = history or {}

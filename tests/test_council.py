@@ -240,7 +240,7 @@ def test_a_failed_chair_uses_the_best_plan_so_far(tmp_path, monkeypatch):
     assert real  # the real one is untouched
 
 
-class Full(CouncilStage, Orchestrator):
+class Full(*((Orchestrator,) if issubclass(Orchestrator, CouncilStage) else (CouncilStage, Orchestrator))):
     def _kind_proof(self):
         return []
 

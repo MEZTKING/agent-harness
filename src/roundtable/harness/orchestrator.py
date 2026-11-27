@@ -27,6 +27,13 @@ from typing import Any, Callable
 from ..core.models import utcnow
 from ..providers.base import ImageProvider, ProviderError
 from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
+from .agentstage import AgentStage
+from .council import CouncilStage
+from .dial import DialStage
+from .panel import PanelStage
+from .rivals import RivalsStage
+from .router import RouterStage
+from .usage import UsageStage
 from . import dial
 from . import makers
 from . import plandoc
@@ -268,7 +275,8 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
+class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
+                   MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
                    DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage):
     # the wave 5 stages (money, the done list, stages and parts, unsticking, finishing, playing, shipping)
     # each add their part through the hooks below; with no done list, stages or kind a run is as before
@@ -318,7 +326,7 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
     # wave 6 (models in tandem): tags, the router, the panel, rivals, the council, named agents and the dial
     PLAN_PARTS += ("_tags_plan_part",)
     SCHEMA_PARTS += ("_council_schema",)
-    DOC_PARTS += ("_council_doc", "_dial_doc")
+    DOC_PARTS += ("_council_doc", "_dial_doc", "_tags_doc")
     WORKER_PARTS += ("_agent_worker_part",)
     ESTIMATE_PARTS += ("_router_estimate", "_dial_estimate")
     ATTEMPT_PARTS = ("_router_attempt", "_panel_attempt", "_rivals_attempt", "_agent_attempt")  # (task, ref) -> dict merged into the attempt
@@ -972,8 +980,12 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
               "answer, worthwhile ideas), has_ui (true when people will look at its screens) and the tasks, each "
               "linked to its spec section."
         )
+        meta = self.project.meta()
+        meta["checking"] = dial.level_for_new_plan(self)  # how much extra checking this plan gets (dial.py)
+        self.project.save_meta(meta)  # before the council asks the dial how many planners
         got = self._hook("_council_plan", job, existing)  # rival planners and a chair (wave 6), else one planner
         new, args = got or self._plan_call(job, existing)
+        self._hook("_tags_trim", new)  # at most a quarter of the tasks marked hard (router.py), before the estimate
         for t in new:
             t.goal_index = goal_index
         tasks = existing + new
@@ -985,9 +997,6 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         kind_doc = self._kind_doc()
         if kind_doc:
             doc["kind"] = kind_doc  # the first card on the plan: "This looks like a website. Right?"
-        meta = self.project.meta()
-        meta["checking"] = dial.level_for_new_plan(self)  # how much extra checking this plan gets (dial.py)
-        self.project.save_meta(meta)
         doc["estimate"] = self._estimate(new, doc.get("has_ui"))
         if self.base_cfg.profiles:
             doc["estimates"] = self.profile_estimates(doc.get("has_ui"))
@@ -1142,7 +1151,7 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         return {"version": new_doc["version"], "summary": summary, **diff}
 
     PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note",
-                    "look", "reference_add", "reference_remove", "done_add", "done_remove")
+                    "look", "reference_add", "reference_remove", "done_add", "done_remove", "checking")
 
     def plan_update(self, action: str, **kw: Any) -> dict[str, Any]:
         """The owner edits the plan. Edits wait in `pending` until revise_plan applies them (one model call)."""
@@ -1150,6 +1159,9 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         if not doc:
             raise HarnessError("this project has no plan document yet")
         pend = doc.setdefault("pending", [])
+
+        if action == "checking":  # Lean, Balanced or Maximum: re-estimated at once, no revise needed (dial.py)
+            return dial.set_checking(self, kw.get("name", ""))
 
         def note(text: str, key: str) -> None:
             pend[:] = [p for p in pend if p.get("key") != key]  # a later edit of the same thing replaces it
@@ -1250,6 +1262,7 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         self.project.save_meta(meta)
         self._kind_freeze()  # the kind is fixed now: editing it later never changes this project
         self._hook("_money_agreed")  # what the owner agreed to spend (moneystage.py)
+        self._hook("_dial_agreed")  # the extra checking's own share of that money (dial.py)
         self.emit("approved", {})
         self._publish_plan()
 
@@ -1420,20 +1433,25 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
         task.attempts.append(self._parts(self.ATTEMPT_PARTS, task, ref, row))
 
     def _metric(self, task: Task, ref: ModelRef, outcome: str, res: AgentResult | None, review_cost: float = 0.0,
-                review_saved: int = 0) -> None:
-        self.project.append("metrics.jsonl", self._parts(self.METRIC_PARTS, task, ref, {
+                review_saved: int = 0, panel_extra: float = 0.0) -> None:
+        row = {
             "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": outcome,
             "steps": res.steps if res else 0, "seconds": res.seconds if res else 0,
             "input_tokens": res.usage.input_tokens if res else 0,
             "output_tokens": res.usage.output_tokens if res else 0,
             "cost_usd": round((res.cost_usd if res else 0) + review_cost, 6),
             "saved_tokens_est": (res.saved_tokens_est if res else 0) + review_saved,
-        }))
+        }
+        if panel_extra:  # the extra checkers (panel.py), apart from cost_usd so the estimate never counts them twice
+            row["panel_extra_usd"] = round(panel_extra, 6)
+        self.project.append("metrics.jsonl", self._parts(self.METRIC_PARTS, task, ref, row))
 
     def _run_image_task(self, task: Task, role: RoleSpec) -> bool:
         rel = task.output_path or f"assets/{task.id.lower()}.png"
         last = None
         for ref in role.models:
+            if self._blocked(ref):  # its account is empty this run, or the owner's limit for it is reached
+                continue
             provider = self.cfg.provider(ref.provider)
             if not isinstance(provider, ImageProvider):
                 raise HarnessError(f"{ref} is not an image provider")
@@ -1524,7 +1542,9 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                 model_idx += 1  # that account is empty (or its limit reached): no point trying it again this run
             if model_idx >= len(models):
                 if all(m.provider in self._broke for m in models):
-                    raise OutOfCredit("no credit left with " + ", ".join(sorted({m.provider for m in models})))
+                    providers = sorted({m.provider for m in models})
+                    raise (self._hook("_usage_out", providers)  # the owner's own limit, in its words (usage.py)
+                           or OutOfCredit("no credit left with " + ", ".join(providers)))
                 break
             ref = models[model_idx]
             self.emit("attempt", {"task": task.id, "attempt": attempt, "model": str(ref)})
@@ -1591,7 +1611,9 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
             outcome = "approved" if approved else "rejected"
             self._add_attempt(task, ref, {"model": str(ref), "outcome": outcome, "summary": worker_summary[:1000],
                                           "review": fb[:2000], "cost_usd": round(res.cost_usd + review_cost, 6)})
-            self._metric(task, ref, outcome, res, review_cost, rev.saved_tokens_est if rev else 0)
+            extra = float(((rev.captured or {}) if rev else {}).get("panel_extra_usd") or 0)
+            self._metric(task, ref, outcome, res, review_cost - extra, rev.saved_tokens_est if rev else 0,
+                         panel_extra=extra)
             self.emit("review", {"task": task.id, "approved": approved, "feedback": fb[:500]})
             if approved:
                 task.summary = worker_summary
@@ -1933,8 +1955,10 @@ class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, R
                 self._attention("money", "Autopilot's spending limit is reached: this run waits for you")
                 return "paused"
             if isinstance(e, OutOfCredit):
-                self._set_status("paused", reason=str(e), pause="credit")
-                self._attention("money", f"{e}: top up that account, then run the project again")
+                pause = getattr(e, "pause", None) or "credit"  # "service_cap": a limit the owner set (usage.py)
+                self._set_status("paused", reason=str(e), pause=pause)
+                self._attention("money", str(e) if pause != "credit" else
+                                f"{e}: top up that account, then run the project again")
                 return "paused"
             if getattr(e, "pause", None):  # a stage's own money stop, such as a cap for one service (wave 6)
                 self._set_status("paused", pause=e.pause, reason=str(e))

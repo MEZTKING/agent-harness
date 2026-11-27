@@ -18,7 +18,7 @@ from roundtable.harness.config import FEATURE_SECTIONS, ModelRef
 from roundtable.harness.orchestrator import HarnessError, Orchestrator, _validate_plan
 
 from .test_harness import Brain
-from .test_stage_hooks import ONE, Seam, build, kinds
+from .test_stage_hooks import ONE, STAGES, Seam, build, kinds
 
 NEW_HOOKS = ("_tags_plan_part", "_council_schema", "_council_doc", "_dial_doc", "_agent_worker_part",
              "_router_estimate", "_dial_estimate", *Orchestrator.ATTEMPT_PARTS, *Orchestrator.METRIC_PARTS,
@@ -54,7 +54,7 @@ def _shape(orch):
 
 
 # -- the new hooks are names only -------------------------------------------------------------------------------
-def test_the_new_hooks_are_listed_and_nobody_defines_them_yet():
+def test_the_new_hooks_are_listed_and_only_the_stages_define_them():
     assert "_tags_plan_part" in Orchestrator.PLAN_PARTS and "_council_schema" in Orchestrator.SCHEMA_PARTS
     assert {"_council_doc", "_dial_doc"} <= set(Orchestrator.DOC_PARTS)
     assert "_agent_worker_part" in Orchestrator.WORKER_PARTS
@@ -62,8 +62,10 @@ def test_the_new_hooks_are_listed_and_nobody_defines_them_yet():
     assert Orchestrator.ATTEMPT_PARTS == ("_router_attempt", "_panel_attempt", "_rivals_attempt", "_agent_attempt")
     assert Orchestrator.METRIC_PARTS == ("_tags_metric", "_rivals_metric", "_agent_metric")
     for name in NEW_HOOKS:
-        assert not callable(getattr(Seam, name, None)), name
-        assert not callable(getattr(Orchestrator, name, None)), name
+        assert not callable(getattr(Seam, name, None)), name  # the bare seam has none of them
+        assert name not in vars(Orchestrator), name  # the full one has them only from its stages (wave 6)
+        owner = next((c for c in Orchestrator.__mro__ if name in vars(c)), None)
+        assert owner is None or owner in STAGES, (name, owner)
 
 
 def test_a_bare_seam_runs_exactly_as_before(tmp_path):

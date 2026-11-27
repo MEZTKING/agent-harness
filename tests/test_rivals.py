@@ -29,7 +29,7 @@ EASY = {"id": "T2", "title": "notes", "role": "coder", "description": "write not
         "depends_on": []}
 
 
-class O(RivalsStage, Orchestrator):
+class O(*((Orchestrator,) if issubclass(Orchestrator, RivalsStage) else (RivalsStage, Orchestrator))):
     def _kind_proof(self):
         return []  # the kind guessed for a made-up project would bring its own checks
 
@@ -77,7 +77,10 @@ class Brain:
             with self.lock:
                 self.reviews.append(model)
                 ok = not (self.reject_first and len(self.reviews) == 1)
-            return reply(calls=[("submit_review", {"approved": ok, "feedback": "fine" if ok else "add a newline"})])
+            verdict = {"approved": ok, "feedback": "fine" if ok else "add a newline"}
+            if not ok:  # a rejection quotes the line it breaks, or the panel would not count it (panel.py)
+                verdict["breaks"] = "out.txt holds the answer"
+            return reply(calls=[("submit_review", verdict)])
         if "finish_task" in names:
             tid = prompt.split("# Your task [", 1)[1].split("]", 1)[0]
             if last["role"] == "user":
@@ -339,8 +342,8 @@ def test_rivals_never_uses_a_model_the_project_does_not_allow(tmp_path, rivals):
 
 
 def test_lean_or_an_easy_task_is_the_usual_way(tmp_path):
-    brain = Brain([HARD])  # the dial's stub: one builder for everything
-    orch, events = build(tmp_path, brain)
+    brain = Brain([HARD])  # at lean: one builder for everything
+    orch, events = build(tmp_path, brain, raw_cfg=raw(tandem={"default": "lean"}))
     start(orch)
     assert orch.run() == "done"
     assert [m for m, _ in brain.worker] == ["coder"] and not events_of(events, "rivals_start")

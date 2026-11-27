@@ -346,7 +346,11 @@ class _Panel:
         usage = first.usage
         for r in self.results[1:]:
             usage = usage + r.usage
+        # the checkers after the first are the dial's extras: kept apart so the estimate's history (the metrics
+        # row's review cost) never counts them twice (dial.price adds them on its own)
+        extra = sum(r.cost_usd for r in self.results[1:])
         return replace(first, text=self.results[-1].text, stop=self.results[-1].stop,
+                       captured={**(first.captured or {}), "panel_extra_usd": round(extra, 6)},
                        steps=sum(r.steps for r in self.results), usage=usage,
                        cost_usd=sum(r.cost_usd for r in self.results),
                        seconds=sum(r.seconds for r in self.results),

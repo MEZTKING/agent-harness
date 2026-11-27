@@ -31,7 +31,7 @@ class NoKind(Orchestrator):
         return []
 
 
-class O(AgentStage, NoKind):
+class O(*((NoKind,) if issubclass(NoKind, AgentStage) else (AgentStage, NoKind))):
     pass
 
 

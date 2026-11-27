@@ -149,7 +149,18 @@ def view(cfg) -> dict[str, Any]:
         "choices": [{"ref": m, "label": model_label(m, providers), "provider": m.split("/", 1)[0]} for m in choices],
         "providers": _key_state(providers),
         "efforts": list(EFFORTS),
+        "warnings": _warnings(cfg),
     }
+
+
+def _warnings(cfg) -> list[str]:
+    """Lines shown above the jobs, such as a checker from the same maker as the builder (panel.py)."""
+    try:
+        from .harness import panel
+
+        return list(panel.same_maker_warnings(cfg))
+    except Exception:  # noqa: BLE001 - a warning must never hide the Models page
+        return []
 
 
 def _backup(path: Path) -> Path:

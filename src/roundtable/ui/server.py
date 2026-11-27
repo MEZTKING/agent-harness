@@ -48,7 +48,7 @@ def _lines(raw) -> list[str]:
 # side by side with others appends its module name here (one line each), nothing else in this file.
 FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "filesapi", "whatsnewapi", "tidyapi",
                                 "searchapi", "attachapi", "rewindapi", "proofapi", "terminalapi", "moneyapi",
-                                "websearchapi", "kindsapi", "doneapi", "stagesapi", "appapi")
+                                "websearchapi", "kindsapi", "doneapi", "stagesapi", "appapi", "councilapi")
 
 
 def _feature_routes(app) -> dict:

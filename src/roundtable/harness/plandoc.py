@@ -601,6 +601,10 @@ def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_b
         older = f" (of version {of}; this version may already answer it)" if of and of != doc.get("version") else ""
         L += [f"## Critique by {c.get('model', 'a second model')}{older}"] + [
             f"- [{p.get('severity', '?')}] {p.get('text', '')}" for p in c["points"]] + [""]
+    if doc.get("council"):
+        from . import council as _council  # lazy: "Where the planners disagreed"
+
+        L += _council.markdown(doc)
     if tasks:
         from . import stages as _stages  # under a heading per stage; the same "## Tasks" list with none
 

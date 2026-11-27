@@ -47,10 +47,12 @@ class Budget:
                 self.unpriced_calls += 1
             else:
                 self.spent_usd += cost
+            try:
                 if self.on_charge and cost:
                     self.on_charge(cost)
-            if self.on_use:
-                self.on_use(ref, usage, cost, role)
+            finally:  # who spent it is written even when the spend log stops the run
+                if self.on_use:
+                    self.on_use(ref, usage, cost, role)
 
     def check(self) -> None:
         if self.spent_usd >= self.limit_usd:
