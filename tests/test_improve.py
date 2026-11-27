@@ -13,7 +13,9 @@ from roundtable.providers.scripted import ScriptedImages, ScriptedProvider, repl
 
 from .test_harness import RAW, Brain, tool_names
 
-GOOD_PROMPT = "You are a careful engineer. Always read files before editing them, and run the tests before finishing."
+GOOD_PROMPT = ("You are a careful engineer. Always read files before editing them. No placeholders, no TODO stubs "
+               "for required behaviour. Add tests for what you build and run them with run_command before finishing. "
+               "When the task is done, call finish_task with a short summary.")
 
 
 class Judge(Brain):
