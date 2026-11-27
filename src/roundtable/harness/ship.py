@@ -234,3 +234,9 @@ def sdk_tool(sdk: Path | None, name: str, os_name: str) -> Path | None:
 
 def _vkey(v: str) -> tuple[int, ...]:
     return tuple(int(x) for x in re.findall(r"\d+", v)[:4])
+
+
+def package_name(badging_text: str) -> str:
+    """The app's package from ``aapt2 dump badging`` ("package: name='com.example.app' ..."), or ""."""
+    m = re.search(r"^package: name='([A-Za-z0-9_.]+)'", badging_text or "", re.MULTILINE)
+    return m.group(1) if m else ""

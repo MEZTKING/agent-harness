@@ -20,6 +20,14 @@ exact command shown, even when the project never asks. Every command goes throug
 (the gate, the environment with no keys, live output). Never: signing with a real key, installing on a
 plugged-in phone, uploading or publishing.
 
+Pictures (wave 8). While an EXE's smoke start runs, its window is found and pictured (``winshot``: Windows
+only; elsewhere "not checked", never a failure); a window that stays one plain colour is "the window was
+empty", which fails the item and makes its one fix task. An APK, when no emulator is running and this machine
+can (``emulator.ready``), goes on an emulator the harness starts itself (no saved state, one at a time, never a
+plugged-in phone), is opened, pictured with ``screencap`` and the emulator is stopped. Both pictures join the
+proof like a page's: ``.harness/shots/ship-<target>/`` with its ``shots.json``. ``emulator: {start: false}`` in
+harness.yaml leaves the emulator alone; ``winshot: {off: true}`` skips the window picture.
+
 ``.harness/ship.json`` keeps what happened: {"fixes": {"<goal>:<target>": [task ids]}, "allowed": [commands],
 "results": {target: {state, words, path, at}}}.
 """
@@ -28,17 +36,23 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
 from .. import prereq
 from ..core.models import utcnow
-from . import donelist, ship
+from . import donelist, emulator, livecmd, ship, winshot
+from .config import section
 from .gate import Finding, Gate, normalise
 from .tools import ToolError
 
 STATE_FILE = "ship.json"
 BUILD_MINUTES = {"apk": 6.0, "exe": 5.0, "jar": 4.0}
+EMULATOR_MINUTES = 4.0  # starting an emulator, installing, opening and picturing the app, stopping it
+WINDOW_WAIT = 8.0  # seconds a started program's window is waited for
+OPEN_SECONDS = 6.0  # seconds an app opened on the emulator gets before its picture
 ASK_REASON = "it comes from a kind you added, not one built into the harness (asked once in each project)"
 
 
@@ -62,6 +76,10 @@ class _AlreadyAllowed:
 class ShipStage:
     ship_system: prereq.System | None = None  # tests: a made-up computer (None: this one)
     ship_smoke_seconds: float = ship.SMOKE_SECONDS
+    ship_window_picture = None  # tests: a stand-in for winshot.window_picture(pid, out, wait=...)
+    ship_emulator_ready = None  # tests: a stand-in for emulator.ready(rows, os_name)
+    ship_emulator_start = None  # tests: a stand-in for emulator.start(avd, sdk, timeout=...)
+    ship_open_seconds: float = OPEN_SECONDS
 
     # -- what's here ------------------------------------------------------------------------------------
     def _ship_recipes(self) -> list[dict[str, Any]]:
@@ -131,6 +149,8 @@ class ShipStage:
         os_name, rows = self._ship_machine()
         here = [r for r in recipes if ship.can_build(r, rows, os_name)[0]]
         minutes = sum(BUILD_MINUTES.get(r["target"], 4.0) for r in here)
+        if any(r.get("smoke") == "apk" for r in here) and self._ship_emulator_check(os_name, rows).get("can"):
+            minutes += EMULATOR_MINUTES
         usd = self._ship_fix_usd() * len(here)
         words = (f"Building {' and '.join(r['name'] for r in here)} and starting it once"
                  + (f"; if a build breaks, one fix task each (up to about ${usd:.2f})" if usd else "")
@@ -273,9 +293,11 @@ class ShipStage:
             return {"passed": False, "evidence": ev, "output": b["text"], "words": a["words"]}
         s = self._ship_smoke(r, root / a["path"], os_name, rows)
         ev["smoke"] = s["words"]
+        if (s.get("picture") or {}).get("file"):
+            ev["picture"] = s["picture"]["file"]
         if s.get("refused"):
             return {"passed": False, "refused": True, "evidence": ev, "words": f"{a['words']} {s['words']}"}
-        return {"passed": s["ok"], "evidence": ev, "output": s.get("output", ""),
+        return {"passed": s["ok"], "evidence": ev, "output": s.get("output", ""), "empty": bool(s.get("empty")),
                 "words": f"{a['words']} {s['words']}".strip()}
 
     def _ship_smoke(self, r: dict[str, Any], path: Path, os_name: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -290,12 +312,27 @@ class ShipStage:
         # start /wait: cmd waits for a windowed program too, so the 10 seconds are the program's own
         cmd = (f'start "" /wait "{path}"' if self._ship_shell_os() == "windows" else f'"{path}"') \
             if how == "start" else how
+        shot: dict[str, Any] = {}
+        watcher = None
+        if how == "start" and r.get("target") == "exe" and not section(self.cfg, "winshot").get("off"):
+            before = set(self._ship_live_pids())
+            watcher = threading.Thread(target=self._ship_window, args=(r, before, min(WINDOW_WAIT, secs), shot),
+                                       daemon=True, name="ship-window")
+            watcher.start()
         got = self._ship_run(cmd, secs, r)
+        if watcher is not None:
+            watcher.join(timeout=WINDOW_WAIT + 10)
         if got["refused"]:
             return {"ok": False, "refused": True, "words": f"It wasn't started: {got['refused'][:200]}"}
         if got["timed_out"]:
-            return {"ok": True, "words": f"It started and was still running after {secs:g} seconds; "
-                                         "then it was closed, with everything it started."}
+            words = (f"It started and was still running after {secs:g} seconds; "
+                     "then it was closed, with everything it started.")
+            pic = shot.get("got") or {}
+            if pic.get("state") == "empty":
+                return {"ok": False, "empty": True, "picture": pic, "words": f"{words} {pic['why']}"}
+            if pic:
+                words += f" {pic.get('why', '')}"
+            return {"ok": True, "picture": pic, "words": words.strip()}
         if how != "start" and got["code"] == 0:
             return {"ok": True, "words": "Its start check passed."}
         return {"ok": False, "output": got["text"],
@@ -327,8 +364,146 @@ class ShipStage:
                             "words": "It didn't install on the emulator that was running."}
                 words.append(f"It installed on the running emulator ({emus[0]}).")
             else:
-                words.append("No emulator was running, so it wasn't installed anywhere.")
+                return self._ship_on_emulator(r, path, os_name, rows, adb, aapt, words)
         return {"ok": True, "words": " ".join(words)}
+
+    # -- an emulator the harness starts itself ------------------------------------------------------------------
+    def _ship_emulator_check(self, os_name: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+        if section(self.cfg, "emulator").get("start") is False:
+            return {"can": False, "why": "Starting an emulator is switched off in the settings.", "avds": []}
+        try:
+            return (self.ship_emulator_ready or emulator.ready)(rows, os_name)
+        except Exception as e:  # noqa: BLE001 - a help, never a reason to fail
+            return {"can": False, "why": f"Whether an emulator can start couldn't be checked ({str(e)[:200]}).",
+                    "avds": []}
+
+    def _ship_on_emulator(self, r: dict[str, Any], path: Path, os_name: str, rows: list[dict[str, Any]],
+                          adb: Path, aapt: Path | None, words: list[str]) -> dict[str, Any]:
+        """No emulator running: start one (if this machine can), install, open, picture, stop."""
+        ready = self._ship_emulator_check(os_name, rows)
+        if not ready.get("can"):
+            words.append(f"No emulator was running, so it wasn't installed anywhere. {ready.get('why', '')}".strip())
+            if ready.get("offer"):
+                self.emit("ship_offer", {"target": r["target"], "offer": ready["offer"]})
+            return {"ok": True, "words": " ".join(words)}
+        boot = float(section(self.cfg, "emulator").get("boot_seconds") or 240)
+        try:
+            emu = (self.ship_emulator_start or emulator.start)(ready["avd"], Path(ready["sdk"]), timeout=boot)
+        except emulator.EmulatorError as e:
+            words.append(f"An emulator was started to try it on, but: {e}")
+            return {"ok": True, "words": " ".join(words)}  # the APK itself passed; the emulator is a help
+        try:
+            got = self._ship_emulator_steps(r, path, adb, aapt, words, emu, ready)
+        finally:
+            emu.stop()
+        got["words"] = f"{got['words']} The emulator was stopped afterwards."
+        return got
+
+    def _ship_emulator_steps(self, r: dict[str, Any], path: Path, adb: Path, aapt: Path | None, words: list[str],
+                             emu, ready: dict[str, Any]) -> dict[str, Any]:
+        serial = emu.serial
+        if not str(serial).startswith("emulator-"):  # never a plugged-in phone, whatever was handed back
+            words.append("The emulator gave a serial that isn't an emulator's, so nothing was installed.")
+            return {"ok": True, "words": " ".join(words)}
+        inst = self._ship_run(f'"{adb}" -s {serial} install -r "{path}"', 300, r)
+        if inst["code"] != 0:
+            return {"ok": False, "output": inst["text"],
+                    "words": " ".join([*words, "It didn't install on the emulator the harness started."])}
+        words.append(f"It installed on an emulator the harness started ({ready['avd']}).")
+        pkg = ""
+        if aapt:
+            b = self._ship_run(f'"{aapt}" dump badging "{path}"', 120, r)
+            pkg = ship.package_name(b["text"]) if b["code"] == 0 else ""
+        if not pkg:
+            words.append("Its name couldn't be read, so it wasn't opened.")
+            return {"ok": True, "words": " ".join(words)}
+        op = self._ship_run(f'"{adb}" -s {serial} shell monkey -p {pkg} -c android.intent.category.LAUNCHER 1',
+                            60, r)
+        if op["code"] != 0 or "No activities found" in op["text"] or "monkey aborted" in op["text"].lower():
+            return {"ok": False, "output": op["text"],
+                    "words": " ".join([*words, "It installed but wouldn't open."])}
+        words.append("It opened.")
+        time.sleep(max(0.0, float(self.ship_open_seconds)))
+        pic = self._ship_phone_picture(r, adb, serial)
+        if pic:
+            words.append(pic)
+        return {"ok": True, "words": " ".join(words)}
+
+    def _ship_phone_picture(self, r: dict[str, Any], adb: Path, serial: str) -> str:
+        out_dir = self._ship_shots_dir(r)
+        out = out_dir / "phone.png"
+        on_phone = "/sdcard/darkness-ship.png"
+        cap = self._ship_run(f'"{adb}" -s {serial} shell screencap -p {on_phone}', 60, r)
+        pull = self._ship_run(f'"{adb}" -s {serial} pull {on_phone} "{out}"', 60, r) if cap["code"] == 0 else cap
+        if pull["code"] != 0 or not out.is_file():
+            return "Its screen couldn't be pictured."
+        empty = False
+        try:
+            from PIL import Image
+
+            with Image.open(out) as im:
+                empty = winshot.is_empty(im)
+        except Exception:  # noqa: BLE001 - kept as it came
+            pass
+        self._ship_shots_record(r, out_dir, "phone", "Opened on an emulator the harness started")
+        return ("Its screen was pictured, but it was one plain colour (it may still have been starting)." if empty
+                else "Its screen was pictured.")
+
+    # -- a program's window --------------------------------------------------------------------------------------
+    def _ship_live_pids(self) -> list[int]:
+        """The commands of this project's "ship" slot running now, newest last (livecmd's own list)."""
+        root = str(self.project.root)
+        with livecmd._lock:
+            mine = [(r.get("n", 0), pid) for pid, r in livecmd._running.items()
+                    if str(r.get("root")) == root and r.get("task") == "ship" and not r.get("stopped")]
+        return [pid for _, pid in sorted(mine)]
+
+    def _ship_window(self, r: dict[str, Any], before: set[int], wait: float, into: dict[str, Any]) -> None:
+        """Wait for the smoke command to start, then picture its window (it runs while the command does)."""
+        try:
+            pid = 0
+            end = time.monotonic() + 5.0
+            while time.monotonic() < end:
+                new = [p for p in self._ship_live_pids() if p not in before]
+                if new:
+                    pid = new[-1]
+                    break
+                time.sleep(0.05)
+            out_dir = self._ship_shots_dir(r)
+            if not pid:
+                into["got"] = {"ok": False, "file": None, "state": "missing",
+                               "why": "Its window wasn't pictured: the started program couldn't be found."}
+                return
+            got = (self.ship_window_picture or winshot.window_picture)(pid, out_dir / "window.png", wait=wait)
+            into["got"] = got
+            if got.get("file") and got.get("state") in ("passed", "empty"):
+                self._ship_shots_record(r, out_dir, "window",
+                                        "The window was empty" if got["state"] == "empty" else got.get("title", ""))
+        except Exception as e:  # noqa: BLE001 - a picture is a help, never a reason for the start to fail
+            into["got"] = {"ok": False, "file": None, "state": "failed",
+                           "why": f"Its window couldn't be pictured ({str(e)[:200]})."}
+
+    def _ship_shots_dir(self, r: dict[str, Any]) -> Path:
+        from . import showit
+
+        d = showit.shots_root(self.project.root) / f"ship-{r['target']}"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _ship_shots_record(self, r: dict[str, Any], out_dir: Path, kind: str, title: str) -> None:
+        """The picture joins the proof like a page's: a ``shots.json`` beside it (not the Live tab's latest)."""
+        from . import showit
+
+        try:
+            commit = showit.commit_of(self.project.root)
+        except Exception:  # noqa: BLE001
+            commit = ""
+        record = {"task": f"ship:{r['target']}", "dir": out_dir.name, "at": utcnow(),
+                  "seq": showit._next_seq(self.project.root), "commit": commit, "entry": None,
+                  "title": str(title or r["name"])[:200], "pictures": {kind: f"{kind}.png"}, "errors": [],
+                  "note": "", "ship": r["target"]}
+        showit._write_record(out_dir, record, latest=False)
+        self.emit("shots", {"task": record["task"], "dir": record["dir"], "pictures": [kind]})
 
     def _ship_fix(self, r: dict[str, Any], goal: int, got: dict[str, Any]) -> bool:
         """One fix task per target and goal; after that the failed item waits for the done gate."""
@@ -342,6 +517,15 @@ class ShipStage:
             n += 1
             tid = f"SHIP-{r['target']}-{n}"
         output = ship.tail(got.get("output") or "")
+        if got.get("empty"):
+            raw = [{"id": tid, "title": f"Make the {r['name']} show its window", "role": self._ship_fix_role(),
+                    "description": (f"The harness built the {r['name']} and started it. It ran, but its window stayed "
+                                    f"one plain colour: {got['words']}\n\nFind out why nothing is drawn (a blank "
+                                    "first screen, a page that doesn't load, drawing that fails) and fix it so the "
+                                    "window shows the app straight after it starts."),
+                    "acceptance": f"Started, the {r['name']} shows its first screen within a few seconds",
+                    "depends_on": []}]
+            return self._ship_fix_add(r, key, raw, got)
         desc = (f"The harness tried to build the {r['name']} with `{got['evidence'].get('command') or r['build']}` "
                 f"and check `{r['artefact']}`. It went wrong: {got['words']}\n\n"
                 + (f"The end of what it printed:\n```\n{output}\n```\n\n" if output else "")
@@ -350,6 +534,10 @@ class ShipStage:
         raw = [{"id": tid, "title": f"Make the {r['name']} build", "role": self._ship_fix_role(),
                 "description": desc, "acceptance": f"`{r['build']}` finishes with exit code 0 and makes {r['artefact']}",
                 "depends_on": []}]
+        return self._ship_fix_add(r, key, raw, got)
+
+    def _ship_fix_add(self, r: dict[str, Any], key: str, raw: list[dict[str, Any]], got: dict[str, Any]) -> bool:
+        st = self._ship_state()
         try:
             new = self.add_tasks(raw, by="ship", why=f"the {r['name']} didn't build: {got['words'][:150]}",
                                  fix_of=f"ship:{r['target']}")
