@@ -101,9 +101,11 @@ def doc_from_submission(args: dict[str, Any], goal: str, goal_index: int) -> dic
                           "header": _header(d.get("header")),
                           "recommended": rec if rec in ids else ids[0], "why": _unclaimed(str(d.get("why", ""))),
                           "section": str(d.get("section", "")), "chosen": None})
+    summary = str(args.get("summary") or args.get("notes") or "")
     return {
         "goal": goal, "goal_index": goal_index, "version": 1,
-        "summary": str(args.get("summary") or args.get("notes") or ""),
+        "title": short_title(args.get("title")) if str(args.get("title") or "").strip() else "",
+        "summary": summary,
         "has_ui": bool(args["has_ui"]) if isinstance(args.get("has_ui"), bool) else None,
         "in_scope": [str(x) for x in args.get("in_scope") or [] if str(x).strip()],
         "out_of_scope": [str(x) for x in args.get("out_of_scope") or [] if str(x).strip()],
@@ -158,6 +160,8 @@ def carry_over(new: dict[str, Any], old: dict[str, Any]) -> dict[str, Any]:
                 x["id"] = f"{prefix}{n + 1}"
     if new.get("has_ui") is None:
         new["has_ui"] = old.get("has_ui")
+    if not new.get("title") and old.get("title"):
+        new["title"] = old["title"]  # a revision that didn't name it keeps the name the owner knows
     if old.get("look"):
         new["look"] = old["look"]  # the looks aren't the planner's: they stay as they were
     if old.get("references"):
@@ -214,6 +218,117 @@ def summary_line(doc: dict[str, Any] | None) -> str:
         cost = (cost + " + " if cost else "") + "unpriced models"
     tail = ", ".join(x for x in [cost, f"~{round(est['minutes'])} min" if est.get("minutes") else ""] if x)
     return "plan ready" + (": " + ", ".join(bits) if bits else "") + (f" ({tail})" if tail else "")
+
+
+# -- the owner's words for a plan -------------------------------------------------------------
+_TECH = re.compile(r"\b(?:APK|EXE|Electron|Kotlin|WebView\w*|Capacitor|npm|node|React|Vue|API|SDK|JSON|HTML|CSS|JS|"
+                   r"TypeScript|Python|Gradle|PyInstaller|v?\d+\.\d+(?:\.\d+)?)\b", re.I)
+_FILE = re.compile(r"\S+\.(?:html|css|js|json|py|kt|md|ts|yaml|yml|txt|png|exe|apk)\b|\S*/\S+")
+
+
+def _first_sentence(text: str) -> str:
+    text = " ".join(str(text or "").split())
+    m = re.search(r"(?<=[.!?])\s|[:;](?:\s|$)", text)
+    return (text[:m.start()] if m else text).rstrip(".!?:; ")
+
+
+def _plainer(text: str) -> str:
+    """Drop file names, versions and bracketed asides; tidy the spaces and the ends."""
+    t = re.sub(r"\([^)]*\)", "", text)
+    t = _FILE.sub("", t)
+    t = re.sub(r"\s+", " ", t).strip(" ,-–—")
+    return t
+
+
+_DANGLING = re.compile(r"(?:\s+|^)(?:and|or|with|as|an?|the|for|to|of|in|on|by|from|using)$", re.I)
+
+
+def _tidy_end(text: str) -> str:
+    """No sentence ends on "and", "with" or a comma."""
+    prev = None
+    while prev != text:
+        prev, text = text, _DANGLING.sub("", text.rstrip(" ,-–—:;")).rstrip(" ,-–—:;")
+    return text
+
+
+def _cut(text: str, limit: int = 60) -> str:
+    if len(text) <= limit:
+        return _tidy_end(text) or text
+    cut = _tidy_end(text[:limit].rsplit(" ", 1)[0])
+    return cut or text[:limit]
+
+
+def short_title(title: Any, summary: str = "", goal: str = "") -> str:
+    """The plan's heading for the owner: the planner's own title (at most 8 words), else made from the summary's
+    first sentence, else the goal's, at most 60 characters, without file names and tool names where possible."""
+    t = " ".join(str(title or "").split()).strip(" .")
+    if t:
+        return _cut(" ".join(t.split()[:8]))
+    for src in (summary, re.sub(r"^\s*(?:plan\s+v\d+\s*:\s*)", "", goal or "", flags=re.I)):
+        first = _first_sentence(src)
+        if not first:
+            continue
+        plain = _plainer(first)
+        cleaner = re.sub(r"\s+", " ", _TECH.sub("", plain)).strip(" ,-–—")
+        # keep the tool names only when taking them out would leave almost nothing
+        pick = cleaner if len(cleaner.split()) >= 3 else plain or first
+        pick = _tidy_end(pick)
+        if pick:
+            pick = re.sub(r"^(?:a|an|the)\s+", "", pick, flags=re.I)
+            return _cut(pick[:1].upper() + pick[1:])
+    return "The plan"
+
+
+def plan_title(doc: dict[str, Any] | None) -> str:
+    doc = doc or {}
+    return short_title(doc.get("title"), doc.get("summary", ""), doc.get("goal", ""))
+
+
+def estimate_line(est: dict[str, Any] | None) -> str:
+    """"about $3.45 and 45 minutes" (the one line shown while a plan waits for approval)."""
+    est = est or {}
+    mins = max(1, round(est.get("minutes") or 0))
+    time = f"{mins} minutes" if mins < 90 else f"{round(mins / 60, 1):g} hours"
+    tail = " (some models have no price yet)" if est.get("unpriced") else ""
+    return f"about ${est.get('cost_usd') or 0:.2f} and {time}{tail}"
+
+
+def waiting_items(doc: dict[str, Any] | None) -> list[str]:
+    """What waits for the owner, in words: "2 questions", "1 choice", "a look to choose", "3 changes to apply"."""
+    o = open_items(doc)
+    out = []
+    choices = o["choices"] - look_open(doc)
+    if choices:
+        out.append(f"{choices} choice{'s' * (choices > 1)}")
+    if look_open(doc):
+        out.append("a look to choose")
+    if o["questions"]:
+        out.append(f"{o['questions']} question{'s' * (o['questions'] > 1)}")
+    if o["pending"]:
+        out.append(f"{o['pending']} change{'s' * (o['pending'] > 1)} to apply")
+    return out
+
+
+def state_sentence(doc: dict[str, Any] | None, tasks: list[Any] | None, meta: dict[str, Any] | None) -> str:
+    """One plain sentence of where the plan stands: "Finished – 16 tasks, $5.01", "Waiting for you: 2 questions",
+    "Building task 3 of 7"."""
+    meta, tasks = meta or {}, list(tasks or [])
+    status = meta.get("status") or ""
+    spent = meta.get("spent_usd") or 0
+    n = len(tasks)
+    done = sum(1 for t in tasks if getattr(t, "status", None) == "done")
+    money = f", ${spent:.2f}" if spent >= 0.005 else ""
+    if status == "done" or (n and done == n and meta.get("plan_approved")):
+        return f"Finished – {n} task{'s' * (n != 1)}{money}"
+    if not meta.get("plan_approved"):
+        wait = waiting_items(doc)
+        return "Waiting for you: " + ", ".join(wait) if wait else "Ready for you to approve"
+    failed = sum(1 for t in tasks if getattr(t, "status", None) == "failed")
+    if failed:
+        return f"Stopped: {failed} task{'s' * (failed > 1)} need{'s' * (failed == 1)} you"
+    if status == "running":
+        return f"Building task {min(n, done + 1)} of {n}"
+    return f"Paused – {done} of {n} task{'s' * (n != 1)} done{money}"
 
 
 # -- the estimate ---------------------------------------------------------------------------
@@ -369,20 +484,25 @@ def _question_markdown(q: dict[str, Any]) -> str:
     return line + (f"\n  Answer: {q['answer']}" if q.get("answer") else "")
 
 
-def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_base: str = "look/") -> str:
-    """Readable plan. Items end with their id in braces ({C1}-style ids for options {a}, questions {Q1},
+def render_markdown(doc: dict[str, Any], tasks: list[Any] | None = None, image_base: str = "look/",
+                    waiting: bool = True) -> str:
+    """Readable plan, short first: the owner's title, the plain summary, the estimate (only while the plan
+    waits for approval), then the rest (the builders' brief, scope, spec, choices...) as sections.
+
+    Items end with their id in braces ({C1}-style ids for options {a}, questions {Q1},
     ideas {I1}, don'ts {D1}, looks {A}; decisions and spec sections carry [C1]/[S1] in their heading) so a
     phone can send commands about them. ``image_base`` is where the look pictures are, relative to the page."""
-    L = [f"# Plan v{doc.get('version', 1)}: {doc.get('goal', '')}", ""]
+    L = [f"# {plan_title(doc)}", ""]
     if doc.get("summary"):
         L += [doc["summary"], ""]
     est = doc.get("estimate") or {}
-    if est:
-        L += [f"Estimate: about ${est.get('cost_usd', 0):.2f}, about {round(est.get('minutes', 0))} minutes"
-              + (f" (not counting {', '.join(est['unpriced'])})" if est.get("unpriced") else ""), ""]
+    if est and waiting:
+        L += [f"Estimate: {estimate_line(est)}", ""]
+    if doc.get("goal"):
+        L += [f"## The builders' brief (version {doc.get('version', 1)})", doc["goal"], ""]
     if doc.get("estimates"):
         current = doc.get("profile")
-        L += ["Settings: " + "; ".join(
+        L += ["## Sets of models", "Settings: " + "; ".join(
             f"{name}{' (chosen)' if name == current else ''} about ${e.get('cost_usd') or 0:.2f}"
             + (f", not counting {len(e['unpriced'])} unpriced" if e.get("unpriced") else "")
             for name, e in doc["estimates"].items()), ""]
@@ -497,7 +617,10 @@ def submission_schema(task_schema: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "summary": {**s, "description": "two or three sentences: what will be built and how"},
+            "title": {**s, "description": "the plan's name for the owner: at most 8 plain words about what they get, "
+                                         "e.g. \"Music player for phone and PC\"; no file names, tools or versions"},
+            "summary": {**s, "description": "one or two plain sentences for the owner: what will be built (what they "
+                                           "will see or get), no tool names or file names"},
             "in_scope": {"type": "array", "items": s},
             "out_of_scope": {"type": "array", "items": s},
             "dont": {"type": "array", "description": "things not to do (traps, over-engineering, risky choices)",

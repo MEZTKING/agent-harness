@@ -1,4 +1,4 @@
-# Handoff – 26 November 2026
+# Handoff – 26 November 2026 (evening)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -15,10 +15,17 @@ visible on the desktop app and the phone. Details: CLAUDE.md, "The pieces".
 
 | Piece | State |
 |---|---|
-| Desktop app | **0.7.2** (MCP tool servers for roles; Unreal guide), after 0.7.1 and 0.7.0: tap-to-answer cards, the Candlelit Oak look, the Look step, references, plugins (token saver built in), backups, picture models, Budget / Balanced / Quality, OpenRouter and Openference, real-money limits, off-peak starts, learned model switches |
-| Roundtable Mobile | Built (cards and the new look included); not released (needs a signing key) |
-| Hub (`agent-hub-data`) | Agents: harness, mse-studio-engine, mcsupermods, blockloom, cutline-studio, music-player, me |
-| The yardstick (music player) | Finished: web app (Record Shop Sleeve look), Android APK and Windows EXE sent to the owner (not yet tried on real devices). About $13 of real money spent on the day across DeepSeek and OpenRouter, much of it on Roundtable faults now fixed |
+| Desktop app | **0.9.0** (26 November): rebuilt from scratch (`ui/static/` ES modules, design in `docs/desktop-design.md`): the Hall with every project as a seat, Needs you first, editable routing, Settings for everything (keys with a real Test, recommended setup, spending, hub, phone pairing, backups, plugins, updates). Claude Opus 5.5 (medium) codes by default, DeepSeek V4 Flash backs it up; no V4 Pro (owner) |
+| Roundtable Mobile | 0.9.0 test APK on the release (updates itself from Settings → About): plain words, Needs you organised, several connections at once (This phone + PC + hub), Your computers, watch builds anywhere, shared settings. **This phone (beta)**: Roundtable inside the app (proot), runtime releases `runtime-…` signed with the TEST key |
+| Phone ↔ PC sync | Built (`sync.py`, `ui/syncapi.py`, `data/MultiBackend.kt`): machine seats, claims, live sessions, shared settings, carry on, pairing. **Never run on real machines** |
+| Existing apps (repository mode) | Built: own branch, the repo's rules, baseline + new-failure checks, per-project settings file. Tried on MSE Studio (plan made, then the owner paused it; nothing pushed) |
+| Engines | MCP tool servers (Unreal, Godot, Blender), the Godot game checker – not yet tried with the real programs |
+| Hub (`agent-hub-data`) | Agents: harness, mse-studio-engine, mcsupermods, blockloom, cutline-studio, music-player, me, knightgame, agent-harness; the owner's to-do list is empty |
+
+**The next step everything waits on:** the owner shares one folder from the Claude desktop app
+(suggested `C:\Users\Rakib\Roundtable`, Settings → Claude Code → Remote Control) and plugs the phone in
+by USB; then test on the real PC and phone (CLAUDE.md "Test on the owner's PC"): the 0.9.0 desktop, pairing,
+This phone, the sync, Godot, Unreal.
 
 ## 3. Where to read more
 
@@ -33,10 +40,8 @@ visible on the desktop app and the phone. Details: CLAUDE.md, "The pieces".
 
 ## 4. What to do next
 
-0. MCP tool servers (0.7.2, `docs/mcp.md`, `docs/unreal.md`): try them against a real Unreal editor when
-   the owner is at the PC; the Windows build now includes the `mcp` package (self-test checks it).
-
-1. Check the 0.7.0 release exists and works; tell the owner.
-2. Release 2, "Proof it works": automatic build, test, start and screenshots judged by a seeing
-   model; stop and ask above the shown estimate; task sizing; project memory of the machine.
-3. Kinds: the web app kind and one-tap APK/EXE extras first.
+1. Check the 0.9.0 release and the runtime release exist; tell the owner.
+2. Real-machine tests once a folder is shared (above); fix what they find.
+3. plans/gaps.md: Ask me first on the phone, owner to-dos that leave the app, the estimate's picture
+   prices, a model set's own changes shared between machines, the phone's release signing key.
+4. Then: kinds (plans/kinds.md), proof for more app types, the owner's next project.

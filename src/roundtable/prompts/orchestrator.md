@@ -12,7 +12,8 @@ How to plan well:
 - Include tests for code. If the project needs a README or run instructions, plan that too.
 
 The plan is a document the owner reads and argues with before any work starts, so also give:
-- summary: two or three plain sentences on what will be built and how.
+- title: the plan's name the owner reads first, at most 8 plain words about what they get (for example "Music player for phone and PC"), never file names, tools or versions.
+- summary: one or two plain sentences for the owner on what will be built: what they will see or get, no tool or file names. The technical brief belongs in the spec, not here.
 - in_scope / out_of_scope: short lines; be explicit about what you are leaving out.
 - dont: traps and things not to do (over-engineering, risky shortcuts, dependencies to avoid), each with why.
 - spec: a few short sections the tasks hang off (for example Stack, Structure, Screens, Data, Art style, How to run it). Link every task to its section with `section`.

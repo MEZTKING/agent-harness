@@ -57,10 +57,14 @@ import com.meztking.roundtable.ui.theme.Panel
 private fun bitmap(bytes: ByteArray): ImageBitmap? =
     runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()
 
-/** The Live tab: the newest pictures of the project's app, and the latest task's steps as lines. */
+/**
+ * The Live tab: the newest pictures of the project's app, and the latest task's steps as lines. A finished
+ * project shows its final pictures (or a button to take them) and folds its steps.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit) {
+fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit, finished: Boolean = false,
+            onTakePictures: (() -> Unit)? = null, sent: String? = null) {
     var big by remember { mutableStateOf<Pair<String, ImageBitmap>?>(null) }
     PullToRefreshBox(live.loading && live.data != null, onRefresh, Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -70,8 +74,8 @@ fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit) {
                 v == null && live.loading -> item { Loading("Fetching the pictures…") }
                 v == null -> {}
                 else -> {
-                    item { Pictures(v) { label, img -> big = label to img } }
-                    item { Session(v, mode) }
+                    item { Pictures(v, finished, onTakePictures, sent) { label, img -> big = label to img } }
+                    item { Session(v, mode, finished) }
                 }
             }
         }
@@ -80,27 +84,37 @@ fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit) {
 }
 
 @Composable
-private fun Pictures(v: LiveView, open: (String, ImageBitmap) -> Unit) {
+private fun Pictures(v: LiveView, finished: Boolean, onTake: (() -> Unit)?, sent: String?, open: (String, ImageBitmap) -> Unit) {
     Panel(Modifier.fillMaxWidth()) {
-        Text("PICTURES OF THE APP", style = Label, color = Hall.muted)
         val s = v.shots
-        if (s == null || v.kinds.isEmpty()) {
-            Text(s?.failed?.ifBlank { null } ?: s?.note?.ifBlank { null }
+        val has = s != null && v.kinds.isNotEmpty()
+        Text(if (finished && has) "FINAL PICTURES" + (s?.at?.ifBlank { null }?.let { " · ${day(it)}" } ?: "") else "PICTURES OF THE APP",
+            style = Label, color = Hall.muted)
+        if (!has) {
+            if (finished) {
+                Text("No pictures of this project yet.", color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
+                if (onTake != null) {
+                    Spacer(Modifier.height(8.dp))
+                    if (sent != null) Text(sent, color = Hall.good, style = MaterialTheme.typography.bodySmall)
+                    else androidx.compose.material3.Button(onClick = onTake) { Text("Take pictures now") }
+                }
+            } else Text(s?.failed?.ifBlank { null } ?: s?.note?.ifBlank { null }
                 ?: "Roundtable takes pictures of the app after every finished task. None yet.",
                 color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
             return@Panel
         }
-        Text(listOfNotNull("After [${s.task}]", s.title.ifBlank { null }?.let { "“$it”" }, s.at.ifBlank { null }?.let { ago(it) })
+        s!!
+        if (!finished) Text(listOfNotNull(s.title.ifBlank { null }?.let { "After “$it”" }, s.at.ifBlank { null }?.let { ago(it) })
             .joinToString(" · "), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(10.dp))
         v.images["desktop"]?.let { Shot("Computer", it, Modifier.fillMaxWidth(), open) }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             v.images["phone"]?.let { Shot("Phone", it, Modifier.weight(0.42f), open) }
-            v.images["dark"]?.let { Shot("Dark mode", it, Modifier.weight(1f), open) }
+            v.images["dark"]?.let { Shot("Dark mode", it, Modifier.weight(1f), open) } ?: Spacer(Modifier.weight(1f))
         }
-        if (s.errors.isNotEmpty()) Text("The page reported ${s.errors.size} error${if (s.errors.size > 1) "s" else ""}: ${s.errors.first()}",
+        if (s.errors.isNotEmpty() && !finished) Text("The page reported ${s.errors.size} error${if (s.errors.size > 1) "s" else ""}: ${s.errors.first()}",
             Modifier.padding(top = 10.dp), color = Hall.bad, style = MaterialTheme.typography.bodySmall, maxLines = 3)
-        if (s.note.isNotBlank()) Text(s.note, Modifier.padding(top = 6.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+        if (s.note.isNotBlank() && !finished) Text(s.note, Modifier.padding(top = 6.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         Text("Tap a picture to see it full size.", Modifier.padding(top = 6.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -117,27 +131,41 @@ private fun Shot(label: String, bytes: ByteArray, modifier: Modifier, open: (Str
 
 /** The latest task's steps, like the lines of a terminal. */
 @Composable
-private fun Session(v: LiveView, mode: Mode?) {
+private fun Session(v: LiveView, mode: Mode?, finished: Boolean) {
     val s: SessionSummary? = v.session
     val t = s?.task
     Panel(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("WHAT IT'S DOING", style = Label, color = Hall.muted, modifier = Modifier.weight(1f))
+            Text(if (finished && !v.running) "WHAT IT DID LAST" else "WHAT IT'S DOING", style = Label, color = Hall.muted, modifier = Modifier.weight(1f))
             if (v.running) Text("● Live" + if (v.progress.isNotBlank()) " · ${v.progress}" else "", color = Hall.good, style = MaterialTheme.typography.labelMedium)
         }
         if (v.from.isNotBlank()) Text(v.from + (s?.at?.ifBlank { null }?.let { " · ${ago(it)}" } ?: "") + if (v.running) " · updates by itself" else "",
             color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         if (t == null) {
-            Text("The steps show here once a task has run.", color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
+            Text(if (finished) "This project was built before Roundtable kept a step list." else "The steps show here once a task has run.",
+                color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
             return@Panel
         }
         Text("[${t.id}] ${t.title}", color = Hall.text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
         Text(listOfNotNull(t.role.ifBlank { null }, t.status.ifBlank { null }, if (t.cost > 0) "$%.4f".format(t.cost) else null)
             .joinToString(" · "), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(8.dp))
+        if (finished && !v.running) Fold("Its steps (${t.steps.size})") { Steps(t.steps) } else Steps(t.steps)
+        if (mode == Mode.HUB && v.from.isBlank() && !finished) Text("Only the latest task's last steps come through the hub; the PC app shows every step and change.",
+            Modifier.padding(top = 8.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** "26 Nov 2026" from an ISO time. */
+private fun day(iso: String): String = runCatching {
+    java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy").withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.parse(iso))
+}.getOrDefault(iso.take(10))
+
+@Composable
+private fun Steps(steps: List<com.meztking.roundtable.data.SessionStep>) {
         Column(Modifier.fillMaxWidth().background(TermBg, RoundedCornerShape(10.dp)).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (step in t.steps) {
+            for (step in steps) {
                 val colour = when {
                     step.error -> TermBad
                     step.kind == "review" && step.line.startsWith("✓") -> TermGood
@@ -149,9 +177,6 @@ private fun Session(v: LiveView, mode: Mode?) {
                 Text(step.line, color = colour, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
-        if (mode == Mode.HUB && v.from.isBlank()) Text("Only the latest task's last steps come through the hub; the PC app shows every step and change.",
-            Modifier.padding(top = 8.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
-    }
 }
 
 // The session reads like a terminal in both looks: dark oak (the dark tokens).

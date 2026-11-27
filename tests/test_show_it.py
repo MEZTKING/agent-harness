@@ -353,3 +353,29 @@ def test_pictures_taken_in_the_same_second_keep_their_order(tmp_path):
         (d / "shots.json").write_text(json.dumps({"task": task, "at": "2026-11-26T15:00:00Z", "seq": i}), encoding="utf-8")
     assert [r["task"] for r in showit.history(tmp_path)] == ["W3", "W2", "W1"]
     assert showit._next_seq(tmp_path) == 4
+
+
+def test_take_pictures_now_for_a_project_built_before_pictures(tmp_path, monkeypatch):
+    """A finished project with no pictures: the owner's "Take pictures now" (remote ``show_it``) takes them
+    after the newest finished task and publishes the hub's live files."""
+    import shutil
+
+    from roundtable import remote
+    from roundtable.harness.orchestrator import Orchestrator
+
+    orch, *_ = built(tmp_path, raw=hub_raw(tmp_path))
+    shutil.rmtree(orch.project.root / ".harness" / "shots")
+    shutil.rmtree(tmp_path / "hubdata" / "plans" / "shots")
+    monkeypatch.setattr(Orchestrator, "shot_renderer", staticmethod(fake_renderer()), raising=False)
+    text = remote.execute(orch.cfg, orch.project.root, {"action": "show_it"})
+    assert text.startswith("Took 3 pictures") and not remote.is_trouble(text)
+    hub = tmp_path / "hubdata" / "plans" / "shots" / "proj"
+    assert json.loads((hub / "latest.json").read_text(encoding="utf-8"))["task"] == "W2"
+    assert (hub / "session.json").is_file() and (hub / "latest-desktop.jpg").is_file()
+    assert "show_it" in remote.LONG
+
+
+def test_take_pictures_now_says_why_not(tmp_path):
+    orch, *_r, _events = make(tmp_path)
+    r = orch.show_it_now()
+    assert not r["ok"] and r["reply"].startswith("Couldn't take pictures: no task")

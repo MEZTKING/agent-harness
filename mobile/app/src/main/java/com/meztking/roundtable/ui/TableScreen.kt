@@ -107,6 +107,7 @@ fun TableScreen(
     onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
     onAutopilot: (on: Boolean, until: String, cap: Double?) -> Unit = { _, _, _ -> },
     onMarkAllRead: (List<NeedView>) -> Unit = {},
+    onNotes: (() -> Unit)? = null,
 ) {
     val data = hall.data
     var showAutopilot by rememberSaveable { mutableStateOf(false) }
@@ -116,7 +117,7 @@ fun TableScreen(
     // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
     val waits = remember(needs) { NeedsOrder.organise(needs).associate { it.project to it.summary } }
     Column(Modifier.fillMaxSize()) {
-        Header(whereLabel, mode, hall.loading, onRefresh)
+        Header(whereLabel, mode, hall.loading, onRefresh, onNotes)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
         UpdateBanner(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
@@ -174,7 +175,7 @@ fun TableScreen(
 }
 
 @Composable
-private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit) {
+private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         TableMark(Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
@@ -186,6 +187,7 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
                 Text(where, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold) }
         IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
     }
 }
@@ -327,37 +329,19 @@ fun SeatSummary(s: SeatView, waits: String? = null, onOpen: () -> Unit) {
             Spacer(Modifier.weight(1f))
             if (s.lastActivity.isNotBlank()) Text(ago(s.lastActivity), style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
-        if (s.lives.isNotBlank() || s.building.isNotBlank()) Text(whereWords(s), style = MaterialTheme.typography.bodySmall, color = Hall.gold, modifier = Modifier.padding(top = 2.dp))
-        if (s.description.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(s.description, style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        // short first: one line under the name (what waits for the owner, else where it stands); the rest is a tap away
+        val line = when {
+            !waits.isNullOrBlank() -> "Waits for you: $waits"
+            s.building.isNotBlank() -> whereWords(s)
+            s.leftOff.isNotBlank() -> s.leftOff
+            else -> s.description
         }
-        if (!waits.isNullOrBlank()) {
-            Spacer(Modifier.height(6.dp))
-            Text("Waits for you: $waits", style = MaterialTheme.typography.bodyMedium, color = Hall.candle, fontWeight = FontWeight.SemiBold)
-        }
-        if (s.leftOff.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text("WHERE WE LEFT OFF", style = Label.copy(fontSize = 10.sp))
-            Text(s.leftOff, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            s.nextSteps.take(2).forEach { Text("· $it", style = MaterialTheme.typography.bodySmall, color = Hall.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-        s.progress?.takeIf { it.total > 0 }?.let { p ->
-            Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth().height(4.dp).background(Hall.line, RoundedCornerShape(2.dp))) {
-                Box(Modifier.fillMaxWidth(p.done.toFloat() / p.total).height(4.dp).background(Hall.gold, RoundedCornerShape(2.dp)))
-            }
-        }
+        if (line.isNotBlank()) Text(line, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = if (!waits.isNullOrBlank()) Hall.candle else Hall.muted, fontWeight = if (!waits.isNullOrBlank()) FontWeight.SemiBold else null)
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val bits = buildList {
-                s.progress?.takeIf { it.total > 0 }?.let { add("${it.done} of ${it.total} tasks") }
-                add(if (s.openTodos == 1) "1 to-do" else "${s.openTodos} to-dos")
-                if (s.high > 0) add("${s.high} high")
-                if (s.unread > 0) add("${s.unread} unread")
-                if (s.hasPlan) add("plan")
-            }
-            Text(bits.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Hall.muted, modifier = Modifier.weight(1f))
+            Text(s.progress?.takeIf { it.total > 0 }?.let { "${it.done} of ${it.total} tasks" }.orEmpty(), style = MaterialTheme.typography.bodySmall,
+                color = Hall.muted, modifier = Modifier.weight(1f))
             TextButton(onClick = onOpen) {
                 Text("Open seat")
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)

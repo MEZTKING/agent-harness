@@ -17,10 +17,9 @@ export function letterRow(m, me, done, compact = false) {
   } }, h("textarea", { class: "grow", rows: 2, placeholder: `Reply to ${projectName(m.sender)}…`, "aria-label": "Your reply" }), h("button", { class: "primary" }, "Send"));
   const thread = h("div", { class: "thread" });
   const subj = String(m.subject || "").replace(/^roundtable:\s*/i, "");
-  return h("article", { class: "letter" + (m.read ? "" : " unread") + (compact ? " compact" : "") },
-    h("p", { class: "letter-line" }, h("a", { href: projectHref(m.sender), title: "Open this project" }, dot(m.sender), h("b", {}, projectName(m.sender))), ` ${KIND_VERB[m.kind] || "writes"}: `,
-      h("b", {}, subj), h("span", { class: "muted small" }, ` · ${ago(m.created_at)}`)),
-    m.body && m.body !== m.subject ? h("p", { class: "letter-body pre-line" }, compact && m.body.length > 280 ? m.body.slice(0, 280) + "…" : m.body) : null,
+  const line = h("p", { class: "letter-line" }, h("a", { href: projectHref(m.sender), title: "Open this project" }, dot(m.sender), h("b", {}, projectName(m.sender))), ` ${KIND_VERB[m.kind] || "writes"}: `,
+      h("b", {}, subj), h("span", { class: "muted small" }, ` · ${ago(m.created_at)}`));
+  const rest = [m.body && m.body !== m.subject ? h("p", { class: "letter-body pre-line" }, compact && m.body.length > 280 ? m.body.slice(0, 280) + "…" : m.body) : null,
     h("div", { class: "row" },
       h("button", { class: "small", onclick: () => { replyBox.hidden = !replyBox.hidden; if (!replyBox.hidden) replyBox.querySelector("textarea").focus(); } }, "Reply"),
       !m.read ? h("button", { class: "small", title: "Fold it away with the read letters", onclick: (ev) => act(ev.currentTarget, () => post(`/api/inbox/${encodeURIComponent(me)}/read`, { ids: [m.id] }), null, done) }, "Mark read") : null,
@@ -30,7 +29,10 @@ export function letterRow(m, me, done, compact = false) {
           fill(thread, t.length > 1 ? t.map((x) => h("p", { class: "small" }, h("b", {}, projectName(x.sender)), ` to ${projectName(x.recipient)}, ${ago(x.created_at)}: `, x.body)) : h("p", { class: "muted small" }, "Just this one."));
         } catch (e) { toast(e.message, true); }
       } }, "The whole conversation")),
-    replyBox, thread);
+    replyBox, thread];
+  // short first: one line a letter on the Letters page; it opens with a click (Needs you shows it whole)
+  if (compact) return h("article", { class: "letter" + (m.read ? "" : " unread") + " compact" }, line, rest);
+  return h("details", { class: "letter fold-letter" + (m.read ? "" : " unread") }, h("summary", { title: "Open the letter" }, line), rest);
 }
 
 export async function viewLetters(asAgent) {

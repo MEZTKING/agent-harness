@@ -1,6 +1,7 @@
 // Watch and App: following the work like a session (every step, changes in colour, pictures) and the app itself.
-import { h, fill, get, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q } from "./core.js";
+import { h, fill, get, post, act, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q, refreshHall } from "./core.js";
 import { hubSession } from "./machines.js";
+import { hubCommand } from "./asks.js";
 
 const rawUrl = (kind, path, name, task) => `/raw/${kind}?` + new URLSearchParams({ path, name, ...(task ? { task } : {}) });
 const shotUrl = (path, rec, kind) => rawUrl("shot", path, (rec.pictures || {})[kind] || `${kind}.png`, rec.dir || rec.task);
@@ -30,7 +31,8 @@ export async function watchTab(seat, now) {
       if (d.run && d.run.run_id !== runId) { runId = d.run.run_id; held = []; if (d.run.since) d = await hubSession(s, runId, 0) || d; }
       held = held.concat(d.events || []);
       status.textContent = d.live ? `Following it live${d.claim && d.claim.machine_name ? ` on ${d.claim.machine_name}` : ""}` : d.run ? `The newest build, ${ago(d.run.ended || d.run.started)}` : "";
-      fill(term, held.length ? remoteSteps(held) : h("p", { class: "t-meta" }, d.message || "No build of this project has been watched yet: it shows here once one starts."));
+      fill(term, held.length ? remoteSteps(held) : h("p", { class: "t-meta" }, s.status === "done" ? "This project was built before Roundtable kept a step list."
+        : d.message || "No build of this project has been watched yet: it shows here once one starts."));
       if (stick) term.scrollTop = term.scrollHeight;
       return;
     }
@@ -110,14 +112,42 @@ async function moreDetails(path) {
 
 // ---------- App: the real app running, and its pictures ----------
 export async function appTab(seat, now) {
+  if (!seat.path) return hubApp(seat, now);
   const box = h("div", { class: "stack" }, h("p", { class: "muted" }, "Loading…"));
   let sig = "";
   return every(box, async () => {
+    const s = now();
     const L = await get(`/api/project/live?${q({ path: seat.path })}`);
-    const s = JSON.stringify([L.latest && L.latest.at, L.history.length, L.preview, L.entry]);
-    if (s !== sig) { sig = s; fill(box, liveApp(L), livePictures(seat.path, L)); }
+    const sg = JSON.stringify([L.latest && L.latest.at, L.history.length, L.preview, L.entry, s.status]);
+    if (sg !== sig) { sig = sg; fill(box, liveApp(L), livePictures(seat.path, L, s.status === "done", seat)); }
   }, () => (now().status === "running" ? 4000 : 15000));
 }
+
+// "Take pictures now": for a finished project built before Roundtable took pictures
+function takeButton(fn) {
+  return h("div", { class: "row" }, h("button", { class: "primary", title: "Opens the app as it is now and takes its pictures (no AI, no cost)",
+    onclick: (ev) => act(ev.currentTarget, fn, "Taking the pictures: they show here in a minute", () => refreshHall()) }, "Take pictures now"));
+}
+
+// a project another computer builds: the pictures and steps it published to the hub
+async function hubApp(seat, now) {
+  const box = h("div", { class: "stack" }, h("p", { class: "muted" }, "Loading…"));
+  let sig = "";
+  return every(box, async () => {
+    const s = now();
+    const L = await get(`/api/hub/live?${q({ name: seat.hub_name })}`);
+    const sg = JSON.stringify([L.latest && L.latest.at, Object.keys(L.pictures), s.status]);
+    if (sg === sig) return;
+    sig = sg;
+    const kinds = Object.keys(L.pictures || {}), rec = L.latest || {}, finished = s.status === "done";
+    fill(box, card(h("div", { class: "card-head" }, h("h2", {}, finished && kinds.length ? "Final pictures" : "Pictures"),
+      rec.at && kinds.length ? h("span", { class: "muted small" }, finished ? day(rec.at) : ago(rec.at)) : null),
+    kinds.length ? h("div", { class: "shots" }, kinds.map((k) => h("figure", { class: "shot " + k }, picture(L.pictures[k], SHOT_NAMES[k] || k), h("figcaption", {}, SHOT_NAMES[k] || k))))
+      : [h("p", { class: "muted" }, finished ? "No pictures of this project yet." : "The computer that builds it takes pictures after every finished task. None yet."),
+        finished ? takeButton(() => hubCommand(s, "show_it")) : null]));
+  }, () => (now().status === "running" ? 6000 : 30000));
+}
+const day = (iso) => { try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(iso).slice(0, 10); } };
 function liveApp(L) {
   if (!L.preview) {
     return card("The app", h("p", { class: "muted" }, L.entry ? "The app opens here in the Roundtable Hold desktop app." : "Nothing to open yet: the app's first page hasn't been made."),
@@ -136,16 +166,19 @@ function liveApp(L) {
   h("p", { class: "small muted" }, "The real app, running from its folder. It can't reach the internet or Roundtable itself."),
   wrap);
 }
-function livePictures(path, L) {
+function livePictures(path, L, finished = false, seat = null) {
   const rec = L.latest;
+  if (!rec && finished) return card("Pictures", h("p", { class: "muted" }, "No pictures of this project yet."),
+    takeButton(() => post("/api/project", { path, action: "show_it" })));
   if (!rec) return card("Pictures", h("p", { class: "muted" }, "Roundtable takes pictures of the app after every finished task. None yet."));
   const kinds = Object.keys(rec.pictures || {}), errs = rec.errors || [];
   const earlier = (L.history || []).filter((r) => Object.keys(r.pictures || {}).length);
-  return card(h("div", { class: "card-head" }, h("h2", {}, "Pictures"), h("span", { class: "muted small" }, rec.title ? `after “${rec.title}”` : "after the newest task", ` · ${ago(rec.at)}`)),
+  return card(h("div", { class: "card-head" }, h("h2", {}, finished ? "Final pictures" : "Pictures"),
+    h("span", { class: "muted small" }, finished ? day(rec.at) : [rec.title ? `after “${rec.title}”` : "after the newest task", ` · ${ago(rec.at)}`])),
     kinds.length ? h("div", { class: "shots" }, kinds.map((k) => h("figure", { class: "shot " + k }, picture(shotUrl(path, rec, k), SHOT_NAMES[k] || k), h("figcaption", {}, SHOT_NAMES[k] || k))))
       : h("p", { class: "muted" }, rec.failed || rec.note || "No pictures this time."),
     kinds.length && rec.note ? h("p", { class: "small muted" }, rec.note) : null,
     errs.length ? h("details", {}, h("summary", { title: "Errors the page wrote while the pictures were taken" }, `The page reported ${errs.length} error${errs.length > 1 ? "s" : ""}`), h("pre", { class: "log short" }, errs.join("\n"))) : null,
-    earlier.length > 1 ? [h("h3", {}, "Earlier"), h("div", { class: "strip" }, earlier.map((r) => h("figure", {}, picture(shotUrl(path, r, "desktop"), r.title || "An earlier picture"),
-      h("figcaption", {}, r.title || "", h("span", { class: "muted" }, " " + ago(r.at))))))] : null);
+    earlier.length > 1 ? h("details", {}, h("summary", {}, `Earlier pictures (${earlier.length - 1})`), h("div", { class: "strip" }, earlier.map((r) => h("figure", {}, picture(shotUrl(path, r, "desktop"), r.title || "An earlier picture"),
+      h("figcaption", {}, r.title || "", h("span", { class: "muted" }, " " + ago(r.at))))))) : null);
 }

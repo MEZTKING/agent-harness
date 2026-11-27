@@ -18,7 +18,14 @@ data class PlanDoc(
     val donts: List<Dont> = emptyList(),
     /** Every other section, in order, as markdown blocks. */
     val sections: List<StatusDoc.Section> = emptyList(),
+    /** The tasks, one line each ("## Tasks": "- [T1] done Scaffold the page (coder)"). */
+    val tasks: List<PlanTask> = emptyList(),
+    /** "about $3.45, about 45 minutes" (the "Estimate:" line), shown only while the plan waits. */
+    val estimate: String = "",
+    /** The heading was the builders' brief ("# Plan v2: …", published before plans had a title). */
+    val oldHeading: Boolean = false,
 ) {
+    data class PlanTask(val id: String, val status: String, val title: String, val role: String)
     data class Option(val id: String?, val label: String, val detail: String, val cost: String, val recommended: Boolean, val chosen: Boolean)
     data class Decision(val id: String?, val question: String, val options: List<Option>, val why: String)
     /** [options] are the ready answers to tap ("Answers: …" under the question). */
@@ -29,12 +36,33 @@ data class PlanDoc(
     val waitingForOwner: Boolean get() = state.contains("waiting", ignoreCase = true)
     val approved: Boolean get() = state.contains("approved", ignoreCase = true) || state.equals("done", ignoreCase = true)
     val openChoices: Int get() = decisions.count { d -> d.options.none { it.chosen } } + questions.count { it.answer.isBlank() }
+    val finished: Boolean get() = state.equals("done", ignoreCase = true) || state.startsWith("done", ignoreCase = true) ||
+        (tasks.isNotEmpty() && tasks.all { it.status == "done" || it.status == "skipped" } && !waitingForOwner)
+
+    /** The heading the owner reads: short, plain, never the builders' brief. */
+    val shortTitle: String get() = if (oldHeading) PlanWords.shortTitle(title) else title.ifBlank { "The plan" }
+
+    /** One plain sentence of where the plan stands, from the plan itself (the words file says it better when there is one). */
+    fun stateSentence(): String {
+        val done = tasks.count { it.status == "done" }
+        val n = tasks.size
+        return when {
+            finished -> if (n > 0) "Finished – $n task${if (n == 1) "" else "s"}" else "Finished"
+            waitingForOwner -> openChoices.let { if (it > 0) "Waiting for you: $it to answer" else "Ready for you to approve" }
+            tasks.any { it.status == "failed" } -> "Stopped: a task needs you"
+            tasks.any { it.status == "running" } -> "Building task ${(done + 1).coerceAtMost(n)} of $n"
+            n > 0 -> "Paused – $done of $n tasks done"
+            else -> state.replaceFirstChar { it.uppercase() }
+        }
+    }
 
     companion object {
         private val statusRe = Regex("^_?Plan status:\\s*(.*?)_?$")
         private val bracketId = Regex("\\s*\\[([A-Za-z0-9_.-]+)\\]$")
         private val costRe = Regex("\\s*\\[([^\\]]+)\\]$")
         private val ideaRe = Regex("^\\[(\\w+)\\]\\s+(.*)$")
+        private val oldHeadingRe = Regex("^Plan v\\d+:\\s*(.*)$")
+        private val taskRe = Regex("^\\[([A-Za-z0-9_.-]+)\\]\\s+(\\w+)\\s+(.*?)(?:\\s+\\(([^)]*)\\))?$")
 
         fun parse(md: String): PlanDoc {
             if (md.isBlank()) return PlanDoc()
@@ -52,16 +80,26 @@ data class PlanDoc(
             val blocks = Markdown.parse(lines.joinToString("\n"))
 
             var title = ""
+            var estimate = ""
             val intro = mutableListOf<Md>()
             val sections = mutableListOf<Pair<String, MutableList<Md>>>()
             for (b in blocks) {
                 when {
                     b is Md.Heading && b.level == 1 && title.isEmpty() && sections.isEmpty() -> title = b.text
                     b is Md.Heading && b.level == 2 -> sections += b.text to mutableListOf()
+                    sections.isEmpty() && b is Md.Paragraph && b.text.startsWith("Estimate:") -> estimate = b.text.removePrefix("Estimate:").trim()
+                    sections.isEmpty() && b is Md.Paragraph && b.text.startsWith("Settings:") -> sections += "Sets of models" to mutableListOf<Md>(b)
                     sections.isEmpty() -> intro += b
                     else -> sections.last().second += b
                 }
             }
+            // a plan published before plans had a title: its heading was the builders' brief
+            val old = oldHeadingRe.find(title)
+            if (old != null) {
+                title = old.groupValues[1].trim()
+                sections.add(0, "The builders' brief" to mutableListOf<Md>(Md.Paragraph(title)))
+            }
+            val tasks = mutableListOf<PlanTask>()
 
             val decisions = mutableListOf<Decision>()
             val questions = mutableListOf<Question>()
@@ -89,6 +127,11 @@ data class PlanDoc(
                         val (text, why) = splitWhy(m?.groupValues?.get(2) ?: item.text)
                         ideas += Idea(item.id, m?.groupValues?.get(1) ?: "open", text, why)
                     }
+                    "tasks" -> body.filterIsInstance<Md.Item>().forEach { item ->
+                        taskRe.find(item.text.trim())?.let { m ->
+                            tasks += PlanTask(m.groupValues[1], m.groupValues[2], m.groupValues[3].trim(), m.groupValues[4])
+                        }
+                    }
                     "don't", "dont", "don’t" -> {
                         body.filterIsInstance<Md.Item>().forEach { donts += Dont(it.id, it.text) }
                         rest += StatusDoc.Section(name, body)
@@ -96,7 +139,7 @@ data class PlanDoc(
                     else -> rest += StatusDoc.Section(name.let { bracketId.replace(it, "") }, body)
                 }
             }
-            return PlanDoc(state, summary, updated, title, intro, decisions, questions, ideas, donts, rest)
+            return PlanDoc(state, summary, updated, title, intro, decisions, questions, ideas, donts, rest, tasks, estimate, old != null)
         }
 
         private fun decisionsIn(body: List<Md>): List<Decision> {

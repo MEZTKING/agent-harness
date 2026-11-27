@@ -50,12 +50,17 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle                 # keeps Android's downloads between runs (Maven Central can refuse with 429)
+          cache-dependency-path: |
+            mobile/**/*.gradle*
+            mobile/**/gradle-wrapper.properties
       - name: Build the test APK (signed with mobile/test-key, so it installs over the last one)
         working-directory: mobile
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          # a refused download (429 Too Many Requests) is tried again once, a minute later
+          ./gradlew --no-daemon assembleDebug || (sleep 60 && ./gradlew --no-daemon assembleDebug)
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' ../pyproject.toml)
           mkdir -p ../dist && cp app/build/outputs/apk/debug/app-debug.apk "../dist/RoundtableMobile-$version-test.apk"
       - uses: actions/upload-artifact@v4

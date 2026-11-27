@@ -340,7 +340,7 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
             gi = doc.get("goal_index", 0)
             md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
                   + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
-                                            image_base=f"looks/{name}/"))
+                                            image_base=f"looks/{name}/", waiting=not meta.get("plan_approved")))
             files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n"),
                                      f"plans/{name}.asks.json": TextFile(self._asks_json())}
             files.update({f"plans/looks/{name}/{f}": BinaryFile(b) for f, b in self._look_pictures().items()})
@@ -361,8 +361,19 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
 
         me = this_machine()  # where the project's files are: commands for it go to that machine
         return json.dumps({"project": self.project.root.name, "at": utcnow(), "asks": asks, "machine": me["id"],
-                           "machine_name": me["name"]}, indent=1,
+                           "machine_name": me["name"], **self.plan_words()}, indent=1,
                           ensure_ascii=False) + "\n"
+
+    def plan_words(self) -> dict[str, Any]:
+        """The plan in the owner's words, short first: title, summary, where it stands, what waits for them."""
+        doc = self.project.plan_doc() or {}
+        meta = self.project.meta()
+        tasks = self.project.tasks()
+        waiting = [] if meta.get("plan_approved") else plandoc.waiting_items(doc)
+        est = doc.get("estimate") or {}
+        return {"title": plandoc.plan_title(doc) if doc else "", "summary": doc.get("summary", ""),
+                "state": plandoc.state_sentence(doc, tasks, meta), "waiting": waiting,
+                "estimate": plandoc.estimate_line(est) if est and not meta.get("plan_approved") else ""}
 
     def _hub_update(self, status: str, note: str | None = None) -> None:
         try:

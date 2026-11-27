@@ -285,6 +285,25 @@ class MultiBackend(
 
     override suspend fun sharedSettings(): SharedSettings? = runCatching { shared().second }.getOrNull()
 
+    /** The hub's documents: straight from the hub when it's set up, else through a machine that reads it. */
+    override suspend fun notes(): List<Note> {
+        var error: Exception? = null
+        for (src in listOf(Source.HUB, Source.PC, Source.PHONE)) {
+            val b = parts[src] ?: continue
+            try { b.notes().takeIf { it.isNotEmpty() }?.let { return it } } catch (e: CancellationException) { throw e } catch (e: Exception) { if (error == null) error = e }
+        }
+        error?.let { throw it }
+        return emptyList()
+    }
+
+    override suspend fun note(name: String): String? {
+        for (src in listOf(Source.HUB, Source.PC, Source.PHONE)) {
+            val b = parts[src] ?: continue
+            runCatching { b.note(name) }.getOrNull()?.let { return it }
+        }
+        return null
+    }
+
     /** Straight to a machine that answers; otherwise as a hub command to the machine seen most recently. */
     override suspend fun saveShared(changes: JsonObject, to: String?): String {
         for (src in listOf(Source.PC, Source.PHONE)) {

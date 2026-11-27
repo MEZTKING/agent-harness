@@ -43,6 +43,23 @@ class ShowStage:
                             "note": record.get("failed") or record.get("note", "")})
         return record
 
+    def show_it_now(self) -> dict[str, Any]:
+        """Pictures of the app as it is now, after the newest finished task, and the hub's live files (the
+        owner's "Take pictures now" for a project built before Roundtable took pictures)."""
+        done = [t for t in self.project.tasks() if t.status == "done"]
+        if not done:
+            return {"ok": False, "reply": "Couldn't take pictures: no task has finished yet."}
+        if not self._shots_wanted():
+            return {"ok": False, "reply": "Couldn't take pictures: this project has no screens to show."}
+        record = self._show_it(done[-1])
+        self._publish_live(record)
+        n = len((record or {}).get("pictures") or {})
+        if not n:
+            why = (record or {}).get("failed") or (record or {}).get("note") or "the app didn't open"
+            return {"ok": False, "reply": f"Couldn't take pictures: {why}.", "record": record}
+        return {"ok": True, "reply": f"Took {n} picture{'s' * (n > 1)} of the app. They're on the Live tab.",
+                "record": record}
+
     def _game_tool(self):
         """``run_game`` when the project is a Godot game and Godot is on this computer, else None."""
         return godotlib.game_tool(self.project.root, self.cfg.godot)

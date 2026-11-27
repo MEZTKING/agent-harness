@@ -52,6 +52,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.ui.LettersScreen
+import com.meztking.roundtable.ui.NotesScreen
 import com.meztking.roundtable.ui.MainViewModel
 import com.meztking.roundtable.ui.ProjectActions
 import com.meztking.roundtable.ui.ProjectScreen
@@ -156,6 +157,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
             }
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
+            composable("notes") { NotesScreen(onBack = { nav.popBackStack() }) }
             composable(
                 "project/{id}?tab={tab}",
                 arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("tab") { type = NavType.IntType; defaultValue = 0 }),
@@ -274,6 +276,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onAnswer = main::answer,
                     onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) },
                     onAutopilot = main::autopilot,
+                    onNotes = if (backend != null) ({ nav.navigate("notes") }) else null,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),

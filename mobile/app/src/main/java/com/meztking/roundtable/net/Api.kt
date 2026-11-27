@@ -130,6 +130,26 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
 
     /** Autopilot's switch and what it did lately. */
     /** The newest pictures of a run's app, as data addresses (Show it). */
+    @kotlinx.serialization.Serializable
+    private data class NoteList(val notes: List<com.meztking.roundtable.data.Note> = emptyList())
+
+    @kotlinx.serialization.Serializable
+    private data class NoteText(val markdown: String = "")
+
+    suspend fun notes(): List<com.meztking.roundtable.data.Note> = ApiJson.decodeFromString(NoteList.serializer(), call("GET", "/api/notes")).notes
+
+    suspend fun note(name: String): String = ApiJson.decodeFromString(NoteText.serializer(), call("GET", "/api/note?name=${q(name)}")).markdown
+
+    /** The plan in the owner's words (title, where it stands, the estimate), from /api/plan. */
+    suspend fun planWords(path: String): com.meztking.roundtable.data.PlanWords? {
+        val o = ApiJson.parseToJsonElement(call("GET", "/api/plan?path=${q(path)}")) as? kotlinx.serialization.json.JsonObject ?: return null
+        fun str(e: kotlinx.serialization.json.JsonElement?) = (e as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
+        val w = o["words"] as? kotlinx.serialization.json.JsonObject ?: return null
+        val doc = o["doc"] as? kotlinx.serialization.json.JsonObject
+        return com.meztking.roundtable.data.PlanWords(str(w["title"]), str(doc?.get("summary")), str(w["state"]), emptyList(), str(w["estimate"]))
+            .takeIf { it.title.isNotBlank() }
+    }
+
     suspend fun live(path: String): String = call("GET", "/api/project/live?inline=1&path=${q(path)}")
     /** The latest task's steps as short lines. */
     suspend fun session(path: String): String = call("GET", "/api/project/session?compact=1&path=${q(path)}")

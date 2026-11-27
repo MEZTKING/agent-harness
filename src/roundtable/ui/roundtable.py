@@ -89,9 +89,20 @@ def run_seat(app, path: Path) -> dict[str, Any]:
         "state": _run_words(status, st, tasks, running_task, failed),
         "shot": _seat_shot(path),
         "failed_task": failed[0]["id"] if failed else None,
-        "progress": {"done": done, "total": len(tasks)}, "goal": (meta.get("goals") or [""])[-1],
+        "progress": {"done": done, "total": len(tasks)}, "goal": _plan_title(hdir, (meta.get("goals") or [""])[-1]),
         "spent_usd": meta.get("spent_usd", 0), "last_activity": last_at,
     }
+
+
+def _plan_title(hdir: Path, goal: str) -> str:
+    """The plan's short title for the seat and the project's heading (never the builders' brief)."""
+    from ..harness.plandoc import plan_title, short_title
+
+    try:
+        doc = json.loads((hdir / "plan.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        doc = None
+    return plan_title(doc) if isinstance(doc, dict) else short_title("", "", goal) if goal else ""
 
 
 def _run_words(status: str, st: str | None, tasks: list[dict[str, Any]], running: dict[str, Any] | None,

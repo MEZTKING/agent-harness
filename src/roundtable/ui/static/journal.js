@@ -1,6 +1,6 @@
 // A project's journal (the hub's shared notebook): notes, to-dos, plans, decisions and sessions, newest first; add
 // one; what other agents read about the project. Also "My notes", the owner's own page.
-import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, refreshHall, projectName, when } from "./core.js";
+import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, refreshHall, projectName, when, q, markdown, has } from "./core.js";
 
 const KINDS = [["all", "Everything"], ["todo", "To-dos"], ["plan", "Plans"], ["decision", "Decisions"], ["done", "Done"], ["note", "Notes"], ["session", "Sessions"]];
 const KIND_WORD = { todo: "To-do", plan: "Plan", decision: "Decided", done: "Done", note: "Note", session: "Session" };
@@ -14,7 +14,7 @@ export async function journalTab(seat) {
 }
 
 export async function notesPage(notes) {
-  const parts = [await journal(notes.id, false)];
+  const parts = [await savedDocs(), await journal(notes.id, false)];
   if (notes.runner && notes.runner.brief) {
     const b = notes.runner.brief;
     parts.push(card("Roundtable's own list", h("p", { class: "muted small" }, "Things Roundtable noted that don't belong to one project."),
@@ -22,6 +22,29 @@ export async function notesPage(notes) {
   }
   return page("My notes", "Your own notes, to-dos and plans that don't belong to one project. Every computer and agent connected to your hub can read them.",
     h("a", { class: "back", href: "#/" }, "← The Hall"), ...parts);
+}
+
+// The owner's saved documents in the hub (notes/*.md): titles only until one is opened.
+async function savedDocs() {
+  if (!(await has("/api/notes"))) return null;
+  let list;
+  try { list = (await get("/api/notes")).notes || []; } catch { return null; }
+  if (!list.length) return null;
+  const box = h("div");
+  const showList = () => fill(box, card("Saved documents",
+    h("ul", { class: "plain doc-list" }, list.map((n) => h("li", {}, h("button", { class: "linkish", title: "Open it", onclick: () => open(n) }, n.title))))));
+  const open = async (n) => {
+    fill(box, card(n.title, h("p", { class: "muted" }, "Opening it…")));
+    try {
+      const d = await get(`/api/note?${q({ name: n.name })}`);
+      const doc = markdown(d.markdown);
+      const first = doc.firstElementChild;
+      if (first && /^H[1-4]$/.test(first.tagName) && first.textContent.trim() === d.title) first.remove();  // it's the card's title
+      fill(box, card(h("div", { class: "card-head" }, h("h2", {}, d.title), h("button", { class: "small", onclick: showList }, "← All documents")), doc));
+    } catch (e) { fill(box, card(n.title, h("p", {}, e.message), h("button", { onclick: showList }, "Back"))); }
+  };
+  showList();
+  return box;
 }
 
 async function journal(agent, withCard) {

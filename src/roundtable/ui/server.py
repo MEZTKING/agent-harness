@@ -548,6 +548,11 @@ class UIApp:
                 return {"status": orch.run(max_tasks=body.get("max_tasks"))}
 
             return self.jobs.start("run", f"{action} {proj.root.name}", run, target=str(proj.root)).view()
+        if action == "show_it":  # "Take pictures now": the app as it is, after its newest finished task
+            def shots(job: Job):
+                return self._orch(cfg, proj.root, job).show_it_now()
+
+            return self.jobs.start("shots", f"pictures of {proj.root.name}", shots, target=str(proj.root)).view()
         if any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values()):
             raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         from ..harness.orchestrator import Orchestrator
@@ -582,7 +587,9 @@ class UIApp:
         tasks = proj.tasks()
         gi = doc["goal_index"] if doc else len(meta.get("goals", [])) - 1
         busy = any(j.target == str(proj.root) and j.status == "running" for j in self.jobs.jobs.values())
-        return {"path": str(proj.root), "name": proj.root.name, "doc": doc, "status": meta.get("status"),
+        words = {"title": plandoc.plan_title(doc), "state": plandoc.state_sentence(doc, tasks, meta),
+                 "estimate": plandoc.estimate_line(doc.get("estimate")) if doc.get("estimate") else ""} if doc else {}
+        return {"path": str(proj.root), "name": proj.root.name, "doc": doc, "status": meta.get("status"), "words": words,
                 "approved": bool(meta.get("plan_approved")), "busy": busy,
                 "tasks": [asdict(t) for t in tasks if t.goal_index == gi],
                 "open": plandoc.open_items(doc), "line": plandoc.summary_line(doc) if doc else ""}
@@ -1145,7 +1152,7 @@ class UIApp:
         return data
 
     # -- projects that run elsewhere: their plan and questions in the hub, answered through the hub ----------
-    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip", "todo_done", "shared_settings", "carry_on")
+    HUB_ACTIONS = ("approve", "answer", "run", "retry", "skip", "todo_done", "shared_settings", "carry_on", "show_it")
 
     def hub_plan(self, q):
         """A plan another computer published (plans/<name>.md) with its open questions."""
@@ -1163,6 +1170,35 @@ class UIApp:
         spec = hub.config.agents.get(p["folder"])
         return {**p, "title": hall.friendly(p["folder"], spec), "markdown": md,
                 "here": p["folder"] in {x.name for x in self._lab_projects()}}
+
+    def hub_live(self, q):
+        """The newest pictures and steps a project on another computer published to the hub."""
+        from . import hall
+
+        hub = self.need_hub()
+        try:
+            with self.hub_lock:
+                return hall.hub_live(hub, (q.get("name") or [""])[0])
+        except ValueError:
+            raise ApiError("That project isn't in the hub. Go back to the Hall and refresh.", 404)
+
+    def notes_list(self, q):
+        """The owner's saved documents in the hub (notes/*.md): name and title, nothing else until one is opened."""
+        from . import hall
+
+        hub = self.need_hub()
+        with self.hub_lock:
+            return {"notes": hall.hub_notes(hub)}
+
+    def note_get(self, q):
+        from . import hall
+
+        hub = self.need_hub()
+        try:
+            with self.hub_lock:
+                return hall.hub_note(hub, (q.get("name") or [""])[0])
+        except ValueError:
+            raise ApiError("That document isn't in the hub any more. Go back to My notes and refresh.", 404)
 
     def hub_command(self, body):
         """Send a command to a project another computer runs: {agent, folder, action, ...fields}.
@@ -1366,6 +1402,9 @@ class UIApp:
             ("GET", "/api/roundtable"): R.roundtable,
             ("GET", "/api/activity"): R.activity,
             ("GET", "/api/hub/plan"): R.hub_plan,
+            ("GET", "/api/hub/live"): R.hub_live,
+            ("GET", "/api/notes"): R.notes_list,
+            ("GET", "/api/note"): R.note_get,
             ("POST", "/api/hub/command"): R.hub_command,
             ("GET", "/api/chat"): R.chat_get,
             ("POST", "/api/chat"): R.chat_post,
