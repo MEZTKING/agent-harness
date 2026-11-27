@@ -27,6 +27,22 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.11.0
+
+- **Several tasks at once is on**: new setups run up to three tasks side by side (`limits.max_parallel: 3`).
+- **Memory**: Roundtable remembers what worked, what you turned down and your answers, and tells the planner
+  and the builders next time.
+- **Search** (the box at the top, and on the phone): plans, tasks, the journal and letters in one place.
+- **Files**: see a project's files – pictures, PDFs, text – on the desktop and the phone.
+- **The message box**: add pictures and files when you talk to the planner, add a goal or start a new
+  idea; drafts are kept, and you can speak instead of typing.
+- **Coding helpers on your PC** (Claude Code and similar) can be a role's model, like any other service.
+- **Long tasks keep their head**: when a helper's conversation grows too long it is summed up, so it
+  carries on instead of failing.
+- **Watch shows timings**: how long each step and each wait took, and the tokens used.
+- **Tidy-up**: old logs and copies are cleared once a day (Settings → Advanced); **What's new** shows after
+  an update.
+
 ### What's new in 0.10.0
 
 - **A safety switch for stuck helpers**: the same step over and over, error after error, huge output, too

@@ -1,5 +1,21 @@
 <!-- The README's "What's new" sections, bundled with the app for its "What's new" card. Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->
 
+### What's new in 0.11.0
+
+- **Several tasks at once is on**: new setups run up to three tasks side by side (`limits.max_parallel: 3`).
+- **Memory**: Roundtable remembers what worked, what you turned down and your answers, and tells the planner
+  and the builders next time.
+- **Search** (the box at the top, and on the phone): plans, tasks, the journal and letters in one place.
+- **Files**: see a project's files – pictures, PDFs, text – on the desktop and the phone.
+- **The message box**: add pictures and files when you talk to the planner, add a goal or start a new
+  idea; drafts are kept, and you can speak instead of typing.
+- **Coding helpers on your PC** (Claude Code and similar) can be a role's model, like any other service.
+- **Long tasks keep their head**: when a helper's conversation grows too long it is summed up, so it
+  carries on instead of failing.
+- **Watch shows timings**: how long each step and each wait took, and the tokens used.
+- **Tidy-up**: old logs and copies are cleared once a day (Settings → Advanced); **What's new** shows after
+  an update.
+
 ### What's new in 0.10.0
 
 - **A safety switch for stuck helpers**: the same step over and over, error after error, huge output, too
@@ -62,10 +78,3 @@
   way DSH Mobile does), with no computer and no GitHub. Set up from the connect screen; about 100 MB to
   download once. First slice: set up, a DeepSeek key, idea → plan → approve → build. Syncing with the
   PC and the hub comes next.
-
-### What's new in 0.7.3
-
-- **Godot games**: after every approved task Roundtable starts a Godot 4 game itself (no editor
-  needed), lists its script errors and takes three pictures of it running; the coder and reviewer
-  get a **run_game** tool to test their own work. Godot and Blender can also be driven through
-  their MCP plug-ins. How: [docs/godot.md](docs/godot.md).
