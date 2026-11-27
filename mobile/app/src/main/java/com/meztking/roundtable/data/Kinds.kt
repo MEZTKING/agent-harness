@@ -84,8 +84,7 @@ data class GalleryList(val entries: List<GalleryTile> = emptyList(), val words: 
 @Serializable
 data class GalleryPicture(val name: String = "", val src: String = "")
 
-@Serializable
-data class ProofLine(val id: String = "", val words: String = "", val passed: Boolean? = null, val optional: Boolean = false)
+// ProofLine (id, passed, words, optional) is shared with the proof card: data/Proof.kt
 
 @Serializable
 data class GalleryModel(val task: String = "", val role: String = "", val model: String = "")

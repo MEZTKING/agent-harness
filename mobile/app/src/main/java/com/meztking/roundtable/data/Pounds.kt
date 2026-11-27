@@ -40,4 +40,13 @@ object Pounds {
     /** For the project's money line: "" when pounds are off or there is no rate yet. Dollars stay first. */
     fun beside(usd: Double?, rate: Rate?): String =
         if (rate == null || rate.show != "usd+gbp") "" else text(usd, rate.per_usd)
+
+    private val DOLLARS = Regex("""\$\s?([0-9]+(?:\.[0-9]+)?)""")
+
+    /** " (≈ £2.73)" for the first dollar amount in a sentence ("about $3.45 and 45 minutes"), or "". */
+    fun besideText(sentence: String, rate: Rate?): String {
+        val usd = DOLLARS.find(sentence)?.groupValues?.get(1)?.toDoubleOrNull() ?: return ""
+        val gbp = beside(usd, rate)
+        return if (gbp.isBlank()) "" else " ($gbp)"
+    }
 }

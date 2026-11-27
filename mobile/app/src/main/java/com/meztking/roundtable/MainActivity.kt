@@ -51,6 +51,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meztking.roundtable.data.Mode
+import com.meztking.roundtable.ui.GalleryScreen
 import com.meztking.roundtable.ui.LettersScreen
 import com.meztking.roundtable.ui.NotesScreen
 import com.meztking.roundtable.ui.MainViewModel
@@ -171,6 +172,13 @@ private fun Root(openProject: MutableStateFlow<String?>) {
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable("notes") { NotesScreen(onBack = { nav.popBackStack() }) }
+            composable("gallery") {
+                // everything finished, and what Roundtable can make; read from the PC (or this phone's Roundtable)
+                GalleryScreen(onBack = { nav.popBackStack() }, onOpenProject = { path ->
+                    val seat = main.hall.value.data?.seats?.firstOrNull { it.path == path }
+                    if (seat != null) nav.navigate("project/${android.net.Uri.encode(seat.id)}")
+                }, onStart = { _, _ -> nav.navigate("newidea") })
+            }
             composable("newidea") {
                 NewIdeaScreen(onBack = { nav.popBackStack() }, onStarted = { _ -> nav.popBackStack(); main.reset() })
             }
@@ -212,6 +220,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                                 files = { nav.navigate("files/${android.net.Uri.encode(vm.id)}") },
                                 composer = remember(seat) { machineApi(app, seat)?.let { composerSender(it) } },
                                 path = seat?.path,
+                                machine = remember(seat) { machineApi(app, seat) },
                             ),
                             initialTab = entry.arguments?.getInt("tab") ?: 0,
                         )
@@ -329,6 +338,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onNotes = if (backend != null) ({ nav.navigate("notes") }) else null,
                     onSearch = if (backend != null) ({ searching = true }) else null,
                     onNewIdea = if (backend != null) ({ nav.navigate("newidea") }) else null,
+                    onGallery = if (backend != null) ({ nav.navigate("gallery") }) else null,
                     pins = pins, needsBeside = twoPanes,
                 )
                 1 -> LettersScreen(

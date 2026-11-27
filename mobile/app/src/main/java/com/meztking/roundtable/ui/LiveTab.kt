@@ -75,7 +75,9 @@ private fun bitmap(bytes: ByteArray): ImageBitmap? =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit, finished: Boolean = false,
-            onTakePictures: (() -> Unit)? = null, sent: String? = null, detail: Detail? = null) {
+            onTakePictures: (() -> Unit)? = null, sent: String? = null, detail: Detail? = null,
+            /** The PC's proof of one finished task (GET /api/proof); null where there is none (Hub mode). */
+            proof: (suspend (String) -> String?)? = null) {
     // how much it shows: the owner's choice in Comfort (Standard when nothing is chosen)
     val level = detail ?: LocalComfort.current?.detail ?: Detail.STANDARD
     var big by remember { mutableStateOf<Pair<String, ImageBitmap>?>(null) }
@@ -88,6 +90,8 @@ fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit, finished: 
                 v == null -> {}
                 else -> {
                     item { Pictures(v, finished, onTakePictures, sent) { label, img -> big = label to img } }
+                    val shotTask = v.shots?.task.orEmpty()
+                    if (proof != null && shotTask.isNotBlank()) item(key = "proof:$shotTask") { ProofCard(shotTask) { proof(shotTask) } }
                     item { Session(v, mode, finished, LiveDetail.of(level, finished, v.running)) }
                 }
             }

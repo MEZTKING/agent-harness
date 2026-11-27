@@ -125,6 +125,8 @@ fun TableScreen(
     onNotes: (() -> Unit)? = null,
     onSearch: (() -> Unit)? = null,
     onNewIdea: (() -> Unit)? = null,
+    /** Everything finished, and what Roundtable can make (GalleryScreen). */
+    onGallery: (() -> Unit)? = null,
     /** Pinned and put-away projects; null shows every project in the hub's order, with no menu. */
     pins: TablePins? = null,
     /** What waits for the owner is drawn beside the Table (two panes), so the peek at the bottom isn't needed. */
@@ -141,7 +143,7 @@ fun TableScreen(
     // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
     val waits = remember(needs) { NeedsOrder.organise(needs).associate { it.project to it.summary } }
     Column(Modifier.fillMaxSize()) {
-        Header(whereLabel, mode, hall.loading, onRefresh, onNotes, onSearch, onNewIdea)
+        Header(whereLabel, mode, hall.loading, onRefresh, onNotes, onSearch, onNewIdea, onGallery)
         if (mode != null) AutopilotToggle(data?.autopilot, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { showAutopilot = true }
         UpdateBanner(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         PullToRefreshBox(isRefreshing = hall.loading && data != null, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
@@ -201,7 +203,7 @@ fun TableScreen(
 
 @Composable
 private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -> Unit, onNotes: (() -> Unit)? = null,
-                   onSearch: (() -> Unit)? = null, onNewIdea: (() -> Unit)? = null) {
+                   onSearch: (() -> Unit)? = null, onNewIdea: (() -> Unit)? = null, onGallery: (() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TableMark(Modifier.size(34.dp))
@@ -219,9 +221,10 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
             IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Filled.Refresh, "Refresh", tint = Hall.gold) }
         }
         // The word buttons get a row of their own, so the title is never squeezed (owner's screenshot, 27 Nov).
-        if (onNewIdea != null || onNotes != null) Row(Modifier.fillMaxWidth().padding(start = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (onNewIdea != null || onNotes != null || onGallery != null) Row(Modifier.fillMaxWidth().padding(start = 36.dp), verticalAlignment = Alignment.CenterVertically) {
             if (onNewIdea != null) TextButton(onClick = onNewIdea) { Text("+ New idea", color = Hall.gold, maxLines = 1) }
             if (onNotes != null) TextButton(onClick = onNotes) { Text("My notes", color = Hall.gold, maxLines = 1) }
+            if (onGallery != null) TextButton(onClick = onGallery) { Text("Gallery", color = Hall.gold, maxLines = 1) }
         }
     }
 }

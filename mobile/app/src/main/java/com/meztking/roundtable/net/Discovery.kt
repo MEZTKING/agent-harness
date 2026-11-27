@@ -19,7 +19,7 @@ import java.security.MessageDigest
 /** A PC that answered on the Wi-Fi: its name, where it is, and the certificate it says it has (not trusted by itself). */
 data class FoundPc(val name: String, val host: String, val port: Int, val fingerprint: String) {
     /** A pairing offer without the code: the owner types the code shown on the PC ([Discovery.codeMatches] checks it). */
-    fun toOffer(): PairingOffer = PairingOffer(name.ifBlank { "PC" }, listOf(host), port, "", fingerprint)
+    fun toOffer(): PairingOffer = PairingOffer(name.ifBlank { "PC" }, listOf(host), port, "", fingerprint, found = true)
 
     /** The same offer as a pairing link, for the "Pairing link" box. */
     fun toLink(): String = "roundtable://pair?v=1&n=${enc(name)}&h=${enc(host)}&p=$port&f=$fingerprint"

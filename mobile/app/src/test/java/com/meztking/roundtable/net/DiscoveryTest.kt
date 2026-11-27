@@ -85,8 +85,9 @@ class DiscoveryTest {
 
     @Test fun `a found PC becomes an offer without the code`() {
         val f = FoundPc("Desk PC", "192.168.1.30", 8766, fp)
-        assertEquals(PairingOffer("Desk PC", listOf("192.168.1.30"), 8766, "", fp), f.toOffer())
-        assertEquals(f.toOffer(), Pairing.parse(f.toLink()))
+        assertEquals(PairingOffer("Desk PC", listOf("192.168.1.30"), 8766, "", fp, found = true), f.toOffer())
+        // the link is the same offer, but a pasted link isn't marked as found (its code is checked by the PC alone)
+        assertEquals(f.toOffer().copy(found = false), Pairing.parse(f.toLink()))
         assertEquals("PC", FoundPc("", "10.0.0.2", 8766, fp).toOffer().pcName)
     }
 

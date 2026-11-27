@@ -29,4 +29,12 @@ class PoundsTest {
         assertTrue(Pounds.parse("not json").per_usd == null)
         assertEquals("", Pounds.beside(2.0, Pounds.parse("""{"per_usd": null, "source": "none"}""")))
     }
+
+    @Test fun besideASentence() {
+        val r = Rate(per_usd = 0.79, show = "usd+gbp")
+        assertEquals(" (≈ £2.73)", Pounds.besideText("About $3.45 and 45 minutes", r))
+        assertEquals("", Pounds.besideText("About 45 minutes", r))
+        assertEquals("", Pounds.besideText("About $3.45", r.copy(show = "usd")))
+        assertEquals("", Pounds.besideText("About $3.45", null))
+    }
 }
