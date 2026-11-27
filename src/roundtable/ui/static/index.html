@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark light">
   <title>Darkness Harness</title>
-  <link rel="preload" href="fraunces.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="nunito-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="inter.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="icon.png">
   <script src="theme.js"></script>
@@ -14,12 +14,12 @@
 <body>
   <a class="skip" href="#main">Skip to the page</a>
   <header class="top" id="top">
-    <a class="brand" href="#/" title="Back to the Hall">
+    <a class="brand" href="#/" title="Back to Home">
       <img class="brand-mark" src="emblem.png" width="36" height="36" alt="">
       <span class="brand-name">Darkness Harness</span>
     </a>
     <nav class="rooms" aria-label="Rooms">
-      <a href="#/" data-room="hall" title="Every project at the round table">Hall</a>
+      <a href="#/" data-room="hall" title="Every project on the ring, and what needs you">Home</a>
       <a href="#/needs" data-room="needs" title="Everything waiting for your answer">Needs you <span class="badge" id="needs-badge" hidden></span></a>
       <a href="#/projects" data-room="projects" title="Every project in one list, and new ones">Projects</a>
       <a href="#/gallery" data-room="gallery" title="Everything finished, and what the harness can make">Gallery</a>
@@ -31,13 +31,13 @@
     </nav>
     <div class="top-end">
       <div id="search" hidden></div>
-      <a class="working" id="working" href="#/activity/work" title="Work the app is doing now" hidden><i class="cdl" aria-hidden="true"></i><span></span></a>
+      <a class="working" id="working" href="#/activity/work" title="Work the app is doing now" hidden><i class="pulse-dot" aria-hidden="true"></i><span></span></a>
       <a class="today" id="today" href="#/activity" title="What the AI work has cost today, on every project">Today <b>$0.00</b><span class="muted small" id="today-gbp" hidden></span></a>
       <div class="autopilot" id="autopilot"></div>
     </div>
   </header>
   <div id="banner" class="banner" hidden></div>
-  <main id="main" tabindex="-1"><p class="loading">Lighting the candles…</p></main>
+  <main id="main" tabindex="-1"><p class="loading">Waking up…</p></main>
   <div id="toasts" aria-live="polite"></div>
   <script type="module" src="app.js"></script>
 </body>
