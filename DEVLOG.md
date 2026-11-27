@@ -4,6 +4,98 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 0.12.0: wave 3 put together
+
+Asked: merge the seven wave 3 branches (w3-phone, w3-desk, w3-proof, w3-rewind, w3-web, w3-kinds, w3-link, in that
+order), do every hook-up line, firewall rules in the installer, the conformance run over every new phone call, test
+everything, version 0.12.0. No release.
+
+What each part is, plainly:
+- **Phone comfort** (w3-phone, beta until tried on the phone): accent, true black, text size, buzz, how much Watch
+  shows, pinned and put-away projects, what you sent (copy, edit and send again), a battery checklist, a rail or two
+  panes on a big screen (`data/Comfort.kt`, `ui/ComfortScreen.kt`, `ui/SentHistory.kt`, `ui/adaptive/`). Later on
+  the branch (266c4b5): the Table's title stays on one line, New idea and My notes get their own row, the empty
+  "0 need you" banner is gone (screenshot test `tableHeaderAllButtonsBig`).
+- **Command line, live output, pounds** (w3-desk): a project's Command line tab, this PC only and refused when the
+  app is open to the network (`terminal.py`, `ui/terminalapi.py`, `static/terminal.js`); a task's command written
+  to `.harness/live/` as it prints, with a Stop for that one command (`harness/livecmd.py`, `tools.run_command`);
+  "≈ £" beside dollars from the European Central Bank's daily file (`money.py`, `ui/moneyapi.py`,
+  `static/pounds.js`, `data/Pounds.kt`).
+- **Proof** (w3-proof): pictures before (reused by commit) and after each task, the tests before and after, and one
+  look by a model that can see, as advice for the reviewer, capped at $0.05 a task (`harness/proof.py`,
+  `ProofStage` in `showstage.py`, `ui/proofapi.py`, `static/proof.js`, `ui/ProofCard.kt`).
+- **Rewind** (w3-rewind): Undo this task or go back to before it, files shown first, a safety ref before anything
+  moves, Put it back, Try another way (a separate copy); never for pushed work (`harness/rewind.py`,
+  `ui/rewindapi.py`, `static/rewind.js`, `ui/RewindSheet.kt`).
+- **Web search** (w3-web): `web_search` and `web_read` for the builders, the reviewer and the planner, four engines,
+  6 searches and 10 pages a task, key-shaped text removed, off for projects kept to some providers unless their
+  setting says on (`harness/websearch.py`, `ui/websearchapi.py`, `static/websearch.js`).
+- **Kinds and the Gallery** (w3-kinds): kinds as folders of data (website, web app, browser game, something else;
+  APK and EXE extras; the mod card "Not yet"), proposed from the idea for free, confirmed on the plan's first card,
+  frozen at approval; a Gallery record per finished goal (`kinds/`, `harness/kindstage.py`, `ui/kindsapi.py`,
+  `static/kinds.js`, `static/gallery.js`, the phone's Gallery and kind card).
+- **Finding the PC and conformance** (w3-link): the PC answers the phone's "who's there?" on UDP 8767 (private
+  senders only, never the code); pairing codes end in two letters bound to the certificate (`discovery.py`,
+  `net/Discovery.kt`, `ui/FindPcCard.kt`); every phone call run against a real phone server
+  (`tests/conformance/`, `ConformanceTest.kt`); `docs/phone-security.md`.
+
+Merges: no conflicts. One clash the compiler found: kinds and proof both declared `ProofLine` (same fields) in the
+phone's `data` package; the kinds copy went.
+
+Hook-ups done:
+- `server.py` `FEATURE_APIS`: rewindapi, proofapi, terminalapi, moneyapi, websearchapi, kindsapi; `serve()` sets
+  `app.local_only`. `phone.py` `PHONE_ROUTES`: rewind (5), proof (2), a task's live command and its Stop, rates,
+  kinds (4) and the Gallery (5) – never the command line itself; `PhoneAccess.start/stop` run the discovery
+  responder (`discovery_port`, 0 in the tests through `conftest.py`); `start_pairing` uses `bound_code`.
+- `orchestrator.py`: `Task.previous_attempts`; `KindStage` first among the bases; the kind laid over the config in
+  `__init__`, `set_profile` and `profile_estimates`; `_kind_propose` in `start()`; the kind's part added inside
+  `_plan_call` (so plan and revise both get it) and in `_worker_prompt`; `doc["kind"]` on the first plan;
+  `_kind_freeze` in `approve()`; `_proof_before` before each task (`_run` and `worktrees._lane`); `_proof_text(task,
+  checks)` in the review prompt; `websearch.add_tools` for workers, the reviewer and the planner; `ws.live` set in
+  `_run_task`; `livecmd.stop_strays` at the end of `run()` and in `stop_all`; the Gallery record written in `run()`
+  after the end-of-run balance check, with that check's real cost (`_gallery_record(tasks, real_usd)`), so no extra
+  balance request is made.
+- `plandoc.estimate(..., screens=)` adds `proof.estimate_usd` for reviewed tasks when the app has screens
+  (`proof_usd` in the estimate); `carry_over` keeps `doc["kind"]`. `repostage._task_checks` returns `now` (the
+  proof's tests line). `proof.results_for` (new, small): a kind's proof list checked against a goal's proof records.
+- `session.tool_step` and `activity.js` `TOOL_WORDS`: "Searched the web for …", "Read a page: …". `desktop.py`
+  `KNOWN_KEYS`: Brave Search, Tavily. Project setting `web_search` ("", on, off).
+- `asks.py`: the wizard's "What do you want to make?" lists the kinds (the ones not ready greyed under "Coming"),
+  `wizard_project` returns `kind`, `extras`, `kind_by`, `apply_wizard_kind` after `start` (server and the message
+  box); a `kind` card first on the plan, answered with `set_kind` (a change waits as a plan change, then Update the
+  plan); autopilot keeps the recommended kind.
+- `retention.py`: `.harness/live/*.log` older than `logs_days`; ways back older than `rewind_days` (30).
+- Desktop: the Gallery room and header link; the kind card first on the plan; History card on Overview; Undo this
+  task, proof and a running task's live output in Watch (kept per task so redraws don't restart them); proof under
+  the App tab's pictures; the Command line tab; pounds in the header, Money, the estimate and Settings → Spending;
+  web search on Tools; Make another like this / Start one fill the wizard (`rt-wizard-prefill`).
+- Phone: Gallery from the Table and its route; Undo… on a finished task (`RewindSheet`); the kind card (read only
+  while the kind question waits as a card) and pounds beside the estimate; proof on the Live tab; Look for my PC in
+  pairing, with the code checked against the certificate before it is sent (`PairingOffer.found`); Look for it on
+  an unreachable PC (`ConnectionsViewModel.findPc`); `CHANGE_WIFI_MULTICAST_STATE` and `ACCESS_WIFI_STATE`.
+- `app.yml` runs the phone's unit tests. Installer: two firewall rules (TCP 8766, UDP 8767, private networks,
+  RoundtableHold.exe only), removed on uninstall.
+
+Decided:
+- The installer runs without administrator rights, and only an administrator can add a firewall rule. So a normal
+  install asks once (one Windows yes) when the rules aren't there yet; silent updates and CI never ask, and then
+  Windows asks as before when the phone first connects. Making the installer admin-only would put a prompt on every
+  update instead.
+- No kind card when Roundtable's only guess is "Something else": nothing useful to ask. The plan page still shows it.
+- Hinge detection on foldables needs `androidx.window`, which isn't in the offline Gradle cache: `folded` stays
+  false; two panes still come from the screen's width.
+- Older tests about plan cards now confirm the kind first, as the wizard does; new tests cover the kind card, the
+  "Something else" rule, the wizard's kinds and autopilot.
+
+Tests: Python 992 pass (the conformance run included, 73 phone calls); phone 318 unit tests and the debug build pass; every
+desktop JS file parses; the desktop opened with Playwright (Hall, Gallery both tabs, Tools, Settings and Spending,
+the wizard, a project's tabs with the Command line running a command): no page or console errors.
+
+Still open – only the real PC or phone can show these: the firewall rules and their one prompt on Windows; the
+command line and Stop on Windows (process trees); rewind with Windows git; discovery on the home Wi-Fi; the phone's
+comfort screens, Gallery, Undo… and proof card on the real phone; a real proof judge with a model that can see; web
+search with the keyless engine for real. Also open: `androidx.window` for the hinge; a full git log view.
+
 ## 2026-11-27 – wave 2 put together
 
 Asked: merge the seven wave 2 branches into one (w2-small, w2-compact, w2-cli, w2-memory, w2-files, w2-watch,
