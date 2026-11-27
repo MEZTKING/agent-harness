@@ -289,13 +289,23 @@ def plan_title(doc: dict[str, Any] | None) -> str:
     return short_title(doc.get("title"), doc.get("summary", ""), doc.get("goal", ""))
 
 
-def estimate_line(est: dict[str, Any] | None) -> str:
-    """"about $3.45 and 45 minutes" (the one line shown while a plan waits for approval)."""
+def estimate_line(est: dict[str, Any] | None, agreed: float | dict[str, Any] | None = None) -> str:
+    """"about $3.45 and 45 minutes" (the one line shown while a plan waits for approval). ``agreed``: what
+    the owner agreed to (meta["agreed"] or its usd); shown as "(you agreed to about $Y)" when it differs."""
     est = est or {}
     mins = max(1, round(est.get("minutes") or 0))
     time = f"{mins} minutes" if mins < 90 else f"{round(mins / 60, 1):g} hours"
     tail = " (some models have no price yet)" if est.get("unpriced") else ""
-    return f"about ${est.get('cost_usd') or 0:.2f} and {time}{tail}"
+    if isinstance(agreed, dict):
+        agreed = agreed.get("usd")
+    try:
+        agreed = None if agreed is None else float(agreed)
+    except (TypeError, ValueError):
+        agreed = None
+    cost = est.get("cost_usd") or 0
+    if agreed is not None and f"{agreed:.2f}" != f"{cost:.2f}":
+        tail += f" (you agreed to about ${agreed:.2f})"
+    return f"about ${cost:.2f} and {time}{tail}"
 
 
 def waiting_items(doc: dict[str, Any] | None) -> list[str]:
@@ -364,6 +374,12 @@ def history_by_role(metric_files: list[Path]) -> dict[str, dict[str, float]]:
             "input": sum(r.get("input_tokens") or 0 for r in rs) / n,
             "output": sum(r.get("output_tokens") or 0 for r in rs) / n,
         }
+    from .imageprice import reported
+
+    charges = reported(metric_files)  # what providers really charged, by model (pictures: imageprice.py)
+    for role, rs in rows.items():
+        used = {str(r.get("model")) for r in rs if r.get("model")}
+        out[role]["charges"] = {m: round(c, 6) for m, c in charges.items() if m in used}
     return out
 
 
@@ -405,12 +421,20 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, scr
         if h and h.get("samples", 0) >= 3:
             cost, mins, basis = h["cost"], h["minutes"] + (REVIEW_MINUTES if role.review and reviewer else 0), "history"
             cost = _reprice(cfg, cost, h, role.models[0])
+            if cost is None and role.kind == "image":  # unpriced pictures before: the pricing table may know
+                from .imageprice import per_image
+
+                cost = per_image(cfg, role.models[0], charges={})
         else:
             basis = "default"
             mins = DEFAULT_MINUTES.get(role.kind, 4.0)
-            if role.kind == "image":
-                cost = cfg.cost(role.models[0], Usage(0, 0))
-                cost = None if not cost else cost
+            if role.kind == "image":  # one picture a task: what it really cost before, or per_image, else unknown
+                from .imageprice import charges_from_history, per_image
+
+                cost = per_image(cfg, role.models[0], charges=charges_from_history(history))
+                if cost is None:
+                    listed = cfg.cost(role.models[0], Usage(0, 0))
+                    cost = listed or None
             else:
                 i, o = DEFAULT_TOKENS["chat"]
                 cost = cfg.cost(role.models[0], Usage(i, o))
@@ -418,7 +442,8 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, scr
                 rc = cfg.cost(reviewer.models[0], Usage(*DEFAULT_REVIEW_TOKENS))
                 cost = None if cost is None or rc is None else cost + rc
                 mins += REVIEW_MINUTES
-            cost = None if cost is None else cost * 1.4  # retries and longer tasks
+            if role.kind != "image":
+                cost = None if cost is None else cost * 1.4  # retries and longer tasks
         r = by_role.setdefault(t.role, {"tasks": 0, "cost_usd": 0.0, "minutes": 0.0, "basis": basis,
                                         "model": str(role.models[0])})
         r["tasks"] += 1

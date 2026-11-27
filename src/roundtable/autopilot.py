@@ -19,6 +19,8 @@ recommended option through asks.answer_ask, the same door the owner's taps use. 
 * a failed task: tried again once with the same models (never the stronger model, never "accept" or
   "skip");
 * money pauses and empty accounts: left for the owner (no limit is ever raised);
+* a run it starts carries what's left of its limit (``run_allowance`` in the project; the run itself stops
+  there, harness/moneystage.py), so a run started while the owner is away can't spend past it;
 * never an option with ``confirm`` ("Are you sure?"), never anything that deletes, publishes,
   releases or merges;
 * it turns itself off when ``until`` passes or the limit is reached.
@@ -88,7 +90,8 @@ def load(home: str | Path | None = None) -> dict[str, Any]:
     """Autopilot's state, with defaults filled in."""
     raw = _read_settings(app_home(home)).get("autopilot") or {}
     state = {"on": False, "until": None, "spend_cap_usd": DEFAULT_CAP, "started_at": None, "spent_usd": 0.0,
-             "never": [], "left": {}, "balance_start": None, "real_usd": None, "real_checked": 0.0, "stopped": ""}
+             "never": [], "left": {}, "balance_start": None, "real_usd": None, "real_checked": 0.0, "stopped": "",
+             "capped": False}
     state.update({k: v for k, v in raw.items() if k in state})
     return state
 
@@ -209,7 +212,7 @@ def turn_on(until: str | None = None, cap: float | None = None, home: str | Path
         raise ValueError("The spend limit must be between $0.01 and $1,000.")
     state = load(home)
     state.update(on=True, until=parse_until(until, now), spend_cap_usd=round(cap, 2),
-                 started_at=_iso(now or utcnow()), spent_usd=0.0, left={}, stopped="",
+                 started_at=_iso(now or utcnow()), spent_usd=0.0, left={}, stopped="", capped=False,
                  balance_start=_balances(cfg), real_usd=None, real_checked=time.time())
     save(state, home)
     text = f"Autopilot on, {label(state)}."
@@ -219,11 +222,13 @@ def turn_on(until: str | None = None, cap: float | None = None, home: str | Path
     return status(home)
 
 
-def turn_off(why: str = "", home: str | Path | None = None, cfg=None) -> dict[str, Any]:
+def turn_off(why: str = "", home: str | Path | None = None, cfg=None, capped: bool = False) -> dict[str, Any]:
+    """Switch it off. ``capped``: it reached its spend limit, so the runs it started keep stopping there
+    (harness/moneystage.py) until the owner carries them on."""
     home = app_home(home)
     state = load(home)
     if state["on"]:
-        state.update(on=False, stopped=why)
+        state.update(on=False, stopped=why, capped=bool(capped))
         save(state, home)
         text = f"Autopilot off: {why}" if why else "Autopilot off."
         _record(home, {"kind": "off", "text": text})
@@ -301,10 +306,15 @@ def _balances(cfg) -> dict[str, Any] | None:
 def spent(cfg, state: dict[str, Any]) -> float:
     """Money spent since autopilot was switched on: the real balances' drop where providers report it,
     else Roundtable's own count (the larger of the two)."""
+    return max(counted(cfg, state), _real_spent(cfg, state) or 0.0)
+
+
+def counted(cfg, state: dict[str, Any]) -> float:
+    """The harness's own count of what every project spent since autopilot was switched on (no network)."""
     from .remote import project_dirs
 
     since = state.get("started_at") or ""
-    counted = 0.0
+    total = 0.0
     for root in project_dirs(cfg):
         try:
             rows = (root / ".harness" / "spend.jsonl").read_text(encoding="utf-8").splitlines()
@@ -316,8 +326,8 @@ def spent(cfg, state: dict[str, Any]) -> float:
             except ValueError:
                 continue
             if str(row.get("at", "")) >= since:
-                counted += float(row.get("cost_usd") or 0)
-    return max(counted, _real_spent(cfg, state) or 0.0)
+                total += float(row.get("cost_usd") or 0)
+    return total
 
 
 def _real_spent(cfg, state: dict[str, Any]) -> float | None:
@@ -471,7 +481,7 @@ def _should_stop(cfg, state: dict[str, Any], home: Path, now: datetime) -> bool:
         return True
     if state["spent_usd"] >= float(state["spend_cap_usd"]):
         turn_off(f"it reached its spend limit ({_money(state['spent_usd'])} of {_money(state['spend_cap_usd'])}). "
-                 "Anything still running carries on within its project's own limits.", home, cfg)
+                 "Anything it started stops at that limit and waits for you.", home, cfg, capped=True)
         return True
     return False
 
@@ -484,6 +494,7 @@ def _project(cfg, root: Path, state, home: Path, start: Starter, now) -> list[di
     if Project(root).meta().get("status") in BUSY_STATES:
         return []
     orch = Orchestrator(cfg, root)
+    orch.money_by = "autopilot"  # an amount it agrees to is written down as autopilot's (harness/moneystage.py)
     out: list[dict[str, Any]] = []
     for _ in range(30):  # a guard: each pass answers one card
         asks = open_asks(orch)
@@ -500,6 +511,8 @@ def _project(cfg, root: Path, state, home: Path, start: Starter, now) -> list[di
                 continue
             _before_answer(orch, ask, chosen, state)
             r = answer_ask(orch, ask["id"], chosen, stamp=ask["stamp"])
+            if r.get("then") == "run" or chosen == ["approve_cheap"]:
+                allow(orch, state, home)
             out.append(_decided(orch, root, home, ask, chosen, why, r))
             if r.get("then"):
                 start(cfg, root, r)
@@ -509,6 +522,18 @@ def _project(cfg, root: Path, state, home: Path, start: Starter, now) -> list[di
         if not answered:
             break
     return out
+
+
+def allow(orch, state: dict[str, Any], home: Path) -> dict[str, Any]:
+    """Before autopilot starts a run: what's left of its limit binds that run (``run_allowance`` in the
+    project's meta, enforced by harness/moneystage.py while this autopilot session is on)."""
+    left = max(0.0, float(state["spend_cap_usd"]) - float(state.get("spent_usd") or 0))
+    meta = orch.project.meta()
+    meta["run_allowance"] = {"usd": round(left, 6), "session": state.get("started_at"), "home": str(home),
+                             "cap_usd": float(state["spend_cap_usd"]),
+                             "spent_before": round(float(meta.get("spent_usd") or 0), 6), "at": _iso(utcnow())}
+    orch.project.save_meta(meta)
+    return meta["run_allowance"]
 
 
 def _decided(orch, root: Path, home: Path, ask, chosen, why, result) -> dict[str, Any]:
