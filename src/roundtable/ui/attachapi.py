@@ -18,6 +18,8 @@ Sending a draft:
 
     POST /api/attach/start {key, wizard}      a new project from the wizard's answers (as POST /api/asks
          {wizard}), its draft's files attached to the idea before the planner starts
+    POST /api/attach/start {key, dir, goal?, approve, references}   the same, typed (as POST /api/projects);
+         the goal is the draft's text when not given
     POST /api/attach/send  {key, path, as, mode?, text?}
          as "chat": a question to the planner (the files go with this question only)
          as "note": "Tell the planner" – mode "queue" (default): from the next task on; "steer": also into
@@ -98,41 +100,52 @@ def _text(d: att.Draft, b: dict[str, Any]) -> str:
 
 
 def start(app, b: dict[str, Any]) -> dict[str, Any]:
-    """A new project from the wizard, with the draft's files attached to the idea first (so the planner's very
-    first call has them). The same steps as the server's own wizard start."""
+    """A new project, with the draft's files attached to the idea first (so the planner's very first call has
+    them): from the wizard's answers ({wizard}) or typed ({dir, goal, approve, references}). The same steps as
+    the server's own starts (POST /api/asks {wizard}, POST /api/projects)."""
     from ..asks import wizard_project
     from ..harness.orchestrator import HarnessError
-    from .server import ApiError
+    from .server import ApiError, _lines
 
     cfg = app.need_cfg()
-    answers = b.get("wizard") if isinstance(b.get("wizard"), dict) else {}
-    try:
-        w = wizard_project(answers, app.projects_dir)
-        if w["profile"] and w["profile"] not in cfg.profiles:
-            raise HarnessError(f"there's no {w['profile']} setting; choose another")
-    except HarnessError as e:
-        raise ApiError(str(e))
-    path = Path(w["dir"]).resolve()
     d = _draft(app, b.get("key"))
+    if isinstance(b.get("wizard"), dict):
+        try:
+            w = wizard_project(b["wizard"], app.projects_dir)
+            if w["profile"] and w["profile"] not in cfg.profiles:
+                raise HarnessError(f"there's no {w['profile']} setting; choose another")
+        except HarnessError as e:
+            raise ApiError(str(e))
+        path, approve = Path(w["dir"]).resolve(), True
+    else:
+        goal, name = _text(d, {"text": b.get("goal")}), str(b.get("dir") or "").strip()
+        if not goal or not name:
+            raise ApiError("Give the project a folder name and say what to build, then start it.")
+        path = Path(name).expanduser()
+        path = (path if path.is_absolute() else app.projects_dir / path).resolve()
+        if (path / ".harness/project.json").exists():
+            raise ApiError(f"{path} already has a project. Open it and add a new goal there instead.")
+        w = {"goal": goal, "references": _lines(b.get("references")), "profile": None, "look": None}
+        approve = bool(b.get("approve", True))
     items = att.claim(d, path, "goal", _settings(app), goal_index=0)
     goal = w["goal"] + (f"\n(The owner attached: {att.names_line(items)}.)" if items else "")
 
     def run(job):
         orch = app._orch(cfg, path, job)
-        orch.start(goal, require_approval=True, references=w["references"])
+        orch.start(goal, require_approval=approve, references=w["references"])
         if w["profile"]:
             orch.set_profile(w["profile"])
         if w["look"] is not None:
             meta = orch.project.meta()
             meta.update(look_step=w["look"], look_brief=w["look_note"])
             orch.project.save_meta(meta)
-        return {"status": orch.run(), "path": str(path)}
+        return {"status": orch.run(max_tasks=b.get("max_tasks")), "path": str(path)}
 
     job = app.jobs.start("run", f"new project {path.name}", run, target=str(path)).view()
     d.clear()
     with_files = f" with {len(items)} attached" if items else ""
     return {"reply": f"Started {path.name}{with_files}: the planner is drawing up the plan.", "job": job,
-            "path": str(path), "items": [att.public(x) for x in items]}
+            "path": str(path), "target": str(path), "items": [att.public(x) for x in items]}
 
 
 def send(app, b: dict[str, Any]) -> dict[str, Any]:

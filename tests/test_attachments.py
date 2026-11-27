@@ -269,3 +269,13 @@ def test_steer_while_a_task_runs_goes_to_it_now(app):  # noqa: F811
     assert s["delivered"] == "steer"
     [row] = att.steers(r["path"])
     assert row["text"] == "use pink icing"
+
+
+def test_a_typed_new_project_with_a_file(app):  # noqa: F811
+    call(app, "POST", "/api/attach/draft", {"key": "typed", "text": "a jam shop"})
+    call(app, "POST", "/api/attach/upload", {"key": "typed", "name": "brief.txt",
+                                              "data": base64.b64encode(b"jars, labels").decode()})
+    r = call(app, "POST", "/api/attach/start", {"key": "typed", "dir": "jam", "approve": True})
+    assert wait_job(app, r["job"]["id"])["result"]["status"] == "awaiting_approval"
+    [item] = call(app, "GET", "/api/attach/list", project=r["path"])["items"]
+    assert item["kind"] == "text" and item["name"] == "brief.txt"
