@@ -456,7 +456,7 @@ fun shareFile(ctx: Context, f: OpenedFile, view: Boolean): String {
     } catch (e: ActivityNotFoundException) {
         "No app on this phone opens this kind of file. Save a copy instead."
     } catch (e: Exception) {
-        "That file couldn't be handed over (${e.message ?: "unknown reason"}). Try again."
+        "That file couldn't be handed over. Try again."
     }
 }
 

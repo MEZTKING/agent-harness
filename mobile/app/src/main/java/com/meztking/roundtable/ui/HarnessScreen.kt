@@ -122,6 +122,8 @@ fun HarnessScreen(onBack: () -> Unit, onSetUp: () -> Unit, vm: RuntimeViewModel 
                 notice = notice?.plain(), onTryAgain = vm::tryNewAgain)
         }
 
+        if (state !is RuntimeState.NotInstalled) PhoneProjectsCard(vm.phoneProjects, vm::projectNames, running = state is RuntimeState.Running)
+
         Panel(Modifier.fillMaxWidth()) {
             Text("STORAGE", style = Label)
             Spacer(Modifier.height(8.dp))

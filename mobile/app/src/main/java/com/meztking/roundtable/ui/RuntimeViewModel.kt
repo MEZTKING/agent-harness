@@ -62,6 +62,17 @@ class RuntimeViewModel(app: Application) : AndroidViewModel(app) {
         runtime.retryHeldBack()
     }
 
+    /** Projects on this phone (DS-55): clone, import, share, through This phone's own API. */
+    val phoneProjects: com.meztking.roundtable.data.PhoneProjects
+        get() = com.meztking.roundtable.data.PhoneProjects { m, p, b -> localApi().feature(m, p, b) }
+
+    fun projectNames(): List<String> = runtime.projectNames()
+
+    private fun localApi() = Api.thisPhone(object : LocalAccess {
+        override fun port() = runtime.port()
+        override suspend fun token() = runtime.token()
+    })
+
     private val _check = MutableStateFlow<RuntimeCheck?>(null)
     /** The answer to Check for a newer Roundtable. */
     val check: StateFlow<RuntimeCheck?> = _check.asStateFlow()

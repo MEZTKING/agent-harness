@@ -217,6 +217,10 @@ class RuntimeController(
     /** Bytes used on the phone: the Linux files, Roundtable's home and the projects. */
     suspend fun storageUsed(): Long = withContext(Dispatchers.IO) { runCatching { FsTree.size(fs, layout.root) }.getOrDefault(0L) }
 
+    /** The projects on this phone, by folder name (DS-55's Share list). */
+    fun projectNames(): List<String> =
+        layout.workspaces.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }.map { it.name }.sorted()
+
     suspend fun projectsSize(): Long = withContext(Dispatchers.IO) { runCatching { FsTree.size(fs, layout.workspaces) }.getOrDefault(0L) }
 
     /**
