@@ -103,6 +103,12 @@ def run_agent(
     ``agent_done`` event carries the totals (``model_ms``, ``tool_ms``, ``other_ms``).
     """
     provider = cfg.provider(ref.provider)
+    from ..providers.cli_engine import CliEngine, run_cli_agent
+
+    if isinstance(provider, CliEngine):  # a coding CLI drives its own loop (cli_engine.py)
+        return run_cli_agent(cfg, ref, system, prompt, toolbox, budget, max_steps=max_steps, max_tokens=max_tokens,
+                             options=options, require_terminal=require_terminal, on_event=on_event, saver=saver,
+                             role=role, project_root=project_root, breaker=breaker)
     if not isinstance(provider, Provider):
         raise ProviderError(f"{ref} is not a chat provider")
     emit = on_event or (lambda *_: None)
@@ -124,11 +130,13 @@ def run_agent(
     clock = brk.clock
     t0 = clock()
     model_s = tool_s = 0.0
+    waited_ms = 0  # time the commands waited for the owner (Ask me first)
     stop = "max_steps"
     text = ""
     step = 0
 
     for step in range(1, max_steps + 1):
+        cost += plugins.compact(messages, str(ref), budget.charge, toolbox, step)  # long tasks: older steps summed up
         budget.check()
         sys_sent, msgs_sent = plugins.before_model_call(str(ref), system, messages)
         m0 = clock()
@@ -143,7 +151,10 @@ def run_agent(
         messages.append(resp.as_message())
         text = resp.text or text
         emit("model_turn", {"model": str(ref), "step": step, "text": resp.text[:500], "role": role,
-                            "tools": [tc.name for tc in resp.tool_calls], "cost": c, "ms": _ms(took)})
+                            "tools": [tc.name for tc in resp.tool_calls], "cost": c, "ms": _ms(took),
+                            "input_tokens": resp.usage.input_tokens, "output_tokens": resp.usage.output_tokens,
+                            "cache_read_tokens": resp.usage.cache_read_tokens,
+                            "cache_write_tokens": resp.usage.cache_write_tokens})
 
         if resp.stop_reason == "refusal":
             stop = "refusal"
@@ -171,7 +182,10 @@ def run_agent(
                     took = clock() - a0
                     tool_s += took
                     change = toolbox.take_change()
-                    emit("tool_call", {**_tool_event(tc.name, tc.arguments, out, is_err, change), "ms": _ms(took)})
+                    waited = toolbox.take_waited()
+                    waited_ms += waited
+                    emit("tool_call", {**_tool_event(tc.name, tc.arguments, out, is_err, change), "ms": _ms(took),
+                                       **({"waited_ms": waited} if waited else {})})
                     out = brk.after_tool(tc.name, tc.arguments, out, is_err, bool(change))
                 out = plugins.on_tool_result(tc.name, tc.arguments, out, is_err)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": out, "is_error": is_err})
@@ -204,7 +218,8 @@ def run_agent(
     other_s = max(0.0, seconds - model_s - tool_s)
     emit("agent_done", {"model": str(ref), "role": role, "stop": stop, "steps": step,
                         "model_ms": _ms(model_s), "tool_ms": _ms(tool_s), "other_ms": _ms(other_s),
-                        "ms": _ms(seconds), **({"breaker": brk.reason} if stop == "breaker" else {}),
+                        "ms": _ms(seconds), **({"waited_ms": waited_ms} if waited_ms else {}),
+                        **({"breaker": brk.reason} if stop == "breaker" else {}),
                         **({"breaker_trips": brk.trips} if brk.trips else {})})
     return AgentResult(
         text=text,

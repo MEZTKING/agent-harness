@@ -3,6 +3,7 @@
 // A project another computer builds: its published plan with its cards, answered through the hub.
 import { h, fill, clean, get, post, toast, act, card, money, ago, plural, jobName, modelName, taskPill, prose, markdown, q, refreshHall, projectHref, dialog, seg } from "./core.js";
 import { askCard, answerHere, answerHub, hubCommand } from "./asks.js";
+import { composer } from "./compose.js";
 
 const SETS = { budget: ["Budget", "Cheapest that still works"], balanced: ["Balanced", "Strong models where it matters, cheaper ones for the rest"], quality: ["Quality", "The strongest model for every job"] };
 const setName = (n) => (SETS[n] || [n[0].toUpperCase() + n.slice(1)])[0];
@@ -40,9 +41,17 @@ async function localPlan(seat, redraw) {
   const cardFor = (a) => askCard(a, async (ans) => { await answerHere(a, ans); await refreshHall(); await redraw(); }, { pictures, disabled: d.busy });
 
   // the top: title, where it stands, the estimate only while it waits for approval
-  const note = h("textarea", { rows: 2, class: "grow", placeholder: "What should change? e.g. “no multiplayer”", "aria-label": "What to change" });
-  const noteBox = h("div", { class: "row", hidden: true }, note,
-    h("button", { class: "small", disabled: d.busy, onclick: () => note.value.trim() && edit({ action: "note", text: note.value.trim() }, "Noted: press Update the plan to put it in") }, "Add this note"));
+  // the words wait in the plan for Update the plan; pictures and files go to the planner with them (compose.js)
+  const noteBox = composer({ key: `note:${seat.path}`, project: seat.path, rows: 2, label: "What to change",
+    placeholder: "What should change? e.g. “no multiplayer”", sendLabel: "Add this note",
+    onSend: async ({ text, key, items }) => {
+      await post("/api/plan", { path: seat.path, action: "note", text });
+      if (items.length) await post("/api/attach/send", { key, path: seat.path, as: "note", text });
+      toast("Noted: press Update the plan to put it in");
+      await redraw();
+    } });
+  noteBox.hidden = true;
+  const note = { get value() { return noteBox.composer.text(); }, focus: () => noteBox.composer.focus() };
   const top = card(
     h("div", { class: "card-head" }, h("h2", { class: "plan-title" }, words.title || "The plan"),
       h("span", { class: "muted small", title: "Each change makes a new version; More about this plan lists them" }, `version ${doc.version}`)),

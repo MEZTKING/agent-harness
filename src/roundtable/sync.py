@@ -303,6 +303,10 @@ def read_claims(hub) -> dict[str, dict[str, Any]]:
 
 
 # -- the live session: one line per event, written while the run goes on --------------------------------
+# Where a model turn's time went and how full its context is (Watch on the other machine).
+TIMING_FIELDS = ("ms", "first_ms", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
+
+
 def session_lines(kind: str, d: dict[str, Any]) -> list[dict[str, Any]]:
     """One event as lines for watching from the other machine: no prompts, no file contents.
 
@@ -325,9 +329,10 @@ def session_lines(kind: str, d: dict[str, Any]) -> list[dict[str, Any]]:
                     "line": f"Attempt {d.get('attempt')} on {d.get('model', '')}"})
     elif kind == "model_turn":
         text = " ".join(str(d.get("text") or "").split())[:200]
-        if text:
-            out.append({"kind": "turn", "model": d.get("model", ""), "role": d.get("role", ""),
-                        "line": ("Reviewer: " if d.get("role") == "reviewer" else "") + text})
+        timed = {k: d[k] for k in TIMING_FIELDS if d.get(k) is not None}
+        if text or timed:  # an untold turn still carries where its time went
+            out.append({"kind": "turn", "model": d.get("model", ""), "role": d.get("role", ""), **timed,
+                        "line": ("Reviewer: " if d.get("role") == "reviewer" and text else "") + text})
         usd = round(float(d.get("cost") or 0), 6)
         if usd:
             out.append({"kind": "cost", "usd": usd, "model": d.get("model", ""), "line": f"${usd:.4f}"})
@@ -339,6 +344,7 @@ def session_lines(kind: str, d: dict[str, Any]) -> list[dict[str, Any]]:
                 "tool": d.get("tool", ""), "line": sessionlib.step_line(step)[:240], "error": bool(step.get("error"))}
         if step.get("path"):
             line["path"] = step["path"]
+        line.update({k: d[k] for k in ("ms", "waited_ms") if d.get(k) is not None})
         out.append(line)
     elif kind == "review":
         ok = bool(d.get("approved"))
@@ -359,6 +365,13 @@ def session_lines(kind: str, d: dict[str, Any]) -> list[dict[str, Any]]:
         out.append({"kind": "status", "status": d.get("status", ""), "line": f"Now {d.get('status', '')}"})
     elif kind == "planning":
         out.append({"kind": "status", "status": "planning", "line": "Making the plan…"})
+    elif kind == "agent_done":  # Roundtable's own time between the steps (no words to show)
+        out.append({"kind": "agent_done", "role": d.get("role", ""), "line": "",
+                    **{k: d[k] for k in ("other_ms", "waited_ms") if d.get(k) is not None}})
+    task = d.get("task")
+    if task:  # several tasks run at once: every line says which it belongs to
+        for ln in out:
+            ln.setdefault("task", task)
     return [sessionlib._redact_all({"at": at, **ln}) for ln in out]
 
 

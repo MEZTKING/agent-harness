@@ -4,6 +4,78 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – wave 2 put together
+
+Asked: merge the seven wave 2 branches into one (w2-small, w2-compact, w2-cli, w2-memory, w2-files, w2-watch,
+w2-message), do each part's hook-up lines, test everything. No release yet.
+
+What each part is, plainly:
+- **Small things** (w2-small): a conversation in the hub passed back and forth more than 12 times stops and goes
+  back to its sender (hops); a **daily tidy-up** that removes old logs, pictures, spill files, merged worktrees
+  and old hub runs, with a log and a dry run, never the project's own files or attachments (`retention.py`,
+  `harness/eventlog.py` archives old events instead of cutting them, `ui/tidyapi.py`, `static/tidy.js`);
+  **What's new**: a short card once after the app updates (`ui/whatsnewapi.py`, `static/whatsnew.js`).
+- **Compaction** (w2-compact): a long task's older steps summed up by a cheap model (built-in plugin `compactor`).
+- **Coding helpers** (w2-cli): Claude Code and Codex as workers on the owner's own subscriptions
+  (`providers/cli_engine.py`, `docs/cli-workers.md`).
+- **Memory and search** (w2-memory): a small project memory and this computer's (`memory.py`), and one search over
+  plans, tasks, journal, letters, memory, notes and files (`search.py`, `ui/searchapi.py`, `static/search.js`,
+  the phone's Search screen).
+- **Files** (w2-files): browse a project's folder, open its files, save a copy, see the commands its tasks ran
+  (`ui/filesapi.py`, `static/files.js`, the phone's Files screen).
+- **Watch** (w2-watch): where each task's time went, how full its context is, files changed, several tasks side
+  by side (desktop and phone).
+- **The message box** (w2-message): one box with drafts kept, pictures, files, @file, Speak, and Next task or Now
+  (`attachments.py`, `ui/attachapi.py`, `static/compose.js`, the phone's Composer and New idea screen).
+
+Merges: only one conflict, `plugins/builtin/__init__.py` (compactor and attachments both registered: kept both, in
+the order token saver, cost log, compactor, attachments).
+
+Hook-ups done:
+- `config.py`: `retention` in `FEATURE_SECTIONS`; `cli` in `PROVIDER_TYPES` and built in `HarnessConfig.provider()`.
+- `agent.run_agent` hands a role on a `cli` provider to `cli_engine.run_cli_agent`; `model_turn` carries the four
+  token counts; `tool_call` carries `waited_ms` (time waiting for Ask me first, `Workspace.run_command`,
+  `Toolbox.take_waited`) and `agent_done` its total. `ParallelStage.stop_all` also stops every coding CLI.
+- `catalog.py`: the coding helpers' entry is now in `PRESETS` (`CODING_HELPERS` kept as a name for it); Settings'
+  Add a service hides the key box for it and its link says "How it works".
+- `server.py` `FEATURE_APIS`: whatsnewapi, tidyapi, searchapi, filesapi, attachapi. `phone.py` `PHONE_ROUTES`:
+  what's new, search, peek, memory, files (from the ready patch) and the message box's nine routes. The w2-files
+  patch applied cleanly (`/raw/pfile`, the PDF frame headers, the Files tab, its styles).
+- Desktop: `app.js` imports whatsnew.js, the Search room and the top bar's search box (`index.html`); Settings →
+  Advanced has the tidy-up card; AutoSync's `daily_tidy()` after the backup; one Activity line per tidy-up;
+  `roundtable tidy`; `session()` reads archived events too.
+- Memory: `memory_block` in the planner's prompt (plan and revise) and every worker's (`Orchestrator._memory_part`),
+  `learn_from_task` after each task (`ShowStage._learn_from_task`, from `_after_task`, so it works one at a time and
+  several at once), `learn_answer` when the owner answers a plan question, `refresh_machine` when the Tools page
+  is read on the desktop. THIRD_PARTY_NOTICES names Munder Difflin's `src/main/reflect.ts` and
+  `src/shared/memoryShape.ts` as the design (no code copied).
+- `sync.session_lines`: every line says its task; turns carry `ms`, `first_ms` and the tokens, tools `ms` and
+  `waited_ms`; `agent_done` lines carry `other_ms`. Lines that only carry times have no words: the desktop's
+  remote Watch skips them, the phone already did.
+- Phone: Search icon and "+ New idea" on the Table; a search hit for a project or the journal opens the project,
+  a letter opens Letters, the rest opens in place; a Files button on a project (`machineApi`: the PC or this
+  phone that has it); "Tell the planner" uses the message box when the project is on a connected machine.
+- The message box on the desktop: Talk to the planner (Ask → `chat`, Instruct → `note` with Next task or Now),
+  Add to it (a new goal with pictures and files), the plan's Tell the planner, and Letters (words only: a new
+  `noFiles` option keeps drafts and Speak without Attach).
+- Several tasks at once: the template's `limits.max_parallel: 3`, and the recommended setup adds it when the owner
+  hasn't set one; `parse_config` still defaults to 1.
+
+Decided: the plan tab's "Tell the planner" (desktop and phone) still adds a change that waits for Update the plan;
+the message box's `note` records a standing instruction instead, so the words go the plan's way and pictures or
+files, when there are any, also go through the message box. Otherwise a note before approval would never show
+the Update button.
+
+Tests: `tests/test_wave2_hookups.py` (8: the cli type, routes and API modules, retention section, the template's
+3, tokens and waiting time, task ids and times on the phone's lines, memory in prompts and learning from a
+rejection, the CLI hand-over); the CLI orchestrator test now goes through the real hook. 825 Python tests pass;
+phone: 252 unit tests and the debug build pass; every desktop JS file parses.
+
+Still open: a Watch line for `compacted` events (optional); `refresh_machine` on app start (only on the Tools page
+now); the phone's hub summary (`hub_session`) still reads the live event log only; `cli_engine.stop_all` stops every
+coding CLI on the computer, not only that run's; at release, the README's "What's new in <version>" and
+`python -m roundtable.updater --whatsnew-bundle`. Not tried on a real PC or phone yet.
+
 ## 2026-11-27 – 0.10.0: wave 1 – safety and several tasks at once
 
 From plans/parity.md, Fable's order (plans/notes-for-owner.md). Six helpers, merged here with the hook-up lines.

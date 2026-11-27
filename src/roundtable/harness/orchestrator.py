@@ -785,6 +785,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         job = (
             (f"{like}\n\n" if like else "")
             + self._repo_plan_note()
+            + self._memory_part()
             + f"# Your job\nPlan the work for goal #{goal_index + 1}: {goal}\n"
             + (f"Existing task ids (don't reuse; you may depend on them): {', '.join(t.id for t in existing)}\n" if existing else "")
             + "Inspect the existing files if useful, then call submit_plan with the plan document (summary, scope, "
@@ -902,6 +903,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         job = (
             f"# Current plan (version {doc.get('version', 1)})\n{plandoc.render_markdown(doc, [t for t in tasks if t.goal_index == gi])}\n\n"
             + (f"{like}\n\n" if like else "")
+            + self._memory_part()
             + (f"# The owner's changes to apply\n{changes}\n\n" if changes else "")
             + (f"# {'The owner says' if by == 'owner' else 'Also'}\n{instruction}\n\n" if instruction else "")
             + f"# Your job\nRevise the plan for goal #{gi + 1}: {meta['goals'][gi]}\n"
@@ -981,6 +983,7 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
             ids = {o.get("id") for o in q.get("options") or []}
             q["chosen"] = [c for c in kw.get("chosen") or [] if c in ids]  # which ready answers were tapped
             note(f"Answer to '{q['text']}': {q['answer']}", f"answer:{q['id']}")
+            self._remember_answer(q["text"], q["answer"])
         elif action == "dont_add":
             text = str(kw.get("text", "")).strip()[:500]
             if not text:
@@ -1073,6 +1076,25 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         """A fresh token saver for one conversation; originals spill into .harness/spill."""
         return TokenSaver(self.cfg.token_saver, self._work_root(), on_event=self.emit)
 
+    def _memory_part(self) -> str:
+        """What Roundtable remembers about this project and this computer, for a prompt ("" when nothing)."""
+        try:
+            from .. import memory
+
+            block = memory.memory_block(self.project.root, self.cfg)
+        except Exception as e:  # memory is a help; never fail a plan over it
+            self.emit("memory_error", {"error": str(e)[:300]})
+            return ""
+        return f"{block}\n\n" if block else ""
+
+    def _remember_answer(self, question: str, answer: str) -> None:
+        try:
+            from .. import memory
+
+            memory.learn_answer(self.project.root, question, answer, self.cfg)
+        except Exception as e:  # memory is a help
+            self.emit("memory_error", {"error": str(e)[:300]})
+
     def _worker_prompt(self, task: Task, tasks: list[Task], feedback: list[str]) -> str:
         deps = [t for t in tasks if t.id in task.depends_on]
         parts = [
@@ -1085,6 +1107,9 @@ class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStag
         if feedback:
             parts.append("# Feedback on your previous attempt(s) - address all of it\n" + "\n\n".join(feedback))
         parts.extend(self._repo_worker_parts())
+        block = self._memory_part().strip()
+        if block:
+            parts.append(block)
         parts.append("Work in the project files using your tools. Throwaway scripts you write only to check your work "
                      "go in .harness/scratch/ (never committed or reviewed), or delete them before you finish. When "
                      "finished, call finish_task with a concise summary of what you did and anything the next person "

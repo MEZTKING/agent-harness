@@ -233,6 +233,9 @@ Ported to Python or used as the pattern, credited in each file's header:
   "Weekdays at 09:00" summary) from `src/shared/weeklySchedule.ts`.
 - `src/roundtable/prereq.py` – the shape of the tools catalogue from `src/shared/toolCatalog.ts` and
   `src/main/toolsStatus.ts`.
+- `src/roundtable/memory.py` – the memory's design (rules never moved, capped pinned notes, recent notes moved
+  word for word to an archive, the check that memory.md loses only whole lines) from `src/main/reflect.ts` and
+  `src/shared/memoryShape.ts`; no code was copied.
 Its pixel art and other assets (LICENSE-ASSETS) are not used.
 
 ```

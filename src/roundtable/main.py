@@ -45,6 +45,7 @@ Everything else:
     roundtable automation [list | run ID] [--watch 60]   schedules, GitHub issues and failed checks that start work
     roundtable backup now|list|where|restore FILE   back up settings, learned settings and plans
                                           (to Google Drive's folder or --to PATH; never API keys)
+    roundtable tidy [--dry-run] [--log]   remove old logs, pictures, spill files, merged worktrees and old hub runs
     roundtable app                        open the desktop app (window) from a source install
     roundtable phone serve --local --port P --home DIR   Roundtable on the phone itself (started by the phone app)
 
@@ -108,6 +109,12 @@ def main(argv: list[str] | None = None) -> None:
         rest = list(argv)
         rest.remove(cmd)
         return backup_main(rest)
+    if cmd == "tidy":
+        from .retention import main as tidy_main
+
+        rest = list(argv)
+        rest.remove(cmd)
+        return tidy_main(rest)
     if cmd in ("connect", "hook"):
         from .connect import main as connect_main
 

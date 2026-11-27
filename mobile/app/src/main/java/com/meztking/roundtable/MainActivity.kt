@@ -68,6 +68,11 @@ import com.meztking.roundtable.ui.SettingsScreen
 import com.meztking.roundtable.ui.ThisPhoneSetupScreen
 import com.meztking.roundtable.ui.SetupScreen
 import com.meztking.roundtable.ui.TableScreen
+import com.meztking.roundtable.ui.NewIdeaScreen
+import com.meztking.roundtable.ui.FilesScreen
+import com.meztking.roundtable.ui.ApiFiles
+import com.meztking.roundtable.ui.SearchScreen
+import com.meztking.roundtable.ui.composerSender
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.RoundtableTheme
 import com.meztking.roundtable.ui.theme.hallBackground
@@ -158,6 +163,18 @@ private fun Root(openProject: MutableStateFlow<String?>) {
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable("notes") { NotesScreen(onBack = { nav.popBackStack() }) }
+            composable("newidea") {
+                NewIdeaScreen(onBack = { nav.popBackStack() }, onStarted = { _ -> nav.popBackStack(); main.reset() })
+            }
+            composable("files/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                val hall by main.hall.collectAsState()
+                val seat = hall.data?.seats?.firstOrNull { it.id == id }
+                val api = remember(seat) { machineApi(app, seat) }
+                FilesScreen(title = id, source = api?.let { a -> seat?.path?.let { ApiFiles(a, it) } },
+                    elsewhere = "These files are on your PC. Connect this phone to it (Settings, Your PC) to see them.",
+                    onBack = { nav.popBackStack() })
+            }
             composable(
                 "project/{id}?tab={tab}",
                 arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("tab") { type = NavType.IntType; defaultValue = 0 }),
@@ -184,6 +201,9 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                                 back = { nav.popBackStack() }, refresh = vm::refresh, command = vm::command, act = vm::act,
                                 opened = vm::opened, reply = vm::reply, send = vm::send, answer = vm::answer,
                                 settings = if (seat?.holder?.isNotBlank() == true) ({ nav.navigate("projectsettings/${android.net.Uri.encode(vm.id)}") }) else null,
+                                files = { nav.navigate("files/${android.net.Uri.encode(vm.id)}") },
+                                composer = remember(seat) { machineApi(app, seat)?.let { composerSender(it) } },
+                                path = seat?.path,
                             ),
                             initialTab = entry.arguments?.getInt("tab") ?: 0,
                         )
@@ -200,6 +220,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val app = ctx.applicationContext as RoundtableApp
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showNeeds by rememberSaveable { mutableStateOf(false) }
+    var searching by rememberSaveable { mutableStateOf(false) }
     val hall by main.hall.collectAsState()
     val letters by main.letters.collectAsState()
     val busy by main.busy.collectAsState()
@@ -258,6 +279,28 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                 CrashCard(details, onSend = main::sendCrash, onTryAgain = main::crashSeen)
                 return@Box
             }
+            if (searching) {
+                androidx.activity.compose.BackHandler { searching = false }
+                SearchScreen(onBack = { searching = false }, onOpen = { hit ->
+                    val seats = hall.data?.seats.orEmpty()
+                    val o = hit.open
+                    val seat = when (o.room) {
+                        "project" -> seats.firstOrNull { it.path != null && it.path == o.path }
+                        "hub_plan" -> seats.firstOrNull { it.hubName == o.name || it.id == o.name }
+                        "journal" -> seats.firstOrNull { it.id == o.agent }
+                        else -> null
+                    }
+                    when {
+                        o.room == "letter" -> { searching = false; tab = 1; main.loadLetters(); true }
+                        seat != null -> {
+                            searching = false
+                            nav.navigate("project/${android.net.Uri.encode(seat.id)}" + if (o.room == "journal") "" else "?tab=1"); true
+                        }
+                        else -> false
+                    }
+                })
+                return@Box
+            }
             when (tab) {
                 0 -> TableScreen(
                     hall, if (backend == null) null else backend.mode, where, busy, onRefresh = main::refresh,
@@ -277,6 +320,8 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) },
                     onAutopilot = main::autopilot,
                     onNotes = if (backend != null) ({ nav.navigate("notes") }) else null,
+                    onSearch = if (backend != null) ({ searching = true }) else null,
+                    onNewIdea = if (backend != null) ({ nav.navigate("newidea") }) else null,
                 )
                 1 -> LettersScreen(
                     letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),
@@ -291,6 +336,13 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
             }
         }
     }
+}
+
+/** The PC's (or this phone's) API for a seat that lives there; null for a project only the hub has. */
+fun machineApi(app: RoundtableApp, seat: com.meztking.roundtable.data.SeatView?): com.meztking.roundtable.net.Api? {
+    val src = com.meztking.roundtable.data.Source.of(seat?.source) ?: return null
+    if (src == com.meztking.roundtable.data.Source.HUB) return null
+    return (app.backend()?.parts?.get(src) as? com.meztking.roundtable.data.PcBackend)?.api
 }
 
 /** The Table's header line: which connections answer ("This phone · your PC · the hub"), and which don't. */

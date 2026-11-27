@@ -12,10 +12,12 @@ import { viewModels } from "./models.js";
 import { viewSettings, viewSetup } from "./settings.js";
 import { viewTools } from "./tools.js";
 import "./notify.js";
+import "./whatsnew.js";
+import { viewSearch, mountSearch } from "./search.js";
 import { viewAutomations } from "./automation.js";
 
 const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
-  activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup };
+  activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup, search: viewSearch };
 const ROOM_OF = { new: "projects", p: "projects", setup: "settings", automations: "settings" };
 
 // old addresses (bookmarks, links in letters and the autopilot's log) still land in the right place
@@ -123,3 +125,4 @@ document.addEventListener("keydown", (ev) => {
 });
 
 render().then(() => { setTimeout(poll, 5000); loadAutopilot(); checkUpdate(); });
+mountSearch(document.getElementById("search"));

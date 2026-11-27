@@ -1,27 +1,32 @@
 // Letters: what projects and agents wrote to you, as sentences; reply in place; read ones folded away. Write to any
 // project. (The hub's messages.)
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, refreshHall, projectName, projectHref, dot, plural, q } from "./core.js";
+import { composer } from "./compose.js";
 
 const KIND_VERB = { ask: "asks", notify: "lets you know", request: "asks you to do something" };
 const KINDS = [["ask", "A question", "They should answer"], ["notify", "Just so you know", "No answer needed"], ["request", "Please do this", "A job for them"]];
 
 export function letterRow(m, me, done, compact = false) {
-  const replyBox = h("form", { class: "row reply", hidden: true, onsubmit: async (ev) => {
-    ev.preventDefault();
-    const text = replyBox.querySelector("textarea").value.trim();
-    if (!text) return toast("Write your reply first.", true);
-    await act(replyBox.querySelector("button"), () => post("/api/reply", { as: me, message_id: m.id, body: text }), "Reply sent", async () => {
-      if (!m.read) await post(`/api/inbox/${encodeURIComponent(me)}/read`, { ids: [m.id] }).catch(() => null);
-      if (done) await done();
-    });
-  } }, h("textarea", { class: "grow", rows: 2, placeholder: `Reply to ${projectName(m.sender)}…`, "aria-label": "Your reply" }), h("button", { class: "primary" }, "Send"));
+  // the reply box (compose.js, words only: its draft is kept, Speak where this browser can), made when first opened
+  const replyBox = h("div", { class: "reply", hidden: true });
+  const openReply = () => {
+    if (!replyBox.firstChild) replyBox.append(composer({ key: `reply:${m.id}`, noFiles: true, rows: 2, label: "Your reply",
+      placeholder: `Reply to ${projectName(m.sender)}…`, onSend: async ({ text }) => {
+        await post("/api/reply", { as: me, message_id: m.id, body: text });
+        toast("Reply sent");
+        if (!m.read) await post(`/api/inbox/${encodeURIComponent(me)}/read`, { ids: [m.id] }).catch(() => null);
+        if (done) await done();
+      } }));
+    replyBox.hidden = !replyBox.hidden;
+    if (!replyBox.hidden) replyBox.firstChild.composer.focus();
+  };
   const thread = h("div", { class: "thread" });
   const subj = String(m.subject || "").replace(/^roundtable:\s*/i, "");
   const line = h("p", { class: "letter-line" }, h("a", { href: projectHref(m.sender), title: "Open this project" }, dot(m.sender), h("b", {}, projectName(m.sender))), ` ${KIND_VERB[m.kind] || "writes"}: `,
       h("b", {}, subj), h("span", { class: "muted small" }, ` · ${ago(m.created_at)}`));
   const rest = [m.body && m.body !== m.subject ? h("p", { class: "letter-body pre-line" }, compact && m.body.length > 280 ? m.body.slice(0, 280) + "…" : m.body) : null,
     h("div", { class: "row" },
-      h("button", { class: "small", onclick: () => { replyBox.hidden = !replyBox.hidden; if (!replyBox.hidden) replyBox.querySelector("textarea").focus(); } }, "Reply"),
+      h("button", { class: "small", onclick: openReply }, "Reply"),
       !m.read ? h("button", { class: "small", title: "Fold it away with the read letters", onclick: (ev) => act(ev.currentTarget, () => post(`/api/inbox/${encodeURIComponent(me)}/read`, { ids: [m.id] }), null, done) }, "Mark read") : null,
       compact ? null : h("button", { class: "small link-btn", title: "The letters before and after this one", onclick: async () => {
         try {
@@ -66,14 +71,15 @@ function compose(me, others, to) {
   let kind = "ask";
   const picks = h("div", { class: "to-list" }, others.map((a) => h("label", { class: "check" }, h("input", { type: "checkbox", value: a.id, checked: a.id === to }), a.name || projectName(a.id))));
   const subject = h("input", { class: "grow", placeholder: "In a few words", "aria-label": "Subject" });
-  const body = h("textarea", { rows: 4, placeholder: "Your letter", "aria-label": "Your letter" });
+  const body = composer({ key: "letter:new", noFiles: true, rows: 4, label: "Your letter", placeholder: "Your letter" });
   const form = h("form", { class: "stack", onsubmit: async (ev) => {
     ev.preventDefault();
     const tos = [...picks.querySelectorAll("input:checked")].map((x) => x.value);
     if (!tos.length) return toast("Tick who it's for.", true);
-    if (!subject.value.trim() || !body.value.trim()) return toast("Write a few words and the letter first.", true);
-    await act(form.querySelector("button.primary"), () => post("/api/send", { from: me, to: tos, kind, subject: subject.value.trim(), body: body.value.trim() }), "Sent", () => {
-      subject.value = ""; body.value = ""; picks.querySelectorAll("input").forEach((x) => (x.checked = false));
+    const text = body.composer.text().trim();
+    if (!subject.value.trim() || !text) return toast("Write a few words and the letter first.", true);
+    await act(form.querySelector("button.primary"), () => post("/api/send", { from: me, to: tos, kind, subject: subject.value.trim(), body: text }), "Sent", () => {
+      subject.value = ""; body.composer.clear(); picks.querySelectorAll("input").forEach((x) => (x.checked = false));
     });
   } },
   h("div", { class: "field" }, h("span", { class: "label" }, "To"), others.length ? picks : h("p", { class: "muted" }, "No projects in the hub yet.")),

@@ -52,6 +52,16 @@
         <receiver
             android:name=".notify.AnswerReceiver"
             android:exported="false" />
+        <!-- Files in the app (FilesScreen.kt): Save a copy and Open share one fetched file, read-only, with the app the owner picks -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/files_share" />
+        </provider>
         <!-- where Android says how an update's install went (only Android answers: not exported) -->
         <receiver
             android:name=".update.InstallReceiver"
