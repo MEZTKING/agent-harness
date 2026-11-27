@@ -737,8 +737,69 @@ def needs_cards(projects: list[Path], rows: list[dict[str, Any]]) -> list[dict[s
 
 
 # -- MCP tool servers ---------------------------------------------------------------------------------
+CATALOGUE_FILE = "mcp_catalogue.json"
+PROJECT = "{project}"  # in a catalogue server's args, cwd or env: the project's folder, filled in when a run starts it
+
+
+def catalogue() -> dict[str, Any]:
+    """``mcp_catalogue.json``: the tool servers we have read, each pinned to the version that was read."""
+    import json
+    from importlib import resources
+
+    try:
+        return json.loads(resources.files("roundtable").joinpath(CATALOGUE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"servers": []}
+
+
+def _for_os(spec: dict[str, Any], os_name: str) -> dict[str, Any]:
+    """On Windows npx is a .cmd: it is started through cmd /c, as Godot's server is."""
+    if os_name == "windows" and spec.get("command") == "npx":
+        return {**spec, "command": "cmd", "args": ["/c", "npx", *spec.get("args", [])]}
+    return dict(spec)
+
+
+def catalogue_servers(os_name: str) -> list[dict[str, Any]]:
+    out = []
+    for x in catalogue().get("servers") or []:
+        if not isinstance(x, dict) or not x.get("id") or not isinstance(x.get("spec"), dict):
+            continue
+        out.append({**x, "spec": _for_os(x["spec"], os_name), "catalogue": True,
+                    "steps": x.get("steps") or (f"It can: {x['can']}" if x.get("can") else "")})
+    return out
+
+
+def with_project(servers: dict[str, dict[str, Any]], root: str | Path | None) -> dict[str, dict[str, Any]]:
+    """The servers with ``{project}`` replaced by the project's folder (for ``MCPPool``). A server that needs a
+    folder but has none is left off rather than started on the wrong one."""
+    out: dict[str, dict[str, Any]] = {}
+    folder = str(Path(root).resolve()) if root else ""
+
+    def fill(v: Any) -> Any:
+        if isinstance(v, str):
+            return v.replace(PROJECT, folder)
+        if isinstance(v, list):
+            return [fill(x) for x in v]
+        if isinstance(v, dict):
+            return {k: fill(x) for k, x in v.items()}
+        return v
+
+    for name, spec in (servers or {}).items():
+        if PROJECT in repr(spec):
+            out[name] = fill(spec) if folder else {**spec, "enabled": False}
+        else:
+            out[name] = spec
+    return out
+
+
 def known_servers(os_name: str) -> list[dict[str, Any]]:
-    """The servers offered under Add, with their exact settings (docs/mcp.md, docs/godot.md, docs/unreal.md)."""
+    """The servers offered under Add, with their exact settings: Unreal, Godot and Blender (docs/mcp.md,
+    docs/godot.md, docs/unreal.md), then the catalogue's (``mcp_catalogue.json``)."""
+    return _engine_servers(os_name) + [x for x in catalogue_servers(os_name)
+                                      if x["id"] not in ("unreal", "godot", "blender")]
+
+
+def _engine_servers(os_name: str) -> list[dict[str, Any]]:
     godot = ({"command": "cmd", "args": ["/c", "npx", "-y", "godot-mcp-server"]} if os_name == "windows"
              else {"command": "npx", "args": ["-y", "godot-mcp-server"]})
     return [
@@ -938,7 +999,11 @@ def test_server(harness_path: str | Path | None, name: str,
     spec = cfg.mcp_servers.get(name)
     if not spec:
         raise ValueError("That server isn't there any more. Refresh the page.")
-    row = (check or check_servers)({name: {**spec, "enabled": True}})[0]
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="mcp-test-") as tmp:  # {project}: an empty folder for the test
+        filled = with_project({name: {**spec, "enabled": True}}, tmp)
+        row = (check or check_servers)(filled)[0]
     tools = [t.split("__", 2)[-1] for t in row.get("tools") or []]
     if row.get("ok"):
         words = f"It answers: {len(tools)} tool{'s' if len(tools) != 1 else ''}."
@@ -963,3 +1028,50 @@ def prepare_server(known: str, line: Line, s: System | None = None,
              f"It didn't work (code {code}). The log above says why; press it again to retry.")
     line(words)
     return {"ok": code == 0, "code": code, "words": words}
+
+
+# -- engines that install themselves (Claude Code, Codex) -------------------------------------------------
+CHECKED_BY = {"npm": "npm checks the download against the registry's integrity hash before it installs it.",
+              "winget": "winget checks the installer's hash against the one Microsoft's list has before it runs it."}
+
+
+def engine_offer(engine_id: str, os_name: str | None = None) -> dict[str, Any]:
+    """The "Install it and carry on" card for a coding helper that isn't found: {tool, name, can, auto, checked,
+    words}. ``auto`` only when the installer checks the download (npm's integrity check or winget's hash);
+    otherwise the card says so and nothing installs by itself."""
+    from .providers.cli_engine import ALIASES, ENGINES
+
+    eng = ENGINES.get(ALIASES.get(engine_id, engine_id))
+    if not eng:
+        raise ValueError("The harness doesn't know that coding helper.")
+    tool = BY_ID[eng.tool]
+    plan = install_plan(tool, os_name or System.here().os)
+    checked = CHECKED_BY.get(plan["via"], "")
+    if plan["can"] and checked:
+        words = f"{eng.name} isn't on this computer. Install it and carry on? {checked}"
+    elif plan["can"]:
+        words = (f"{eng.name} isn't on this computer. Its installer ({plan['via']}) doesn't check the download "
+                 "for us, so it won't install by itself: install it from the Tools page.")
+    else:
+        words = f"{eng.name} isn't on this computer and can't be installed from the app here. {plan['text']}".strip()
+    return {"engine": eng.id, "tool": tool.id, "name": eng.name, "can": bool(plan["can"]),
+            "auto": bool(plan["can"] and checked), "checked": checked, "via": plan["via"], "needs": plan["needs"],
+            "shown": plan["shown"], "words": words}
+
+
+def install_and_carry_on(engine_id: str, line: Line, carry_on: Callable[[], Any] | None = None,
+                         s: System | None = None, **kw: Any) -> dict[str, Any]:
+    """The card's button: install the helper (only with a checked download), then carry on with the task."""
+    s = s or System.here()
+    offer = engine_offer(engine_id, s.os)
+    if not offer["auto"]:
+        raise ValueError(offer["words"])
+    line(offer["checked"])
+    res = run_install(offer["tool"], line, s=s, **kw)
+    if res["ok"] and carry_on:
+        line(f"Carrying on with the task now that {offer['name']} is here.")
+        carry_on()
+        res["carried_on"] = True
+    else:
+        res["carried_on"] = False
+    return res

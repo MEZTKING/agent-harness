@@ -23,6 +23,9 @@ MAX_READ_IDS = 2000
 # A conversation passed back and forth more than this many times is stopped and goes back to whoever sent the
 # last one, so two agents can't keep answering each other for ever (Munder Difflin's hive does the same).
 HOP_CAP = 12
+# ``to="everyone"``: every agent in the hub but the sender, one copy each, all in one thread; replies go back to
+# the sender only (``reply`` answers whoever sent it). Agents the rules don't let the sender message are left out.
+EVERYONE = "everyone"
 
 
 class HubError(ValueError):
@@ -224,13 +227,26 @@ class Hub:
         _skip_policy: bool = False,
         _hops: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Deliver a message. Past ``HOP_CAP`` replies in a row it isn't delivered: the sender gets it back
-        with a note instead (the returned message then has ``bounced: true``)."""
+        """Deliver a message (``to="everyone"``: every other agent the sender may message, in one thread). Past
+        ``HOP_CAP`` replies in a row it isn't delivered: the sender gets it back with a note instead (the returned
+        message then has ``bounced: true``)."""
         self._require_agent(actor)
         if kind not in MESSAGE_KINDS:
             raise HubError(f"kind must be one of {MESSAGE_KINDS}")
         recipients = [to] if isinstance(to, str) else list(to)
         recipients = [r.strip() for r in recipients if r and r.strip()]
+        if EVERYONE in recipients:
+            if EVERYONE in self.config.agents:
+                raise HubError(f"an agent is called {EVERYONE!r}, so a message to everyone is ambiguous; "
+                               "rename that agent in hub.yaml")
+            self.refresh_config()
+            rest = [r for r in recipients if r != EVERYONE]
+            everyone = [a for a in sorted(self.config.agents) if a != actor
+                        and (_skip_policy or self._allowed(actor, a, "message"))]
+            recipients = list(dict.fromkeys(rest + everyone))
+            if not recipients:
+                raise HubError("nobody to send to: no other agent in the hub may be messaged by " + actor)
+            _thread_id = _thread_id or new_id()  # one thread for the whole message
         if not recipients:
             raise HubError("no recipients")
         for r in recipients:
@@ -371,4 +387,4 @@ class Hub:
         return out
 
 
-__all__ = ["Hub", "HubError", "PolicyError"]
+__all__ = ["EVERYONE", "Hub", "HubError", "PolicyError"]

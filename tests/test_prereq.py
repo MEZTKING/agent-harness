@@ -444,7 +444,9 @@ def test_api_shapes(lab, made_up_computer):
     assert {"id", "name", "group", "why", "state", "words", "version", "where", "install"} <= set(t0)
     assert {"can", "shown", "admin", "blocked", "text"} <= set(t0["install"])
     assert [s["name"] for s in v["servers"]] == ["unreal"] and v["servers_error"] == ""
-    assert {k["id"] for k in v["known"]} == {"unreal", "godot", "blender"}
+    ids = {k["id"] for k in v["known"]}  # the three engines, then the catalogue's (mcp_catalogue.json)
+    assert {"unreal", "godot", "blender"} <= ids and ids - {"unreal", "godot", "blender"} == {
+        x["id"] for x in prereq.catalogue_servers("windows")}
     assert next(k for k in v["known"] if k["id"] == "unreal")["added"] is True
     assert all("spec" not in k for k in v["known"])
 
