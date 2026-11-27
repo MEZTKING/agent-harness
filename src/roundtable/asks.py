@@ -9,7 +9,13 @@ Every ask looks the same on the desktop, the phone and through the hub::
 always offers "Other…" with a text box. An option with ``confirm`` spends money beyond the shown
 estimate (or can't be undone), so the app asks "Are you sure?" first and sends ``confirmed``.
 
-``open_asks`` turns the project's state into asks, money and failures first. ``answer_ask`` applies
+A command waiting for "Ask me first" (harness/gate.py) is a card of kind ``command``: it also carries
+``command`` (the whole text), ``preview`` and ``folded`` (a long one is shown folded, "Show all"),
+``reasons``, ``task`` {id, title}, ``remember`` (what "Always allow" keeps) and ``expires_at``. Its answers
+are ``allow`` (Allow once), ``always`` (Always allow in this project) and ``deny`` (Don't allow); typed
+words alone mean "Don't allow" with a note for the builder. It can't be left for later.
+
+``open_asks`` turns the project's state into asks: waiting commands, then money and failures first. ``answer_ask`` applies
 an answer through the orchestrator's own actions (choose, answer, idea, look, approve, retry, accept,
 skip, profile, steer): there is no second way of changing things. Long work an answer starts (a run,
 a plan update, new looks) is returned as ``then`` for the caller to start as a job (``finish`` does
@@ -68,7 +74,7 @@ def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
     meta = orch.project.meta()
     doc = orch.project.plan_doc()
     tasks = orch.project.tasks()
-    asks = _money_asks(orch, meta) + _failed_asks(orch, meta, tasks)
+    asks = command_asks(orch.project.root) + _money_asks(orch, meta) + _failed_asks(orch, meta, tasks)
     if doc and not meta.get("plan_approved"):  # once building, the plan's questions are settled
         asks += _plan_asks(orch, doc, meta)
     name = orch.project.root.name
@@ -82,6 +88,43 @@ def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
         a["project"], a["path"] = name, str(orch.project.root)
         out.append(a)
     return out
+
+
+def command_asks(root: Path) -> list[dict[str, Any]]:
+    """The commands waiting for the owner's tap in this project ("Ask me first")."""
+    from .harness.gate import Gate
+
+    try:
+        waiting = Gate(root).pending()
+    except OSError:
+        return []
+    return [{**command_ask(w), "project": Path(root).name, "path": str(root)} for w in waiting]
+
+
+def _sentence(reasons: list[str]) -> str:
+    text = "; ".join(r for r in reasons[:3] if r)
+    return (text[:1].upper() + text[1:] + ".") if text else ""
+
+
+def command_ask(w: dict[str, Any]) -> dict[str, Any]:
+    """One waiting command as a card."""
+    task = w.get("task") or {}
+    who = f"Task {task['id']} “{task.get('title', '')}”" if task.get("id") else "A builder"
+    why = _sentence(list(w.get("reasons") or []))
+    remember = str(w.get("remember") or "this exact command")
+    opts = [{"id": "allow", "label": "Allow once", "description": "It runs this time. Next time it asks again."},
+            {"id": "always", "label": "Always allow in this project",
+             "description": f"It runs now, and {remember} runs without asking in this project from now on."},
+            {"id": "deny", "label": "Don't allow", "description": "It doesn't run. The builder is told and carries on without it."}]
+    ask = _ask(f"command:{w['id']}", "command", "Command", f"{who} wants to run a command. Allow it?", opts,
+               detail=f"Why it asks: {why}" if why else "",
+               other_hint="Don't allow, and tell it what to do instead",
+               source={"command": w["id"]})
+    ask.update({"command": w.get("command", ""), "preview": w.get("preview", ""), "folded": bool(w.get("folded")),
+                "lines": w.get("lines", 1), "size": w.get("size", 0), "reasons": list(w.get("reasons") or []),
+                "task": task, "remember": remember, "asked_at": w.get("asked_at", ""),
+                "expires_at": w.get("expires_at", "")})
+    return ask
 
 
 def _plan_asks(orch, doc: dict[str, Any], meta: dict[str, Any]) -> list[dict[str, Any]]:
@@ -271,6 +314,8 @@ def answer_ask(orch, ask_id: str, chosen: list[str] | str | None = None, other: 
     ask = find_ask(orch, ask_id)
     if stamp and stamp != ask["stamp"]:
         raise HarnessError("That question changed since you saw it. Look at it again, then answer.")
+    if skip and ask["kind"] == "command":
+        raise HarnessError("A command can't wait for later: tap Allow once or Don't allow.")
     if skip:
         _dismiss(orch, ask)
         return {"reply": "Left for later.", "then": None}
@@ -397,7 +442,22 @@ def _apply_money(orch, ask, picked, other):
     return {"reply": "Carrying on.", "then": "run"}
 
 
-APPLY = {"decision": _apply_decision, "question": _apply_question, "idea": _apply_idea, "look": _apply_look,
+def _apply_command(orch, ask, picked, other):
+    from .harness.gate import ALLOW, ALWAYS, DENY, Gate
+
+    choice = picked[0] if picked else DENY  # typed words alone: don't allow, with a note for the builder
+    if not Gate(orch.project.root).answer(ask["source"]["command"], {"allow": ALLOW, "always": ALWAYS}.get(choice, DENY),
+                                          other):
+        raise HarnessError("That command isn't waiting any more (it was answered, or it waited too long).")
+    if choice == "always":
+        return {"reply": f"Allowed: it runs now, and {ask.get('remember') or 'this command'} won't ask again here.",
+                "then": None}
+    if choice == "allow":
+        return {"reply": "Allowed: it runs now.", "then": None}
+    return {"reply": "Not allowed: it won't run. The builder carries on without it.", "then": None}
+
+
+APPLY = {"command": _apply_command, "decision": _apply_decision, "question": _apply_question, "idea": _apply_idea, "look": _apply_look,
          "profile": _apply_profile, "approve": _apply_approve, "failed": _apply_failed, "money": _apply_money}
 
 

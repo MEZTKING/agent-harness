@@ -3,7 +3,8 @@
 All paths are confined to the project directory. ``run_command`` runs a
 real shell in the project directory with a timeout - it is NOT a security
 sandbox; disable it with ``workspace.allow_shell: false`` if you don't
-trust the models you route to.
+trust the models you route to. Before it runs, the gate (``gate.py``, "Ask me
+first") may hold a command for the owner's tap.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..providers.base import ToolSpec
+from .gate import Gate
 from .safeenv import clean_env
 
 MAX_OUTPUT = 12_000
@@ -99,11 +101,15 @@ def _obj(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 
 class Workspace:
-    def __init__(self, root: str | Path, allow_shell: bool = True, command_timeout: int = 120):
+    def __init__(self, root: str | Path, allow_shell: bool = True, command_timeout: int = 120,
+                 gate: Gate | None = None):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.allow_shell = allow_shell
         self.command_timeout = command_timeout
+        # "Ask me first": a command may wait for the owner. Without settings handed in, the gate reads the
+        # project's own setting, $ROUNDTABLE_GATE and the default (the orchestrator gives it harness.yaml's).
+        self.gate: Gate | None = gate if gate is not None else Gate(self.root)
         self.changed: set[str] = set()
         self.last_change: dict[str, Any] | None = None  # the last write or edit, for the Session view
 
@@ -203,6 +209,9 @@ class Workspace:
     def run_command(self, a: dict) -> str:
         if not self.allow_shell:
             raise ToolError("shell commands are disabled in this harness config")
+        refused = self.gate.check(str(a["command"])) if self.gate is not None else None
+        if refused:  # the owner said no, didn't answer in time, or it was too long to show them
+            raise ToolError(refused)
         timeout = min(int(a.get("timeout") or self.command_timeout), self.command_timeout * 5)
         try:
             res = subprocess.run(
