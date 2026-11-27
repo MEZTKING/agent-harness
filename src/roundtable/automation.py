@@ -66,6 +66,7 @@ DAY_WORDS = {"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thur
              "sat": "Saturday", "sun": "Sunday"}
 KINDS = ("schedule", "issues", "ci")
 WHATS = ("idea", "goal", "health", "backup")
+WHATS += ("learn",)  # wave 7: learning within its weekly allowance (improve/wallet.py)
 CATCH_UP_H = 6.0  # a slot missed while the computer was off still fires this long after
 EARLY_S = 5  # a wake this close before a slot was that slot's
 POLL_MINUTES = 5.0
@@ -482,6 +483,8 @@ def what_words(a: dict[str, Any]) -> str:
         return "Checks that your models are working."
     if what == "backup":
         return "Backs up your settings and plans."
+    if what == "learn":
+        return "Learns from your past runs, within its weekly allowance."
     if what == "idea":
         return f"Plans a new project: “{a['do']['text'][:140]}”."
     return f"Plans the next goal for {_project_name(a['do']['project'])}: “{a['do']['text'][:140]}”."
@@ -950,6 +953,14 @@ def act(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], approved: bool = Fals
     if what == "backup":
         ctx.start("backup", f"backup ({a['name']})", "backup", _backup_job(ctx, a))
         return {"id": a["id"], "name": a["name"], "text": "Backup started.", "ok": True}
+    if what == "learn":
+        from .improve import wallet
+
+        job = getattr(wallet, "job", None)  # filled in by the learning loop (wave 7); until then: not now
+        if not callable(job):
+            return None
+        ctx.start("improve", "learning", "improve", job(ctx, a))
+        return {"id": a["id"], "name": a["name"], "text": "Learning started.", "ok": True}
     return None
 
 
