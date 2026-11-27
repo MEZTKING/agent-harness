@@ -84,6 +84,15 @@ Read first: [HANDOFF.md](HANDOFF.md) (where the last session left off),
   that, as I have the hardware"). Unreal, Godot, Blender, the Windows app and a phone by USB are
   tested there through Remote Control (`list_computer_folders`, then `request_computer_folder`),
   not left to the owner. If no folder is shared, say so in one line and carry on with the rest.
+- **Keep going until it does everything** (owner, 27 November 2026: "don't stop until this harness can
+  do everything every other harness can do, especially from the links I gave you"). Work through
+  `plans/parity.md` wave after wave, without waiting to be asked, until no row is missing. The harness
+  is growing into **Darkness Harness** ("the magnum opus of all harnesses"): built on Roundtable, aimed
+  at whole apps and games from one idea, every model in tandem, improving itself, and a darker look.
+- **Specialised art for artwork** (owner, 27 November 2026: "I always use specialized art for artwork for
+  important tasks"). Art – backgrounds, emblems, icons, app icons, the phone's art – is made by a
+  specialised image model (OpenRouter's image models through `providers/chat_images.py`, Retro Diffusion
+  for pixel art), never hand-drawn in SVG or CSS; code draws only the chrome (borders, gradients).
 - **Nothing is released without the owner saying so** (they have said "you do
   everything" for merging and releasing the desktop app: see Releasing).
 
