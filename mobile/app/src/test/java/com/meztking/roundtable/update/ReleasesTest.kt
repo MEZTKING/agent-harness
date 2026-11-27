@@ -38,7 +38,7 @@ class ReleasesTest {
             rel("nightly", apk("9.9.9")),
         ))!!
         assertEquals("0.7.10", r.version)
-        assertEquals("RoundtableMobile-0.7.10-test.apk", r.apkName)
+        assertEquals("DarknessMobile-0.7.10-test.apk", r.apkName)
         assertEquals("ab".repeat(32), r.sha256)
         assertEquals(1234L, r.size)
         assertEquals("notes for v0.7.10", r.notes)

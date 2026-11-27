@@ -62,17 +62,25 @@ jobs:
           # a refused download (429 Too Many Requests) is tried again once, a minute later
           ./gradlew --no-daemon testDebugUnitTest assembleDebug || (sleep 60 && ./gradlew --no-daemon testDebugUnitTest assembleDebug)
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' ../pyproject.toml)
-          mkdir -p ../dist && cp app/build/outputs/apk/debug/app-debug.apk "../dist/RoundtableMobile-$version-test.apk"
+          mkdir -p ../dist
+          # the same APK under two names: phones on Roundtable Mobile (before 1.0.0) look only for the old
+          # name, so it stays on every 1.x release; new phones take either (update/Releases.kt)
+          cp app/build/outputs/apk/debug/app-debug.apk "../dist/DarknessMobile-$version-test.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "../dist/RoundtableMobile-$version-test.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: RoundtableMobile-test-apk
-          path: dist/RoundtableMobile-*-test.apk
+          name: phone-test-apk
+          path: |
+            dist/DarknessMobile-*-test.apk
+            dist/RoundtableMobile-*-test.apk
 
   windows-app:
     name: Build Windows installer
     needs: [tests, android-apk]
     runs-on: windows-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -84,42 +92,6 @@ jobs:
         id: version
         shell: bash
         run: echo "value=$(python -c 'import roundtable; print(roundtable.__version__)')" >> "$GITHUB_OUTPUT"
-      - name: Build app
-        run: pyinstaller packaging/roundtable.spec --noconfirm
-      - name: Self-test the built app
-        timeout-minutes: 3
-        shell: pwsh
-        run: |
-          $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-built"
-          $p = Start-Process -FilePath dist\RoundtableHold\RoundtableHold.exe -ArgumentList "--self-test" -PassThru
-          $p.WaitForExit()
-          Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
-          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
-      - name: Build installer
-        shell: pwsh
-        run: |
-          choco install innosetup -y --no-progress
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.value }}" packaging\installer.iss
-      - name: Install silently and self-test the installed app
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem dist\RoundtableHold-Setup-*.exe | Select-Object -First 1
-          # wait for the installer process only (-Wait would also wait for anything it launches)
-          $inst = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOLAUNCH=1","/DIR=$env:RUNNER_TEMP\rt-install" -PassThru
-          $inst.WaitForExit()
-          if ($inst.ExitCode -ne 0) { throw "installer failed with exit code $($inst.ExitCode)" }
-          if (-not (Test-Path "$env:RUNNER_TEMP\rt-install\RoundtableHold.exe")) { throw "app not installed" }
-          Get-Process RoundtableHold -ErrorAction SilentlyContinue | Stop-Process -Force
-          $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-installed"
-          $p = Start-Process -FilePath "$env:RUNNER_TEMP\rt-install\RoundtableHold.exe" -ArgumentList "--self-test" -PassThru
-          $p.WaitForExit()
-          Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
-          if ($p.ExitCode -ne 0) { throw "installed app self-test failed" }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: RoundtableHold-Setup-${{ steps.version.outputs.value }}
-          path: dist/RoundtableHold-Setup-*.exe
       - name: Check release tag matches the app version
         if: inputs.release_tag != ''
         shell: bash
@@ -127,19 +99,210 @@ jobs:
           if [ "${{ inputs.release_tag }}" != "v${{ steps.version.outputs.value }}" ]; then
             echo "release_tag ${{ inputs.release_tag }} does not match app version v${{ steps.version.outputs.value }}"; exit 1
           fi
-      - name: Fetch the phone APK
+      - name: Build app
+        run: pyinstaller packaging/roundtable.spec --noconfirm
+      - name: Self-test the built app (and the old-name starter)
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-built"
+          $p = Start-Process -FilePath dist\DarknessHarness\DarknessHarness.exe -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
+          Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+          # RoundtableHold.exe is now a small starter: with --self-test it waits for DarknessHarness.exe
+          Remove-Item "$env:ROUNDTABLE_HOME\logs\self-test.json"
+          $p = Start-Process -FilePath dist\DarknessHarness\RoundtableHold.exe -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
+          if ($p.ExitCode -ne 0) { throw "the old-name starter failed with exit code $($p.ExitCode)" }
+          if (-not (Test-Path "$env:ROUNDTABLE_HOME\logs\self-test.json")) { throw "the old-name starter did not start the app" }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.value }}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+      - name: Install silently and self-test the installed app
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\DarknessHarness-Setup-*.exe | Select-Object -First 1
+          # wait for the installer process only (-Wait would also wait for anything it launches)
+          $inst = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOLAUNCH=1","/NOFIREWALL=1","/DIR=$env:RUNNER_TEMP\rt-install" -PassThru
+          $inst.WaitForExit()
+          if ($inst.ExitCode -ne 0) { throw "installer failed with exit code $($inst.ExitCode)" }
+          if (-not (Test-Path "$env:RUNNER_TEMP\rt-install\DarknessHarness.exe")) { throw "app not installed" }
+          Get-Process DarknessHarness -ErrorAction SilentlyContinue | Stop-Process -Force
+          $env:ROUNDTABLE_HOME = "$env:RUNNER_TEMP\rt-installed"
+          $p = Start-Process -FilePath "$env:RUNNER_TEMP\rt-install\DarknessHarness.exe" -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
+          Get-Content "$env:ROUNDTABLE_HOME\logs\self-test.json"
+          if ($p.ExitCode -ne 0) { throw "installed app self-test failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/DarknessHarness-Setup-*.exe
+
+  # An installed Roundtable Hold updates into this build and loses nothing. Each step is one check, and a
+  # failing check says what went wrong. The run is on a fresh Windows machine, so nothing else is installed.
+  #   1. Download the newest release that still carries a RoundtableHold-Setup-*.exe (the last 0.x).
+  #   2. Install it silently where it always went, with the desktop shortcut, and run its self-test with no
+  #      ROUNDTABLE_HOME set, so it makes its real data folder %APPDATA%\RoundtableHold.
+  #   3. Put a marker file in that folder and a made-up key in Credential Manager under "Roundtable Hold".
+  #   4. Run the new installer silently, as the in-app updater would (no /DIR: Inno finds the old folder).
+  #   5. Check: the same install folder; DarknessHarness.exe there; RoundtableHold.exe is now the small
+  #      starter; the old Start menu and desktop shortcuts are gone and the new ones are there; the marker
+  #      is unchanged; the new app's self-test passes using the old data folder (and makes no new one);
+  #      the starter opens the new app; the made-up key is read through the new key store.
+  #   6. Uninstall and check the data folder is still there.
+  upgrade-test:
+    name: Upgrade from Roundtable Hold
+    needs: windows-app
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UNINSTALL_KEY: 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6C3E4E2A-6F3B-4C55-9F7E-52B1D1A0C0DE}_is1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch the new installer
         uses: actions/download-artifact@v4
         with:
-          name: RoundtableMobile-test-apk
+          name: windows-installer
+          path: new
+      - name: 1. Download the last Roundtable Hold installer
+        shell: pwsh
+        run: |
+          $releases = gh api "repos/${{ github.repository }}/releases?per_page=100" | ConvertFrom-Json
+          $found = $null
+          foreach ($r in $releases) {
+            if ($r.draft -or $r.prerelease) { continue }
+            $a = $r.assets | Where-Object { $_.name -match '^RoundtableHold-Setup-.*\.exe$' } | Select-Object -First 1
+            if ($a) { $found = @{ tag = $r.tag_name; name = $a.name }; break }
+          }
+          if (-not $found) { throw "No release carries a RoundtableHold-Setup-*.exe, so there is nothing to upgrade from." }
+          Write-Host "Upgrading from $($found.tag) ($($found.name))"
+          gh release download $found.tag --repo "${{ github.repository }}" --pattern $found.name --dir old
+          if ($LASTEXITCODE -ne 0) { throw "Could not download $($found.name)" }
+      - name: 2. Install it and let it make its data folder
+        timeout-minutes: 6
+        shell: pwsh
+        run: |
+          Remove-Item Env:ROUNDTABLE_HOME -ErrorAction SilentlyContinue
+          $setup = Get-ChildItem old\RoundtableHold-Setup-*.exe | Select-Object -First 1
+          $inst = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOLAUNCH=1","/TASKS=desktopicon" -PassThru
+          $inst.WaitForExit()
+          if ($inst.ExitCode -ne 0) { throw "The old installer failed with exit code $($inst.ExitCode)" }
+          $dir = (Get-ItemProperty $env:UNINSTALL_KEY).InstallLocation.TrimEnd('\')
+          Write-Host "Roundtable Hold installed in $dir"
+          if (-not (Test-Path "$dir\RoundtableHold.exe")) { throw "RoundtableHold.exe is not in $dir" }
+          Get-Process RoundtableHold -ErrorAction SilentlyContinue | Stop-Process -Force
+          $p = Start-Process -FilePath "$dir\RoundtableHold.exe" -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
+          if ($p.ExitCode -ne 0) { throw "The old app's self-test failed, so the upgrade can't be tested" }
+          if (-not (Test-Path "$env:APPDATA\RoundtableHold\config")) { throw "The old app made no data folder" }
+          "OLD_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "OLD_EXE_SIZE=$((Get-Item "$dir\RoundtableHold.exe").Length)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: 3. Leave a marker and a made-up key
+        shell: pwsh
+        run: |
+          $marker = [guid]::NewGuid().ToString()
+          Set-Content -Path "$env:APPDATA\RoundtableHold\upgrade-marker.txt" -Value $marker -NoNewline
+          "MARKER=$marker" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          pip install --quiet keyring pyyaml
+          python -c "import keyring; keyring.set_password('Roundtable Hold', 'UPGRADE_TEST_KEY', 'made-up-value')"
+          if ($LASTEXITCODE -ne 0) { throw "Could not save the made-up key" }
+      - name: 4. Run the new installer over it
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem new\DarknessHarness-Setup-*.exe | Select-Object -First 1
+          $inst = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOLAUNCH=1","/NOFIREWALL=1" -PassThru
+          $inst.WaitForExit()
+          if ($inst.ExitCode -ne 0) { throw "The new installer failed with exit code $($inst.ExitCode)" }
+      - name: 5. Check nothing was lost
+        timeout-minutes: 6
+        shell: pwsh
+        run: |
+          Remove-Item Env:ROUNDTABLE_HOME -ErrorAction SilentlyContinue
+          $problems = @()
+          $dir = (Get-ItemProperty $env:UNINSTALL_KEY).InstallLocation.TrimEnd('\')
+          if ($dir -ne $env:OLD_DIR) { $problems += "It installed in $dir, not over the old one in $env:OLD_DIR" }
+          if (-not (Test-Path "$dir\DarknessHarness.exe")) { $problems += "DarknessHarness.exe is missing" }
+          if (-not (Test-Path "$dir\RoundtableHold.exe")) { $problems += "The old-name starter RoundtableHold.exe is missing" }
+          elseif ((Get-Item "$dir\RoundtableHold.exe").Length -ge [int64]$env:OLD_EXE_SIZE) { $problems += "RoundtableHold.exe is still the old app, not the small starter" }
+          $programs = [Environment]::GetFolderPath('Programs')
+          $desktop = [Environment]::GetFolderPath('Desktop')
+          foreach ($old in @("$programs\Roundtable Hold\Roundtable Hold.lnk", "$programs\Roundtable Hold.lnk", "$desktop\Roundtable Hold.lnk")) {
+            if (Test-Path $old) { $problems += "The old shortcut is still there: $old" }
+          }
+          if (-not (Get-ChildItem $programs -Recurse -Filter "Darkness Harness.lnk" -ErrorAction SilentlyContinue)) { $problems += "No Start menu shortcut for Darkness Harness" }
+          if (-not (Test-Path "$desktop\Darkness Harness.lnk")) { $problems += "No desktop shortcut for Darkness Harness (the old one was ticked)" }
+          $marker = Get-Content -Path "$env:APPDATA\RoundtableHold\upgrade-marker.txt" -Raw -ErrorAction SilentlyContinue
+          if ($marker -ne $env:MARKER) { $problems += "The marker in %APPDATA%\RoundtableHold changed or went" }
+          $before = Get-Date
+          Get-Process DarknessHarness, RoundtableHold -ErrorAction SilentlyContinue | Stop-Process -Force
+          $p = Start-Process -FilePath "$dir\DarknessHarness.exe" -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
+          $result = "$env:APPDATA\RoundtableHold\logs\self-test.json"
+          if ($p.ExitCode -ne 0) { $problems += "The new app's self-test failed (exit code $($p.ExitCode))" }
+          if (-not (Test-Path $result) -or (Get-Item $result).LastWriteTime -lt $before) { $problems += "The new app did not use the old data folder" }
+          else { Get-Content $result }
+          if (Test-Path "$env:APPDATA\DarknessHarness") { $problems += "The new app made a new data folder beside the old one" }
+          Remove-Item $result -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath "$dir\RoundtableHold.exe" -ArgumentList "--self-test" -PassThru
+          $p.WaitForExit()
+          if ($p.ExitCode -ne 0 -or -not (Test-Path $result)) { $problems += "The old-name starter did not open the new app" }
+          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE\src"
+          $got = python -c "from roundtable.desktop import KeyStore, Paths, app_home; print(KeyStore(Paths(app_home())).get('UPGRADE_TEST_KEY'))"
+          if ($got -ne 'made-up-value') { $problems += "A key saved by Roundtable Hold was not read (got: $got)" }
+          if ($problems) { $problems | ForEach-Object { Write-Host "::error::$_" }; throw "$($problems.Count) upgrade check(s) failed" }
+          Write-Host "Upgrade from Roundtable Hold: everything kept."
+      - name: 6. Uninstall keeps the data
+        if: always()
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
+          $dir = (Get-ItemProperty $env:UNINSTALL_KEY -ErrorAction SilentlyContinue).InstallLocation
+          if ($dir) {
+            $un = Start-Process -FilePath (Join-Path $dir "unins000.exe") -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -PassThru
+            $un.WaitForExit()
+          }
+          python -c "import keyring; [keyring.delete_password(s, 'UPGRADE_TEST_KEY') for s in ('Roundtable Hold', 'Darkness Harness') if keyring.get_password(s, 'UPGRADE_TEST_KEY')]"
+          if (-not (Test-Path "$env:APPDATA\RoundtableHold\upgrade-marker.txt")) { throw "Uninstalling removed the data folder" }
+
+  release:
+    name: Publish release
+    needs: [windows-app, upgrade-test, android-apk]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
           path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: phone-test-apk
+          path: dist
+      - name: Check every file is there
+        run: |
+          v="${{ needs.windows-app.outputs.version }}"
+          for f in "DarknessHarness-Setup-$v.exe" "DarknessMobile-$v-test.apk" "RoundtableMobile-$v-test.apk"; do
+            test -f "dist/$f" || { echo "missing dist/$f"; exit 1; }
+          done
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: Roundtable Hold ${{ steps.version.outputs.value }}
+          name: Darkness Harness ${{ needs.windows-app.outputs.version }}
           files: |
-            dist/RoundtableHold-Setup-*.exe
+            dist/DarknessHarness-Setup-*.exe
+            dist/DarknessMobile-*-test.apk
             dist/RoundtableMobile-*-test.apk
           generate_release_notes: true

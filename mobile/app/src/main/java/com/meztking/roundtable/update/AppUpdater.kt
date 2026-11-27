@@ -61,8 +61,8 @@ data class UpdateUi(
 class UpdateProblem(message: String) : IOException(message)
 
 /**
- * The phone's own updater: finds the newest `v<version>` release of Roundtable Hold that carries the
- * phone's APK, downloads it (resuming after a cut), checks its size and SHA-256 and hands it to Android's
+ * The phone's own updater: finds the newest `v<version>` release of the desktop app that carries the
+ * phone's APK (either name: [apkNamesFor]), downloads it (resuming after a cut), checks its size and SHA-256 and hands it to Android's
  * installer. One per app ([get]). The ideas, and the download and install steps, follow DSH Mobile's
  * in-app updater (InAppUpdater, ResumableDownloader, PackageInstallerGateway); see THIRD_PARTY_NOTICES.md.
  */
@@ -107,7 +107,7 @@ class AppUpdater(
         // a build that is now installed (or older) has done its job: free the space
         runCatching {
             dir.listFiles()?.forEach { f ->
-                val v = f.name.removePrefix("RoundtableMobile-").substringBefore("-test.apk")
+                val v = versionOfApk(f.name.removeSuffix(".part")) ?: ""
                 if (!isNewerVersion(v, _state.value.current)) f.delete()
             }
         }
