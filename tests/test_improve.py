@@ -275,3 +275,40 @@ def test_learning_after_each_run_applies_rule_backed_switches(tmp_path):
     run_projects(cfg, tmp_path, 2)  # coder rejected every time, coder2 approved: a routing rule fires
     overlay, _ = lab.learned()
     assert overlay["roles"]["coder"]["model"] == "b/coder2"
+
+
+class _Seen(Judge):
+    """A judge that remembers every model it was asked to be."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.models = []
+
+    def __call__(self, model, system, messages, tools):
+        self.models.append(model)
+        return super().__call__(model, system, messages, tools)
+
+
+def test_replay_keeps_to_the_projects_allowed_providers(tmp_path):
+    from roundtable.harness import projectsettings as ps
+
+    brain = _Seen()
+    cfg, lab = make_cfg(tmp_path, brain=brain)
+    run_projects(cfg, tmp_path, 1)
+    ps.update(tmp_path / "p0", {"providers_allowed": ["a"]})  # a made-up project kept to service a
+    # a candidate that puts b first: the replay must still never send the project to b
+    p = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["b/coder2", "a/coder"]},
+                                  rationale="r", risk="low"))
+    brain.models.clear()
+    res = evaluate(cfg, lab, p, samples=2, max_cost=5)
+    assert res["tasks_compared"] >= 1
+    assert brain.models and "coder2" not in brain.models
+    assert all(r["model"] in (None, "a/coder") for side in ("current", "candidate") for r in res[side]["runs"])
+
+    # a candidate whose only model is from b leaves the project out altogether
+    only_b = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["b/coder2"]},
+                                       rationale="r", risk="low"))
+    brain.models.clear()
+    with pytest.raises(EvalError):
+        evaluate(cfg, lab, only_b, samples=2, max_cost=5)
+    assert "coder2" not in brain.models
