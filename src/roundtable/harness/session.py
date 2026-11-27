@@ -247,7 +247,7 @@ def progress(task: dict[str, Any]) -> str:
             return "Starting"
         if s.get("kind") == "say" and s.get("who") == "reviewer":
             return "The reviewer is checking it"
-        if s.get("kind") in ("tool", "say", "review", "finish", "shots", "error"):
+        if s.get("kind") in ("tool", "say", "review", "finish", "shots", "error", "guard"):
             return step_line(s).lstrip("● ")[:140]
     return "Starting"
 
@@ -288,6 +288,48 @@ def _add(task: dict[str, Any], d: dict[str, Any], reviewer: str | None, pending_
                       "errors": d.get("errors", 0), "note": d.get("note", ""), "at": d.get("at", "")})
     elif ev == "provider_error":
         steps.append({"kind": "error", "text": f"{d.get('model')}: {d.get('error', '')}"[:400], "at": d.get("at", "")})
+    elif ev in ("breaker", "compacted"):
+        line = guard_line(ev, d)
+        if line:
+            steps.append({"kind": "guard", "label": line, "text": line, "who": who, "at": d.get("at", "")})
+
+
+# -- the safety check and the summing-up, in plain words (MD-31) -----------------------------------------
+# The breaker (breaker.py) writes ``breaker`` events {action: steer | refuse | stop, signal, reason}; the plug-in
+# host writes ``compacted`` events {tokens_before, tokens_after, ...} when older steps were summed up.
+BREAKER_LINES = {
+    "steer": "Going round in circles: told to try another way",
+    "refuse": "Still going round in circles: its next steps were refused",
+    "stop": "Stopped by the safety check",
+}
+SIGNAL_WORDS = {
+    "repeats": "the same thing {n} times",
+    "errors": "{n} errors in a row",
+    "output": "far too much output at once",
+    "tokens": "too much work on one task",
+    "no_progress": "no progress for too long",
+}
+
+
+def guard_line(ev: str, d: dict[str, Any]) -> str:
+    """One plain line for a ``breaker`` or ``compacted`` event ("" when there is nothing to say)."""
+    if ev == "compacted":
+        return "Older steps summed up to save money"
+    action = str(d.get("action") or "")
+    base = BREAKER_LINES.get(action)
+    if not base:
+        return ""
+    signal = str(d.get("signal") or "")
+    m = re.search(r"\d+", str(d.get("reason") or "")) if signal in ("repeats", "errors") else None
+    what = SIGNAL_WORDS.get(signal, "").format(n=m.group(0) if m else "several")
+    if action == "stop":
+        return f"Stopped: {what}" if what else base
+    if signal == "errors":
+        return base.replace("Going round in circles", "Errors one after another").replace(
+            "Still going round in circles", "Still one error after another")
+    if signal in ("output", "tokens", "no_progress"):
+        return {"steer": f"Warned: {what}", "refuse": f"Warned again: {what}; its next steps were refused"}[action]
+    return base
 
 
 def tasks_from_events(rows: list[dict[str, Any]], reviewer: str | None = "reviewer") -> list[dict[str, Any]]:
