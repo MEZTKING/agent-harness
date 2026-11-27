@@ -22,6 +22,13 @@ REPLAN_WORDS = "Changing it re-plans the work: about the cost of one plan (usual
 
 
 class KindStage:
+    def _kind_say(self, kind: str, data: dict[str, Any]) -> None:
+        """An event that never fails (the config is laid over in ``__init__``, before the listener is set)."""
+        try:
+            self.emit(kind, data)
+        except Exception:  # noqa: BLE001
+            pass
+
     # -- where kinds live ------------------------------------------------------------------------------------
     def _kind_home(self) -> Path:
         from ..desktop import app_home
@@ -54,7 +61,7 @@ class KindStage:
         try:
             k = kindlib.resolve(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
         except kindlib.KindError as e:
-            self.emit("kind_error", {"error": str(e)})
+            self._kind_say("kind_error", {"error": str(e)})
             return None
         if self._kind_fixed():  # approved before anyone froze it (an older approve): freeze it now
             self._kind_freeze(k)
@@ -102,7 +109,7 @@ class KindStage:
             k = self._kind()
             return kindlib.apply_to_config(cfg, k) if k else cfg
         except Exception as e:  # noqa: BLE001 - a kind is a help; it never stops a run
-            self.emit("kind_error", {"error": str(e)[:300]})
+            self._kind_say("kind_error", {"error": str(e)[:300]})
             return cfg
 
     # -- choosing ------------------------------------------------------------------------------------------------------
@@ -115,7 +122,7 @@ class KindStage:
             cat = self._kind_catalog()
             choices = kindlib.propose(goal, cat)
         except Exception as e:  # noqa: BLE001
-            self.emit("kind_error", {"error": str(e)[:300]})
+            self._kind_say("kind_error", {"error": str(e)[:300]})
             return None
         if not choices:
             return None
@@ -297,7 +304,7 @@ class KindStage:
         try:
             return self._gallery_write(tasks)
         except Exception as e:  # noqa: BLE001
-            self.emit("gallery_error", {"error": str(e)[:300]})
+            self._kind_say("gallery_error", {"error": str(e)[:300]})
             return None
 
     def _gallery_write(self, tasks: list) -> dict[str, Any] | None:

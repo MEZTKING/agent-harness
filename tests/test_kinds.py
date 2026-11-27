@@ -373,3 +373,21 @@ def test_kinds_api(tmp_path, monkeypatch):
     with pytest.raises(server.ApiError):
         r[("POST", "/api/kinds/import")]({"data": "%%%"})
     assert base64.b64decode(ex["data"])[:2] == b"PK"
+
+
+def test_a_project_whose_kind_is_gone_still_opens(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROUNDTABLE_HOME", str(tmp_path / "home"))
+    orch, cfg = make_k(tmp_path)
+    orch.start("a snake game")
+    meta = orch.project.meta()
+    meta["kind"]["id"] = "removed-kind"
+    orch.project.save_meta(meta)
+
+    class Early(KOrch):  # the kind laid over before the listener is set, as in the real __init__
+        def __init__(self, cfg, root):
+            self.base_cfg, self.project = cfg, type(orch.project)(root)
+            self.cfg = self._kind_cfg(cfg)
+
+    early = Early(cfg, orch.project.root)
+    assert early.cfg is cfg and early._kind() is None
+    assert KOrch(cfg, orch.project.root)._kind_plan_part() == ""
