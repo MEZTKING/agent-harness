@@ -1,0 +1,25 @@
+schema: kind@1
+id: website
+name: Website
+blurb: "A site to read and look at: a shop window, a portfolio, a blog."
+group: Websites
+status: trial
+extends: web-app
+match: [website, site, web site, landing page, landing, portfolio, blog, homepage, home page, docs site,
+        menu, opening hours, bakery, cafe, restaurant, salon, club, band, wedding]
+examples: ["a bakery site with opening hours and a menu", "a portfolio for my drawings",
+           "a page for my band's next gigs"]
+roles:
+  prompts: {orchestrator: prompts/planner.md, coder: prompts/coder.md}
+plan:
+  spec_sections: [Stack, Pages, Words and pictures, How to run it]
+  questions:
+    - id: pages
+      header: Pages
+      question: "One long page, or a few pages?"
+      options: [{id: one, label: "One long page"}, {id: few, label: "A few pages"}]
+      recommended: one
+  dont:
+    - {text: "No made-up facts about a real place", why: "Prices, hours and names come from the owner"}
+look: on
+estimate: {tasks: [4, 10], usd: [1.0, 3.5], minutes: [20, 70]}

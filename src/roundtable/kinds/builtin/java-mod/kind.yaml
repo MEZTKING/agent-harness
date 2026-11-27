@@ -1,0 +1,17 @@
+schema: kind@1
+id: java-mod
+name: Minecraft or Java mod
+blurb: A mod for a Java game. Not ready yet.
+group: Mods and add-ons
+status: not_yet
+match: [minecraft, mod, fabric, forge mod, data pack, datapack]
+examples: ["a Minecraft mod that adds a copper lantern"]
+needs: [java]
+plan:
+  has_ui: false
+  spec_sections: [Game and version, What it adds, How to build it]
+look: off
+proof:
+  - {id: builds, how: command, command: "./gradlew build", status: not_yet, words: "It builds"}
+targets: [jar]
+estimate: {tasks: [6, 16], usd: [2.0, 6.0], minutes: [40, 120]}
