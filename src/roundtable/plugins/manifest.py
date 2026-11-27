@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from .api import API_VERSION, HOOKS, PERMISSIONS, SECRET_PERMISSION, PluginError, permission_words
+from ..brand import NAME
 
 MANIFEST_FILE = "roundtable-plugin.toml"
 ID_RE = re.compile(r"^[a-z][a-z0-9-]{1,39}$")
@@ -127,7 +128,7 @@ def parse_manifest(raw: dict[str, Any]) -> Manifest:
     try:
         api = int(raw.get("api", API_VERSION))
     except (TypeError, ValueError):
-        raise PluginError(f"{pid}: api must be a whole number (this Roundtable speaks {API_VERSION})")
+        raise PluginError(f"{pid}: api must be a whole number (this harness speaks {API_VERSION})")
     if api < 1:
         raise PluginError(f"{pid}: api must be 1 or more")
     hooks = [str(h) for h in raw.get("hooks") or []]
@@ -148,8 +149,8 @@ def parse_manifest(raw: dict[str, Any]) -> Manifest:
 
 def check_api(m: Manifest) -> None:
     if m.api > API_VERSION:
-        raise PluginError(f"{m.name} needs a newer Roundtable Hold (plugin API {m.api}; this one has "
-                          f"{API_VERSION}). Update Roundtable Hold, then try again.")
+        raise PluginError(f"{m.name} needs a newer {NAME} (plugin API {m.api}; this one has "
+                          f"{API_VERSION}). Update {NAME}, then try again.")
 
 
 def _toml(path: Path) -> dict[str, Any]:

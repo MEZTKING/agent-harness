@@ -47,7 +47,7 @@ def change(app, body: dict) -> dict[str, Any]:
     if home is None:
         from .server import ApiError
 
-        raise ApiError("Roundtable can't find its own folder to keep this in.", 500)
+        raise ApiError("The harness can't find its own folder to keep this in.", 500)
     try:
         money.save(home, {k: body[k] for k in ("show", "rate") if k in body})
     except ValueError as e:

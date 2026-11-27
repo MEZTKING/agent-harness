@@ -1,12 +1,12 @@
-// Models: who does each job (and their backups) for every set of models, the models' health, and what Roundtable
+// Models: who does each job (and their backups) for every set of models, the models' health, and what the harness
 // has learned from its own runs. Every choice is made from a list; nothing is typed in code.
 import { h, fill, get, post, S, act, card, page, tabs, empty, ago, money, plural, every, patch, jobName, modelName, toast, dialog, seg, readable, has } from "./core.js";
 
 export async function viewModels(tab = "jobs") {
-  if (!S.ov.harness) return page("Models", null, card("Roundtable can't build on this computer yet",
+  if (!S.ov.harness) return page("Models", null, card("The harness can't build on this computer yet",
     h("p", {}, "Its settings are missing or have a problem. Open Settings to set it up."), h("a", { class: "btn primary", href: "#/settings" }, "Open Settings")));
   const t = tabs([["jobs", "Who does what", "Which model does each job, and its backups"], ["health", "Health check", "Whether each model answers like it usually does"],
-    ["learning", "Learning", "Changes Roundtable suggests from its own runs"]], tab, (k) => `#/models${k === "jobs" ? "" : "/" + k}`);
+    ["learning", "Learning", "Changes the harness suggests from its own runs"]], tab, (k) => `#/models${k === "jobs" ? "" : "/" + k}`);
   const body = tab === "health" ? await health() : tab === "learning" ? await learning() : await jobs();
   return page("Models", tab === "jobs" ? "Each job goes to the model you choose; if it can't answer, its backups take over in order." : null, t, body);
 }
@@ -51,7 +51,7 @@ function jobRow(R, j, set, redraw) {
   const [main, ...backups] = e.models;
   const row = h("div", { class: "jt-row", role: "row" },
     h("span", { role: "cell", class: "jt-job" }, h("b", { title: j.about }, j.name), h("small", { class: "muted" }, j.about),
-      j.kind === "image" ? h("span", { class: "pill" }, "pictures") : null, j.learned ? h("span", { class: "pill good", title: "Roundtable changed this from what it learned (Learning tab)" }, "learned") : null),
+      j.kind === "image" ? h("span", { class: "pill" }, "pictures") : null, j.learned ? h("span", { class: "pill good", title: "The harness changed this from what it learned (Learning tab)" }, "learned") : null),
     h("span", { role: "cell" }, modelChip(R, main), e.effort ? h("span", { class: "pill", title: "How hard it thinks before answering" }, `thinks: ${e.effort}`) : null,
       inherited ? h("small", { class: "muted", title: "This set doesn't name this job, so the base choice is used" }, " · base choice") : null),
     h("span", { role: "cell", class: "jt-backups" }, backups.length ? backups.map((m) => modelChip(R, m, true)) : h("span", { class: "muted small" }, "No backup")),
@@ -180,8 +180,8 @@ function spark(runs) {
 }
 
 // ---------- learning ----------
-const POLICY = { none: "Roundtable only suggests: nothing changes until you choose Use it.", low: "Roundtable uses small, tested changes by itself; anything bigger waits for you.",
-  medium: "Roundtable uses small and medium tested changes by itself; big ones wait for you." };
+const POLICY = { none: "The harness only suggests: nothing changes until you choose Use it.", low: "The harness uses small, tested changes by itself; anything bigger waits for you.",
+  medium: "The harness uses small and medium tested changes by itself; big ones wait for you." };
 const RISK = { low: "Small change", medium: "Medium change", high: "Big change" };
 const PSTATE = { proposed: ["Suggested", "info"], tested: ["Tested", "info"], applied: ["In use", "good"], rejected: ["Turned down", ""], rolled_back: ["Undone", "warn"] };
 function describe(p) {
@@ -202,7 +202,7 @@ async function learning() {
       const [w, c] = PSTATE[p.status] || [readable(p.status), ""];
       return h("article", { class: "proposal" },
         h("div", { class: "row" }, h("b", { class: "grow" }, describe(p)), h("span", { class: "pill " + c }, w), h("span", { class: "pill" }, RISK[p.risk] || p.risk),
-          h("span", { class: "muted small" }, p.source === "owner" ? "your idea" : "Roundtable's idea", ` · ${ago(p.created_at)}`)),
+          h("span", { class: "muted small" }, p.source === "owner" ? "your idea" : "the harness's idea", ` · ${ago(p.created_at)}`)),
         h("p", { class: "small" }, p.rationale),
         p.kind === "prompt" ? h("details", {}, h("summary", { class: "small" }, "The new instructions"), h("p", { class: "pre-line small" }, p.change.prompt_text)) : null,
         p.test ? h("p", { class: "small" }, `Tested on ${plural(p.test.tasks_compared, "earlier task")}: now ${p.test.current.approved} approved for ${money(p.test.current.cost_usd)}, with the change ${p.test.candidate.approved} for ${money(p.test.candidate.cost_usd)}. `,
@@ -219,7 +219,7 @@ async function learning() {
     const learnedRoles = Object.entries((data.learned || {}).roles || {});
     fill(box,
       card("How it learns", h("p", {}, POLICY[data.policy] || `Policy: ${data.policy}.`),
-        h("p", { class: "muted small" }, "Your own choices in Who does what are never overwritten: what Roundtable learns sits on top, and can be undone."),
+        h("p", { class: "muted small" }, "Your own choices in Who does what are never overwritten: what the harness learns sits on top, and can be undone."),
         h("div", { class: "row" },
           h("button", { class: "primary", disabled: !!running, title: "Looks through the finished tasks for better choices (free)", onclick: startJob({ action: "analyze" }, "Looking…") }, "Look for improvements"),
           h("button", { disabled: !!running, title: "A model reads the history too and suggests changes (up to $2)", onclick: startJob({ action: "analyze", llm: true, max_cost: 2 }, "A model is looking…") }, "Ask a model to look"),

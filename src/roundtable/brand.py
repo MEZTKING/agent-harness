@@ -10,3 +10,13 @@ SHORT = "Darkness"                 # where space is short: the phone's icon labe
 LEGACY_NAME = "Roundtable Hold"    # what installed copies were called before 1.0.0
 EXE = "DarknessHarness.exe"
 LEGACY_EXE = "RoundtableHold.exe"
+
+# How the harness signs a choice it made by itself in the journal. Entries written before 1.0.0
+# start with the legacy words; anything that reads them must accept both (see `is_switched`).
+SWITCHED = "Switched by the harness:"
+LEGACY_SWITCHED = "Switched by Roundtable:"
+
+
+def is_switched(text: str) -> bool:
+    """True for a journal line the harness wrote about a choice it made itself, old name or new."""
+    return text.startswith((SWITCHED, LEGACY_SWITCHED))

@@ -19,7 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from .service import Hub
 
 INSTRUCTIONS = """\
-You are connected to Roundtable Hold, the hub which links agents working in different repositories and keeps
+You are connected to Darkness Harness (formerly Roundtable Hold), the hub which links agents working in different repositories and keeps
 each project's journal (what was done, what needs doing, plans, decisions) across sessions.
 - At the start of a session, call hub_where to see where work left off (last session, next steps,
   open todos), and hub_inbox for questions or change notices from other agents.

@@ -530,7 +530,7 @@ def resume_prompt(prompt: str) -> str:
     return prompt[i:] + "\n\n" + _ENDING
 
 
-_ENDING = ("You are working through a coding tool, not Roundtable's own tools: there is no finish_task "
+_ENDING = ("You are working through a coding tool, not the harness's own tools: there is no finish_task "
            "here. Don't touch the .harness folder. When you are done, end with a short summary of what you "
            "did and anything the next person must know.")
 

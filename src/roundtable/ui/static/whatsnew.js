@@ -1,7 +1,7 @@
 // "What's new in X": a short card shown once after the app updates (ui/whatsnewapi.py). The few headlines
 // first; what each one means folds under "More". "Got it" (or Escape, or a click outside) means never again
 // for this version. Loaded once by the shell; does nothing when this copy has no such route.
-import { h, get, post, has } from "./core.js";
+import { BRAND, h, get, post, has } from "./core.js";
 
 const STYLE = `
 .whatsnew .lead { margin: 0; color: var(--color-muted); }
@@ -29,7 +29,7 @@ export function whatsNewCard(data, onDone) {
   const ok = h("button", { class: "primary", type: "button", onclick: done }, "Got it");
   const box = h("div", { class: "modal whatsnew", role: "dialog", "aria-modal": "true", "aria-labelledby": "whatsnew-title" },
     h("h2", { id: "whatsnew-title" }, data.title || "What's new"),
-    h("p", { class: "lead" }, `Roundtable Hold has been updated. The main changes:`),
+    h("p", { class: "lead" }, `${BRAND.name} has been updated. The main changes:`),
     h("ul", { class: "heads" }, heads.map((i) => h("li", {}, i.title))),
     more ? h("p", { class: "lead" }, more.trim()) : null,
     h("details", {},

@@ -19,6 +19,7 @@ import yaml
 
 from ..providers.base import ImageProvider, Provider, ProviderError
 from .saver import SaverConfig
+from ..brand import NAME
 
 # Anthropic list prices (USD per 1M tokens). Anything else: set `pricing:` in harness.yaml.
 # DeepSeek's peak hours (UTC) since August 2026, as reported; outside them prices are halved (verify)
@@ -389,7 +390,7 @@ def load_custom(harness_path: Path | None) -> dict[str, Any]:
 
 def save_custom(harness_path: Path, data: dict[str, Any]) -> None:
     custom_path(harness_path).write_text(
-        "# Providers and model choices added from the Roundtable Hold app or `roundtable providers`.\n"
+        f"# Providers and model choices added from the {NAME} app or `roundtable providers`.\n"
         "# Merged on top of harness.yaml (which is never rewritten). Safe to edit by hand.\n"
         + yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 

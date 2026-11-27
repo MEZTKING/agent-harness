@@ -33,6 +33,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ..core.models import utcnow
 from ..core import secrets as vault
+from ..brand import NAME
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
@@ -241,7 +242,7 @@ class UIApp:
     def need_cfg(self):
         cfg = self.cfg()
         if not cfg:
-            raise ApiError("Roundtable can't build projects on this computer yet: its settings file is missing or has a "
+            raise ApiError("The harness can't build projects on this computer yet: its settings file is missing or has a "
                            "problem. Open Settings to fix it."
                            + (f" (What went wrong: {self.harness_error})" if self.harness_error else ""), 503)
         return cfg
@@ -250,7 +251,7 @@ class UIApp:
         from ..improve.lab import Lab
 
         if not cfg.lab_dir:
-            raise ApiError("There's no folder for Roundtable's own records yet. Run the set-up again from Settings → "
+            raise ApiError("There's no folder for the harness's own records yet. Run the set-up again from Settings → "
                            "Advanced.", 503)
         return Lab(cfg.lab_dir)
 
@@ -987,7 +988,7 @@ class UIApp:
 
     def setup_keys(self, body):
         if not self.desktop:
-            raise ApiError("This copy reads keys from the computer's own settings. Open the Roundtable Hold app to save keys here.")
+            raise ApiError(f"This copy reads keys from the computer's own settings. Open the {NAME} app to save keys here.")
         ks = self.desktop["keys"]
         for name, value in (body.get("keys") or {}).items():
             if not isinstance(name, str) or not name.replace("_", "").isalnum() or not name.isupper():
@@ -1001,7 +1002,7 @@ class UIApp:
 
         path = self._config_paths().get("harness")
         if not path or not path.exists():
-            raise ApiError("Roundtable's settings are missing. Run the set-up again from Settings → Advanced.", 404)
+            raise ApiError("The harness's settings are missing. Run the set-up again from Settings → Advanced.", 404)
         return preview(path)
 
     def recommended_apply(self, body):
@@ -1009,7 +1010,7 @@ class UIApp:
 
         path = self._config_paths().get("harness")
         if not path or not path.exists():
-            raise ApiError("Roundtable's settings are missing. Run the set-up again from Settings → Advanced.", 404)
+            raise ApiError("The harness's settings are missing. Run the set-up again from Settings → Advanced.", 404)
         try:
             done = apply(path)
         except ValueError as e:
@@ -1019,7 +1020,7 @@ class UIApp:
 
     def setup_hub(self, body):
         if not self.desktop:
-            raise ApiError("This copy was started with its own hub settings. Open the Roundtable Hold app to connect a hub here.")
+            raise ApiError(f"This copy was started with its own hub settings. Open the {NAME} app to connect a hub here.")
         from ..desktop import connect_github_hub, write_local_hub
 
         paths = self.desktop["paths"]
@@ -1151,7 +1152,7 @@ class UIApp:
 
         cfg = self.need_cfg()
         if not cfg.path:
-            raise ApiError("Roundtable has no settings file to save this in. Run the setup again from Settings.")
+            raise ApiError("The harness has no settings file to save this in. Run the setup again from Settings.")
         try:
             if "default_set" in body:
                 routing.set_default(cfg.path, str(body.get("default_set") or ""))
@@ -1285,7 +1286,7 @@ class UIApp:
             st = update(force=bool(body.get("force")), log=job.line)
             return {"message": st.message, "changes": st.changes}
 
-        return self.jobs.start("update", "update Roundtable Hold", run, target="update").view()
+        return self.jobs.start("update", f"update {NAME}", run, target="update").view()
 
     # -- backups (Settings → Backups) ------------------------------------------------------------------
     def _backup_home(self) -> Path:
@@ -1608,7 +1609,7 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:
         url += f"?token={token}"
-    print(f"Roundtable Hold UI: {url}")
+    print(f"{NAME} UI: {url}")
     print(f"  hub:     {app.hub.config.path if app.hub else 'not configured (' + app.hub_error + ')'}")
     cfg = app.cfg()
     print(f"  harness: {cfg.path if cfg else 'not configured (' + app.harness_error + ')'}")

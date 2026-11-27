@@ -438,7 +438,7 @@ def test_the_page_lists_adds_switches_runs_and_removes(app, tmp_path, cfg, monke
     assert r["automations"][0]["made"][0]["project"] == str(root)
     with pytest.raises(ApiError, match="Pick the project"):
         call(app, "POST", "/api/automations", {"action": "edit", "id": a["id"], "changes": {"do": {"what": "goal", "text": "x"}}})
-    with pytest.raises(ApiError, match="Open the Roundtable Hold app"):
+    with pytest.raises(ApiError, match="Open the Darkness Harness app"):
         call(app, "POST", "/api/automations", {"action": "github_key", "key": "made-up"})
     r = call(app, "POST", "/api/automations", {"action": "remove", "id": a["id"]})
     assert r["automations"] == []

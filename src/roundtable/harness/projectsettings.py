@@ -43,7 +43,7 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("setup", "text", "", "A command run once before the first task, e.g. pip install -e .[dev].",
             example="pip install -e .[dev]"),
     Setting("timeout", "int", 900, "How many seconds the test or setup command may take."),
-    Setting("branch", "text", "roundtable/", "Where Roundtable's work goes in an existing app. Ending in / means that "
+    Setting("branch", "text", "roundtable/", "Where the harness's work goes in an existing app. Ending in / means that "
             "start plus a name from the goal; anything else is the exact branch. Never main or master."),
     Setting("rules_files", "lines", list(DEFAULT_RULES_FILES), "The files that hold the app's own rules, which every "
             "model follows. For a devlog or handoff only the newest entry is read."),
@@ -58,7 +58,7 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("look", "choice", "auto", "Offer looks to choose from before building. auto: only for new apps with screens, "
             "or a web app.", tuple(SWITCH)),
     Setting("show_it", "choice", "auto", "Take pictures of the app's screens after each task. auto: when it has "
-            "screens Roundtable can open.", tuple(SWITCH)),
+            "screens the harness can open.", tuple(SWITCH)),
     Setting("ask_first", "choice", "", "Before a builder runs a command: off (run it), risky (ask only for risky ones) or all (ask every time). Empty: this computer's choice.", ("", "off", "risky", "all")),
     Setting("web_search", "choice", "", "Let the builders look things up on the web (their search words go to a search "
             "service). Empty: this computer's choice; a project kept to some providers gets none unless this says on.",
@@ -198,7 +198,7 @@ def load(root: str | Path, profiles: list[str] | None = None) -> ProjectSettings
             errors.append(err)
         for key, value in raw.items():
             if key not in BY_KEY:
-                warnings.append(f"{name}: Roundtable doesn't know the setting {key!r} (kept as it is)")
+                warnings.append(f"{name}: the harness doesn't know the setting {key!r} (kept as it is)")
                 continue
             try:
                 values[key] = coerce(key, value, name, profiles)
@@ -224,7 +224,7 @@ def view(root: str | Path, profiles: list[str] | None = None) -> dict[str, Any]:
 
 # -- writing --------------------------------------------------------------------------------------------
 HEADER = """\
-# This project's own settings for Roundtable Hold. Change them here, with
+# This project's own settings for Darkness Harness. Change them here, with
 #   roundtable set DIR KEY VALUE
 # or in the desktop app (the project's Settings). This file wins over roundtable.yaml in the
 # project's top folder (settings you can commit with the app), key by key.
@@ -249,7 +249,7 @@ def render(raw: dict[str, Any]) -> str:
                 out.append(f"# {s.key}: {ex}".rstrip())
     extra = {k: v for k, v in raw.items() if k not in BY_KEY}
     if extra:
-        out.append("\n# Not known to this version of Roundtable (kept as they are):")
+        out.append("\n# Not known to this version of the harness (kept as they are):")
         out.append(yaml.safe_dump(extra, sort_keys=False, allow_unicode=True, default_flow_style=False).rstrip())
     return "\n".join(out) + "\n"
 

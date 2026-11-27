@@ -79,7 +79,7 @@ def _local(app) -> None:
 def _project_root(app, path: str) -> Path:
     cfg = app.cfg()
     if not cfg:
-        raise _error("Roundtable has no settings yet, so it can't find that project.", 404)
+        raise _error("The harness has no settings yet, so it can't find that project.", 404)
     return Path(app.project(cfg, path).root)
 
 

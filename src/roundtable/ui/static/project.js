@@ -22,7 +22,7 @@ const TABS = [["overview", "Overview", "What waits for you, the tasks, the money
   ["files", "Files", "The project's folder: open any file, and every command its tasks ran"],
   ["journal", "Journal", "Notes, to-dos, plans and decisions about this project"],
   ["terminal", "Command line", "Type commands in this project's folder"],
-  ["settings", "Settings", "How Roundtable works on this project"]];
+  ["settings", "Settings", "How the harness works on this project"]];
 
 export async function viewProject(id, tab = "overview") {
   await refreshHall();
@@ -158,9 +158,9 @@ function tasksCard(seat, d) {
       busy ? null : h("div", { class: "row task-acts" },
         t.status === "failed" ? [h("button", { class: "small primary", title: "Try this task once more", onclick: post_({ action: "retry", task: t.id }, "It will be tried again: press Carry on to start") }, "Try again"),
           h("button", { class: "small", title: "Leave this task out", onclick: post_({ action: "skip", task: t.id }, "Left out") }, "Leave it out")] : null,
-        t.status === "done" ? [h("button", { class: "small", title: "Tell Roundtable this was good work: it learns which models do well", onclick: post_({ action: "feedback", task: t.id, rating: "good" }, "Thanks: noted as good work") }, "Good work"),
-          h("button", { class: "small", title: "Tell Roundtable what was wrong: it learns from it", onclick: async (ev) => {
-            const note = await dialog({ title: "What wasn't right?", text: `About “${t.title}”. Roundtable uses this to choose better models next time.`, yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
+        t.status === "done" ? [h("button", { class: "small", title: "Tell the harness this was good work: it learns which models do well", onclick: post_({ action: "feedback", task: t.id, rating: "good" }, "Thanks: noted as good work") }, "Good work"),
+          h("button", { class: "small", title: "Tell the harness what was wrong: it learns from it", onclick: async (ev) => {
+            const note = await dialog({ title: "What wasn't right?", text: `About “${t.title}”. The harness uses this to choose better models next time.`, yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
             if (note !== null) post_({ action: "feedback", task: t.id, rating: "bad", note })(ev);
           } }, "Not right"),
           h("button", { class: "small", title: "Do this task again from the start", onclick: post_({ action: "retry", task: t.id }, "It will be done again: press Carry on to start") }, "Do it again")] : null));
@@ -235,7 +235,7 @@ function briefCard(seat) {
 // ---------- Settings ----------
 const ABOUT = { test: "The command that checks the app after each task. A task that breaks a check that passed before is sent back.",
   env: "Settings that command needs, one a line, like NAME=value. Never keys or passwords.", setup: "A command run once before the first task, to get the app ready.",
-  timeout: "How long the check or set-up may take.", branch: "Where Roundtable's work goes in an existing app; never its main line.",
+  timeout: "How long the check or set-up may take.", branch: "Where the harness's work goes in an existing app; never its main line.",
   rules_files: "The app's own rule files, which every model follows.", rules_budget: "At most this much of those rules goes to the models.",
   providers_allowed: "Only these AI services may see this project. None ticked: any of them.", profile: "Which set of models builds it: Budget, Balanced or Quality.",
   limits: "Money and effort limits for this project only. Empty: the app's own.", look: "Offer looks to choose from before building.",

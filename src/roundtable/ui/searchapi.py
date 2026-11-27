@@ -105,7 +105,7 @@ def _target(app, src: dict) -> tuple[Path, str]:
     if machine and str(machine).lower() not in ("0", "false", ""):
         home = _home(app)
         if not home:
-            raise ApiError("This computer has no folder for Roundtable's own files yet. Run the set-up in Settings.", 503)
+            raise ApiError("This computer has no folder for the harness's own files yet. Run the set-up in Settings.", 503)
         return memory.machine_path(home), "This computer"
     path = src.get("path")
     if isinstance(path, list):
@@ -163,6 +163,6 @@ def machine_check(app) -> dict[str, Any]:
 
     home = _home(app)
     if not home:
-        raise ApiError("This computer has no folder for Roundtable's own files yet. Run the set-up in Settings.", 503)
+        raise ApiError("This computer has no folder for the harness's own files yet. Run the set-up in Settings.", 503)
     path = memory.refresh_machine(home)
     return _view(app, path, "This computer")

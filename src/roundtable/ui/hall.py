@@ -23,9 +23,10 @@ from pathlib import Path
 from typing import Any
 
 from ..harness.plandoc import short_title
+from ..brand import NAME
 
 OWN_REPOS = ("agent-harness", "roundtable-hold")
-THIS_APP = "Roundtable Hold (this app)"
+THIS_APP = f"{NAME} (this app)"
 NOTES_NAME = "My notes"
 SAFE_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,120}$")
 

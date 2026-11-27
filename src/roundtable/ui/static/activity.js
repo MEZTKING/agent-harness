@@ -1,5 +1,5 @@
 // Activity: the minutes of every project in plain words, and the work the app is doing in the background.
-import { h, fill, get, S, every, patch, projectName, projectHref, jobName, modelName, clock, ago, page, tabs, empty, card, dot, jobPill, seatByPath, prose, readable } from "./core.js";
+import { BRAND, h, fill, get, S, every, patch, projectName, projectHref, jobName, modelName, clock, ago, page, tabs, empty, card, dot, jobPill, seatByPath, prose, readable } from "./core.js";
 
 const TOOL_WORDS = { write_file: "Wrote", edit_file: "Changed", read_file: "Read", run_command: "Ran", list_files: "Looked through",
   search: "Searched for", finish_task: "Finished", submit_review: "Review:", web_search: "Searched the web for",
@@ -30,7 +30,7 @@ export function feedWords(f) {
     case "backup": return ["Backups", t, ""];
     default:
       if (String(f.kind).startsWith("journal:")) {
-        const k = f.kind.slice(8), text = t.replace(/^\[[^\]]+\]\s*/, "").replace(/^goal:\s*/i, "Goal: ").replace(/^harness /, "Roundtable ");
+        const k = f.kind.slice(8), text = t.replace(/^\[[^\]]+\]\s*/, "").replace(/^goal:\s*/i, "Goal: ").replace(/^harness /, "the harness ");
         return [JOURNAL[k] || readable(k), text ? text[0].toUpperCase() + text.slice(1) : text, k === "done" ? "ok" : ""];
       }
       return [who, t, ""];
@@ -82,7 +82,7 @@ export function jobTitle(j) {
   if (j.kind === "run") return t.startsWith("new project") ? `Starting ${name || readable(t.slice(12))}` : `Building ${name || readable(t.split(" ").slice(1).join(" "))}` + (t.includes("(") ? ` ${t.slice(t.indexOf("("))}` : "");
   if (j.kind === "plan") return t.startsWith("new looks") ? `New looks for ${name}` : `Updating the plan of ${name || "a project"}`;
   if (j.kind === "probe") return "Checking the models";
-  if (j.kind === "update") return "Updating Roundtable Hold";
+  if (j.kind === "update") return `Updating ${BRAND.name}`;
   if (j.kind === "setup") return "Connecting the hub";
   if (j.kind === "backup") return t.startsWith("restore") ? "Restoring a backup" : "Backing up";
   if (j.kind === "improve") return t.startsWith("analyze") ? "Looking for improvements" : t.startsWith("replay") ? "Testing a suggestion" : t.startsWith("apply") ? "Using a suggestion" : readable(t);

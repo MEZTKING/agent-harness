@@ -1,6 +1,6 @@
 # Plugins
 
-A plugin adds something to Roundtable Hold without changing Roundtable itself: saving
+A plugin adds something to Darkness Harness without changing the harness itself: saving
 tokens, logging costs, an extra tool for the workers, a command of its own. Two come with
 it:
 
@@ -23,7 +23,7 @@ roundtable ID COMMAND ...                  a command a plugin adds
 
 `SOURCE` can be:
 
-- **a folder** on this computer: it is copied into Roundtable's own folder, so it keeps
+- **a folder** on this computer: it is copied into the harness's own folder, so it keeps
   working if you move or delete the original. `--link` uses it where it is instead (handy
   while you write one).
 - **a git link** (`https://github.com/someone/my-plugin.git`): downloaded, then copied.
@@ -36,14 +36,14 @@ Your choices (on or off, settings) are kept in `custom.yaml` next to `harness.ya
 
 ## Trust: read this before adding one
 
-A plugin is someone's Python program, and it runs with the same access as Roundtable Hold:
+A plugin is someone's Python program, and it runs with the same access as Darkness Harness:
 it could read your files, use the internet or run programs. Its manifest says what it
-*means* to do (the permissions below), and Roundtable shows you that and asks before it
-installs anything, but **Roundtable can't hold a plugin to it**. Only add plugins from
+*means* to do (the permissions below), and the harness shows you that and asks before it
+installs anything, but **the harness can't hold a plugin to it**. Only add plugins from
 people you trust, the same as any program you install. If a plugin later asks for more than
 you said yes to, it stays off until you say yes again (`roundtable plugin enable ID`).
 
-The built-in plugins are part of Roundtable Hold and trusted.
+The built-in plugins are part of Darkness Harness and trusted.
 
 If a plugin goes wrong during a run, the run carries on without it: the plugin is switched
 off until that run ends, you see a short message, and the details go in `errors.log` in its
@@ -119,7 +119,7 @@ Notes:
 - `before_model_call` changes **what is sent this once**; the conversation kept for the next
   step isn't changed. Changing earlier messages costs money: providers cache the start of a
   conversation, and a change there misses the cache.
-- A plugin's tool never replaces one of Roundtable's own tools with the same name.
+- A plugin's tool never replaces one of the harness's own tools with the same name.
 - `on_event` never sees `plugin` or `plugin_error` events.
 - A plugin's own commands and routes are only there while it's switched on.
 
@@ -146,11 +146,11 @@ Notes:
 | `secrets:<host>` | Can use your saved key for that host |
 
 They are what the plugin says about itself, shown to you before you add it. As above,
-Roundtable can't enforce them.
+the harness can't enforce them.
 
 ## Versions
 
 `roundtable.plugins.api.API_VERSION` is 1. A plugin says which it needs with `api = 1`; one
-that needs a newer version than this Roundtable has isn't loaded, and you're told to update.
+that needs a newer version than this copy has isn't loaded, and you're told to update.
 A new hook can be added without raising the version; changing what an existing hook gets or
 returns raises it.

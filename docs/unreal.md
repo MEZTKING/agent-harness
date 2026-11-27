@@ -1,8 +1,8 @@
-# Making a game in Unreal Engine with Roundtable
+# Making a game in Unreal Engine with Darkness Harness
 
 Unreal Engine 5.8 and later has a built-in plug-in, **Unreal MCP**, that lets AI tools work
 inside the editor: place and change things in a level, build Blueprints and widgets, make
-materials, import assets, run tests. Roundtable's models can use it, and so can Claude Code.
+materials, import assets, run tests. The harness's models can use it, and so can Claude Code.
 
 Everything here happens on **your Windows PC**: Unreal needs its graphics card, so a cloud
 session can't run it. Unreal MCP is marked *Experimental* by Epic: things may change between
@@ -37,12 +37,12 @@ any program on your PC could use it, so close the editor when you're not working
 3. Try: *"What actors do I have selected?"*, then *"Make a Blueprint door that opens when the
    player walks up to it."*
 
-To have the session appear on Roundtable's table too, run `roundtable connect` in that folder
+To have the session appear on the harness's Hall too, run `roundtable connect` in that folder
 once (see the README).
 
-## 4. Use it from Roundtable
+## 4. Use it from Darkness Harness
 
-Roundtable's own models (DeepSeek, GLM, Claude and the rest) can drive the editor once your
+The harness's own models (DeepSeek, GLM, Claude and the rest) can drive the editor once your
 `harness.yaml` names the server and gives it to a role:
 
 ```yaml

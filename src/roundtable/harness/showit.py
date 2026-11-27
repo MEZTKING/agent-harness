@@ -401,12 +401,12 @@ def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
         return _game_shots(root, game, out_dir, record, godot, latest)
     if not entry:
         record["note"] = ("nothing to open yet: no index.html (apps started with a command come in a later "
-                          "version of Roundtable)")
+                          "version of the harness)")
         return _write_record(out_dir, record, latest)
     record["entry"] = entry
     start = start_command(root)
     if start:
-        record["note"] = f"the app has a start command ({start}); for now Roundtable shows its page as it is"
+        record["note"] = f"the app has a start command ({start}); for now the harness shows its page as it is"
     kinds = [k for k in KINDS if k != "dark" or supports_dark(root)]
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.*"):

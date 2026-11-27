@@ -37,6 +37,7 @@ from pathlib import Path
 from .core.config import load_config
 from .core.policy import PolicyError
 from .hub.service import Hub, HubError
+from .brand import NAME
 
 
 def _print(obj) -> None:
@@ -65,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--config", default=argparse.SUPPRESS, help="path to hub.yaml")
     common.add_argument("--agent", default=argparse.SUPPRESS, help="act as this agent id (default $HUB_AGENT)")
 
-    p = argparse.ArgumentParser(prog="roundtable", description="Roundtable Hold: hub, journal and messaging")
+    p = argparse.ArgumentParser(prog="roundtable", description=f"{NAME}: hub, journal and messaging")
     p.add_argument("--config", help="path to hub.yaml")
     p.add_argument("--agent", help="act as this agent id (default $HUB_AGENT)")
     sub = p.add_subparsers(dest="cmd", required=True)

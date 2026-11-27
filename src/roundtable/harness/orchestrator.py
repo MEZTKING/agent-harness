@@ -42,6 +42,7 @@ from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_not
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
 from .tools import READ_ONLY, REVIEW_TOOLS, Tool, Toolbox, Workspace, _obj
+from ..brand import NAME, SWITCHED
 
 TASK_STATES = ("pending", "running", "done", "failed", "skipped")
 MAX_DIFF = 20_000
@@ -392,7 +393,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             state = ("approved, building" if meta.get("plan_approved") and meta.get("status") != "done"
                      else "done" if meta.get("status") == "done" else "waiting for the owner")
             gi = doc.get("goal_index", 0)
-            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by Roundtable Hold_\n\n"
+            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by {NAME}_\n\n"
                   + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
                                             image_base=f"looks/{name}/", waiting=not meta.get("plan_approved")))
             files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n"),
@@ -1445,7 +1446,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             p = next((x for x in lab.proposals() if x.id == a["id"]), None)
             why = p.rationale if p else ""
             self.emit("improved", {"id": a["id"], "version": a["version"], "summary": a["summary"]})
-            self._journal("decision", f"Switched by Roundtable: {a['summary']}. Why: {why}",
+            self._journal("decision", f"{SWITCHED} {a['summary']}. Why: {why}",
                           details=f"undo: roundtable improve rollback {a['version']}")
 
     REAL_CHECK_SECONDS = 60  # how often a long task looks at the real balance
@@ -1678,7 +1679,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         self._journal("session", f"harness finished goal '{meta['goals'][-1][:150]}' ({len(tasks)} tasks, "
                                  f"${self.budget.spent_usd:.2f}). {first[:200]}",
                       next_steps=["Look at what was built and say what you think",
-                                  "Rate the tasks in the app (good or bad), so Roundtable learns"],
+                                  "Rate the tasks in the app (good or bad), so the harness learns"],
                       details=f"Report: {self.project.dir / 'summary.md'}\n"
                               f"Rate tasks: roundtable feedback {self.project.root} TASK --good/--bad")
 

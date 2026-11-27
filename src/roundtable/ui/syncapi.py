@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from ..brand import NAME
 
 
 def routes(app) -> dict[tuple[str, str], Any]:
@@ -141,7 +142,7 @@ def carry_on(app, body) -> dict[str, Any]:
         return {"reply": "It's on this machine: carrying on now.", "machine": me, "sent": False, "here": True,
                 "job": job.view() if job else None}
     if not where:
-        raise ApiError("Roundtable doesn't know which machine has this project's files yet. Open it on the machine "
+        raise ApiError("The harness doesn't know which machine has this project's files yet. Open it on the machine "
                        "that made it and press Carry on there.", 404)
     if where.get("building"):
         return {"reply": f"It's still building on {where['machine_name']}: nothing to carry on yet.",
@@ -167,5 +168,5 @@ def carry_on(app, body) -> dict[str, Any]:
     if not m.get("online"):
         reply += f" Your {kind} is off – it'll pick this up when it's on."
     elif not m.get("listening"):
-        reply += f" Your {kind} isn't listening for commands: open Roundtable Hold there."
+        reply += f" Your {kind} isn't listening for commands: open {NAME} there."
     return {"reply": reply, "machine": where, "sent": True, "here": False}

@@ -33,6 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from .brand import NAME
 
 Runner = Callable[[list[str], float], tuple[int | None, str]]  # (argv, timeout) -> (exit code, output)
 Line = Callable[[str], None]
@@ -408,7 +409,7 @@ CATALOG: list[Tool] = [
          linux="Install Android Studio from developer.android.com, or the command-line tools into ~/Android/Sdk",
          admin=True, finder=_find_android, version_args=(), size="about 3 GB",
          note="Open Android Studio once after it installs: it downloads the SDK the first time."),
-    Tool("godot", "Godot", "Games and 3D", "Makes 2D and 3D games; Roundtable starts the game itself to check it.",
+    Tool("godot", "Godot", "Games and 3D", "Makes 2D and 3D games; the harness starts the game itself to check it.",
          names=("godot", "godot4", "Godot"), min_version="4.4", winget="GodotEngine.GodotEngine",
          brew=("--cask", "godot"), linux="flatpak install flathub org.godotengine.Godot (or download it from godotengine.org)",
          places=_godot_places),
@@ -622,7 +623,7 @@ def run_install(tool_id: str, line: Line, s: System | None = None,
     """Install one tool (the owner pressed Install), then look for it again. Returns what the job shows."""
     tool = BY_ID.get(tool_id)
     if not tool:
-        raise ValueError("Roundtable doesn't know that tool. Refresh the page and try again.")
+        raise ValueError("The harness doesn't know that tool. Refresh the page and try again.")
     s = s or System.here()
     plan = install_plan(tool, s.os)
     if not plan["can"]:
@@ -645,7 +646,7 @@ def run_install(tool_id: str, line: Line, s: System | None = None,
         if plan["note"]:
             words += " " + plan["note"]
     elif ok_code:
-        words = (f"It finished, but {tool.name} still isn't found. Close Roundtable Hold and open it again so it "
+        words = (f"It finished, but {tool.name} still isn't found. Close {NAME} and open it again so it "
                  "sees the new program, then press Check again.")
     else:
         words = (f"{tool.name} didn't install (the installer stopped with code {code}). The log above says why; "
@@ -766,7 +767,7 @@ def _paths(harness_path: str | Path | None) -> Path:
     except FileNotFoundError:
         p = Path("harness.yaml")
     if not p.is_file():
-        raise FileNotFoundError("Roundtable's settings aren't set up on this computer yet. Run the set-up in "
+        raise FileNotFoundError("The harness's settings aren't set up on this computer yet. Run the set-up in "
                                 "Settings first.")
     return p
 

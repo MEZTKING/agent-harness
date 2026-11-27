@@ -2,7 +2,7 @@
 // markdown drawn, CSV as a table, JSON folded, pictures, PDFs in the browser's own viewer), Save a copy, and the
 // commands its tasks ran, each with its exit code and its output folded, plus "Run the tests".
 // Everything is built with h() as text: a file's contents are never run or read as HTML. API: ui/filesapi.py.
-import { h, fill, get, post, q, every, card, toast, act, ago, fileSize, plural, picture, markdown } from "./core.js";
+import { BRAND, h, fill, get, post, q, every, card, toast, act, ago, fileSize, plural, picture, markdown } from "./core.js";
 
 const pfile = (path, file, download) => "/raw/pfile?" + q({ path, file, download: download ? "1" : "" });
 const ICONS = { folder: "📁", image: "🖼", pdf: "📄", markdown: "📝", csv: "▦", json: "{ }", code: "</>", text: "≡", other: "•" };
@@ -12,7 +12,7 @@ export async function filesTab(seat, now) {
   if (!seat.path) {  // built on another machine: say where its files are
     let d = null;
     try { d = await get(`/api/files?${q({ name: seat.hub_name || seat.id })}`); } catch { /* the words below */ }
-    return card("Files", h("p", {}, (d && d.words) || "This project's files aren't on this computer. Open Roundtable Hold on the computer that builds it."));
+    return card("Files", h("p", {}, (d && d.words) || `This project's files aren't on this computer. Open ${BRAND.name} on the computer that builds it.`));
   }
   const path = seat.path;
   const list = h("div", { class: "files-list" }, h("p", { class: "muted" }, "Loading…"));
@@ -21,7 +21,7 @@ export async function filesTab(seat, now) {
   const box = h("div", { class: "stack" },
     h("section", { class: "card files-card" },
       h("div", { class: "card-head" }, h("h2", {}, "Files"),
-        h("span", { class: "muted small", title: "Hidden files, keys and Roundtable's own records are never shown" }, "Read only")),
+        h("span", { class: "muted small", title: "Hidden files, keys and the harness's own records are never shown" }, "Read only")),
       h("div", { class: "files-split" }, list, view)),
     log);
   const open = async (dir) => {

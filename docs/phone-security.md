@@ -1,6 +1,6 @@
 # Your phone and your PC: what's kept, where it goes
 
-Short version: the phone talks only to your own PC, GitHub and (if you use it) Roundtable on the
+Short version: the phone talks only to your own PC, GitHub and (if you use it) the harness on the
 phone itself. Everything secret is locked on the phone. If you lose the phone, remove it on the PC
 in **Settings → Your phone** and it can't get in any more.
 
@@ -11,9 +11,9 @@ in **Settings → Your phone** and it can't get in any more.
 | Your PC's name, addresses, port and certificate fingerprint | Phone, app's own storage | Locked with a key in Android's keystore |
 | The phone's own pass for your PC (a random token) | Phone, app's own storage | Locked the same way; the PC keeps only a scrambled copy (its hash) |
 | Your GitHub token, if you use the hub without the PC | Phone, app's own storage | Locked the same way |
-| A copy of the last Roundtable screen, which messages you've been told about | Phone, app's own storage | Locked the same way |
+| A copy of the last Hall screen, which messages you've been told about | Phone, app's own storage | Locked the same way |
 | Drafts and pictures you're about to send | Phone, app's own folder (`drafts`) | Only this app can read it; cleared once sent |
-| Roundtable on this phone (if you set it up): its files and API keys | Phone, app's own folder (`runtime`) | Only this app can read it; keys stay with that Roundtable |
+| The harness on this phone (if you set it up): its files and API keys | Phone, app's own folder (`runtime`) | Only this app can read it; keys stay with it |
 
 Nothing is backed up to Google: backups are switched off for this app. Uninstalling the app
 deletes all of it.
@@ -34,10 +34,10 @@ deletes all of it.
     your code. (One stand-in in about a thousand could pass the check by luck; the QR code has no
     such gap, so use it when you can.)
 - **GitHub** (api.github.com): the hub, if you use it without the PC, and checking for app updates.
-- **Roundtable on this phone** (127.0.0.1, the phone itself): the only place the app talks to
+- **The harness on this phone** (127.0.0.1, the phone itself): the only place the app talks to
   without encryption, because it never leaves the phone.
 
-The PC's phone server lets a phone do only what's on its list: the Roundtable, projects, chat,
+The PC's phone server lets a phone do only what's on its list: the Hall, projects, chat,
 messages, files to read, the hub. Settings, API keys, providers and updates stay on the PC.
 
 ## Pairing

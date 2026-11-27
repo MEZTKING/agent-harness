@@ -99,7 +99,7 @@ def catalog(app) -> dict[str, Any]:
     return {"groups": [{"group": g, "kinds": ks} for g, ks in groups.items()],
             "extras": [kindlib.model.extra_card(e) for e in cat.extras.values()],
             "problems": cat.problems,
-            "words": "What Roundtable can make. “On trial” means nothing built with it has passed its proof yet."}
+            "words": "What the harness can make. “On trial” means nothing built with it has passed its proof yet."}
 
 
 def one_kind(app, q: dict) -> dict[str, Any]:

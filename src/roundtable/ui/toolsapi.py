@@ -89,7 +89,7 @@ def install(app, body) -> dict[str, Any]:
     tid = str(body.get("tool") or "")
     tool = prereq.BY_ID.get(tid)
     if not tool:
-        raise ApiError("Roundtable doesn't know that tool. Refresh the page and try again.")
+        raise ApiError("The harness doesn't know that tool. Refresh the page and try again.")
     s = prereq.System.here()
     plan = prereq.install_plan(tool, s.os)
     if not plan["can"]:

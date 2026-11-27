@@ -16,7 +16,7 @@ from typing import Callable
 from .api import PluginError
 from .manifest import Manifest
 
-TRUST_NOTE = ("A plugin is someone's program: it runs with the same access as Roundtable Hold. Roundtable "
+TRUST_NOTE = ("A plugin is someone's program: it runs with the same access as Darkness Harness. The harness "
               "can't hold it to what it says below, so only add plugins from people you trust.")
 
 

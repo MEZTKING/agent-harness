@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 
 from .core import secrets as vault
 from .desktop import KNOWN_KEYS, KeyStore, Paths
+from .brand import NAME
 
 MODEL = "deepseek/deepseek-v4-flash"  # the owner's rule: Flash on the phone, never V4 Pro
 ROLES = ("orchestrator", "manager", "coder", "critic", "scout", "reviewer", "designer")
@@ -98,7 +99,7 @@ def machine_env(paths: Paths, seat: str) -> None:
 def write_local_hub(paths: Paths, seat: str) -> None:
     from .desktop import write_local_hub as write
 
-    write(paths, agents={seat: {"description": "Roundtable on this phone"},
+    write(paths, agents={seat: {"description": f"{NAME} on this phone"},
                          "me": {"description": "My own notes and plans that don't belong to one project"}})
 
 
@@ -112,7 +113,7 @@ def ensure_phone_setup(paths: Paths) -> dict[str, Any]:
         write_local_hub(paths, seat)
     if not paths.harness_yaml.exists():
         paths.harness_yaml.write_text(
-            "# Roundtable on this phone: every role on DeepSeek V4 Flash. Change it in the app.\n"
+            f"# {NAME} on this phone: every role on DeepSeek V4 Flash. Change it in the app.\n"
             + yaml.safe_dump(harness_config(paths.hub_yaml, seat), sort_keys=False), encoding="utf-8")
     projects = workspaces_dir(paths.home)
     projects.mkdir(parents=True, exist_ok=True)
@@ -172,8 +173,8 @@ def connect_hub(paths: Paths, keys: KeyStore, url: str, token: str, seat: str, l
         "default_policy": "deny", "agents": {"me": {"description": "My own notes and plans"}},
         "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}]}
     cfg["storage"] = {"type": "git", "path": str(target), "branch": (cfg.get("storage") or {}).get("branch", "main")}
-    cfg.setdefault("agents", {}).setdefault(seat, {"description": "Roundtable on this phone"})
-    paths.hub_yaml.write_text("# Roundtable on this phone: the hub repository, kept in step with git\n"
+    cfg.setdefault("agents", {}).setdefault(seat, {"description": f"{NAME} on this phone"})
+    paths.hub_yaml.write_text(f"# {NAME} on this phone: the hub repository, kept in step with git\n"
                               + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     if token:
         keys.set(HUB_TOKEN, token)
@@ -189,7 +190,7 @@ class LocalAccess:
     """Stands in for phone.PhoneAccess: one client (the app that started us), one launch token."""
 
     local = True
-    unauthorized = "missing or wrong launch token: close Roundtable in the app and start it again"
+    unauthorized = "missing or wrong launch token: close the harness in the app and start it again"
 
     def __init__(self, app, paths: Paths, keys: KeyStore, token: str):
         self.app, self.paths, self.keys = app, paths, keys
@@ -249,7 +250,7 @@ class LocalAccess:
         me = this_machine()
         try:
             with self.app.hub_lock:
-                register_seat(self.app.hub, me["id"], me["name"], me["kind"], "Roundtable on this phone")
+                register_seat(self.app.hub, me["id"], me["name"], me["kind"], f"{NAME} on this phone")
         except Exception as e:  # offline: the next sync adds it
             self.seat_error = f"The phone isn't in the hub's list yet ({e}); it tries again at the next sync."[:300]
 
@@ -329,7 +330,7 @@ def main(argv: list[str]) -> int:
     import argparse
 
     p = argparse.ArgumentParser(prog="roundtable phone", description=(
-        "Roundtable on the phone itself (Roundtable Mobile starts this inside its own Linux)."))
+        f"{NAME} on the phone itself (the phone app starts this inside its own Linux)."))
     p.add_argument("what", choices=["serve"])
     p.add_argument("--local", action="store_true", help="127.0.0.1 only, plain HTTP, the app's launch token")
     p.add_argument("--port", type=int, default=8766)

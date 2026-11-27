@@ -30,7 +30,7 @@ function addLooks() {
 }
 
 const KINDS = [["", "Everything", "Look in every place"], ["plan,task", "Plans and tasks", "The plans and every task, with their reviews"],
-  ["memory", "Memory", "What Roundtable remembers about each project and this computer"],
+  ["memory", "Memory", "What the harness remembers about each project and this computer"],
   ["journal,letter,note", "Journal and letters", "The hub's journal, your letters and your saved notes"],
   ["file", "Files", "The projects' own files: names and text"]];
 
@@ -81,7 +81,7 @@ export async function viewSearch(words = "") {
   field.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); clearTimeout(timer); draw(); } });
   const where = seg(KINDS.map(([v, t, tip]) => [v, t, tip]), "", (v) => { kinds = v; draw(); }, "Where to look");
   const more = h("p", { class: "muted small" },
-    h("button", { class: "link-btn", type: "button", title: "What Roundtable remembers about this computer: the tools it found and your own notes",
+    h("button", { class: "link-btn", type: "button", title: "What the harness remembers about this computer: the tools it found and your own notes",
       onclick: () => openMemory({ machine: true }) }, "This computer's memory"));
   setTimeout(() => field.focus(), 0);
   draw();
@@ -176,7 +176,7 @@ export async function openMemory(o) {
     onclick: (ev) => act(ev.currentTarget, () => post("/api/memory/machine/check", {}), "Looked again", (r) => { area.value = r.markdown; fill(counts, r.words); }) },
   "Check the tools again") : null;
   const body = h("div", { class: "stack" },
-    h("p", { class: "muted small" }, "Roundtable reads this before planning and before each task. Rules never move; when it gets long, the oldest notes move word for word to the archive."),
+    h("p", { class: "muted small" }, "The harness reads this before planning and before each task. Rules never move; when it gets long, the oldest notes move word for word to the archive."),
     counts, area, extra);
   const save = await dialog({ title: `${m.where}: memory`, body, yes: "Save", no: "Cancel", wide: true });
   if (!save) return;
@@ -186,6 +186,6 @@ export async function openMemory(o) {
 
 // A small "Memory" button for a project's page (the coordinator places it): opens the editor.
 export function memoryButton(path) {
-  return h("button", { class: "small", type: "button", title: "What Roundtable remembers about this project: rules, facts and recent notes. You can edit it.",
+  return h("button", { class: "small", type: "button", title: "What the harness remembers about this project: rules, facts and recent notes. You can edit it.",
     onclick: () => openMemory({ path }).catch((e) => toast(e.message, true)) }, "Memory");
 }

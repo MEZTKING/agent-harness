@@ -22,6 +22,7 @@ from typing import Any
 import yaml
 
 from .core import secrets as vault
+from .brand import NAME
 
 # job names and what each does, for the owner
 JOBS: dict[str, tuple[str, str]] = {
@@ -224,6 +225,6 @@ def set_default(harness_path: str | Path, profile: str) -> dict[str, Any]:
 
 def _write(path: Path, raw: dict[str, Any]) -> None:
     backup = _backup(path)
-    path.write_text("# Roundtable configuration: who does what. Changed in the Roundtable Hold app (Models);\n"
+    path.write_text(f"# {NAME} configuration: who does what. Changed in the {NAME} app (Models);\n"
                     f"# the file before the change is {backup.name}.\n"
                     + yaml.safe_dump(raw, sort_keys=False, allow_unicode=True), encoding="utf-8")

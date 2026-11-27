@@ -1,13 +1,13 @@
-# Using Roundtable on one of your own apps
+# Using Darkness Harness on one of your own apps
 
-Roundtable can work on an app you already have – a last round of bug fixes, making it faster,
+The harness can work on an app you already have – a last round of bug fixes, making it faster,
 tidying it up – not only make new ones. It works like a careful helper who has been given a copy of
 the keys: it keeps to its own branch, follows your app's own rules, runs your app's tests, and never
 pushes anything.
 
 ## How to start
 
-Point Roundtable at the app's folder (the one with your code in it, already under git):
+Point the harness at the app's folder (the one with your code in it, already under git):
 
 ```
 roundtable new path/to/your-app "Fix the bugs left before I share it with friends" --approve
@@ -31,8 +31,8 @@ app as for any project.
 - **It never pushes.** No pushing, no pull requests, no releases, no paid CI runs: your
   repository online stays as it was. (The AI models do read the code they work on: use
   `providers_allowed` below to choose which ones may.) You look at the branch and merge it yourself when you're happy (that may come to
-  Roundtable later).
-- **Your `.gitignore` is left alone.** Roundtable keeps its own notes in a `.harness` folder and hides
+  the harness later).
+- **Your `.gitignore` is left alone.** The harness keeps its own notes in a `.harness` folder and hides
   it from git in `.git/info/exclude`, which is never shared.
 - **It follows your app's rules.** It reads `CLAUDE.md`, `.claude/CLAUDE.md` and `AGENTS.md`, and the
   newest entry of `HANDOFF.md` and `DEVLOG.md`, and gives them to every model that plans, checks,
@@ -47,13 +47,13 @@ app as for any project.
   the reviewer only sees what's new.
 
 If you had changes of your own that weren't committed, they stay in the folder and are saved on
-Roundtable's branch with its first commit. It's tidier to commit or put them away first.
+the harness's branch with its first commit. It's tidier to commit or put them away first.
 
 `roundtable status path/to/your-app` shows the branch and how the tests did before the first task.
 
 ## The settings file
 
-Each project has its own settings in `.harness/project.yaml`. Roundtable writes the file the first
+Each project has its own settings in `.harness/project.yaml`. The harness writes the file the first
 time, with a note above every setting. Change it in any text editor, in the desktop app (the
 project's page, **Settings**), from the phone, or on the command line:
 
@@ -97,9 +97,9 @@ limits:
 ### Settings you can share with the app
 
 `.harness` isn't saved in git, so `.harness/project.yaml` is yours alone. To give everyone who runs
-Roundtable on the app the same settings, put a `roundtable.yaml` in the app's top folder and commit it.
+the harness on the app the same settings, put a `roundtable.yaml` in the app's top folder and commit it.
 **`.harness/project.yaml` wins over `roundtable.yaml`, setting by setting**, and `roundtable.yaml` wins
 over the defaults. `roundtable settings` says where each value came from.
 
-A setting Roundtable doesn't know (from a newer version, say) is kept as it is and mentioned, never
+A setting the harness doesn't know (from a newer version, say) is kept as it is and mentioned, never
 thrown away. A setting with a mistake stops the run with a message saying what to fix.
