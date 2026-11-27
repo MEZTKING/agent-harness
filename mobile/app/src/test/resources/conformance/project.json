@@ -1,0 +1,132 @@
+{
+ "events": [
+  {
+   "at": "2026-11-27T13:54:05Z",
+   "text": "Planning with a/planner..."
+  },
+  {
+   "at": "2026-11-27T13:54:05Z",
+   "text": "      - submit_plan {\"tasks\": [{\"id\": \"T1\", \"title\": \"hello module\", \"role\": \"coder\", \"description\": \"create hello.py\", \"acceptance\": \"hello.py prints hi\", \"dep"
+  },
+  {
+   "at": "2026-11-27T13:54:05Z",
+   "text": "Plan:\n   T1 [coder] hello module\n   T2 [designer] logo\n   T3 [coder] tests"
+  },
+  {
+   "at": "2026-11-27T13:54:05Z",
+   "text": "[status: awaiting_approval]"
+  },
+  {
+   "at": "2026-11-27T13:54:05Z",
+   "text": "[status: awaiting_approval]"
+  }
+ ],
+ "files": [
+  ".gitignore",
+  "README.md"
+ ],
+ "meta": {
+  "created_at": "2026-11-27T13:54:05Z",
+  "goals": [
+   "bakery site"
+  ],
+  "kind": {
+   "by": "roundtable",
+   "choices": [
+    {
+     "id": "website",
+     "why": "because you said “site” and “bakery”"
+    },
+    {
+     "id": "other",
+     "why": "if it's none of these"
+    }
+   ],
+   "confirmed": false,
+   "extras": [],
+   "id": "website",
+   "why": "because you said “site” and “bakery”"
+  },
+  "parts": [
+   {
+    "extras": [],
+    "folder": ".",
+    "id": "main",
+    "kind": "website",
+    "name": "Website"
+   }
+  ],
+  "plan_approved": false,
+  "references": [],
+  "require_approval": true,
+  "spent_usd": 0.00012,
+  "status": "awaiting_approval",
+  "unpriced_calls": 0,
+  "updated_at": "2026-11-27T13:54:05Z"
+ },
+ "metrics": [],
+ "name": "proj",
+ "path": "/home/owner/lab/proj",
+ "summary": "",
+ "tasks": [
+  {
+   "acceptance": "hello.py prints hi",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [],
+   "description": "create hello.py",
+   "goal_index": 0,
+   "id": "T1",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "",
+   "previous_attempts": [],
+   "role": "coder",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "hello module"
+  },
+  {
+   "acceptance": "png exists",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [],
+   "description": "a bakery logo",
+   "goal_index": 0,
+   "id": "T2",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "assets/logo.png",
+   "previous_attempts": [],
+   "role": "designer",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "logo"
+  },
+  {
+   "acceptance": "tests pass",
+   "attempts": [],
+   "base_commit": null,
+   "depends_on": [
+    "T1"
+   ],
+   "description": "add test",
+   "goal_index": 0,
+   "id": "T3",
+   "image_options": {},
+   "merge_of": "",
+   "output_path": "",
+   "previous_attempts": [],
+   "role": "coder",
+   "section": "",
+   "status": "pending",
+   "stronger": false,
+   "summary": "",
+   "title": "tests"
+  }
+ ]
+}

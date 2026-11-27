@@ -1,0 +1,35 @@
+schema: kind@1
+id: web-app
+name: Web app
+blurb: A tool or app that runs in the browser.
+group: Web apps
+status: trial
+match: [app, tool, dashboard, player, music player, media player, editor, tracker, calculator, timer, todo,
+        to-do, notes, converter, planner, organiser, organizer, list, budget, offline, web app]
+examples: ["a music player for the songs on my computer", "a budget tracker that works offline",
+           "a timer for my workouts"]
+needs: [node, playwright]
+roles:
+  prompts: {orchestrator: prompts/planner.md, coder: prompts/coder.md, reviewer: prompts/reviewer.md}
+plan:
+  has_ui: true
+  skeleton_first: true
+  spec_sections: [Stack, Screens, Data, How to run it]
+  questions:
+    - id: offline
+      header: Offline
+      question: "Should it work without the internet?"
+      options: [{id: "yes", label: "Yes, fully offline"}, {id: "no", label: "No, it can use the internet"}]
+      recommended: "yes"
+  dont:
+    - {text: "No build step the owner has to run by hand", why: "It must open from one page or one command"}
+    - {text: "No accounts or servers unless the plan asks for them", why: "Everything stays on the owner's computer"}
+look: on
+proof:
+  - {id: starts, how: page_opens, words: "It opens with no errors"}
+  - {id: tests, how: command, command: "npm test", optional: true, words: "Its tests pass"}
+pictures: [desktop, phone]
+targets: [web]
+extras_allowed: [apk, exe]
+plugins: []
+estimate: {tasks: [6, 14], usd: [1.5, 5.0], minutes: [30, 100]}

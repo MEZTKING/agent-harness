@@ -4,6 +4,8 @@
 import { h, fill, clean, get, post, toast, act, card, money, ago, plural, jobName, modelName, taskPill, prose, markdown, q, refreshHall, projectHref, dialog, seg } from "./core.js";
 import { askCard, answerHere, answerHub, hubCommand } from "./asks.js";
 import { composer } from "./compose.js";
+import { kindCard } from "./kinds.js";
+import { pounds } from "./pounds.js";
 
 const SETS = { budget: ["Budget", "Cheapest that still works"], balanced: ["Balanced", "Strong models where it matters, cheaper ones for the rest"], quality: ["Quality", "The strongest model for every job"] };
 const setName = (n) => (SETS[n] || [n[0].toUpperCase() + n.slice(1)])[0];
@@ -56,7 +58,8 @@ async function localPlan(seat, redraw) {
     h("div", { class: "card-head" }, h("h2", { class: "plan-title" }, words.title || "The plan"),
       h("span", { class: "muted small", title: "Each change makes a new version; More about this plan lists them" }, `version ${doc.version}`)),
     h("p", { class: "plan-state" }, h("i", { class: "sdot " + (finished ? "good" : locked ? "busy" : "wait") }), words.state || ""),
-    !locked && words.estimate ? h("p", { class: "muted small", title: (doc.estimate || {}).note || "What the planner expects the building to cost" }, words.estimate[0].toUpperCase() + words.estimate.slice(1)) : null,
+    !locked && words.estimate ? h("p", { class: "muted small", title: (doc.estimate || {}).note || "What the planner expects the building to cost" }, words.estimate[0].toUpperCase() + words.estimate.slice(1),
+      pounds((doc.estimate || {}).cost_usd) ? ` (${pounds(doc.estimate.cost_usd)})` : "") : null,
     d.busy ? h("p", { class: "muted small" }, "It's working on this project now; changes wait until it stops.") : null,
     locked ? null : h("div", { class: "row" },
       pending.length ? h("button", { class: "primary", disabled: d.busy, title: "The planner rewrites the plan with your answers and changes (a few cents)",
@@ -98,7 +101,8 @@ async function localPlan(seat, redraw) {
     (doc.history || []).length > 1 ? fold(`History (${doc.history.length} versions)`, h("ul", {}, doc.history.slice().reverse().map((x) => h("li", { class: "small" },
       `Version ${x.version} · ${ago(x.at)} · ${x.by === "critic" ? "changed after the second opinion" : x.by === "owner" ? "your changes" : x.change || "the first plan"}`)))) : null);
 
-  return [top, input, tasks, more];
+  const kind = doc.kind ? kindCard(doc.kind, path, () => { refreshHall(); redraw(); }) : null;  // "This looks like a website. Right?"
+  return [kind, top, input, tasks, more];
 }
 
 // one line a task: a tick when done, a dot otherwise

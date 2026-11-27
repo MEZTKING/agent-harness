@@ -1,0 +1,12 @@
+{
+ "label": "Off",
+ "log": [],
+ "never": [],
+ "on": false,
+ "spend_cap_usd": 2.0,
+ "spent_usd": 0.0,
+ "started_at": null,
+ "stopped": "",
+ "until": null,
+ "until_label": ""
+}

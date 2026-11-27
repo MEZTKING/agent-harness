@@ -1,0 +1,17 @@
+{
+ "delivered": "queue",
+ "guidance": 1,
+ "items": [
+  {
+   "at": "2026-11-27T13:54:06+00:00",
+   "id": "b0ebdf6c",
+   "kind": "text",
+   "mime": "text/plain",
+   "name": "note.txt",
+   "scope": "note",
+   "size": 5,
+   "size_words": "5 bytes"
+  }
+ ],
+ "reply": "Noted. This instruction now goes to every remaining task (T1, T2, T3) and to future plans and reviews."
+}

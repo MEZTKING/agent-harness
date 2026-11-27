@@ -1,0 +1,71 @@
+{
+ "blurb": "A site to read and look at: a shop window, a portfolio, a blog.",
+ "built": 0,
+ "examples": [
+  "a bakery site with opening hours and a menu",
+  "a portfolio for my drawings",
+  "a page for my band's next gigs"
+ ],
+ "extras": [],
+ "extras_allowed": [
+  "apk",
+  "exe"
+ ],
+ "group": "Websites",
+ "guess": true,
+ "id": "website",
+ "missing": [],
+ "more": {
+  "card": "Built on the web app recipe. The Look step does most of the work: three looks to choose from.",
+  "look": "on",
+  "plugins": [],
+  "prompts_for": [
+   "coder",
+   "orchestrator",
+   "reviewer"
+  ],
+  "roles_added": [],
+  "spec_sections": [
+   "Stack",
+   "Pages",
+   "Words and pictures",
+   "How to run it"
+  ],
+  "targets": [
+   "web"
+  ]
+ },
+ "name": "Website",
+ "needs": [
+  {
+   "id": "node",
+   "missing": false,
+   "name": "Node.js"
+  },
+  {
+   "id": "playwright",
+   "missing": false,
+   "name": "Playwright's browser"
+  }
+ ],
+ "proof": [
+  {
+   "id": "starts",
+   "not_yet": false,
+   "optional": false,
+   "words": "It opens with no errors"
+  },
+  {
+   "id": "tests",
+   "not_yet": false,
+   "optional": true,
+   "words": "Its tests pass"
+  }
+ ],
+ "source": "builtin",
+ "status": "trial",
+ "status_words": "On trial",
+ "typical": "$1.00–$3.50 · 20–70 min (a guess)",
+ "typical_tip": "A guess: nothing has been built with this yet.",
+ "usable": true
+}

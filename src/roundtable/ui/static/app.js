@@ -15,9 +15,12 @@ import "./notify.js";
 import "./whatsnew.js";
 import { viewSearch, mountSearch } from "./search.js";
 import { viewAutomations } from "./automation.js";
+import { viewGallery } from "./gallery.js";
+import { pounds } from "./pounds.js";
 
 const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
-  activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup, search: viewSearch };
+  activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup, search: viewSearch,
+  gallery: viewGallery };
 const ROOM_OF = { new: "projects", p: "projects", setup: "settings", automations: "settings" };
 
 // old addresses (bookmarks, links in letters and the autopilot's log) still land in the right place
@@ -86,6 +89,9 @@ function header(rt) {
   w.hidden = !rt.running_jobs;
   w.querySelector("span").textContent = rt.running_jobs === 1 ? "1 job running" : `${rt.running_jobs} jobs running`;
   document.querySelector("#today b").textContent = money(rt.spend_today);
+  const gbp = rt.spend_today > 0 ? pounds(rt.spend_today) : "";  // "≈ £0.95" beside the dollars, when the owner wants pounds
+  const tp = document.getElementById("today-gbp");
+  if (tp) { tp.textContent = gbp ? ` ${gbp}` : ""; tp.hidden = !gbp; }
   if (rt.autopilot) drawAutopilot(rt.autopilot, true);
   document.title = needs ? `(${needs}) Roundtable Hold` : "Roundtable Hold";
 }

@@ -38,6 +38,8 @@ KNOWN_KEYS = {
     "OPENROUTER_API_KEY": "OpenRouter",
     "OPENFERENCE_API_KEY": "Openference",
     "ROUNDTABLE_GITHUB_TOKEN": "GitHub",
+    "BRAVE_API_KEY": "Brave Search",  # web search for builders (harness/websearch.py)
+    "TAVILY_API_KEY": "Tavily",
 }
 
 

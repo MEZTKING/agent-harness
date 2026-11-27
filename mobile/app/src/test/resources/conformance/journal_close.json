@@ -1,0 +1,16 @@
+{
+ "agent": "proj",
+ "closed_at": "2026-11-27T13:54:06Z",
+ "closed_note": "",
+ "created_at": "2026-11-27T13:54:06Z",
+ "details": "",
+ "id": "9a6cb4",
+ "kind": "todo",
+ "next": [],
+ "priority": "normal",
+ "source": "ui",
+ "status": "done",
+ "tags": [],
+ "text": "check the made-up logo",
+ "ts": 1795787646.666682
+}

@@ -1,9 +1,12 @@
 // Watch and App: following the work like a session (every step, changes in colour, pictures) and the app itself.
 // Several tasks run at once: the ones still going sit side by side at the top, each one line with where its time
 // went and how full its context is; the details (the split in words, tokens, files changed) are folded.
-import { h, fill, get, post, act, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q, refreshHall } from "./core.js";
+import { h, fill, get, post, act, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q, refreshHall, has } from "./core.js";
 import { hubSession } from "./machines.js";
 import { hubCommand } from "./asks.js";
+import { rewindButton } from "./rewind.js";
+import { proofCard } from "./proof.js";
+import { liveOutput } from "./terminal.js";
 
 const rawUrl = (kind, path, name, task) => `/raw/${kind}?` + new URLSearchParams({ path, name, ...(task ? { task } : {}) });
 const shotUrl = (path, rec, kind) => rawUrl("shot", path, (rec.pictures || {})[kind] || `${kind}.png`, rec.dir || rec.task);
@@ -23,6 +26,18 @@ export async function watchTab(seat, now) {
     h("section", { class: "card term-card" }, h("div", { class: "card-head" }, h("h2", {}, "The work, step by step"), status), term),
     outs, details);
   const path = seat.path;
+  // kept per task, so each redraw moves the same node: a command's output keeps flowing, the proof isn't fetched again
+  const liveNodes = new Map(), proofNodes = new Map();
+  const [canLive, canRewind] = path ? await Promise.all([has("/api/terminal/task"), has("/api/rewind")]) : [false, false];
+  const kept = (map, id, make) => { if (!map.has(id)) map.set(id, make()); return map.get(id); };
+  const taskEnd = (t) => {
+    if (!path || !t.id) return null;
+    if (t.status === "running") return canLive ? kept(liveNodes, t.id, () => liveOutput(path, t.id)) : null;
+    liveNodes.delete(t.id);
+    if (t.status !== "done") return null;
+    return h("div", { class: "t-end" }, kept(proofNodes, t.id, () => proofCard(path, t.id)),
+      canRewind && seat.status !== "running" ? h("div", { class: "row" }, rewindButton(seat, t, () => refreshHall())) : null);
+  };
   return every(box, async () => {
     const s = now();
     status.textContent = s.status === "running" ? "Following it live" : "";
@@ -49,6 +64,7 @@ export async function watchTab(seat, now) {
       taskSummary(t, `${i}:sum`, open),
       t.steps.map((st, j) => stepNode(path, st, `${i}:${j}`, open)),
       changedFiles(t, `${i}:files`, open),
+      taskEnd(t),
       t.outputs && t.outputs.length ? h("div", { class: "t-outs" }, outputList(path, t.outputs)) : null))
       : h("p", { class: "t-meta" }, "Nothing yet: the steps appear here as soon as the first task starts."));
     if (stick) term.scrollTop = term.scrollHeight;
@@ -282,6 +298,7 @@ function livePictures(path, L, finished = false, seat = null) {
     kinds.length ? h("div", { class: "shots" }, kinds.map((k) => h("figure", { class: "shot " + k }, picture(shotUrl(path, rec, k), SHOT_NAMES[k] || k), h("figcaption", {}, SHOT_NAMES[k] || k))))
       : h("p", { class: "muted" }, rec.failed || rec.note || "No pictures this time."),
     kinds.length && rec.note ? h("p", { class: "small muted" }, rec.note) : null,
+    rec.task && path ? proofCard(path, rec.task) : null,  // before and after that task, and what a model that can see said
     errs.length ? h("details", {}, h("summary", { title: "Errors the page wrote while the pictures were taken" }, `The page reported ${errs.length} error${errs.length > 1 ? "s" : ""}`), h("pre", { class: "log short" }, errs.join("\n"))) : null,
     earlier.length > 1 ? h("details", {}, h("summary", {}, `Earlier pictures (${earlier.length - 1})`), h("div", { class: "strip" }, earlier.map((r) => h("figure", {}, picture(shotUrl(path, r, "desktop"), r.title || "An earlier picture"),
       h("figcaption", {}, r.title || "", h("span", { class: "muted" }, " " + ago(r.at))))))) : null);

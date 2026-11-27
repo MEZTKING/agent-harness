@@ -2,7 +2,8 @@
 import { h, fill, get, S, every, patch, projectName, projectHref, jobName, modelName, clock, ago, page, tabs, empty, card, dot, jobPill, seatByPath, prose, readable } from "./core.js";
 
 const TOOL_WORDS = { write_file: "Wrote", edit_file: "Changed", read_file: "Read", run_command: "Ran", list_files: "Looked through",
-  search: "Searched for", finish_task: "Finished", submit_review: "Review:" };
+  search: "Searched for", finish_task: "Finished", submit_review: "Review:", web_search: "Searched the web for",
+  web_read: "Read a page:" };
 const JOURNAL = { todo: "To-do", done: "Done", plan: "Plan", decision: "Decided", note: "Note", session: "Session" };
 
 // one step of the minutes as the owner reads it: [who, what, tone]

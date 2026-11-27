@@ -107,7 +107,8 @@ class RoleSpec:
 
 
 FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compaction", "memory", "workers",
-                    "parallel", "rewind", "attachments", "retention")
+                    "parallel", "rewind", "attachments", "retention", "websearch", "proof", "kinds",
+                    "terminal", "money", "discovery")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:

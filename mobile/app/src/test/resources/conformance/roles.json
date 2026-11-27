@@ -1,0 +1,70 @@
+{
+ "improve": {},
+ "limits": {
+  "command_timeout": 120,
+  "max_attempts_per_task": 3,
+  "max_cost_usd": 5.0,
+  "max_parallel": 1,
+  "max_real_usd_per_run": 0.0,
+  "max_scout_steps": 30,
+  "max_steps_per_task": 40,
+  "max_usd_per_day": 0.0,
+  "split_stuck_tasks": true
+ },
+ "providers": {
+  "a": "scripted",
+  "b": "scripted",
+  "img": "scripted_images"
+ },
+ "roles": [
+  {
+   "description": "",
+   "kind": "chat",
+   "learned": false,
+   "models": [
+    "a/planner"
+   ],
+   "name": "orchestrator",
+   "options": {},
+   "planner": true,
+   "reviewer": false
+  },
+  {
+   "description": "writes code",
+   "kind": "chat",
+   "learned": false,
+   "models": [
+    "a/coder",
+    "b/coder2"
+   ],
+   "name": "coder",
+   "options": {},
+   "planner": false,
+   "reviewer": false
+  },
+  {
+   "description": "",
+   "kind": "chat",
+   "learned": false,
+   "models": [
+    "a/reviewer"
+   ],
+   "name": "reviewer",
+   "options": {},
+   "planner": false,
+   "reviewer": true
+  },
+  {
+   "description": "",
+   "kind": "image",
+   "learned": false,
+   "models": [
+    "img/pic"
+   ],
+   "name": "designer",
+   "options": {},
+   "planner": false,
+   "reviewer": false
+  }
+ ]
+}

@@ -9,6 +9,30 @@ Roundtable's own model switches are in the hub journal as decisions ("Switched b
 
 ## 2026-11-27
 
+- **Asked Fable about wave 3's big questions (0.12.0).** Fable's advice, followed as given:
+  - *Web search for builders* sends their search words to a search service: on for builders and the
+    planner, at most 6 searches a task, anything that looks like a key removed first, off for projects
+    limited to named services. It starts with the free engine; a paid one only if results are poor
+    (its key goes through the app's key form).
+  - *Undo a task / go back*: never deletes. A way back ("Put it back") is kept for 30 days, then the
+    daily tidy-up may clear it. Never offered for work already sent to GitHub. **Your call later:
+    30 days, or keep for ever?** (30 days for now.)
+  - *Before-and-after proof*: a model that can see looks at the pictures, at most 5 cents a task,
+    counted in the estimate you approve, and only as advice to the reviewer – it can't turn good
+    work down by itself.
+  - *Pounds*: "≈ £" beside dollars in four places. One request a day to the European Central Bank's
+    public rates file (nothing about you in it). The bills stay in dollars.
+  - *A command line in the desktop app*: desktop only, never from the phone, refused if the app is
+    opened to the network, keys kept out. The phone only sees a task's command output and a Stop.
+  - *The PC answering "who's there?" on Wi-Fi*: only when asked, private networks only, never the
+    pairing code. The QR code stays the recommended first pairing; a typed code is checked against
+    the PC's certificate before it's sent.
+  - *Kinds of project*: a kind's "proven" badge is earned by a real build, never claimed; kinds from a
+    file are yours alone (no public catalogue); a project's kind is fixed once you approve the plan.
+    The gallery is private and never deletes.
+  - *Left out on purpose*: a plug-in market (plug-ins can't yet be held to their permissions), a
+    phone command line and spoken conversation.
+
 - **Asked Fable: is it safe for Roundtable to tidy up old files by itself?** A helper built a daily tidy-up
   (old logs, old pictures, leftover working copies, old run records) so the disk doesn't fill. *Fable's
   advice, taken:* on by default, but only for things that can be rebuilt or are kept elsewhere. Files you

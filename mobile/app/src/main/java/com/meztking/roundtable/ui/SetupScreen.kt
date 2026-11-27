@@ -164,6 +164,7 @@ private fun PairForm(vm: SetupViewModel, state: SetupViewModel.State) {
     var link by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
+    var foundFp by rememberSaveable { mutableStateOf("") }  // the PC picked from "Look for my PC", if any
     val scan = androidx.activity.compose.rememberLauncherForActivityResult(ScanContract()) { r ->
         val text = r.contents ?: return@rememberLauncherForActivityResult
         val offer = Pairing.parse(text)
@@ -189,6 +190,9 @@ private fun PairForm(vm: SetupViewModel, state: SetupViewModel.State) {
             Text("Scan the QR code")
         }
         Spacer(Modifier.height(12.dp))
+        // no QR code to hand: find the PC on this Wi-Fi, then type the code it shows (beta)
+        FindPcCard(onFound = { pc -> link = pc.toLink(); foundFp = pc.fingerprint; localError = null })
+        Spacer(Modifier.height(12.dp))
         Text("Or by hand", style = MaterialTheme.typography.titleSmall, color = Hall.goldBright)
         OutlinedTextField(link, { link = it }, Modifier.fillMaxWidth(), label = { Text("Pairing link (roundtable://pair?…)") },
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri), maxLines = 3)
@@ -199,7 +203,7 @@ private fun PairForm(vm: SetupViewModel, state: SetupViewModel.State) {
         OutlinedButton(onClick = {
             val offer = Pairing.parse(link)
             if (offer == null) localError = "Paste the whole pairing link from your PC (it starts with roundtable://pair)."
-            else { localError = null; vm.pair(offer, code) }
+            else { localError = null; vm.pair(if (offer.code.isBlank() && offer.fingerprint == foundFp) offer.copy(found = true) else offer, code) }
         }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
             if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Pair")
         }

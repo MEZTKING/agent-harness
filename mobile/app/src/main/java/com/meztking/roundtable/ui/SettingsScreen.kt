@@ -44,7 +44,8 @@ import com.meztking.roundtable.ui.theme.Panel
 import com.meztking.roundtable.work.Watch
 
 @Composable
-fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() -> Unit)? = null, onComputers: () -> Unit = {}, onShared: () -> Unit = {}) {
+fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() -> Unit)? = null, onComputers: () -> Unit = {}, onShared: () -> Unit = {},
+                   onComfort: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as RoundtableApp
     val store = app.store
@@ -97,9 +98,13 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
             Button(onClick = { store.identity = identity.ifBlank { "me" }; identity = store.identity; changed() }, enabled = identity != store.identity) { Text("Save") }
         }
 
+        if (onComfort != null) ComfortEntry(com.meztking.roundtable.data.Comfort.get(ctx), onComfort)
+
         Panel(Modifier.fillMaxWidth()) {
             NotifySettingsPanel()
         }
+
+        BatteryPanel(rememberBatteryChecks(), onOpen = { BatteryChecklist.open(ctx) })
 
         Panel(Modifier.fillMaxWidth()) {
             Text("ABOUT", style = Label)

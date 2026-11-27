@@ -1,0 +1,184 @@
+{
+ "errors": [],
+ "files": {
+  "project": "/home/owner/lab/proj/.harness/project.yaml",
+  "repository": "/home/owner/lab/proj/roundtable.yaml"
+ },
+ "order": ".harness/project.yaml wins over roundtable.yaml, which wins over the defaults",
+ "path": "/home/owner/lab/proj",
+ "settings": [
+  {
+   "choices": [],
+   "default": "",
+   "description": "The command that checks the app (e.g. python -m pytest tests -q). A task that makes a test fail that passed before is sent back.",
+   "key": "test",
+   "source": "default",
+   "type": "text",
+   "value": ""
+  },
+  {
+   "choices": [],
+   "default": {},
+   "description": "Settings for that command, such as QT_QPA_PLATFORM: offscreen. Never keys or passwords.",
+   "key": "env",
+   "source": "default",
+   "type": "map",
+   "value": {}
+  },
+  {
+   "choices": [],
+   "default": "",
+   "description": "A command run once before the first task, e.g. pip install -e .[dev].",
+   "key": "setup",
+   "source": "default",
+   "type": "text",
+   "value": ""
+  },
+  {
+   "choices": [],
+   "default": 900,
+   "description": "How many seconds the test or setup command may take.",
+   "key": "timeout",
+   "source": "default",
+   "type": "int",
+   "value": 900
+  },
+  {
+   "choices": [],
+   "default": "roundtable/",
+   "description": "Where Roundtable's work goes in an existing app. Ending in / means that start plus a name from the goal; anything else is the exact branch. Never main or master.",
+   "key": "branch",
+   "source": "default",
+   "type": "text",
+   "value": "roundtable/"
+  },
+  {
+   "choices": [],
+   "default": [
+    "CLAUDE.md",
+    ".claude/CLAUDE.md",
+    "AGENTS.md",
+    "HANDOFF.md",
+    "DEVLOG.md"
+   ],
+   "description": "The files that hold the app's own rules, which every model follows. For a devlog or handoff only the newest entry is read.",
+   "key": "rules_files",
+   "source": "default",
+   "type": "lines",
+   "value": [
+    "CLAUDE.md",
+    ".claude/CLAUDE.md",
+    "AGENTS.md",
+    "HANDOFF.md",
+    "DEVLOG.md"
+   ]
+  },
+  {
+   "choices": [],
+   "default": 12000,
+   "description": "At most this many characters of those rules go to the models (headings are always kept).",
+   "key": "rules_budget",
+   "source": "default",
+   "type": "int",
+   "value": 12000
+  },
+  {
+   "choices": [],
+   "default": [],
+   "description": "Only these AI providers may see this project (e.g. deepseek). Empty: any. A role whose models are all from other providers stops the run with a message.",
+   "key": "providers_allowed",
+   "source": "default",
+   "type": "lines",
+   "value": []
+  },
+  {
+   "choices": [
+    ""
+   ],
+   "default": "",
+   "description": "Which set of models builds it (e.g. Budget, Balanced, Quality). Empty: the app's own choice.",
+   "key": "profile",
+   "source": "default",
+   "type": "choice",
+   "value": ""
+  },
+  {
+   "choices": [],
+   "default": {},
+   "description": "Money and effort limits for this project only: max_real_usd_per_run, max_cost_usd, max_attempts_per_task, max_steps_per_task.",
+   "key": "limits",
+   "keys": [
+    "max_real_usd_per_run",
+    "max_cost_usd",
+    "max_attempts_per_task",
+    "max_steps_per_task"
+   ],
+   "source": "default",
+   "type": "number-map",
+   "value": {}
+  },
+  {
+   "choices": [
+    "auto",
+    "on",
+    "off"
+   ],
+   "default": "auto",
+   "description": "Offer looks to choose from before building. auto: only for new apps with screens, or a web app.",
+   "key": "look",
+   "source": "default",
+   "type": "choice",
+   "value": "auto"
+  },
+  {
+   "choices": [
+    "auto",
+    "on",
+    "off"
+   ],
+   "default": "auto",
+   "description": "Take pictures of the app's screens after each task. auto: when it has screens Roundtable can open.",
+   "key": "show_it",
+   "source": "default",
+   "type": "choice",
+   "value": "auto"
+  },
+  {
+   "choices": [
+    "",
+    "off",
+    "risky",
+    "all"
+   ],
+   "default": "",
+   "description": "Before a builder runs a command: off (run it), risky (ask only for risky ones) or all (ask every time). Empty: this computer's choice.",
+   "key": "ask_first",
+   "source": "default",
+   "type": "choice",
+   "value": ""
+  },
+  {
+   "choices": [
+    "",
+    "on",
+    "off"
+   ],
+   "default": "",
+   "description": "Let the builders look things up on the web (their search words go to a search service). Empty: this computer's choice; a project kept to some providers gets none unless this says on.",
+   "key": "web_search",
+   "source": "default",
+   "type": "choice",
+   "value": ""
+  },
+  {
+   "choices": [],
+   "default": "",
+   "description": "Anything the planner should know about this project, in your own words.",
+   "key": "notes",
+   "source": "default",
+   "type": "text",
+   "value": ""
+  }
+ ],
+ "warnings": []
+}

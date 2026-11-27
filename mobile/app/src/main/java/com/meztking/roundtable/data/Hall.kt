@@ -105,7 +105,9 @@ data class Note(val name: String = "", val title: String = "", val at: String = 
 
 data class PlanView(val doc: PlanDoc? = null, val tasks: List<Task> = emptyList(), val runStatus: String = "", val canApprove: Boolean = false,
                     /** The plan in the owner's words (title, where it stands); null for a plan published before them. */
-                    val words: PlanWords? = null)
+                    val words: PlanWords? = null,
+                    /** What kind of thing it is (kinds): the plan's first card; null for none or in Hub mode. */
+                    val kind: PlanKind? = null)
 
 /** The two ways in (the hub on GitHub, or the paired PC) behind one face. */
 interface Backend {
@@ -473,7 +475,9 @@ class PcBackend(val api: Api, override val identity: String, val here: Source = 
         val path = seat.path ?: return PlanView()
         val p = api.project(path)
         val words = runCatching { api.planWords(path) }.getOrNull()
-        return PlanView(tasks = p.tasks, runStatus = p.meta.status, canApprove = p.meta.status == "awaiting_approval", words = words)
+        val kind = runCatching { api.planKind(path) }.getOrNull()
+        return PlanView(tasks = p.tasks, runStatus = p.meta.status, canApprove = p.meta.status == "awaiting_approval", words = words,
+            kind = kind)
     }
 
     override suspend fun inbox(project: String) = api.inbox(project, all = true)

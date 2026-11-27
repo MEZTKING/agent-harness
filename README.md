@@ -27,6 +27,28 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.12.0
+
+- **Kinds**: Roundtable knows what sort of thing you're making – a website, a web app, a browser game or
+  something else – and plans, builds and checks it to suit. The plan's first card asks "This looks like a
+  website. Right?"; the choice is fixed once you approve.
+- **Gallery** (new tab, and on the phone): everything finished, with its pictures and checks, and what
+  Roundtable can make. Hiding never deletes; "Make another like this" starts a new one.
+- **Proof for every task**: pictures before and after, the tests before and after, and one line from a
+  model that can see (advice for the reviewer, at most 5 cents a task, counted in the estimate).
+- **Undo a task**: see the files first, then undo it or go back to before it; "Put it back" undoes the undo
+  for 30 days. **Try another way** makes a separate copy from any task. Never for work already on GitHub.
+- **Web search for builders**: they can look up real documentation instead of guessing (6 searches a task
+  at most; off for projects kept to some providers). Switch and engine on the Tools page.
+- **Command line** (a project's new tab, this PC only): type commands in its folder. A task's command
+  shows as it prints, with a Stop for that one command.
+- **Pounds**: costs also show as "≈ £" beside the dollars (Settings → Spending; the bank's daily rate).
+- **Phone comfort** (beta until tried on your phone): accent colour, true black, text size, buzz, pinned
+  and put-away projects, what you sent, how much Watch shows, a battery checklist, and two panes on a
+  tablet or an open foldable.
+- **The phone finds your PC on the Wi-Fi** (beta until tried at home): "Look for my PC" when pairing, and
+  "Look for it" when the PC's address changed. The installer lets the phone in on private networks only.
+
 ### What's new in 0.11.0
 
 - **Several tasks at once is on**: new setups run up to three tasks side by side (`limits.max_parallel: 3`).

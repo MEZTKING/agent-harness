@@ -1,0 +1,21 @@
+{
+ "autopilot": {
+  "cap": 2.0,
+  "on": false,
+  "until": null
+ },
+ "changed": [],
+ "default_profile": null,
+ "limits": {},
+ "machine": {
+  "id": "pc-vm",
+  "kind": "pc",
+  "name": "PC (VM)"
+ },
+ "profiles": [],
+ "roles": {},
+ "shared": true,
+ "updated_at": "2026-11-27T13:54:06Z",
+ "updated_by": "PC (VM)",
+ "updated_by_seat": "pc-vm"
+}
