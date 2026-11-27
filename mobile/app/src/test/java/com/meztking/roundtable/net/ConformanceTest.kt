@@ -195,6 +195,12 @@ class ConformanceTest {
         assertTrue(done!!.words.isNotBlank())
         assertEquals("D1", DoneList.parseEvidence(api.feature("GET", DoneList.evidenceUrl(project, "D1")))?.item)
         assertNotNull(Stages.parse(api.feature("GET", Stages.url(project))))
+        // wave 6: the checking level and who built each task, and where rival planners disagreed
+        val tq = com.meztking.roundtable.data.Tandem.parse(api.feature("GET", com.meztking.roundtable.data.Tandem.url(project)))
+        assertNotNull(tq)
+        assertTrue(tq!!.label.startsWith("Checking"))
+        // one planner made this plan: the PC answers {found: false} and the fold shows nothing
+        assertTrue(com.meztking.roundtable.data.Council.parse(api.feature("GET", com.meztking.roundtable.data.Council.url(project))) == null)
 
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }

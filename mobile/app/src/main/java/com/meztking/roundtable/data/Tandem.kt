@@ -23,6 +23,7 @@ data class TandemTask(
     val built_by: String = "",
     val built_by_label: String = "",
     val agent: String = "",
+    val agent_name: String = "",
     val rivals: List<TandemRival> = emptyList(),
     val reviews: List<TandemReview> = emptyList(),
     val disagreed: Boolean = false,
@@ -79,7 +80,7 @@ object Tandem {
     fun line(t: TandemTask): String {
         if (t.line.isNotBlank()) return t.line
         val parts = mutableListOf("Built by " + t.built_by_label.ifBlank { shortName(t.built_by) }.ifBlank { "a model" } +
-            (if (t.agent.isNotBlank()) " (${t.agent})" else ""))
+            (if (t.agent.isNotBlank()) " (${t.agent_name.ifBlank { t.agent }})" else ""))
         if (t.rivals.size > 1) parts.add("best of ${t.rivals.size}")
         val checkers = and(t.reviews.map { shortName(it.model) })
         if (checkers.isNotBlank()) parts.add("checked by $checkers")

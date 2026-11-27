@@ -1,6 +1,6 @@
 // Settings → Advanced: "Tidy up old files automatically" and "Show what would be removed" (ui/tidyapi.py,
 // retention.py). No numbers to tune here: the limits stay in the settings file.
-import { h, fill, get, post, act } from "./core.js";
+import { h, fill, get, post, act, dialog } from "./core.js";
 
 const TIP = "Old logs, pictures and finished tasks' working copies. Never your project's files or anything you sent.";
 
@@ -27,5 +27,31 @@ export async function tidyCard() {
     last,
     h("div", { class: "row" }, h("button", { class: "small", type: "button", title: "Nothing is removed: it only shows what would go",
       onclick: (ev) => preview(ev.currentTarget) }, "Show what would be removed")),
-    out);
+    out, notChosen());
+}
+
+// Attempts other models built side by side that weren't chosen (harness/rivals.py): kept as a branch and a small
+// patch until the owner clears them. Never cleared automatically.
+function notChosen() {
+  const box = h("div", { class: "stack", "aria-live": "polite" });
+  const draw = (r) => {
+    const items = r.items || [];
+    const byProject = {};
+    items.forEach((it) => (byProject[it.path] = byProject[it.path] || []).push(it));
+    const clear = (path, task, label) => async (ev) => {
+      const btn = ev.currentTarget;
+      if (!(await dialog({ title: "Clear attempts not chosen?", text: `${label} The chosen work stays in the project; only the other attempts' branches and patches go.`, yes: "Clear" }))) return;
+      act(btn, () => post("/api/tidy/not-chosen/clear", { path, task }), null, (x) => { draw(x); });
+    };
+    fill(box, h("h3", { title: "When two or three models built a task side by side, the attempts not chosen are kept so you can look at them" }, "Attempts not chosen"),
+      h("p", { class: "small muted" }, r.words || ""),
+      items.length ? h("details", {}, h("summary", { title: "Each attempt, the project, why another was chosen, and its size" }, "More"),
+        Object.entries(byProject).map(([path, its]) => h("div", {},
+          h("div", { class: "row" }, h("b", {}, its[0].project), h("button", { class: "small", type: "button", title: "Removes these attempts' branches and patches. Only when you press it",
+            onclick: clear(path, "", `${its.length} attempt${its.length === 1 ? "" : "s"} in ${its[0].project}.`) }, "Clear")),
+          h("ul", { class: "small" }, its.map((it) => h("li", {}, `${it.task} (${it.rival})`, it.why ? ` · another was chosen: ${it.why}` : "",
+            it.patch ? ` · patch ${it.size}` : "", it.branch ? h("span", { class: "muted" }, ` · branch ${it.branch}`) : null)))))) : null);
+  };
+  get("/api/tidy/not-chosen").then(draw).catch(() => box.remove());  // an older PC: nothing shows
+  return box;
 }

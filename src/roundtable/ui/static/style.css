@@ -712,7 +712,8 @@ div.t-tool { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .plan-state .sdot.good { background: var(--color-good); } .plan-state .sdot.wait { background: var(--color-flare); }
 .plan-state .sdot.busy { background: var(--color-warn); }
 .task-lines { list-style: none; margin: 0; padding: 0; }
-.task-lines li { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
+.task-lines li { display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline; padding: 3px 0; }
+.task-lines .tl-who { flex-basis: 100%; padding-left: 28px; } /* who built it and who checked it (tandem.js) */
 .task-lines .tl-mark { width: 18px; text-align: center; font-weight: 700; color: var(--color-muted); }
 .task-lines .tl-mark.good { color: var(--color-good); } .task-lines .tl-mark.bad { color: var(--color-bad); } .task-lines .tl-mark.busy { color: var(--color-warn); }
 .task-lines .tl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

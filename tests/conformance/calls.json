@@ -796,6 +796,19 @@
    "needs": [
     "found"
    ]
+  },
+  {
+   "name": "tandem",
+   "method": "GET",
+   "path": "/api/tandem",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "level",
+    "label",
+    "tasks"
+   ]
   }
  ]
 }

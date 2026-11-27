@@ -1,15 +1,22 @@
 // Models: who does each job (and their backups) for every set of models, the models' health, and what the harness
 // has learned from its own runs. Every choice is made from a list; nothing is typed in code.
 import { h, fill, get, post, S, act, card, page, tabs, empty, ago, money, plural, every, patch, jobName, modelName, toast, dialog, seg, readable, has } from "./core.js";
+import { strengthsTab } from "./strengths.js";
+import { jobCaps } from "./usage.js";
 
 export async function viewModels(tab = "jobs") {
   if (!S.ov.harness) return page("Models", null, card("The harness can't build on this computer yet",
     h("p", {}, "Its settings are missing or have a problem. Open Settings to set it up."), h("a", { class: "btn primary", href: "#/settings" }, "Open Settings")));
   const t = tabs([["jobs", "Who does what", "Which model does each job, and its backups"], ["health", "Health check", "Whether each model answers like it usually does"],
+    ["strengths", "Strengths", "What each model is best at, learned from real runs"],
+    ["agents", "Agents", "Your named agents: one for each job, with a face, notes and what they learned"],
     ["learning", "Learning", "Changes the harness suggests from its own runs"]], tab, (k) => `#/models${k === "jobs" ? "" : "/" + k}`);
-  const body = tab === "health" ? await health() : tab === "learning" ? await learning() : await jobs();
+  const body = tab === "health" ? await health() : tab === "learning" ? await learning() : tab === "strengths" ? await strengthsTab()
+    : tab === "agents" ? await agents() : await jobs();
   return page("Models", tab === "jobs" ? "Each job goes to the model you choose; if it can't answer, its backups take over in order." : null, t, body);
 }
+
+async function agents() { const { agentsTab } = await import("./agents.js"); return agentsTab(); }
 
 async function loadRouting() { S.routing = await get("/api/routing"); return S.routing; }
 
@@ -33,11 +40,13 @@ async function jobs() {
       shownSet && shownSet !== R.default_set ? h("button", { class: "small", title: "Every project uses this set unless it picks its own (on its Settings tab)",
         onclick: (ev) => act(ev.currentTarget, async () => { const r = await post("/api/routing", { default_set: shownSet }); await share({ default_profile: shownSet }); return r; }, "Done: projects use this set unless they pick their own", async (r) => { Object.assign(R, r); S.routing = R; draw(); }) }, "Use this set by default") : null) : null;
     const about = shownSet ? (sets.find((s) => s.id === shownSet) || {}).about : "Used for a job when the set a project uses doesn't name it.";
-    fill(box, setTabs, about ? h("p", { class: "muted small" }, about[0].toUpperCase() + about.slice(1) + (/[.]$/.test(about) ? "" : ".")) : null,
+    const warn = (R.warnings || []).length ? h("div", {}, R.warnings.map((w) => h("p", { class: "warn small",
+      title: "A checker from another maker catches more. Add a model from another company to the reviewer job, or keep it as it is" }, w))) : null;
+    fill(box, warn, setTabs, about ? h("p", { class: "muted small" }, about[0].toUpperCase() + about.slice(1) + (/[.]$/.test(about) ? "" : ".")) : null,
       card(null, h("div", { class: "jobs-table", role: "table", "aria-label": "Who does each job" },
         h("div", { class: "jt-row jt-head", role: "row" }, h("span", { role: "columnheader" }, "Job"), h("span", { role: "columnheader" }, "Does the work"), h("span", { role: "columnheader" }, "If it can't answer"), h("span", {})),
         R.jobs.map((j) => jobRow(R, j, shownSet, draw)))),
-      keysNote(R));
+      jobCaps(), keysNote(R));
   };
   draw();
   return box;

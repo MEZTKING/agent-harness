@@ -43,7 +43,7 @@
    "multi": false,
    "options": [
     {
-     "description": "Builds it now. About $0.41, about 19 minutes.",
+     "description": "Builds it now. About $0.41, about 19 minutes. Checking: Balanced.",
      "id": "approve",
      "label": "Approve and start"
     },

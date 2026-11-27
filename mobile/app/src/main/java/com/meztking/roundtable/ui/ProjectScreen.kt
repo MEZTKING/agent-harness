@@ -289,6 +289,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     val machine = a.machine
     val path = a.path
     if (machine != null && !path.isNullOrBlank()) item(key = "done") { DoneCard(machine, path) }
+    // where rival planners disagreed: one line, the points on a tap (nothing for a plan by one planner)
+    if (machine != null && !path.isNullOrBlank()) item(key = "council") {
+        CouncilFold(path) { machine.feature("GET", com.meztking.roundtable.data.Council.url(path)) }
+    }
     if (cards.isNotEmpty() && !top.finished) {
         val agreed = d?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
         items(cards, key = { "ask:" + it.id }) { c ->
@@ -299,6 +303,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
         val pending = p.words?.pendingChanges == true || ui.sent.keys.any { k -> listOf("note:", "choose:", "answer:", "idea:", "ask:").any { k.startsWith(it) } }
         PlanButtons(ui.id, ui.sent, a, pending = pending, canApprove = p.canApprove && cards.none { it.kind == "approve" })
     }
+    // Lean, Balanced or Maximum, with prices, while the plan waits for approval (Maximum asks first)
+    if (machine != null && !path.isNullOrBlank() && top.waiting && !top.finished) item(key = "checking") {
+        CheckingChoice(machine, path, ui.sent) { lv -> a.command("checking:$lv", "checking", mapOf("name" to lv)) }
+    }
     if (machine != null && !path.isNullOrBlank()) item(key = "stages") {
         StageStrip(path) { machine.feature("GET", com.meztking.roundtable.data.Stages.url(path)) }  // nothing without stages
     }
@@ -306,9 +314,71 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
         item(key = "tasks-head") {
             SectionTitle("Tasks · ${top.tasks.count { it.status == "done" }} of ${top.tasks.size} done")
         }
-        item(key = "tasks") { Column { top.tasks.forEach { TaskLine(it, if (it.status == "done") onUndo else null) } } }
+        item(key = "tasks") { TaskLines(top.tasks, machine, path, onUndo) }
     }
     if (d != null) item(key = "more") { MoreAboutPlan(d, showSummary = top.summary.isBlank()) }
+}
+
+/** The task lines, each with who built it and who checked it under it once it has been built (the PC's
+ * /api/tandem, loaded once; nothing in Hub mode or from an older PC). */
+@Composable
+private fun TaskLines(tasks: List<PlanDoc.PlanTask>, machine: com.meztking.roundtable.net.Api?, path: String?,
+                      onUndo: ((String) -> Unit)?) {
+    var tandem by remember(path) { mutableStateOf<com.meztking.roundtable.data.TandemView?>(null) }
+    val built = tasks.count { it.status == "done" || it.status == "failed" }
+    LaunchedEffect(path, built) {
+        if (machine != null && !path.isNullOrBlank()) tandem = runCatching {
+            com.meztking.roundtable.data.Tandem.parse(machine.feature("GET", com.meztking.roundtable.data.Tandem.url(path)))
+        }.getOrNull()
+    }
+    Column {
+        tasks.forEach {
+            TaskLine(it, if (it.status == "done") onUndo else null)
+            tandem?.tasks?.get(it.id)?.let { t -> Box(Modifier.padding(start = 22.dp)) { TandemLine(t) } }
+        }
+    }
+}
+
+/** "Checking": Lean, Balanced or Maximum with their prices. Maximum shows both figures and the planners' cost
+ * before it is chosen, as on the PC. The choice goes to the PC as the plan's "checking" change. */
+@Composable
+private fun CheckingChoice(machine: com.meztking.roundtable.net.Api, path: String, sent: Map<String, *>,
+                           choose: (String) -> Unit) {
+    val T = com.meztking.roundtable.data.Tandem
+    var v by remember(path) { mutableStateOf<com.meztking.roundtable.data.TandemView?>(null) }
+    var confirm by remember { mutableStateOf(false) }
+    LaunchedEffect(path, sent.keys.count { it.startsWith("checking:") }) {
+        v = runCatching { T.parse(machine.feature("GET", T.url(path))) }.getOrNull()
+    }
+    val view = v ?: return
+    if (view.estimates.isEmpty()) return  // a plan made before the dial, or an older PC
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text("Checking", color = Hall.text, style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            T.LEVELS.forEach { lv ->
+                val on = lv == view.level
+                val label = T.levelName(lv) + " · " + T.priceWords(view.estimates[lv])
+                if (on) Button(onClick = {}) { Text(label, maxLines = 1) }
+                else OutlinedButton(onClick = { if (lv == "maximum") confirm = true else choose(lv) },
+                    enabled = sent.keys.none { it == "checking:$lv" }) { Text(label, maxLines = 1) }
+            }
+        }
+    }
+    if (confirm) {
+        val now = view.estimates[view.level]
+        val max = view.estimates["maximum"]
+        val planning = max?.planning_usd ?: 0.0
+        val words = "Maximum checking: ${T.priceWords(max)} instead of ${T.priceWords(now)} (${T.levelName(view.level)})." +
+            (if (planning > 0) " Three planners and a chair cost about $" + String.format(java.util.Locale.UK, "%.2f", planning) +
+                " of that, the next time it plans." else "")
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Use Maximum checking?") },
+            text = { Text(words) },
+            confirmButton = { TextButton(onClick = { confirm = false; choose("maximum") }) { Text("Use Maximum") } },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable

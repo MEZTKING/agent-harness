@@ -2,6 +2,30 @@
  "approved": false,
  "busy": false,
  "doc": {
+  "checking": "balanced",
+  "checking_estimates": {
+   "balanced": {
+    "cost_usd": 0.4126,
+    "extra_usd": 0.0,
+    "minutes": 19.0,
+    "planning_usd": 0.0,
+    "unpriced": true
+   },
+   "lean": {
+    "cost_usd": 0.4126,
+    "extra_usd": 0.0,
+    "minutes": 19.0,
+    "planning_usd": 0.0,
+    "unpriced": true
+   },
+   "maximum": {
+    "cost_usd": 1.0314,
+    "extra_usd": 0.2643,
+    "minutes": 26.0,
+    "planning_usd": 0.3545,
+    "unpriced": true
+   }
+  },
   "critique": null,
   "decisions": [],
   "done_list": [
@@ -25,7 +49,7 @@
   ],
   "dont": [],
   "estimate": {
-   "at": "2026-11-27T17:33:49Z",
+   "at": "2026-11-27T18:57:13Z",
    "by_role": {
     "coder": {
      "basis": "default",
@@ -70,7 +94,7 @@
   "has_ui": null,
   "history": [
    {
-    "at": "2026-11-27T17:33:49Z",
+    "at": "2026-11-27T18:57:13Z",
     "change": "first plan",
     "version": 1
    }
@@ -135,6 +159,7 @@
    "fix_of": "",
    "goal_index": 0,
    "handoff_from": "",
+   "hard": false,
    "id": "T1",
    "image_options": {},
    "merge_of": "",
@@ -142,13 +167,16 @@
    "parked": "",
    "part": "",
    "previous_attempts": [],
+   "risky": false,
    "role": "coder",
    "section": "",
    "stage": "",
    "status": "pending",
    "stronger": false,
    "summary": "",
-   "title": "hello module"
+   "tags": [],
+   "title": "hello module",
+   "why_hard": ""
   },
   {
    "acceptance": "png exists",
@@ -161,6 +189,7 @@
    "fix_of": "",
    "goal_index": 0,
    "handoff_from": "",
+   "hard": false,
    "id": "T2",
    "image_options": {},
    "merge_of": "",
@@ -168,13 +197,16 @@
    "parked": "",
    "part": "",
    "previous_attempts": [],
+   "risky": false,
    "role": "designer",
    "section": "",
    "stage": "",
    "status": "pending",
    "stronger": false,
    "summary": "",
-   "title": "logo"
+   "tags": [],
+   "title": "logo",
+   "why_hard": ""
   },
   {
    "acceptance": "tests pass",
@@ -189,6 +221,7 @@
    "fix_of": "",
    "goal_index": 0,
    "handoff_from": "",
+   "hard": false,
    "id": "T3",
    "image_options": {},
    "merge_of": "",
@@ -196,13 +229,16 @@
    "parked": "",
    "part": "",
    "previous_attempts": [],
+   "risky": false,
    "role": "coder",
    "section": "",
    "stage": "",
    "status": "pending",
    "stronger": false,
    "summary": "",
-   "title": "tests"
+   "tags": [],
+   "title": "tests",
+   "why_hard": ""
   }
  ],
  "words": {

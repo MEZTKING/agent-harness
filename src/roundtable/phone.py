@@ -75,6 +75,9 @@ PHONE_ROUTES = {
     ("GET", "/api/done"), ("GET", "/api/done/evidence"),
     ("GET", "/api/stages"),  # the plan's stages and parts (ui/stagesapi.py); the App tab's Start stays on the PC
     ("GET", "/api/tandem/council"),  # where the planners disagreed (ui/councilapi.py); read only
+    ("GET", "/api/tandem"),  # the checking level, its allowance and who built and checked each task (ui/tandemapi.py)
+    ("GET", "/api/usage"),  # what each service has used against the owner's limits (ui/usageapi.py); limits stay on the PC
+    ("GET", "/api/agents"),  # the named agents, to name who did what (ui/agentsapi.py); changes stay on the PC
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))

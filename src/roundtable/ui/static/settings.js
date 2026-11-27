@@ -5,6 +5,7 @@ import { BRAND, h, fill, get, post, S, act, card, page, ago, empty, seg, toast, 
 import { notifySettings } from "./notify.js";
 import { tidyCard } from "./tidy.js";
 import { poundsSettings } from "./pounds.js";
+import { usageCard } from "./usage.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
@@ -131,7 +132,10 @@ async function recommendedPart(st) {
 const LIMITS = [["max_usd_per_day", "Most for one day, on every project", "When the day's spending reaches this, building stops until tomorrow (or until you raise it)."],
   ["max_cost_usd", "Most for one project", "A project stops at this and asks you before spending more."],
   ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."]];
-async function spendingPart() {
+// What each service has used against your limits comes first (usage.js), then the shared limits.
+async function spendingPart() { return [usageCard(), ...[await sharedSpending()].flat()]; }
+
+async function sharedSpending() {
   const gbp = await poundsSettings().catch(() => null);  // dollars only, or pounds beside them (pounds.js)
   if (!S.ov.hub || !(await has("/api/settings/shared"))) {
     return [card("Spending", h("p", {}, "Each project has its own limit (on its Settings tab). Connect the hub to set limits every machine shares, your phone included."),

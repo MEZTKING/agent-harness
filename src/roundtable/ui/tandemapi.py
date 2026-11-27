@@ -72,7 +72,7 @@ def line(v: dict[str, Any]) -> str:
     """"Built by Claude Opus · checked by GPT and Gemini · they disagreed"."""
     parts = [f"Built by {v.get('built_by_label') or short(v.get('built_by')) or 'a model'}"]
     if v.get("agent"):
-        parts[0] += f" ({v['agent']})"
+        parts[0] += f" ({v.get('agent_name') or v['agent']})"
     n = len(v.get("rivals") or [])
     if n > 1:
         parts.append(f"best of {n}")
@@ -119,8 +119,20 @@ def view(app, q) -> dict[str, Any]:
     for t in project._read("tasks.json", []):
         if isinstance(t, dict) and t.get("id"):
             got = task_view(t)
+            if got and got.get("agent"):  # the agent's own name ("Torvic"), not its id
+                got["agent_name"] = _agent_name(app, got["agent"])
+                got["line"] = line(got)
             if got:
                 tasks[str(t["id"])] = got
     return {"level": lvl, "label": dial.label(lvl), "words": dial.words_for(lvl, doc.get("estimate")),
             "allowance": dial.allowance_view(project.root, meta), "estimates": doc.get("checking_estimates") or {},
             "tasks": tasks}
+
+
+def _agent_name(app, agent_id: str) -> str:
+    try:
+        from .. import agents
+
+        return agents.get(app._backup_home(), agent_id).name
+    except Exception:  # noqa: BLE001 - a removed agent: its id is shown
+        return ""
