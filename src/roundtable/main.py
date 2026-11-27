@@ -88,6 +88,12 @@ def _after(argv: list[str], cmd: str) -> str | None:
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--plugin-box" in argv:  # the plug-in box's child (plugins/sandbox.py), before anything else is loaded
+        from .plugins.boxworker import main as box
+        raise SystemExit(box(argv))
+    if argv[:1] == ["--python"]:  # the app's own small Python (pyexec.py): checks, plug-in tests, self-repair
+        from .pyexec import main as as_python
+        raise SystemExit(as_python(argv))
     cmd = _command(argv)
     if cmd is None or cmd == "help":
         print(__doc__.strip())

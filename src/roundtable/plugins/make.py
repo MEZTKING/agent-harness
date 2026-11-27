@@ -36,7 +36,9 @@ MAX_BYTES = 50 * 1024
 COMPILED = {".so", ".pyd", ".dll", ".dylib", ".pyc", ".pyo", ".exe", ".bin", ".class", ".jar", ".whl", ".o",
             ".a", ".lib", ".egg", ".zip"}
 CACHES = {"__pycache__", ".pytest_cache"}
-TEST_COMMAND = ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"]
+# the standard library's unittest: the box holds the standard library and the plug-in's own code only (no pytest),
+# frozen or not, so this is what runs there
+TEST_COMMAND = ["python", "-m", "unittest", "discover", "-s", "tests"]
 # Tools every builder already has (the workspace's, the loop's own, the web's): a plugin tool never takes their names.
 RESERVED_TOOLS = {"read_file", "write_file", "edit_file", "list_files", "search", "run_command", "finish_task",
                   "expand_output", "web_search", "web_read", "fetch_url", "clone_repo", "submit_plan",
@@ -110,6 +112,7 @@ def seed(folder: Path, pid: str, idea: str) -> None:
         '''), encoding="utf-8")
     (folder / "tests" / f"test_{mod}.py").write_text(textwrap.dedent(f"""\
         import sys
+        import unittest
         from pathlib import Path
 
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -117,8 +120,9 @@ def seed(folder: Path, pid: str, idea: str) -> None:
         import {mod}
 
 
-        def test_the_tool_answers():
-            assert {mod}.run({{"text": "hi"}}) == "hi"
+        class TheTool(unittest.TestCase):
+            def test_the_tool_answers(self):
+                self.assertEqual({mod}.run({{"text": "hi"}}), "hi")
         """), encoding="utf-8")
 
 
@@ -229,8 +233,9 @@ Rules (a plugin that breaks one is thrown away):
 - Keep the manifest (roundtable-plugin.toml) as it is apart from name and description.
 - A tool is `Tool(ToolSpec("name", "what it does", _obj({...json schema properties...}, [required])), fn)`; `fn(args)`
   returns text. Give each tool a clear, specific snake_case name that isn't a common one like read_file or search.
-- Put the real work in plain functions the tests can call. Write tests in tests/ with pytest that check the
-  behaviour properly, including an edge case. They must pass.
+- Put the real work in plain functions the tests can call. Write tests in tests/test_*.py with the standard
+  library's unittest (unittest.TestCase classes; pytest isn't there) that check the behaviour properly, including an
+  edge case. They must pass.
 - No file paths of this computer, no keys, no project names in any file.
 When it is done, call finish_task with a one-paragraph summary."""
 

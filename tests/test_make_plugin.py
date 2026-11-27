@@ -192,3 +192,14 @@ def test_the_app_shows_the_price_then_makes_it_in_a_job_and_add_it_installs_it_a
 
     with pytest.raises(ApiError, match="made here"):
         post({"action": "add_made", "folder": str(tmp_path)})
+
+
+def test_the_seeded_plugin_passes_its_own_tests_in_the_real_box(tmp_path):
+    """No fake here: the template's tests run inside the real box (standard library only, no pytest there)."""
+    from roundtable.plugins import make, sandbox
+
+    folder = tmp_path / "echo-words"
+    make.seed(folder, "echo-words", "says the words back")
+    res = sandbox.trial(folder, list(make.TEST_COMMAND))
+    assert res["ok"], res["output"]
+    assert "Ran 1 test" in res["output"]

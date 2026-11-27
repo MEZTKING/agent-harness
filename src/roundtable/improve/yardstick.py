@@ -125,12 +125,11 @@ def copy_tree(src: Path, dst: Path) -> None:
         shutil.copyfile(f, out)
 
 
-def _python() -> str:
-    return "python" if getattr(sys, "frozen", False) else sys.executable
-
-
 def _command(argv: list[str]) -> list[str]:
-    return [_python() if a == "{python}" else str(a) for a in argv]
+    """A check's command; ``python`` or ``{python}`` first is this Python (the app's own when frozen, pyexec)."""
+    from ..pyexec import command
+
+    return command([str(a) for a in argv])
 
 
 def _shown(argv: list[str]) -> str:
@@ -404,7 +403,9 @@ def run(cfg: Any, lab: Any, proposal: Any, budget: Any, runs: int = 2,
     if not tasks:
         return None
     runs = max(1, int(runs or 1))
-    candidate = lab.candidate_config(cfg, proposal)
+    from .toolkind import candidate_for  # a tool gets its own plugin host; other kinds as lab.candidate_config
+
+    candidate = candidate_for(lab, cfg, proposal)
     keys = {"current": fingerprint(cfg, role), "candidate": fingerprint(candidate, role)}
     results = Results(lab)
     emit = on_event or (lambda *_: None)

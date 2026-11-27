@@ -341,7 +341,9 @@ def default_tests(work: Path) -> tuple[bool, str]:
 
     env = clean_env({"PYTHONPATH": str(work / "src")})
     try:
-        res = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"], cwd=work,
+        from ..pyexec import python_command  # the app's own Python when frozen (pytest is bundled)
+
+        res = subprocess.run([*python_command(), "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"], cwd=work,
                              capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
                              timeout=TEST_TIMEOUT_S)
     except subprocess.TimeoutExpired:
