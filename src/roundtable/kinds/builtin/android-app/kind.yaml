@@ -1,0 +1,26 @@
+schema: kind@1
+id: android-app
+name: Android app
+blurb: A native app for Android phones, written in Kotlin.
+group: Mobile apps
+status: trial
+match: [android app, native android, kotlin, jetpack compose, android studio, native app, android phone app]
+examples: ["an Android app that counts my steps", "a Kotlin app for my shopping list"]
+needs: [java, android]
+roles:
+  prompts: {orchestrator: prompts/planner.md, coder: prompts/coder.md}
+plan:
+  has_ui: true
+  skeleton_first: true
+  spec_sections: [Screens, Data, Permissions, How to build it]
+  dont:
+    - {text: "No Play Store release", why: "It needs the owner's own signing key"}
+    - {text: "No release signing key in the project", why: "Keys never go in files"}
+look: off
+proof:
+  - {id: builds, how: command, command: "./gradlew assembleDebug", words: "It builds"}
+  - {id: apk_built, how: file_exists, path: "app/build/outputs/apk/debug/*.apk", words: "The APK was built"}
+targets: [apk]
+ship: {build: "./gradlew assembleDebug", artefact: "app/build/outputs/apk/debug/*.apk", smoke: apk,
+       needs: [java, android], target: apk}
+estimate: {tasks: [6, 16], usd: [2.0, 6.0], minutes: [40, 130]}

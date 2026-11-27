@@ -7,9 +7,11 @@ match: [android, apk, phone app, mobile app, on my phone]
 needs: [java, android]
 targets: [apk]
 pc_only: true
-task: "Add a last task that wraps the finished web app as an Android APK (a WebView shell), builds it and puts the .apk in dist/."
+task: "Add a last task that wraps the finished web app as an Android APK: a WebView shell in an android/ folder with the Gradle wrapper, built with cd android && ./gradlew assembleDebug (a debug build, no signing key)."
 plan:
   dont:
     - {text: "No Play Store release", why: "It needs the owner's own signing key"}
 proof:
-  - {id: apk_built, how: file_exists, path: "dist/*.apk", words: "The APK was built"}
+  - {id: apk_built, how: file_exists, path: "android/app/build/outputs/apk/debug/*.apk", words: "The APK was built"}
+ship: {build: "cd android && ./gradlew assembleDebug", artefact: "android/app/build/outputs/apk/debug/*.apk",
+       smoke: apk, needs: [java, android], target: apk}
