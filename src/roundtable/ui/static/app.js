@@ -11,6 +11,7 @@ import { viewActivity } from "./activity.js";
 import { viewModels } from "./models.js";
 import { viewSettings, viewSetup } from "./settings.js";
 import { viewTools } from "./tools.js";
+import "./notify.js";
 import { viewAutomations } from "./automation.js";
 
 const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,

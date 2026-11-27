@@ -45,7 +45,7 @@ def _lines(raw) -> list[str]:
 
 # Feature API modules under roundtable.ui: each has routes(app) -> {(method, path): fn}. A feature added
 # side by side with others appends its module name here (one line each), nothing else in this file.
-FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi")
+FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi")
 
 
 def _feature_routes(app) -> dict:
