@@ -54,6 +54,12 @@ jobs:
           cache-dependency-path: |
             mobile/**/*.gradle*
             mobile/**/gradle-wrapper.properties
+      - name: Keep the phone tests' Android library between runs
+        uses: actions/cache@v4         # Robolectric downloads android-all from Maven Central, which refuses with 429
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('mobile/app/build.gradle.kts', 'mobile/gradle/libs.versions.toml') }}
+          restore-keys: robolectric-
       - name: Build the test APK (signed with mobile/test-key, so it installs over the last one)
         working-directory: mobile
         run: |
