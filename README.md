@@ -27,6 +27,14 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.9.1
+
+- **Short first, details on request**: every plan has a short title and one sentence of where it
+  stands; below it only what waits for you and the tasks, one line each; everything else folds under
+  "More about this plan". Status, seat cards and Letters are shorter too.
+- **Live on finished projects** shows the final pictures, or a **Take pictures now** button.
+- **My notes** shows the documents kept in your hub (like your list of links), readable in the app.
+
 ### What's new in 0.9.0
 
 - **A new desktop app**, rebuilt from scratch: the Hall shows every project as a seat with its own name

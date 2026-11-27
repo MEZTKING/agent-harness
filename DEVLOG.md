@@ -4,6 +4,26 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 0.9.1: short first, details on request
+
+The owner (phone screenshots of a finished plan): "Too much information everywhere – overload"; "No live";
+then "put all the links I've sent in a document so I can see"; and "look at Munder Difflin and DSH Mobile,
+see what they have that we don't … let me know the difference before you make any changes".
+
+- New rule in CLAUDE.md: short first, details on request.
+- `calm` branch (039b80f…7e6a30e): plandoc `title`/`summary` from the planner, `short_title`, `plan_title`,
+  `state_sentence`, `estimate_line`, `waiting_items`; `render_markdown(waiting=)` with the builders' brief
+  folded; orchestrator `plan_words()` in `.asks.json`; hall/roundtable read them; phone `PlanTop`/`MoreAboutPlan`/
+  Fold.kt, desktop plan.js `splitPlan`/`taskLines`; Live: "Final pictures", `ShowStage.show_it_now`, remote
+  action `show_it`, `/api/hub/live`; My notes: `/api/notes`, `/api/note`, `hall.hub_notes`, phone NotesScreen.
+- One-off hub data: the music player's pictures taken from the cloud copy and published (it was built before
+  pictures existed); `notes/links.md` (every link the owner sent, grouped) and `notes/compared-with-munder-
+  difflin-and-dsh.md` in the hub.
+- **Comparison with Munder Difflin and DSH Mobile** (branch `parity`, `plans/parity.md`, 9123df9): 172 features,
+  47 have, 55 partly, 55 missing, 15 not wanted; top gap a security fix (workers' shell commands can read the
+  API keys: `run_command` passes the app's environment). Nothing built from it yet – the owner asked to see the
+  differences first.
+
 ## 2026-11-26 – 0.9.0: the desktop rebuilt, the phone and PC as one, Opus codes
 
 Asked by the owner: "check the app for more errors … the roundtable hall was supposed to show all my
