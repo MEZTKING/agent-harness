@@ -1,5 +1,30 @@
 <!-- The README's "What's new" sections, bundled with the app for its "What's new" card. Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->
 
+### What's new in 1.1.0
+
+Finished, not just built: the harness now checks the thing works before it calls it done.
+
+- **"Done when"**: every plan has a short list of what you can do with the finished thing ("You can start a
+  game, lose and start again"). It isn't called finished while one of them fails. Add your own lines on the
+  plan page.
+- **It tries what it built**: at the end it starts the app, uses it as a person would, and turns what's
+  broken into fix tasks, at most two rounds. Only then does it ask you, with one card: try fixing again,
+  accept it as it is, or stop.
+- **Stages**: plans start with a small slice that already works, then build on it. Each task says which files
+  it changes, so two tasks never fight over the same file.
+- **Stuck tasks are worked out**: a model from another maker looks at why a task keeps failing and retries
+  it with advice, splits it, plans around it or puts it aside. You get one card at the end, not one per task.
+- **No surprises with money**: a run that would cost well past what you agreed (a quarter more, at least
+  50 cents) stops and asks. Autopilot's spending limit now binds the runs it starts. Picture models get a
+  price in the estimate, and the estimate shows the cost of checking and fixing.
+- **The App tab can start an app** that runs with a command (Start it, Stop it), on this PC only.
+- **Games are played**: a model that can see plays a browser game for a minute and says what broke.
+- **New kinds**: Godot games and native Android apps (on trial); Java mods move to trial. An EXE, APK or mod
+  is really built at the end, checked and started once. What this computer can't build is shown as not
+  checked, with the reason, and never stops the project.
+- **Beta until tried on your PC**: playing a real Godot game, building a real EXE, APK or mod, and walking an
+  app in a real browser on Windows have only run against stand-ins so far.
+
 ### What's new in 1.0.0
 
 Roundtable Hold is now Darkness Harness. Everything you have stays.
@@ -77,11 +102,3 @@ Roundtable Hold is now Darkness Harness. Everything you have stays.
   Godot, tool servers) gets a cleaned environment with no API keys, no hub token and no saved GitHub
   login; keys live only inside the parts of Roundtable that call the AI services. A command still runs
   as you, so the full protection (a sandbox) comes later; "Ask me first" comes next.
-
-### What's new in 0.9.1
-
-- **Short first, details on request**: every plan has a short title and one sentence of where it
-  stands; below it only what waits for you and the tasks, one line each; everything else folds under
-  "More about this plan". Status, seat cards and Letters are shorter too.
-- **Live on finished projects** shows the final pictures, or a **Take pictures now** button.
-- **My notes** shows the documents kept in your hub (like your list of links), readable in the app.
