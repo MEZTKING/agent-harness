@@ -210,7 +210,8 @@ def test_the_stubs_have_their_frozen_signatures():
 
 def test_the_stubs_do_nothing_yet(tmp_path):
     assert perms.preset_for(tmp_path, None, "coder") == "careful"
-    assert perms.guard(tmp_path, None, "coder", None)("delete_file", {"path": "x"}) is None
+    # filled by p1-perms (tests/test_perms.py): a reading tool passes, a delete would wait for the owner
+    assert perms.guard(tmp_path, None, "coder", None)("read_file", {"path": "x"}) is None
     assert streamlog.sink(tmp_path, "T1")("text", "hi") is None
     assert streamlog.tail(tmp_path, "T1") == {"text": "", "thinking": "", "at": 0, "done": True}
     assert not (tmp_path / ".harness").exists()  # a stub writes nothing

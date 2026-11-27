@@ -32,6 +32,7 @@ import os
 import re
 import secrets
 import shlex
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
@@ -513,6 +514,43 @@ def refusal_denied(note: str = "") -> str:
     return text + (f" The owner says: {note}" if note else "")
 
 
+def refusal_read_only(what: str = "run commands") -> str:
+    return (f"This job is set to Read only, so it can't {what}. Carry on with reading, or say in your summary what "
+            "needs changing.")
+
+
+def refusal_tool_denied(what: str, note: str = "") -> str:
+    text = (f"The owner didn't allow this ({what}), so it wasn't done. Don't try to do the same thing another way; "
+            "carry on without it, or say in your summary why it's needed.")
+    return text + (f" The owner says: {note}" if note else "")
+
+
+def refusal_tool_timeout(what: str, minutes: float) -> str:
+    return (f"Nobody answered within {_minutes(minutes)}, so this ({what}) wasn't done. Carry on without it, or say "
+            "in your summary why it's needed.")
+
+
+# -- a command already decided by the job's own check (harness/perms.py) -----------------------------------
+# perms.guard runs just before a tool, in the same thread. When it has decided a command by the job's own
+# preset (and asked the owner if it had to), it marks that exact command as cleared, so the workspace's gate
+# doesn't ask a second time. Once only, this thread only, and only for a few seconds.
+_CLEARED = threading.local()
+CLEARED_SECONDS = 10.0
+
+
+def clear_once(root: str | Path, command: str) -> None:
+    _CLEARED.item = (str(Path(root).resolve()), command, time.monotonic())
+
+
+def _take_cleared(root: Path, command: str) -> bool:
+    item = getattr(_CLEARED, "item", None)
+    _CLEARED.item = None  # once only, whatever it was for
+    if not item:
+        return False
+    where_, what, at = item
+    return where_ == str(root) and what == command and time.monotonic() - at <= CLEARED_SECONDS
+
+
 def refusal_timeout(minutes: float) -> str:
     return (f"Nobody answered within {_minutes(minutes)}, so this command didn't run. Carry on without it, or say in "
             "your summary why it's needed.")
@@ -527,13 +565,15 @@ class Gate:
 
     ``on_change`` is called (with no arguments) when a card appears or goes, so the caller can publish the
     hub's ``.asks.json``; ``context`` returns {id, title} of the task doing the work (default: the task
-    marked running in tasks.json)."""
+    marked running in tasks.json). ``role``: the job using it, whose own preset (``perms.py``) then decides
+    instead of the project's setting; None is the project's setting, as before."""
 
     def __init__(self, root: str | Path, cfg: Any = None, on_change: Callable[[], Any] | None = None,
                  context: Callable[[], dict[str, Any] | None] | None = None, poll: float = 0.5,
-                 timeout: float | None = None):
+                 timeout: float | None = None, role: str | None = None):
         self.root = Path(root).resolve()
         self.cfg = cfg
+        self.role = role
         self.on_change = on_change
         self.context = context
         self.poll = poll
@@ -545,6 +585,10 @@ class Gate:
         return self.root / GATE_DIR
 
     def mode(self) -> str:
+        if self.role:
+            from . import perms
+
+            return perms.MODE_OF[perms.preset_for(self.root, self.cfg, self.role)]
         return mode_for(self.root, self.cfg)
 
     def wait_seconds(self) -> float:
@@ -600,21 +644,82 @@ class Gate:
         pats = self.allowed()
         return [f for f in found if not self._covered(f, whole, pats)]
 
-    def check(self, command: str) -> str | None:
-        """None: it may run. Otherwise the tool result to give the model instead of running it. Waits."""
+    def check(self, command: str, mode: str | None = None, extra: list[Finding] | None = None,
+              note: str = "") -> str | None:
+        """None: it may run. Otherwise the tool result to give the model instead of running it. Waits.
+
+        ``mode``: decide by this instead of the setting (perms.py, a job's own preset); ``extra``: more reasons
+        to ask that the reading of the command can't know (a folder shared with the main project); ``note``: one
+        plain line for the card (whether it runs boxed in)."""
         size = len(command.encode("utf-8", errors="replace"))
         if size > MAX_COMMAND_BYTES:
             return refusal_too_long(size)
-        mode = self.mode()
+        if _take_cleared(self.root, command):
+            return None  # the job's own check decided this one a moment ago (perms.guard)
+        if mode is None and self.role:
+            from . import perms
+
+            if perms.preset_for(self.root, self.cfg, self.role) == "read_only":
+                return refusal_read_only()
+        mode = mode or self.mode()
         findings = self.needs(command, mode)
+        if extra:
+            pats = self.allowed()
+            whole = normalise(command)
+            findings += [f for f in extra if not self._covered(f, whole, pats) and f not in findings]
         if not findings:
             return None
-        cid = f"{time.strftime('%Y%m%dT%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
+        cid = self._new_id()
         limit = self.wait_seconds()
         ask = self._card(cid, command, findings, mode, limit)
+        if note:
+            ask["box"] = note
+        answer = self._wait_for(cid, ask, limit)
+        if answer is None:
+            return refusal_timeout(limit / 60)
+        choice, note = answer.get("choice"), str(answer.get("note") or "").strip()
+        if choice == ALWAYS:
+            self.remember(findings)
+            return None
+        if choice == ALLOW:
+            return None
+        return refusal_denied(note)
+
+    def ask(self, what: str, reasons: list[str], *, tool: str, remember: str,
+            on_always: Callable[[], Any] | None = None, detail: str = "") -> str | None:
+        """Any other tool call that must wait (perms.py): one card through the same machinery as a command
+        (Allow once, Always allow, Don't allow, the time limit; nobody answers means it isn't done). ``what``
+        is the plain line shown (“Delete the file notes.txt”); ``on_always`` keeps "Always allow"."""
+        cid = self._new_id()
+        limit = self.wait_seconds()
+        text = what if not detail else f"{what}\n{detail}"
+        lines = text.splitlines() or [""]
+        folded = len(lines) > FOLD_LINES or len(text) > FOLD_CHARS
+        now = time.time()
+        card = {"id": cid, "command": text, "preview": "\n".join(lines[:FOLD_LINES])[:FOLD_CHARS] if folded else text,
+                "folded": folded, "lines": len(lines), "size": len(text.encode("utf-8", errors="replace")),
+                "reasons": list(dict.fromkeys(r for r in reasons if r)), "mode": "tool", "tool": tool,
+                "doing": what, "remember": remember, "patterns": [], "task": self._task(), "asked_at": _iso(now),
+                "expires_at": _iso(now + limit), "expires": now + limit, "pid": os.getpid()}
+        answer = self._wait_for(cid, card, limit)
+        if answer is None:
+            return refusal_tool_timeout(what[:1].lower() + what[1:], limit / 60)
+        choice, note = answer.get("choice"), str(answer.get("note") or "").strip()
+        if choice in (ALLOW, ALWAYS):
+            if choice == ALWAYS and on_always is not None:
+                on_always()
+            return None
+        return refusal_tool_denied(what[:1].lower() + what[1:], note)
+
+    @staticmethod
+    def _new_id() -> str:
+        return f"{time.strftime('%Y%m%dT%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
+
+    def _wait_for(self, cid: str, card: dict[str, Any], limit: float) -> dict[str, Any] | None:
+        """Put the card up, wait for its answer (None: nobody answered in time), and take the card down."""
         self.dir.mkdir(parents=True, exist_ok=True)
         ask_file, answer_file = self.dir / f"{cid}.ask.json", self.dir / f"{cid}.answer.json"
-        _write_json(ask_file, ask)
+        _write_json(ask_file, card)
         self._changed()
         start = time.monotonic()
         answer: dict[str, Any] | None = None
@@ -634,15 +739,7 @@ class Gate:
                 except OSError:
                     pass
             self._changed()
-        if answer is None:
-            return refusal_timeout(limit / 60)
-        choice, note = answer.get("choice"), str(answer.get("note") or "").strip()
-        if choice == ALWAYS:
-            self.remember(findings)
-            return None
-        if choice == ALLOW:
-            return None
-        return refusal_denied(note)
+        return answer
 
     def _changed(self) -> None:
         if self.on_change:
