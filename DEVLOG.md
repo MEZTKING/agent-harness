@@ -6,6 +6,100 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 1.1.0: wave 5 put together ("finished, not just built")
+
+Asked: merge the seven wave 5 branches in order (d2-money, d2-done, d2-stages, d2-unstick, d2-finish, d2-play,
+d2-ship), do every hook-up line from the helpers' reports, keep 1.0's look and wording, test everything, look at
+the screens, one scripted end-to-end check, version 1.1.0 with its notes, gaps and parity. No release.
+
+What each part is, plainly:
+- **Money** (d2-money, 66f7d44): approval records what the owner agreed to (`meta["agreed"]`); a run that would
+  cost a quarter more (at least $0.50 of room) pauses with one card (Carry on / Finish with what's there / Stop);
+  autopilot writes its remaining money as the run's allowance (`AllowanceReached`); picture models are priced from
+  real charges or `pricing.<model>.per_image` (`harness/moneystage.py`, `harness/imageprice.py`, `autopilot.allow`).
+- **The done list and prep** (d2-done, 0c1ce0d): what a person can do with the finished thing, planned with the
+  plan, the kind's checks merged in, `.harness/done.json`; the done gate blocks on a failed must with one
+  "Not finished" card (Try fixing again / Accept as it is / Stop); the idea tidied into a brief under More
+  (`harness/donelist.py`, `donestage.py`, `prep.py`, `ui/doneapi.py`, `static/donelist.js`, `DoneCard.kt`).
+- **Stages and parts** (d2-stages, 2619445): a working slice first, stages run in order with a note (and a light
+  re-plan when there are lessons) at each boundary, `files` per task with overlap warnings, several parts in their
+  own folders, `stage_stop: each` (`harness/stages.py`, `ui/stagesapi.py`, `static/stages.js`, `StageStrip.kt`).
+- **Unsticking and handovers** (d2-unstick, f772634): a failed task diagnosed once by another maker's model
+  (retry with advice, split, plan around, park), one "stuck" card at the end, written handovers, "spent with
+  nothing finished" in the report (`harness/unstick.py`, `harness/handoff.py`).
+- **Finishing** (d2-finish, e522dba): after the last task the product is started, the done list walked in a
+  browser, commands and files checked, failures turned into fix tasks within 2 rounds, $0.50 and 6 tasks;
+  apps that start with a command are started and stopped; the App tab's Start (`harness/finishstage.py`,
+  `journeys.py`, `appserver.py`, `ui/appapi.py`, `static/appstart.js`, `showit.take_shots(ws=…)`).
+- **Play-testing** (d2-play, 23b3795): a model that can see plays a browser or Godot game for a minute; broken
+  findings fail the item, rough ones become ideas; the `godot-game` kind (trial) (`harness/playtest.py`,
+  `godot.record_play`, `kinds/builtin/godot-game/`).
+- **Shipping** (d2-ship, cd66457): the planner is told what this machine can build; at the end the EXE, APK or
+  mod is built, its file checked (`PK`/`MZ`), started once; one fix task per target; recipes from imported kinds
+  always ask first; `android-app` kind, `java-mod` to trial (`harness/ship.py`, `shipstage.py`, `kinds/model.py`).
+
+Merges (9fda49e … edbac73): no textual conflicts. Clashes with 1.0 found by the tests: `--color-oak-line` in
+`appstart.js`, `donelist.js`, `stages.js` → `--color-line` (b7b5908). ProjectScreen.kt, watch.js and
+test_brand_words.py weren't touched by the helpers.
+
+Hook-ups (91128eb, acb8fe6):
+- `orchestrator.py`: `Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage,
+  ShowStage, DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage)` – no method clashes
+  (checked over the whole MRO); `AllowanceReached` branch in `_run`; `_stage_after_task` after a passed task
+  (and in `worktrees._merge_task`); `_stage_stop` before the final "blocked" in `_run` and `_parallel_end`;
+  `_handoff_split` in `_split_if_too_big`; `wasted_words` and `_done_report_note` in `_finish`; `done_add` /
+  `done_remove` in `plan_update`; `estimate_line(est, meta["agreed"])` (also in `ui/server.py`).
+- `asks.py`: the over-estimate/allowance money card and its answers; the `not_finished` card; one `stuck` card
+  in place of per-task cards; `APPLY["not_finished"]`, `APPLY["stuck"]` (lazy imports, `_lazy`).
+  `donestage.apply_not_finished` also calls `finishstage.clear_rounds`.
+- `autopilot.decide`: `not_finished` → `decide_not_finished` (fix at most once, never accept); `stuck` → left.
+- `plandoc`: "Done when" in the markdown, `donelist.context` in `context_text`, `stages.markdown` for the tasks.
+- `kindstage`: proof lines take the done list's pass or fail per line over the proof stage's answer
+  (`_kind_proof_base`); `_kind_outputs` gains jar and the two APK paths. `proof.HOWS["play"]` with
+  `_play_passed` (done list by `kind_id`, else the newest `play.json`), so browser-game can be proven; its
+  `card.md` no longer says "not checked yet".
+- `projectsettings`: `stage_stop` (off, each). `retention.Sweep.goal_dirs` for `.harness/play/` and
+  `.harness/journeys/` (newest `shots_keep` per goal).
+- `ui/server.py`: `doneapi`, `stagesapi`, `appapi` in `FEATURE_APIS`; `frame-src` gains `appapi.FRAME_SRC`;
+  `stop_apps()` at exit (also `desktop._stop_apps` after the window closes). `phone.py`: `/api/done`,
+  `/api/done/evidence`, `/api/stages`. `tests/conformance/calls.json` + three new fixtures, all written again;
+  `ConformanceTest.kt` makes the three calls.
+- Desktop: `plan.js` (done card after the plan's top, `stagedTaskList` for the tasks), `project.js` overview
+  (`doneLine`, `stagesStrip`), `watch.js` `appTab` (`appStartCard` above; the "for now" note gone).
+- Phone: `ProjectScreen.kt` `calmPlan`: `DoneCard(machine, path)` after the kind, `StageStrip` above the tasks
+  (only with a PC or this phone; nothing in Hub mode).
+
+Fixed while putting it together (each with a test in `tests/test_wave5.py` or the helper's file):
+- `_money_agreed` with no plan agreed $0, so any run past 50 cents paused: now it agrees nothing.
+- The finishing step planned (paid) fixes for a failed nice-to-have: only `must` items get fixes now.
+- An extra's "The EXE was built" was checked by the finishing step before the ship step built anything, and
+  trapped the project: such `file_exists` items are left to the ship step, which records onto them too.
+- Coordinator decision: a target this machine can't build is `must=False` (shown as not checked, the reason
+  given), for the ship item and the extra's own file check; it follows `can_build` if the machine changes.
+- `npm …` checks in a folder with no package.json read "nothing to run yet" (unchecked), not failed.
+- "an Android app" alone no longer picks the native `android-app` kind (a wrapped site is a website with the APK
+  extra); "native android", "kotlin", "jetpack compose" still do.
+- A stage task's part went after the role (`(coder) · Game`), breaking the task-line parsers on the desktop and
+  phone: now `title · Game (coder)`.
+- `donelist.markdown`/`context` skip items that aren't items. The done card's pictures are thumbnails.
+- Tests: `tests/conftest.py` gives every run a made-up computer with no build tools and no browser, so a machine
+  with Java, the Android SDK or Playwright doesn't change results (shipping and play tests bring their own).
+  `test_stage_hooks.py` tests the seam on `Seam` (the Orchestrator without the wave 5 mixins) and checks the full
+  Orchestrator with no done list, stages or kind runs as before (only the unstick allowance in the estimate).
+  The helpers' `class O(XStage, Orchestrator)` became `class O(Orchestrator)`; d2-ship's, d2-stages', d2-finish's
+  and d2-done's tests updated for the real gate (a failed build now ends "blocked" with the card).
+
+Checked: 1272 Python tests pass (none skipped); the phone's `testDebugUnitTest assembleDebug` passes, with the
+conformance run; `node --check` on all 35 static modules; Playwright screenshots of the plan page with a done
+list and stages, the overview's strip, and the App tab starting and stopping an app (Eclipse and Ash), no
+console errors. End to end (`test_a_made_up_game_with_a_planted_bug_is_planned_built_found_fixed_and_done`):
+plan with a done list, two stages and the estimate's extra lines → approve → T1, T2 in stage order → the
+finishing step finds Start does nothing → F1 → passes → done, nobody asked.
+
+Still open (beta until the owner's PC): a real Godot play, real EXE/APK/mod builds and starts, real browser
+journeys and the App tab's frame on Windows; the phone's DoneCard and StageStrip on a real phone. The small real
+DeepSeek run of the finishing loop wasn't done here. Not released.
+
 ## 2026-11-27 – 1.0.0: wave 4 put together, Roundtable Hold becomes Darkness Harness
 
 Asked: merge wave 4's last two branches (d1-skin, then d1-phone; d1-passage, d1-words, d1-art and wave 5's step 0

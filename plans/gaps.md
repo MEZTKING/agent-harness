@@ -72,7 +72,9 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 - **Godot: the checker hasn't met a real Godot yet** (26 November): built and tested against a stand-in;
   the first run on the owner's PC (or a session allowed to run Godot) should confirm `--import`, the Movie
-  Maker frames and the error lines. No GUT/gdUnit test runner yet, and no Android/HTML5 export. → release 2.
+  Maker frames and the error lines. No Android/HTML5 export. 1.1.0 adds playing it for a minute (a driver
+  script given with `--script`, inputs from a file outside the project) and the GUT/gdUnit command
+  (`godot.test_command`), also only tried against the stand-in: beta until run on the owner's PC.
 
 - **MCP tool servers: only workers use them, and only from harness.yaml** (26 November): planning,
   asks and the run report get no MCP tools, there's no page in the app to add or check a server
@@ -80,13 +82,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   "Unreal game" kind (plans/kinds.md) would set the roles, the server and pictures of the game
   running. → release 2 (a real try on the owner's PC), kinds after.
 
-- **Autopilot can't approve a plan with pictures** (26 November): the estimate doesn't price picture
-  models (an image role's cost comes out unknown), so autopilot leaves those plans for the owner.
-  Pricing pictures per image in `plandoc.estimate` would let it decide. → release 2.
-- **Autopilot doesn't stop a run at its own limit** (26 November): it stops answering when the spend
-  limit is reached, but a run it already started carries on within the project's own limits
-  (`max_cost_usd`, the real-money limit per run). Passing autopilot's remaining money to the run as
-  an extra limit would close it. → release 2.
 - **Autopilot's phone switch in Hub mode waits for the PC** (26 November): the hub command is done
   by the PC's next sync (about a minute), and the phone shows the new state only after the PC has
   written `plans/autopilot.json`. → release 4.
@@ -94,11 +89,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **The phone app's release build fails** (26 November): `./gradlew assembleRelease` stops in R8
   (code shrinking: "Compilation failed to complete"); test builds (debug) work. Fix the keep rules
   before the phone release (release 4).
-
-- **A run can start above the estimate the owner saw** (26 November): the music player's
-  packaging was estimated at $3.45 by the planner, after the owner had been told $0.50–1.50;
-  nothing stopped to ask. A run should pause and ask when its plan's estimate is above the
-  amount the owner agreed to. → release 2.
 
 - **Question cards: no "Are you sure?" for deleting** (26 November): no card deletes anything yet, so
   only spending asks twice. A card that removes something (a reference, a don't) should set
@@ -135,10 +125,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **Backups: no folder picker in the app** (26 November): the folder is typed (or Google
   Drive is found by itself). A Browse button needs the desktop window's file dialog.
 
-- **Roundtable doesn't know what this machine can build** (26 November): for the music
-  player's APK and EXE, the build facts (where the Android SDK is, that there's no system
-  Gradle, versions that work, no Wine for Windows builds) had to be written into the goal
-  by hand. A project memory with the machine's tools, checked once, belongs in release 2.
 - **(Fixed 26 November: big files come back as an outline; see Fixed.) Big files make every step dear** (26 November): the player's `js/app.js` is 188 KB, read
   in full; GLM-5.3 through OpenRouter has almost no cache discount, so each step of the tests
   task cost about 2 cents. Workers should read files in parts, and the planner should keep
@@ -150,10 +136,8 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   → release 2.
 
 - **Reviews can still reject for the wrong reasons** (Fable, 26 November, from the music
-  player's restyle): a rejection should quote the line of the task it breaks or not count;
-  tasks that split one piece of work should say what's left for the next; a model that runs
-  out of steps should hand its partial work on; the run summary should show "spent with
-  nothing finished". → release 2.
+  player's restyle): a rejection should quote the line of the task it breaks or not count.
+  → wave 6 (d3-panel). *The rest is fixed in 1.1.0: see Fixed.*
 
 - **References: the phone can't add one from its own screen yet.** The hub command works
   (`reference_add` with `text`, `reference_remove` with `id`), but Roundtable Mobile has no
@@ -180,25 +164,11 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   8,000 output tokens per attempt. In real money the music player's estimate was about
   right once the cost count was fixed (below), but the defaults should come from real
   runs (steps × context) and be checked after each one. → release 2.
-- **Nothing proves the work runs.** The coder can't open a browser and has no sample
-  files, so a task's "done when" (open the page, import three songs) is never checked;
-  the critic said so on every version of the music player plan. → release 2. *Partly
-  done (26 November): "Show it" takes pictures of a web app's page after every approved
-  task and shows them, with the app live, in the desktop app and on the phone.* Still to
-  do, all release 2:
-  - **A model that can see judges the pictures** (against the task's "done when" and the
-    design file) and the reviewer reads its verdict; today nobody looks but the owner.
-  - **Apps that start with a command** (`npm start`, `npm run dev`, a Python server): only
-    their static `index.html` is shown, or nothing. Roundtable should start the command,
-    wait for its port, take the pictures and stop it.
-  - **Android and desktop apps**: no pictures yet (an emulator or Robolectric drawing for
-    Android; a window capture for an EXE).
-  - **Games**: play for a minute (a scripted input or random keys) and take pictures and a
-    short clip, with the console's errors.
-  - **The Live frame only works on the same computer**: the app's own server listens on
-    127.0.0.1, so `roundtable ui --host` from another machine shows only the pictures.
-- **Tasks are planned too big.** Splitting after the fact now works (below), but the
-  planner should size tasks up front (a rough step budget each). → release 2.
+- **Pictures of Android and desktop apps, and the Live frame from another computer.** What's left of
+  "Nothing proves the work runs" (fixed in 1.1.0, see Fixed): no window pictures of a running EXE and no
+  emulator started by the harness (an APK is only built, checked and installed on an emulator that is
+  already running); the app's own server listens on 127.0.0.1, so `roundtable ui --host` from another
+  machine shows only the pictures. → wave 6.
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
   stops after two hours; with the desktop app closed, nothing answers. → release 3 (say
   on the phone when no Roundtable is listening, and when it last was).
@@ -209,6 +179,31 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **Nothing proves the work runs** (fixed in 1.1.0, 27 November): every plan has a done list
+  (`harness/donelist.py`, `donestage.py`); after the last task the finishing step starts the product, walks
+  the list in a browser, runs its commands and files checks, and turns failures into fix tasks within two
+  rounds (`finishstage.py`, `journeys.py`); apps that start with a command are started, shown and stopped
+  (`appserver.py`, the App tab's Start, `ui/appapi.py`); games are played for a minute by a model that can
+  see (`playtest.py`). Real browser journeys and play on Windows are beta until tried on the owner's PC.
+- **A run can start above the estimate the owner saw** (fixed in 1.1.0): approval records the agreed amount
+  and a run that would cost a quarter more (at least 50 cents) pauses with one card (`moneystage.py`,
+  `test_a_run_can_start_above_the_estimate_the_owner_saw`).
+- **Autopilot doesn't stop a run at its own limit** (fixed in 1.1.0): what's left of autopilot's money is
+  written as the run's allowance and binds it (`AllowanceReached`, `test_autopilot_stops_a_run_at_its_own_limit`).
+- **Autopilot can't approve a plan with pictures** (fixed in 1.1.0): picture models are priced from the
+  provider's real charges or `pricing.<model>.per_image` (`imageprice.py`,
+  `test_autopilot_can_approve_a_plan_with_pictures`).
+- **Roundtable doesn't know what this machine can build** (fixed in 1.1.0): the planner is told exactly
+  which targets this machine can build and why not the rest, and at the end the EXE, APK or mod is built,
+  checked and started once (`shipstage.py`, `ship.py`). What it can't build is shown as not checked and
+  never stops the project. Real builds on Windows are beta until done on the owner's PC.
+- **Tasks are planned too big** (fixed in 1.1.0): plans come in stages, the first a working slice; each task
+  names its files and a rough size, overlapping tasks run one after the other (`harness/stages.py`).
+- **Split tasks didn't say what's left, partial work wasn't handed on, "spent with nothing finished" wasn't
+  shown** (fixed in 1.1.0): a stuck task is diagnosed by another maker's model and retried, split, planned
+  around or parked, with one card at the end; every split or retry gets a written handover
+  (`unstick.py`, `handoff.py`); the report says what was spent with nothing finished.
 
 - **OpenRouter cost more than it needed to** (26 November): requests now ask for the cheapest
   route, and big files are read as an outline plus the parts needed, not whole.

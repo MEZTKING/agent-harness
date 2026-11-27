@@ -1,4 +1,4 @@
-# Handoff – 27 November 2026 (evening)
+# Handoff – 27 November 2026 (late evening)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -26,7 +26,8 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 |---|---|
 | Waves 1–3 | **Released** as 0.10.0, 0.11.0 and 0.12.0: autopilot and several tasks at once, comfort on the phone, proof, rewind, web search, kinds, the command line, pounds |
 | Wave 4 → **1.0.0** | **Ready, not released**: the new name and the Eclipse look on the PC and the phone, the safe upgrade (old data folder, keys and pairing used where they are; an old-name starter exe; both APK names; the firewall rules moved). Put together on branch `d1-integrate`; all tests green. The `upgrade-test` CI job already passed once |
-| Wave 5 → 1.1.0 | Being built on the `d2-*` branches (stages, the done list, finishing, play-testing, money limits, shipping, unsticking). Step 0 (the stages' seam, behaviour-neutral) is already in 1.0.0 |
+| Wave 5 → **1.1.0** | **Ready, not released**, on branch `d2-integrate` (on top of 1.0.0): the done list and prep, stages and parts, trying what was built and fixing what breaks, the App tab's Start, play-testing, real builds of EXE/APK/mod, stuck tasks worked out with handovers, money limits (agreed amount, autopilot's allowance, priced pictures). All tests green; DEVLOG has every hook-up |
+| Beta in 1.1.0 | Only tried against stand-ins: a real Godot play, real EXE/APK/mod builds and starts, real browser journeys and the App tab's frame on Windows, the phone's done card and stage strip on a real phone |
 | Waves 6–9 | Planned (PLAN.md's table): every model at once, it learns, the parity sweep, the rows once declined |
 | Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
 | Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
@@ -39,11 +40,16 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 2. On the owner's PC through Remote Control (once a folder is shared): the in-app update from
    0.12.0, the one-time firewall question, an old taskbar pin, the new Start-menu entry. On the
    phone by USB: the 1.0.0 test APK over 0.12.0, still paired.
-3. Merge wave 5's `d2-*` branches when their helpers report, then 1.1.0.
+3. Release 1.1.0 after 1.0.0 (branch `d2-integrate`; README "What's new in 1.1.0"). Before or soon after:
+   on the owner's PC through Remote Control, play a real Godot game, build and start an EXE, build an APK and
+   a mod jar, walk a web app with real Playwright, open the App tab's frame; then the small real DeepSeek run
+   of a tiny browser game to watch the finishing loop with real models (estimate first, balance before and
+   after).
 4. At 1.2.0: remove the old-name starter (`packaging/old_name_starter.py`, the spec's second
    EXE, the installer lines) and point `upgrade-test` at the last 1.x installer.
 5. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending, size), Ask me
-   first on the phone, owner to-dos that leave the app.
+   first on the phone, owner to-dos that leave the app, window pictures of an EXE and an emulator the
+   harness starts, a rejection that must quote the line it breaks (wave 6).
 
 ## 4. Where to read more
 
