@@ -54,7 +54,7 @@ export async function viewProject(id, tab = "overview") {
   drawHead(seat);
   const body = h("div", { class: "project-body" });
   const root = h("div", { class: "page project" }, head,
-    tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "cdl", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
+    tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "pulse-dot", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
     body);
   onHall(root, (rt) => { const s = rt.seats.find((x) => x.id === id); if (s) { seat = s; drawHead(s); } });
   const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab, terminal: terminalTab };
@@ -77,7 +77,7 @@ function moveOn(s) {
     const out = runButtons({ path: s.path, actions: s.actions || [], task: s.failed_task }, () => refreshHall());
     if ((s.actions || []).includes("resume")) out.push(h("button", { title: "Builds just the next task, then stops so you can look",
       onclick: (ev) => act(ev.currentTarget, () => post("/api/project", { path: s.path, action: "run", max_tasks: 1 }), "Building the next task", () => refreshHall()) }, "Just the next task"));
-    if (s.status === "running") out.push(h("a", { class: "btn primary", href: projectHref(s.id, "watch") }, h("i", { class: "cdl" }), "Watch it work"));
+    if (s.status === "running") out.push(h("a", { class: "btn primary", href: projectHref(s.id, "watch") }, h("i", { class: "pulse-dot" }), "Watch it work"));
     if (["done", "idle"].includes(s.status) && !(s.actions || []).length) out.push(h("button", { class: s.status === "done" ? "primary" : "", title: "Give it a new goal: the planner adds tasks for it, then builds them",
       onclick: async (ev) => {
         const box = composer({ key: `goal:${s.path}`, project: s.path, rows: 4, label: "What it should do next",
@@ -190,7 +190,7 @@ function chatCard(seat) {
   let pending = null, history = [];
   const draw = () => {
     const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-    fill(log, [...history.map((m) => msg(m)), pending ? [msg({ who: "owner", text: pending.text, steer: pending.steer }), h("div", { class: "msgl orc pending" }, h("small", {}, "Planner"), h("div", { class: "body" }, h("i", { class: "cdl" }), pending.steer ? "Noting it…" : "Thinking…"))] : null]);
+    fill(log, [...history.map((m) => msg(m)), pending ? [msg({ who: "owner", text: pending.text, steer: pending.steer }), h("div", { class: "msgl orc pending" }, h("small", {}, "Planner"), h("div", { class: "body" }, h("i", { class: "pulse-dot" }), pending.steer ? "Noting it…" : "Thinking…"))] : null]);
     if (!history.length && !pending) fill(log, h("p", { class: "muted small" }, "Ask about this project (“what's left?”, “why did the logo task stop?”), or give an instruction for the next tasks (“use bigger buttons from now on”)."));
     if (atEnd) log.scrollTop = log.scrollHeight;
   };

@@ -329,14 +329,17 @@ async function updatesPart(st) {
 
 // ---------- look ----------
 function lookPart() {
-  let now = "system";
-  try { now = localStorage.getItem("rt-theme") || "system"; } catch { /* storage unavailable */ }
+  let now = "eclipse";
+  try { now = { dark: "eclipse", light: "ash", system: "eclipse" }[localStorage.getItem("rt-theme")] || localStorage.getItem("rt-theme") || "eclipse"; } catch { /* storage unavailable */ }
+  if (!["eclipse", "pitch", "ash"].includes(now)) now = "eclipse";
   const pick = (v) => {
-    try { if (v === "system") localStorage.removeItem("rt-theme"); else localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
-    if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+    try { localStorage.setItem("rt-theme", v); } catch { /* storage unavailable */ }
+    document.documentElement.dataset.theme = v;
   };
   return card("Look", h("p", { class: "muted small" }, "How the harness looks on this computer."),
-    seg([["light", "Light", "Warm parchment and oak"], ["dark", "Dark", "The hall by candlelight"], ["system", "Same as this computer", "Follows the computer's light or dark setting"]], now, pick, "Light or dark"));
+    seg([["eclipse", "Eclipse", "Black with a thin ring of light: the usual look"],
+      ["pitch", "Pitch", "True black: easiest on the eyes in the dark, and saves power on OLED screens"],
+      ["ash", "Ash", "Light: for bright rooms and sunlight"]], now, pick, "Eclipse, Pitch or Ash"));
 }
 
 // ---------- advanced ----------
