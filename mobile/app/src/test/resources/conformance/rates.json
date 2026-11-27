@@ -1,0 +1,10 @@
+{
+ "at": "2026-11-26",
+ "currency": "GBP",
+ "per_usd": 0.8,
+ "setting": "auto",
+ "show": "usd+gbp",
+ "source": "ecb",
+ "stale": false,
+ "words": "$1 = £0.8000, the European Central Bank's rate of 26 Nov. Pounds are a guide: the bills are in dollars."
+}

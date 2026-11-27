@@ -4,6 +4,38 @@
    "allow_other": true,
    "answer": null,
    "busy": false,
+   "detail": "Changing it re-plans the work: about the cost of one plan (usually a few cents).",
+   "header": "Kind",
+   "id": "kind",
+   "kind": "kind",
+   "multi": false,
+   "options": [
+    {
+     "description": "",
+     "id": "website",
+     "label": "Website"
+    },
+    {
+     "description": "",
+     "id": "other",
+     "label": "Something else"
+    }
+   ],
+   "other_hint": "Something else? Say what it is",
+   "path": "/home/owner/lab/proj",
+   "project": "proj",
+   "question": "This looks like a Website, because you said “site” and “bakery”. Right?",
+   "recommended": "website",
+   "source": {
+    "extras": [],
+    "kind": "website"
+   },
+   "stamp": "cdfbec2f0b"
+  },
+  {
+   "allow_other": true,
+   "answer": null,
+   "busy": false,
    "detail": "",
    "header": "Plan",
    "id": "approve",

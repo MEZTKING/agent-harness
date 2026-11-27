@@ -1,0 +1,31 @@
+{
+ "kind": {
+  "blurb": "A site to read and look at: a shop window, a portfolio, a blog.",
+  "by": "owner",
+  "change_words": "Changing it re-plans the work: about the cost of one plan (usually a few cents).",
+  "choices": [
+   {
+    "id": "website",
+    "name": "Website",
+    "recommended": true
+   },
+   {
+    "id": "other",
+    "name": "Something else",
+    "recommended": false
+   }
+  ],
+  "confirmed": true,
+  "extras": [],
+  "fixed": false,
+  "frozen": false,
+  "id": "website",
+  "name": "Website",
+  "question": "This is a Website.",
+  "status": "trial",
+  "status_words": "On trial",
+  "why": "you chose it"
+ },
+ "replanned": false,
+ "reply": "Kept as a Website."
+}

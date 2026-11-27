@@ -4,7 +4,11 @@ import com.meztking.roundtable.data.Asks
 import com.meztking.roundtable.data.AskReply
 import com.meztking.roundtable.data.ComposerDraft
 import com.meztking.roundtable.data.ComposerSender
+import com.meztking.roundtable.data.ApiRewind
 import com.meztking.roundtable.data.Files
+import com.meztking.roundtable.data.Kinds
+import com.meztking.roundtable.data.Pounds
+import com.meztking.roundtable.data.Proof
 import com.meztking.roundtable.data.Live
 import com.meztking.roundtable.data.ProjectSettings
 import com.meztking.roundtable.data.Search
@@ -156,6 +160,33 @@ class ConformanceTest {
         assertTrue(api.ask(project, "how is it going?", steer = false).reply.isNotBlank())
         api.newProject("made-up-garden", "a garden planner")
         assertTrue(api.answer(approve, AskReply(chosen = listOf("approve"))).isNotBlank())
+
+        // wave 3: kinds and the Gallery, pounds, rewind, proof and a task's live command (Api.feature)
+        val kinds = Kinds.parseList(api.feature("GET", "/api/kinds"))
+        assertTrue(kinds.groups.any { g -> g.kinds.any { it.id == "website" } })
+        assertTrue(api.feature("GET", "/api/kinds/one?id=website").contains("\"website\""))
+        assertTrue(api.feature("POST", "/api/kinds/propose", buildJsonObject { put("goal", "a made-up bakery site") }.toString()).contains("choices"))
+        assertEquals("website", Kinds.planKind(api.feature("POST", "/api/kinds/set", Kinds.setKindBody(project, "website")))?.id)
+        val rate = Pounds.parse(api.feature("GET", "/api/rates"))
+        assertEquals("≈ £0.80", Pounds.beside(1.0, rate))
+        assertTrue(Kinds.parseGallery(api.feature("GET", Kinds.galleryPath())).entries.isEmpty())
+        val tile = Kinds.parseGallery(api.feature("GET", Kinds.galleryPath(hidden = true))).entries.single()
+        val entry = Kinds.parseEntry(api.feature("GET", Kinds.entryPath(tile.project, tile.goal)))
+        assertEquals("Website", entry?.kindName)
+        api.feature("POST", "/api/gallery/star", Kinds.flagBody(tile.project, tile.goal, "starred", true))
+        api.feature("POST", "/api/gallery/hide", Kinds.flagBody(tile.project, tile.goal, "hidden", false))
+        assertTrue(api.feature("POST", "/api/gallery/again", Kinds.flagBody(tile.project, tile.goal, "starred", false)).contains("wizard"))
+        val rw = ApiRewind(api, project)
+        assertTrue(rw.history().rows.any { it.id == "T1" })
+        val pre = rw.preview("T1", "undo_task")
+        assertTrue(pre.stamp.isNotBlank() && pre.files.isNotEmpty())
+        assertTrue(rw.apply("T1", "undo_task", pre.stamp).ok)
+        assertTrue(rw.putBack().ok)
+        assertTrue(rw.fork("T1", "made-up-another-way").ok)
+        assertTrue(Proof.parse(api.feature("GET", Proof.url(project, "T1")))!!.found)
+        assertTrue(api.feature("GET", "/api/proof/list?path=$project").contains("items"))
+        assertTrue(api.feature("GET", "/api/terminal/task?path=$project&task=T1&since=0").contains("words"))
+        assertTrue(api.feature("POST", "/api/terminal/task/stop", buildJsonObject { put("path", project); put("task", "T1") }.toString()).contains("words"))
 
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }

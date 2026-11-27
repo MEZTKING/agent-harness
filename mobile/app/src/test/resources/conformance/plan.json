@@ -6,7 +6,7 @@
   "decisions": [],
   "dont": [],
   "estimate": {
-   "at": "2026-11-27T13:14:10Z",
+   "at": "2026-11-27T13:54:05Z",
    "by_role": {
     "coder": {
      "basis": "default",
@@ -26,6 +26,7 @@
    "cost_usd": 0.2674,
    "minutes": 11.5,
    "note": "rough: from past runs where there are some, else typical sizes; unpriced models aren't counted",
+   "proof_usd": 0.0,
    "tasks": 3,
    "unpriced": [
     "img/pic"
@@ -36,13 +37,40 @@
   "has_ui": null,
   "history": [
    {
-    "at": "2026-11-27T13:14:10Z",
+    "at": "2026-11-27T13:54:05Z",
     "change": "first plan",
     "version": 1
    }
   ],
   "ideas": [],
   "in_scope": [],
+  "kind": {
+   "blurb": "A site to read and look at: a shop window, a portfolio, a blog.",
+   "by": "roundtable",
+   "change_words": "Changing it re-plans the work: about the cost of one plan (usually a few cents).",
+   "choices": [
+    {
+     "id": "website",
+     "name": "Website",
+     "recommended": true
+    },
+    {
+     "id": "other",
+     "name": "Something else",
+     "recommended": false
+    }
+   ],
+   "confirmed": false,
+   "extras": [],
+   "fixed": false,
+   "frozen": false,
+   "id": "website",
+   "name": "Website",
+   "question": "This looks like a Website, because you said “site” and “bakery”. Right?",
+   "status": "trial",
+   "status_words": "On trial",
+   "why": "because you said “site” and “bakery”"
+  },
   "out_of_scope": [],
   "pending": [],
   "questions": [],
@@ -74,6 +102,7 @@
    "image_options": {},
    "merge_of": "",
    "output_path": "",
+   "previous_attempts": [],
    "role": "coder",
    "section": "",
    "status": "pending",
@@ -92,6 +121,7 @@
    "image_options": {},
    "merge_of": "",
    "output_path": "assets/logo.png",
+   "previous_attempts": [],
    "role": "designer",
    "section": "",
    "status": "pending",
@@ -112,6 +142,7 @@
    "image_options": {},
    "merge_of": "",
    "output_path": "",
+   "previous_attempts": [],
    "role": "coder",
    "section": "",
    "status": "pending",

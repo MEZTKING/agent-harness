@@ -1,0 +1,21 @@
+{
+ "back_to_todo": [
+  "T1"
+ ],
+ "blocked": "",
+ "files": [
+  {
+   "change": "removed",
+   "path": "hello.py",
+   "words": "goes"
+  }
+ ],
+ "hand_edits": [],
+ "hand_edits_kept": true,
+ "mode": "undo_task",
+ "offer": "",
+ "stamp": "4172b418cc8bb785e62f",
+ "task": "T1",
+ "title": "hello module",
+ "words": "Undo “hello module”: 1 file change back. Later work stays. You can put it back afterwards."
+}

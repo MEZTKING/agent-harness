@@ -83,7 +83,16 @@ def _scrub(text: str, tmp: Path) -> str:
     return text
 
 
-def test_every_phone_call_answers(paired):
+ECB = b"""<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+  <Cube><Cube time='2026-11-26'><Cube currency='USD' rate='1.0500'/><Cube currency='GBP' rate='0.8400'/></Cube></Cube>
+</gesmes:Envelope>"""
+
+
+def test_every_phone_call_answers(paired, monkeypatch):
+    from roundtable import money
+
+    monkeypatch.setattr(money, "OPENER", lambda url, timeout: ECB)  # pounds: a made-up bank file, nothing goes out
     app, orch, p, token, tmp = paired
     orch._register_with_lab()
     orch.start("bakery site", require_approval=True)
@@ -104,6 +113,8 @@ def test_every_phone_call_answers(paired):
     for c in SPEC["calls"]:
         if c.get("local"):
             continue
+        if c.get("wait_jobs"):  # this one needs the build the earlier calls started to have finished
+            _wait_for_jobs(app)
         path = _fill(c["path"], values)
         query = _fill(c.get("query") or {}, values)
         url = path + ("?" + urlencode(query) if query else "")

@@ -158,6 +158,19 @@
    "value": ""
   },
   {
+   "choices": [
+    "",
+    "on",
+    "off"
+   ],
+   "default": "",
+   "description": "Let the builders look things up on the web (their search words go to a search service). Empty: this computer's choice; a project kept to some providers gets none unless this says on.",
+   "key": "web_search",
+   "source": "default",
+   "type": "choice",
+   "value": ""
+  },
+  {
    "choices": [],
    "default": "",
    "description": "Anything the planner should know about this project, in your own words.",

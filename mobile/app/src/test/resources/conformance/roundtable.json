@@ -27,35 +27,36 @@
    "ask": {
     "allow_other": true,
     "answer": null,
-    "detail": "",
-    "header": "Plan",
-    "id": "approve",
-    "kind": "approve",
+    "detail": "Changing it re-plans the work: about the cost of one plan (usually a few cents).",
+    "header": "Kind",
+    "id": "kind",
+    "kind": "kind",
     "multi": false,
     "options": [
      {
-      "description": "Builds it now. About $0.27, about 12 minutes.",
-      "id": "approve",
-      "label": "Approve and start"
+      "description": "",
+      "id": "website",
+      "label": "Website"
      },
      {
-      "description": "Keep the plan; nothing is built yet.",
-      "id": "not_now",
-      "label": "Not now"
+      "description": "",
+      "id": "other",
+      "label": "Something else"
      }
     ],
-    "other_hint": "Change something… (say what)",
+    "other_hint": "Something else? Say what it is",
     "path": "/home/owner/lab/proj",
     "project": "proj",
-    "question": "Is the plan right? Start building?",
-    "recommended": "approve",
+    "question": "This looks like a Website, because you said “site” and “bakery”. Right?",
+    "recommended": "website",
     "source": {
-     "version": 1
+     "extras": [],
+     "kind": "website"
     },
-    "stamp": "52a2c96a01"
+    "stamp": "cdfbec2f0b"
    },
-   "asks": 1,
-   "at": "2026-11-27T13:14:10Z",
+   "asks": 2,
+   "at": "2026-11-27T13:54:05Z",
    "kind": "run",
    "name": "Proj",
    "order": 1,
@@ -71,8 +72,8 @@
     "done"
    ],
    "agent": "proj",
-   "at": "2026-11-27T13:14:10Z",
-   "id": "4a4fff",
+   "at": "2026-11-27T13:54:05Z",
+   "id": "19528d",
    "kind": "todo",
    "name": "Proj",
    "order": 0,
@@ -92,19 +93,19 @@
    "brief": {
     "agent": "proj",
     "description": "the harness project",
-    "last_activity": "2026-11-27T13:14:10Z",
+    "last_activity": "2026-11-27T13:54:05Z",
     "last_session": null,
-    "last_ts": 1795785250.308361,
+    "last_ts": 1795787645.7950728,
     "open_plans": [],
     "open_todos": [
      {
       "agent": "proj",
       "closed_at": "",
       "closed_note": "",
-      "created_at": "2026-11-27T13:14:10Z",
+      "created_at": "2026-11-27T13:54:05Z",
       "details": "",
       "for_owner": true,
-      "id": "4a4fff",
+      "id": "19528d",
       "kind": "todo",
       "next": [],
       "plan_ready": false,
@@ -113,7 +114,7 @@
       "status": "open",
       "tags": [],
       "text": "check the logo colours",
-      "ts": 1795785250.308361
+      "ts": 1795787645.7950728
      }
     ],
     "recent_decisions": [],
@@ -127,7 +128,7 @@
    "high": 1,
    "id": "proj",
    "kind": "both",
-   "last_activity": "2026-11-27T13:14:10Z",
+   "last_activity": "2026-11-27T13:54:05Z",
    "last_session": null,
    "machine": "pc-vm",
    "machine_name": "PC (VM)",

@@ -481,6 +481,70 @@
    }
   },
   {
+   "name": "kinds",
+   "method": "GET",
+   "path": "/api/kinds",
+   "needs": [
+    "groups",
+    "extras",
+    "words"
+   ]
+  },
+  {
+   "name": "kinds_one",
+   "method": "GET",
+   "path": "/api/kinds/one",
+   "query": {
+    "id": "website"
+   },
+   "needs": [
+    "id",
+    "name"
+   ]
+  },
+  {
+   "name": "kinds_propose",
+   "method": "POST",
+   "path": "/api/kinds/propose",
+   "body": {
+    "goal": "a made-up bakery site"
+   },
+   "needs": [
+    "choices"
+   ]
+  },
+  {
+   "name": "kinds_set",
+   "method": "POST",
+   "path": "/api/kinds/set",
+   "body": {
+    "path": "{project}",
+    "id": "website"
+   },
+   "needs": [
+    "kind"
+   ]
+  },
+  {
+   "name": "rates",
+   "method": "GET",
+   "path": "/api/rates",
+   "needs": [
+    "per_usd",
+    "show",
+    "words"
+   ]
+  },
+  {
+   "name": "gallery_empty",
+   "method": "GET",
+   "path": "/api/gallery",
+   "needs": [
+    "entries",
+    "words"
+   ]
+  },
+  {
    "name": "asks_answer",
    "method": "POST",
    "path": "/api/asks",
@@ -508,6 +572,182 @@
    "method": "POST",
    "path": "/api/hub",
    "local": true
+  },
+  {
+   "name": "rewind",
+   "method": "GET",
+   "path": "/api/rewind",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "rows"
+   ],
+   "wait_jobs": true
+  },
+  {
+   "name": "rewind_preview",
+   "method": "GET",
+   "path": "/api/rewind/preview",
+   "query": {
+    "path": "{project}",
+    "task": "T1",
+    "mode": "undo_task"
+   },
+   "needs": [
+    "files",
+    "stamp"
+   ],
+   "save": {
+    "stamp": "stamp"
+   }
+  },
+  {
+   "name": "proof",
+   "method": "GET",
+   "path": "/api/proof",
+   "query": {
+    "path": "{project}",
+    "task": "T1",
+    "inline": "1"
+   },
+   "needs": [
+    "found",
+    "words"
+   ]
+  },
+  {
+   "name": "proof_list",
+   "method": "GET",
+   "path": "/api/proof/list",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "items"
+   ]
+  },
+  {
+   "name": "live_command",
+   "method": "GET",
+   "path": "/api/terminal/task",
+   "query": {
+    "path": "{project}",
+    "task": "T1",
+    "since": "0"
+   },
+   "needs": [
+    "text",
+    "running",
+    "words"
+   ]
+  },
+  {
+   "name": "live_command_stop",
+   "method": "POST",
+   "path": "/api/terminal/task/stop",
+   "body": {
+    "path": "{project}",
+    "task": "T1"
+   },
+   "needs": [
+    "words"
+   ]
+  },
+  {
+   "name": "gallery",
+   "method": "GET",
+   "path": "/api/gallery",
+   "needs": [
+    "entries"
+   ],
+   "query": {
+    "hidden": "1"
+   }
+  },
+  {
+   "name": "gallery_one",
+   "method": "GET",
+   "path": "/api/gallery/one",
+   "query": {
+    "project": "proj",
+    "goal": "goal-1"
+   },
+   "needs": [
+    "title",
+    "proof"
+   ]
+  },
+  {
+   "name": "gallery_star",
+   "method": "POST",
+   "path": "/api/gallery/star",
+   "body": {
+    "project": "proj",
+    "goal": "goal-1",
+    "starred": true
+   }
+  },
+  {
+   "name": "gallery_hide",
+   "method": "POST",
+   "path": "/api/gallery/hide",
+   "body": {
+    "project": "proj",
+    "goal": "goal-1",
+    "hidden": false
+   }
+  },
+  {
+   "name": "gallery_again",
+   "method": "POST",
+   "path": "/api/gallery/again",
+   "body": {
+    "project": "proj",
+    "goal": "goal-1"
+   },
+   "needs": [
+    "wizard"
+   ]
+  },
+  {
+   "name": "rewind_apply",
+   "method": "POST",
+   "path": "/api/rewind",
+   "body": {
+    "path": "{project}",
+    "task": "T1",
+    "mode": "undo_task",
+    "stamp": "{stamp}"
+   },
+   "needs": [
+    "words"
+   ]
+  },
+  {
+   "name": "rewind_put_back",
+   "method": "POST",
+   "path": "/api/rewind/undo",
+   "body": {
+    "path": "{project}"
+   },
+   "needs": [
+    "words"
+   ]
+  },
+  {
+   "name": "rewind_fork",
+   "method": "POST",
+   "path": "/api/rewind/fork",
+   "body": {
+    "path": "{project}",
+    "task": "T1",
+    "name": "made-up-another-way"
+   },
+   "needs": [
+    "words",
+    "path"
+   ]
   }
  ]
 }

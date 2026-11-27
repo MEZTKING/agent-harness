@@ -1,0 +1,373 @@
+{
+ "extras": [
+  {
+   "blurb": "Packs the web app as an app for Android phones.",
+   "id": "apk",
+   "name": "Android app (APK)",
+   "needs": [
+    "java",
+    "android"
+   ],
+   "pc_only": true,
+   "source": "builtin",
+   "status": "trial",
+   "status_words": "On trial"
+  },
+  {
+   "blurb": "Packs the web app as a program for Windows.",
+   "id": "exe",
+   "name": "Windows program (EXE)",
+   "needs": [
+    "node"
+   ],
+   "pc_only": true,
+   "source": "builtin",
+   "status": "trial",
+   "status_words": "On trial"
+  }
+ ],
+ "groups": [
+  {
+   "group": "Websites",
+   "kinds": [
+    {
+     "blurb": "A site to read and look at: a shop window, a portfolio, a blog.",
+     "built": 0,
+     "examples": [
+      "a bakery site with opening hours and a menu",
+      "a portfolio for my drawings",
+      "a page for my band's next gigs"
+     ],
+     "extras": [],
+     "extras_allowed": [
+      "apk",
+      "exe"
+     ],
+     "group": "Websites",
+     "guess": true,
+     "id": "website",
+     "missing": [],
+     "more": {
+      "card": "Built on the web app recipe. The Look step does most of the work: three looks to choose from.",
+      "look": "on",
+      "plugins": [],
+      "prompts_for": [
+       "coder",
+       "orchestrator",
+       "reviewer"
+      ],
+      "roles_added": [],
+      "spec_sections": [
+       "Stack",
+       "Pages",
+       "Words and pictures",
+       "How to run it"
+      ],
+      "targets": [
+       "web"
+      ]
+     },
+     "name": "Website",
+     "needs": [
+      {
+       "id": "node",
+       "missing": false,
+       "name": "Node.js"
+      },
+      {
+       "id": "playwright",
+       "missing": false,
+       "name": "Playwright's browser"
+      }
+     ],
+     "proof": [
+      {
+       "id": "starts",
+       "not_yet": false,
+       "optional": false,
+       "words": "It opens with no errors"
+      },
+      {
+       "id": "tests",
+       "not_yet": false,
+       "optional": true,
+       "words": "Its tests pass"
+      }
+     ],
+     "source": "builtin",
+     "status": "trial",
+     "status_words": "On trial",
+     "typical": "$1.00–$3.50 · 20–70 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": true
+    }
+   ]
+  },
+  {
+   "group": "Web apps",
+   "kinds": [
+    {
+     "blurb": "A tool or app that runs in the browser.",
+     "built": 0,
+     "examples": [
+      "a music player for the songs on my computer",
+      "a budget tracker that works offline",
+      "a timer for my workouts"
+     ],
+     "extras": [],
+     "extras_allowed": [
+      "apk",
+      "exe"
+     ],
+     "group": "Web apps",
+     "guess": true,
+     "id": "web-app",
+     "missing": [],
+     "more": {
+      "card": "Written from what worked on the music player. That player was built before kinds existed, so this\nrecipe is still on trial until something is built with it and passes its proof.",
+      "look": "on",
+      "plugins": [],
+      "prompts_for": [
+       "coder",
+       "orchestrator",
+       "reviewer"
+      ],
+      "roles_added": [],
+      "spec_sections": [
+       "Stack",
+       "Screens",
+       "Data",
+       "How to run it"
+      ],
+      "targets": [
+       "web"
+      ]
+     },
+     "name": "Web app",
+     "needs": [
+      {
+       "id": "node",
+       "missing": false,
+       "name": "Node.js"
+      },
+      {
+       "id": "playwright",
+       "missing": false,
+       "name": "Playwright's browser"
+      }
+     ],
+     "proof": [
+      {
+       "id": "starts",
+       "not_yet": false,
+       "optional": false,
+       "words": "It opens with no errors"
+      },
+      {
+       "id": "tests",
+       "not_yet": false,
+       "optional": true,
+       "words": "Its tests pass"
+      }
+     ],
+     "source": "builtin",
+     "status": "trial",
+     "status_words": "On trial",
+     "typical": "$1.50–$5.00 · 30–100 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": true
+    }
+   ]
+  },
+  {
+   "group": "Browser games",
+   "kinds": [
+    {
+     "blurb": "Something to play in the browser.",
+     "built": 0,
+     "examples": [
+      "a snake game with a high score",
+      "a card-matching puzzle",
+      "a tiny platformer with three levels"
+     ],
+     "extras": [],
+     "extras_allowed": [
+      "apk",
+      "exe"
+     ],
+     "group": "Browser games",
+     "guess": true,
+     "id": "browser-game",
+     "missing": [],
+     "more": {
+      "card": "Uses the web app recipe and adds an artist. \"Played for a minute\" is shown but not checked yet:\nRoundtable can't play the game by itself so far.",
+      "look": "art",
+      "plugins": [],
+      "prompts_for": [
+       "coder",
+       "orchestrator",
+       "reviewer"
+      ],
+      "roles_added": [
+       "artist"
+      ],
+      "spec_sections": [
+       "Stack",
+       "Screens",
+       "Controls",
+       "Art style",
+       "Sound",
+       "How to run it"
+      ],
+      "targets": [
+       "web"
+      ]
+     },
+     "name": "Browser game",
+     "needs": [
+      {
+       "id": "node",
+       "missing": false,
+       "name": "Node.js"
+      },
+      {
+       "id": "playwright",
+       "missing": false,
+       "name": "Playwright's browser"
+      }
+     ],
+     "proof": [
+      {
+       "id": "starts",
+       "not_yet": false,
+       "optional": false,
+       "words": "It opens with no errors"
+      },
+      {
+       "id": "tests",
+       "not_yet": false,
+       "optional": true,
+       "words": "Its tests pass"
+      },
+      {
+       "id": "plays",
+       "not_yet": true,
+       "optional": false,
+       "words": "Played for a minute"
+      }
+     ],
+     "source": "builtin",
+     "status": "trial",
+     "status_words": "On trial",
+     "typical": "$1.50–$4.00 · 30–90 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": true
+    }
+   ]
+  },
+  {
+   "group": "Mods and add-ons",
+   "kinds": [
+    {
+     "blurb": "A mod for a Java game. Not ready yet.",
+     "built": 0,
+     "examples": [
+      "a Minecraft mod that adds a copper lantern"
+     ],
+     "extras": [],
+     "extras_allowed": [],
+     "group": "Mods and add-ons",
+     "guess": true,
+     "id": "java-mod",
+     "missing": [],
+     "more": {
+      "card": "Coming later. The first kind with no browser, so it will show that kinds really reshape Roundtable.",
+      "look": "off",
+      "plugins": [],
+      "prompts_for": [],
+      "roles_added": [],
+      "spec_sections": [
+       "Game and version",
+       "What it adds",
+       "How to build it"
+      ],
+      "targets": [
+       "jar"
+      ]
+     },
+     "name": "Minecraft or Java mod",
+     "needs": [
+      {
+       "id": "java",
+       "missing": false,
+       "name": "Java (JDK 17 or newer)"
+      }
+     ],
+     "proof": [
+      {
+       "id": "builds",
+       "not_yet": true,
+       "optional": false,
+       "words": "It builds"
+      }
+     ],
+     "source": "builtin",
+     "status": "not_yet",
+     "status_words": "Not yet",
+     "typical": "$2.00–$6.00 · 40–120 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": false
+    }
+   ]
+  },
+  {
+   "group": "Other",
+   "kinds": [
+    {
+     "blurb": "Anything not listed yet, with fewer checks.",
+     "built": 0,
+     "examples": [
+      "a script that renames my photos by date",
+      "a small command-line converter"
+     ],
+     "extras": [],
+     "extras_allowed": [],
+     "group": "Other",
+     "guess": true,
+     "id": "other",
+     "missing": [],
+     "more": {
+      "card": "For anything Roundtable has no recipe for yet. The builders get no special advice, and the only\nproof is the project's own tests, when it has some.",
+      "look": "off",
+      "plugins": [],
+      "prompts_for": [],
+      "roles_added": [],
+      "spec_sections": [
+       "What it does",
+       "How to run it"
+      ],
+      "targets": []
+     },
+     "name": "Something else",
+     "needs": [],
+     "proof": [
+      {
+       "id": "tests",
+       "not_yet": false,
+       "optional": true,
+       "words": "Its own tests pass"
+      }
+     ],
+     "source": "builtin",
+     "status": "trial",
+     "status_words": "On trial",
+     "typical": "$0.50–$3.00 · 15–60 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": true
+    }
+   ]
+  }
+ ],
+ "problems": [],
+ "words": "What Roundtable can make. “On trial” means nothing built with it has passed its proof yet."
+}

@@ -1,0 +1,11 @@
+{
+ "reply": "The new project starts as a Website like bakery site. Say what this one is.",
+ "wizard": {
+  "extras": [],
+  "kind": {
+   "chosen": [
+    "website"
+   ]
+  }
+ }
+}

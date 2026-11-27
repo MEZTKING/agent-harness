@@ -1,23 +1,23 @@
 {
  "events": [
   {
-   "at": "2026-11-27T13:14:10Z",
+   "at": "2026-11-27T13:54:05Z",
    "text": "Planning with a/planner..."
   },
   {
-   "at": "2026-11-27T13:14:10Z",
+   "at": "2026-11-27T13:54:05Z",
    "text": "      - submit_plan {\"tasks\": [{\"id\": \"T1\", \"title\": \"hello module\", \"role\": \"coder\", \"description\": \"create hello.py\", \"acceptance\": \"hello.py prints hi\", \"dep"
   },
   {
-   "at": "2026-11-27T13:14:10Z",
+   "at": "2026-11-27T13:54:05Z",
    "text": "Plan:\n   T1 [coder] hello module\n   T2 [designer] logo\n   T3 [coder] tests"
   },
   {
-   "at": "2026-11-27T13:14:10Z",
+   "at": "2026-11-27T13:54:05Z",
    "text": "[status: awaiting_approval]"
   },
   {
-   "at": "2026-11-27T13:14:10Z",
+   "at": "2026-11-27T13:54:05Z",
    "text": "[status: awaiting_approval]"
   }
  ],
@@ -26,9 +26,35 @@
   "README.md"
  ],
  "meta": {
-  "created_at": "2026-11-27T13:14:10Z",
+  "created_at": "2026-11-27T13:54:05Z",
   "goals": [
    "bakery site"
+  ],
+  "kind": {
+   "by": "roundtable",
+   "choices": [
+    {
+     "id": "website",
+     "why": "because you said “site” and “bakery”"
+    },
+    {
+     "id": "other",
+     "why": "if it's none of these"
+    }
+   ],
+   "confirmed": false,
+   "extras": [],
+   "id": "website",
+   "why": "because you said “site” and “bakery”"
+  },
+  "parts": [
+   {
+    "extras": [],
+    "folder": ".",
+    "id": "main",
+    "kind": "website",
+    "name": "Website"
+   }
   ],
   "plan_approved": false,
   "references": [],
@@ -36,7 +62,7 @@
   "spent_usd": 0.00012,
   "status": "awaiting_approval",
   "unpriced_calls": 0,
-  "updated_at": "2026-11-27T13:14:10Z"
+  "updated_at": "2026-11-27T13:54:05Z"
  },
  "metrics": [],
  "name": "proj",
@@ -54,6 +80,7 @@
    "image_options": {},
    "merge_of": "",
    "output_path": "",
+   "previous_attempts": [],
    "role": "coder",
    "section": "",
    "status": "pending",
@@ -72,6 +99,7 @@
    "image_options": {},
    "merge_of": "",
    "output_path": "assets/logo.png",
+   "previous_attempts": [],
    "role": "designer",
    "section": "",
    "status": "pending",
@@ -92,6 +120,7 @@
    "image_options": {},
    "merge_of": "",
    "output_path": "",
+   "previous_attempts": [],
    "role": "coder",
    "section": "",
    "status": "pending",

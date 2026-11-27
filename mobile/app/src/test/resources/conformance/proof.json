@@ -1,0 +1,60 @@
+{
+ "after": null,
+ "at": "2026-11-27T13:54:08Z",
+ "before": null,
+ "found": true,
+ "images": {
+  "after": {},
+  "before": {}
+ },
+ "judge": {
+  "cost_usd": 0.0,
+  "looked": false,
+  "model": "",
+  "problems": [],
+  "verdict": null,
+  "what_changed": "",
+  "why": "no_pictures",
+  "words": "Nobody looked at the pictures (there were none)"
+ },
+ "lines": [
+  {
+   "checkable": true,
+   "id": "starts",
+   "optional": false,
+   "passed": null,
+   "words": "It opens with no errors"
+  },
+  {
+   "checkable": true,
+   "id": "tests",
+   "optional": true,
+   "passed": null,
+   "words": "Its tests pass"
+  }
+ ],
+ "lines_text": "It opens with no errors – not checked yet · Its tests pass – not checked yet",
+ "ok": true,
+ "pairs": [],
+ "task": "T1",
+ "tests": {
+  "after": {
+   "failed": null,
+   "ok": true,
+   "passed": null,
+   "tail": "Python 3.13.18"
+  },
+  "before": {
+   "failed": null,
+   "ok": true,
+   "passed": null,
+   "tail": "Python 3.13.18"
+  },
+  "broke": [],
+  "command": "python --version",
+  "verdict": "pass",
+  "words": "Tests: they pass."
+ },
+ "title": "hello module",
+ "words": "Nobody looked at the pictures (there were none). Tests: they pass."
+}
