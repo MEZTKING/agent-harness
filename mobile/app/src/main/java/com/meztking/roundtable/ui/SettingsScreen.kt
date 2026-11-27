@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.meztking.roundtable.BuildConfig
 import com.meztking.roundtable.RoundtableApp
+import com.meztking.roundtable.notify.NotifySettingsPanel
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.Label
 import com.meztking.roundtable.ui.theme.Panel
@@ -97,16 +98,7 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
         }
 
         Panel(Modifier.fillMaxWidth()) {
-            Text("NOTIFICATIONS", style = Label)
-            Spacer(Modifier.height(8.dp))
-            Text("Every 15 minutes or so the phone checks for new letters for you and new high-priority to-dos, and tells you once about each.",
-                style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(6.dp))
-            OutlinedButton(onClick = {
-                val i = if (Build.VERSION.SDK_INT >= 26) Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
-                else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}"))
-                ctx.startActivity(i)
-            }) { Text("Notification settings") }
+            NotifySettingsPanel()
         }
 
         Panel(Modifier.fillMaxWidth()) {

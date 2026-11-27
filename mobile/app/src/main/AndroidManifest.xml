@@ -48,6 +48,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Runs Roundtable, a local developer tool server the user started, on 127.0.0.1 inside the app until the user stops it." />
         </service>
+        <!-- a button on a notification (Approve plan, Allow, one of two choices): only the app's own notifications send it -->
+        <receiver
+            android:name=".notify.AnswerReceiver"
+            android:exported="false" />
         <!-- where Android says how an update's install went (only Android answers: not exported) -->
         <receiver
             android:name=".update.InstallReceiver"

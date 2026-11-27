@@ -1,16 +1,6 @@
 package com.meztking.roundtable.work
 
-import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -18,38 +8,46 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.meztking.roundtable.MainActivity
-import com.meztking.roundtable.R
 import com.meztking.roundtable.RoundtableApp
+import com.meztking.roundtable.data.Backend
 import com.meztking.roundtable.data.HallState
-import com.meztking.roundtable.data.NeedView
 import com.meztking.roundtable.net.ApiJson
+import com.meztking.roundtable.notify.Classifier
+import com.meztking.roundtable.notify.Notifier
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.TimeUnit
 
-/** Every 15 minutes: anything new that needs the owner becomes one notification each (at most a few, then a summary). */
+/**
+ * Every 15 minutes: what's news since the last look (finished, needs you, failed, money, idle; notify/Classifier.kt)
+ * becomes one notification each on its own channel, grouped per project, never the same twice.
+ */
 class Watch(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         val app = applicationContext as RoundtableApp
         val backend = app.backend() ?: return Result.success()
         val hall = runCatching { backend.hall() }.getOrElse { return Result.retry() }
         runCatching { app.store.cachedHall = ApiJson.encodeToString(HallState.serializer(), hall) }
-        announce(applicationContext, hall.needs)
+        announce(applicationContext, hall, plans(backend, hall))
         return Result.success()
     }
 
+    /** Hub projects' state from their plans (finished or building), which the hub's seats don't carry. */
+    private suspend fun plans(backend: Backend, hall: HallState): Map<String, String> = coroutineScope {
+        hall.seats.filter { it.hasPlan && it.path == null && it.status != "running" && it.status != "done" }.take(MAX_PLANS)
+            .map { s -> async { runCatching { backend.plan(s).doc }.getOrNull()?.let { d -> Classifier.planStatus(d.state, d.finished)?.let { s.id to it } } } }
+            .awaitAll().filterNotNull().toMap()
+    }
+
     companion object {
+        /** The Needs-you channel (one of five now; see Notifier). */
         const val CHANNEL = "needs_you"
         private const val NAME = "roundtable-watch"
-        const val EXTRA_PROJECT = "project"
+        private const val MAX_PLANS = 10
+        const val EXTRA_PROJECT = Notifier.EXTRA_PROJECT
 
-        fun createChannel(ctx: Context) {
-            if (Build.VERSION.SDK_INT >= 26) {
-                val ch = NotificationChannel(CHANNEL, "Needs you", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "Letters for you and high-priority to-dos from your projects"
-                }
-                ctx.getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
-            }
-        }
+        fun createChannel(ctx: Context) = Notifier.createChannels(ctx)
 
         fun schedule(ctx: Context) {
             val req = PeriodicWorkRequestBuilder<Watch>(15, TimeUnit.MINUTES)
@@ -60,51 +58,12 @@ class Watch(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, param
 
         fun cancel(ctx: Context) = WorkManager.getInstance(ctx).cancelUniqueWork(NAME)
 
-        /** Posts what hasn't been announced yet and remembers it (Store.notified). */
-        fun announce(ctx: Context, needs: List<NeedView>) {
+        /** Classifies [hall] against the last look and posts what's new (Needs-you items already seen in the app are skipped). */
+        fun announce(ctx: Context, hall: HallState, plans: Map<String, String> = emptyMap()) {
             val store = (ctx.applicationContext as RoundtableApp).store
-            val seen = store.notified
-            val fresh = needs.filter { it.key !in seen }
-            if (fresh.isEmpty()) return
-            store.notified = seen + fresh.map { it.key }
-            if (Build.VERSION.SDK_INT >= 33 &&
-                ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            ) return
-            val nm = NotificationManagerCompat.from(ctx)
-            val shown = if (fresh.size > 4) fresh.take(3) else fresh
-            try {
-                for (n in shown) {
-                    nm.notify(n.key.hashCode(), NotificationCompat.Builder(ctx, CHANNEL)
-                        .setSmallIcon(R.drawable.ic_stat_seal)
-                        .setContentTitle(n.title.take(80))
-                        .setContentText(if (n.kind == "message") "${n.project}: ${n.text}" else n.text)
-                        .setStyle(NotificationCompat.BigTextStyle().bigText(if (n.kind == "message") n.message?.body?.take(600) ?: n.text else n.text))
-                        .setContentIntent(open(ctx, n.project, n.key.hashCode()))
-                        .setAutoCancel(true)
-                        .setGroup("needs")
-                        .build())
-                }
-                if (fresh.size > shown.size) {
-                    nm.notify(1, NotificationCompat.Builder(ctx, CHANNEL)
-                        .setSmallIcon(R.drawable.ic_stat_seal)
-                        .setContentTitle("${fresh.size} new things need you")
-                        .setContentText(fresh.drop(shown.size).joinToString(" · ") { it.title }.take(200))
-                        .setContentIntent(open(ctx, null, 1))
-                        .setAutoCancel(true)
-                        .setGroup("needs")
-                        .build())
-                }
-            } catch (_: SecurityException) {
-                // notifications were switched off between the check and here
-            }
-        }
-
-        private fun open(ctx: Context, project: String?, code: Int): PendingIntent {
-            val i = Intent(ctx, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                if (project != null) putExtra(EXTRA_PROJECT, project)
-            }
-            return PendingIntent.getActivity(ctx, code, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val seenInApp = runCatching { store.notified }.getOrDefault(emptySet())
+            Notifier.announce(ctx, Classifier.snapshot(hall, plans = plans), seenInApp)
+            runCatching { store.notified = seenInApp + hall.needs.map { it.key } }
         }
     }
 }
