@@ -1,5 +1,7 @@
 package com.meztking.roundtable.net
 
+import com.meztking.roundtable.data.Failure
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -104,15 +106,16 @@ class GitHubHub(
     private suspend fun getOrNull(path: String, raw: Boolean = true): String? =
         runCatching { get(path, raw) }.getOrElse { if ((it as? ApiException)?.status == 404) null else throw it }
 
+    /** GitHub's answers as the phone's named failures ([Failure], DS-11). */
     private fun errorText(code: Int, body: String) = when {
-        code == 401 -> "GitHub refused the token. It may have expired: make a new one and paste it in Settings."
-        code == 403 && "rate limit" in body.lowercase() -> "GitHub says we've asked too often. Wait a few minutes and try again."
-        code == 403 -> "GitHub refused access: the token needs Contents: Read and write on $repo."
-        code == 409 -> "The hub repository $repo is empty."
-        code == 422 -> "GitHub didn't accept the change (it may have changed at the same time). Try again."
-        code >= 500 -> "GitHub is having trouble ($code). Try again in a minute."
-        else -> "GitHub answered $code."
-    }
+        code == 401 -> Failure.KEY_EXPIRED
+        code == 403 && "rate limit" in body.lowercase() -> Failure.TOO_MANY_REQUESTS
+        code == 429 -> Failure.TOO_MANY_REQUESTS
+        code == 403 -> Failure.KEY_CANT_WRITE
+        code == 404 || code == 409 -> Failure.REPO_MISSING
+        code == 422 -> Failure.HUB_CHANGED_MEANWHILE
+        else -> Failure.GITHUB_TROUBLE
+    }.sentence
 
     /** Project ids from hub.yaml (the `agents:` block). */
     suspend fun projects(): List<String> = projectInfo().map { it.id }
@@ -120,7 +123,7 @@ class GitHubHub(
     /** Projects with their description and repository, from hub.yaml. */
     suspend fun projectInfo(): List<HubProject> {
         val yaml = getOrNull("hub.yaml")
-            ?: throw ApiException("Couldn't find hub.yaml in $repo. Check the repository name, and that the token can see it.", 404)
+            ?: throw ApiException(Failure.REPO_MISSING.sentence, 404)
         return projectsIn(yaml)
     }
 
@@ -342,11 +345,10 @@ class GitHubHub(
                 "-" + "%06x".format(Random.nextInt(0x1000000))
 
         fun networkText(e: IOException): String = when (e) {
-            is java.net.UnknownHostException -> "Can't reach GitHub. Is the phone online?"
-            is java.net.SocketTimeoutException -> "GitHub took too long to answer. Try again."
-            is javax.net.ssl.SSLException -> "Couldn't make a secure connection to GitHub. Check the phone's date and network."
-            else -> "Couldn't reach GitHub (${e.message ?: e.javaClass.simpleName})."
-        }
+            is java.net.SocketTimeoutException -> Failure.TOO_SLOW
+            is javax.net.ssl.SSLException -> Failure.CLOCKS_APART
+            else -> Failure.OFFLINE
+        }.sentence
 
         fun agentsIn(yaml: String): List<String> = projectsIn(yaml).map { it.id }
 

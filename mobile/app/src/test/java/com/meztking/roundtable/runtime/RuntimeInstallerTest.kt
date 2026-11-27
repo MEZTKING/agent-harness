@@ -66,8 +66,46 @@ class RuntimeInstallerTest {
         val second = runBlocking { fx.installer().apply(result.manifest, result.decision, onEvent = {}) }
         assertEquals(first.base, second.base)
         assertEquals("0.8.1", second.version)
-        // The old roundtable layer is gone.
+        // The old roundtable layer is kept while the new one is on trial, and goes once it has started.
+        assertTrue(second.onTrial)
+        assertTrue(File(fx.layout.root, first.roundtable.dir).isDirectory)
+        fx.installer().commitTrial()
         assertFalse(File(fx.layout.root, first.roundtable.dir).exists())
+        assertFalse(InstalledStore(fx.layout).read()!!.onTrial)
+    }
+
+    @Test
+    fun `an update that fails twice goes back to the previous release and is not offered again by itself`() {
+        val base = fx.baseLayer()
+        fx.publish(base, fx.roundtableLayer("0.8.0"), sequence = 1)
+        val first = install()
+        assertFalse(first.onTrial)
+        fx.publish(base, fx.roundtableLayer("0.8.1"), sequence = 2)
+        val bad = install()
+        assertEquals("0.8.1", bad.version)
+        val installer = fx.installer()
+        assertEquals(1, installer.trialFailed())
+        assertEquals(2, installer.trialFailed())
+        val back = installer.rollbackTrial()!!
+        assertEquals("0.8.0", back.version)
+        assertEquals(first.roundtable, back.roundtable)
+        assertFalse(back.onTrial)
+        assertTrue(File(fx.layout.root, first.roundtable.dir).isDirectory)
+        assertFalse(File(fx.layout.root, bad.roundtable.dir).exists())
+        assertTrue(back.isHeldBack(bad.releaseId, 2))
+        // The same bad release is held back, not offered; the owner's "Try the new one again" gets it.
+        val again = runBlocking { fx.installer().check() }
+        assertTrue("got $again", again is RuntimeInstaller.CheckResult.HeldBack)
+        assertEquals("0.8.1", (again as RuntimeInstaller.CheckResult.HeldBack).version)
+        val retry = runBlocking { fx.installer().check(retryHeldBack = true) }
+        assertTrue(retry is RuntimeInstaller.CheckResult.Available)
+        val retried = runBlocking { fx.installer().apply((retry as RuntimeInstaller.CheckResult.Available).manifest, retry.decision, onEvent = {}) }
+        assertTrue(retried.onTrial)
+        assertTrue(retried.heldBack.isEmpty())
+        // A newer release still comes by itself.
+        fx.installer().rollbackTrial()
+        fx.publish(base, fx.roundtableLayer("0.8.2"), sequence = 3)
+        assertTrue(runBlocking { fx.installer().check() } is RuntimeInstaller.CheckResult.Available)
     }
 
     @Test

@@ -84,17 +84,23 @@ fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit, finished: 
     val level = detail ?: LocalComfort.current?.detail ?: Detail.STANDARD
     var big by remember { mutableStateOf<Pair<String, ImageBitmap>?>(null) }
     PullToRefreshBox(live.loading && live.data != null, onRefresh, Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (live.error != null) item { ErrorLine(live.error, onRefresh) }
-            val v = live.data
+        val v = live.data
+        val shotTask = v?.shots?.task.orEmpty()
+        val keys = buildList<Any> {
+            if (live.error != null) add("error")
+            if (v == null && live.loading) add("loading")
+            if (v != null) { add("pictures"); if (proof != null && shotTask.isNotBlank()) add("proof:$shotTask"); add("session") }
+        }
+        // the reader keeps their place in the steps when the phone turns or unfolds (DS-82)
+        Transcript(keys, followEnd = false) {
+            if (live.error != null) item(key = "error") { ErrorLine(live.error, onRefresh) }
             when {
-                v == null && live.loading -> item { Loading("Fetching the pictures…") }
+                v == null && live.loading -> item(key = "loading") { Loading("Fetching the pictures…") }
                 v == null -> {}
                 else -> {
-                    item { Pictures(v, finished, onTakePictures, sent) { label, img -> big = label to img } }
-                    val shotTask = v.shots?.task.orEmpty()
+                    item(key = "pictures") { Pictures(v, finished, onTakePictures, sent) { label, img -> big = label to img } }
                     if (proof != null && shotTask.isNotBlank()) item(key = "proof:$shotTask") { ProofCard(shotTask) { proof(shotTask) } }
-                    item { Session(v, mode, finished, LiveDetail.of(level, finished, v.running)) }
+                    item(key = "session") { Session(v, mode, finished, LiveDetail.of(level, finished, v.running)) }
                 }
             }
         }

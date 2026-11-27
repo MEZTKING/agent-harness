@@ -117,8 +117,12 @@ fun HarnessScreen(onBack: () -> Unit, onSetUp: () -> Unit, vm: RuntimeViewModel 
         if (state !is RuntimeState.NotInstalled) CommandQuestion(vm)
         if (state !is RuntimeState.NotInstalled) {
             val check by vm.check.collectAsState()
-            RuntimeUpdate(check, busy = state.busy, onCheck = vm::checkForNewer, onUpdate = vm::updateRuntime)
+            val notice by vm.updateNotice.collectAsState()
+            RuntimeUpdate(check, busy = state.busy, onCheck = vm::checkForNewer, onUpdate = vm::updateRuntime,
+                notice = notice?.plain(), onTryAgain = vm::tryNewAgain)
         }
+
+        if (state !is RuntimeState.NotInstalled) PhoneProjectsCard(vm.phoneProjects, vm::projectNames, running = state is RuntimeState.Running)
 
         Panel(Modifier.fillMaxWidth()) {
             Text("STORAGE", style = Label)
@@ -221,10 +225,17 @@ private fun Check(ok: Boolean, title: String, help: String, action: String, onCl
 
 /** Check for a newer Roundtable on this phone, and fetch it in one more tap. */
 @Composable
-fun RuntimeUpdate(check: RuntimeCheck?, busy: Boolean, onCheck: () -> Unit, onUpdate: () -> Unit) {
+fun RuntimeUpdate(
+    check: RuntimeCheck?, busy: Boolean, onCheck: () -> Unit, onUpdate: () -> Unit,
+    notice: String? = null, onTryAgain: () -> Unit = {},
+) {
     Panel(Modifier.fillMaxWidth()) {
         Text("UPDATES", style = Label)
         Spacer(Modifier.height(8.dp))
+        if (notice != null) {
+            Text(notice, color = Hall.ember, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+        }
         when (check) {
             null -> Text("The harness on this phone is updated separately from the app.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             RuntimeCheck.Checking -> Text("Checking…", color = Hall.muted)
@@ -235,9 +246,12 @@ fun RuntimeUpdate(check: RuntimeCheck?, busy: Boolean, onCheck: () -> Unit, onUp
                     style = MaterialTheme.typography.bodySmall, color = Hall.muted)
             }
             is RuntimeCheck.Problem -> Text(check.text, color = Hall.bad, style = MaterialTheme.typography.bodySmall)
+            is RuntimeCheck.HeldBack -> Text("The newest one" + (if (check.version.isNotBlank()) " (${check.version})" else "") +
+                " didn't start on this phone before, so it isn't tried again by itself.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
         }
         Spacer(Modifier.height(8.dp))
-        if (check is RuntimeCheck.Newer) Button(onClick = onUpdate, enabled = !busy,
+        if (notice != null || check is RuntimeCheck.HeldBack) OutlinedButton(onClick = onTryAgain, enabled = !busy) { Text("Try the new one again") }
+        else if (check is RuntimeCheck.Newer) Button(onClick = onUpdate, enabled = !busy,
             colors = ButtonDefaults.buttonColors(containerColor = Hall.gold, contentColor = Hall.onAccent)) { Text("Update now") }
         else OutlinedButton(onClick = onCheck, enabled = !busy && check != RuntimeCheck.Checking) { Text("Check for a newer runtime") }
     }

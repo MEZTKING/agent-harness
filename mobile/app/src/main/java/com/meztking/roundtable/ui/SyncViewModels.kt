@@ -288,10 +288,13 @@ sealed interface RuntimeCheck {
     data class UpToDate(val version: String) : RuntimeCheck
     data class Newer(val version: String, val bytes: Long) : RuntimeCheck
     data class Problem(val text: String) : RuntimeCheck
+    /** The newest one failed to start here before and was swapped back; only the owner tries it again. */
+    data class HeldBack(val version: String) : RuntimeCheck
 }
 
 fun runtimeCheckOf(r: RuntimeInstaller.CheckResult, installed: String): RuntimeCheck = when (r) {
     is RuntimeInstaller.CheckResult.UpToDate -> RuntimeCheck.UpToDate(installed.ifBlank { r.manifest.roundtable?.version ?: r.manifest.harness.version })
     is RuntimeInstaller.CheckResult.Available -> RuntimeCheck.Newer(r.manifest.roundtable?.version?.ifBlank { null } ?: r.manifest.harness.version, r.downloadBytes)
     is RuntimeInstaller.CheckResult.Refused -> RuntimeCheck.Problem(r.failure.plain())
+    is RuntimeInstaller.CheckResult.HeldBack -> RuntimeCheck.HeldBack(r.version)
 }

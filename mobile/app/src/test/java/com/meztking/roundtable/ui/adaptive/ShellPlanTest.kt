@@ -65,3 +65,18 @@ class ShellPlanTest {
         assertFalse(ShellPlan.plan(1200, 400).twoPanes)
     }
 }
+
+class FoldTest {
+    @org.junit.Test
+    fun `a book-like fold splits the shell, a flat or sideways one does not`() {
+        val book = Hinge(vertical = true, halfOpen = true, separating = true)
+        org.junit.Assert.assertTrue(Fold.folded(listOf(book)))
+        org.junit.Assert.assertTrue(Fold.folded(listOf(Hinge(vertical = true, halfOpen = false, separating = true)))) // a real hinge, flat
+        org.junit.Assert.assertFalse(Fold.folded(listOf(Hinge(vertical = true, halfOpen = false, separating = false)))) // opened flat
+        org.junit.Assert.assertFalse(Fold.folded(listOf(Hinge(vertical = false, halfOpen = true, separating = true)))) // tabletop
+        org.junit.Assert.assertFalse(Fold.folded(emptyList()))
+        // with the fold, an open foldable gets two panes at the fold; without, one pane and a rail
+        org.junit.Assert.assertEquals(2, ShellPlan.plan(673, 841, folded = Fold.folded(listOf(book))).panes)
+        org.junit.Assert.assertEquals(1, ShellPlan.plan(673, 841, folded = Fold.folded(emptyList())).panes)
+    }
+}
