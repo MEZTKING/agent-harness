@@ -304,7 +304,7 @@ fun RoundTable(
         val full = maxWidth
         Box(Modifier.fillMaxWidth().height(h)) {
             if (art != 0) Image(painterResource(art), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop,
-                alignment = Alignment.TopCenter, alpha = 0.85f)
+                alignment = Alignment.TopCenter, alpha = 0.6f)  // the art has a faint ring of its own: kept soft so only the drawn rim reads as the ring
             Canvas(Modifier.fillMaxSize()) {
                 val c = Offset(cx.toPx(), cy.toPx())
                 val rp = r.toPx()
