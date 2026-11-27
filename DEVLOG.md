@@ -4,6 +4,22 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 0.9.2: keys kept away from the helpers' commands
+
+The owner: "go ahead and work with Fable and add everything" (from plans/parity.md). Fable's plan (in
+plans/notes-for-owner.md): fix the keys first, alone, then three waves with a release each.
+
+- `safeenv` (b7f82c2): `core/secrets.py` (in-memory vault: keys and the hub's git login out of os.environ),
+  `harness/safeenv.py` `clean_env` (denylist: vault names, KNOWN_KEYS, provider `api_key_env`s, *KEY*/*TOKEN*/
+  *SECRET*/*PASSWORD*/*CREDENTIAL*, GIT_CONFIG_*, GH/GITHUB tokens, askpass, the launch token, any value equal
+  to a stored secret; adds GIT_TERMINAL_PROMPT=0, GCM_INTERACTIVE=never, an empty credential helper). Used by
+  tools.run_command, checks.run, godot.run, mcp_tools (stdio), look/showit node runs, orchestrator/repostage/
+  sync/evaluate git in project folders, scout clone. Providers, balance, manage, routing, the UI read keys
+  through the vault; desktop KeyStore and onphone write to it; GitStore passes the hub login explicitly.
+  Tests: tests/test_safeenv.py (env dumps through every path, an ast guard on subprocess calls, providers).
+- Not covered: plugins and Playwright run in Roundtable's own process; a command still runs as the owner
+  (the sandbox is release 6; Ask me first is wave 1).
+
 ## 2026-11-27 – 0.9.1: short first, details on request
 
 The owner (phone screenshots of a finished plan): "Too much information everywhere – overload"; "No live";

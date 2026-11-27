@@ -27,6 +27,13 @@ The app's look is **Candlelit Oak**: a warm oak hall where the seat that needs y
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\RoundtableHold` and is kept if you uninstall.
 
+### What's new in 0.9.2
+
+- **Your keys are kept away from the AI helpers' commands**: anything a helper runs (commands, tests,
+  Godot, tool servers) gets a cleaned environment with no API keys, no hub token and no saved GitHub
+  login; keys live only inside the parts of Roundtable that call the AI services. A command still runs
+  as you, so the full protection (a sandbox) comes later; "Ask me first" comes next.
+
 ### What's new in 0.9.1
 
 - **Short first, details on request**: every plan has a short title and one sentence of where it
