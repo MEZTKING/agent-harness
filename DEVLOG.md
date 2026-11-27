@@ -1,8 +1,75 @@
-# Roundtable Hold – devlog
+# Darkness Harness – devlog
+
+(Roundtable Hold before 1.0.0; entries below 1.0.0 keep the old name.)
 
 Newest first. What was asked, what was done (files and functions, so the next session
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
+
+## 2026-11-27 – 1.0.0: wave 4 put together, Roundtable Hold becomes Darkness Harness
+
+Asked: merge wave 4's last two branches (d1-skin, then d1-phone; d1-passage, d1-words, d1-art and wave 5's step 0
+were already on the session branch), do every hook-up line the helpers left, add the art gaps, version 1.0.0 with
+its notes, rewrite the handoff and the headings, test everything and look at the screens. No release yet.
+
+What each part is, plainly:
+- **The passage** (d1-passage, 1544be4): nothing installed is lost. `desktop.pick_home`/`app_home`: the new
+  `DarknessHarness` folder only if it holds something, else the old `RoundtableHold`; `default_projects_dir` keeps
+  an existing `Roundtable Projects`. `KeyStore` writes under "Darkness Harness" and reads the old service too.
+  `updater.pick_installer` takes either installer name. The installer keeps its AppId, removes the old exe and
+  shortcuts, moves the firewall rules (asks once on a silent update, only where the old rules exist), and ships
+  `packaging/old_name_starter.py` as a tiny `RoundtableHold.exe` so a hand-made taskbar pin still opens the app.
+  `app.yml`: both APK names, the `upgrade-test` job (already passed once on Windows CI), and a `release` job that
+  needs it. Phone: `Releases.kt` takes either APK name. Guard test `tests/test_passage.py`.
+- **The words** (d1-words, ac92ada): `brand.py`, `BRAND` in `static/core.js`, the new name or "the harness" in
+  every string the app serves; `brand.SWITCHED` with `is_switched` reading both journal forms;
+  `tests/test_brand_words.py` fails on the old name outside an allow-list of names machines read.
+- **The art** (d1-art, c655c5d): Eclipse backdrop, ring, wordmark, emblem, favicon, `packaging/darkness.ico`,
+  the phone's launcher icon and `eclipse_phone.webp`, all by image models ($0.89, `docs/art.md`).
+- **The desktop look** (d1-skin, c5126c1): one token block in `style.css` with Eclipse, Pitch and Ash; Home's Ring
+  in `hall.js`; Space Grotesk, Inter, JetBrains Mono; `tests/test_contrast.py`.
+- **Wave 5's step 0** (9115566–327a010, behaviour-neutral): the stages' seam in the orchestrator (hooks, `add_tasks`,
+  end steps in both run paths) and the done list's file (`.harness/done.json`); wave 5 builds on it.
+- **The phone** (d1-phone, e123532): `Theme.kt` with the three looks, the Ring on the Table, the Look setting in
+  `Comfort.kt`, the new fonts, the label "Darkness"; applicationId unchanged and tested.
+
+Done here (the hook-ups):
+- Merges of d1-skin and d1-phone had no conflicts; every d1-art file is byte-for-byte d1-art's.
+- Phone wording left over: `data/Plain.kt` (letters: "The harness replied", "Darkness: Done. …"), `Hall.kt`,
+  `Sync.kt`, `Search.kt`, `SessionLog.kt`, `Crash.kt`, `net/Api.kt` (line 84 and the two pairing errors),
+  `GitHubHub.kt` commit messages ("(Darkness phone app)"), `update/UpdateWorker.kt`, and the on-phone harness's
+  messages in `runtime/` (`RuntimeController`, `HarnessRuntimeService`, `RuntimeFailure`, `ProotCommand`). The
+  "not running" message starts with the name, so `Api.kt`'s pass-through check still lets it through.
+  `RuntimeManifest.DEFAULT_READINESS` keeps the old words (the on-phone Python prints them). Tests updated; the
+  conformance fixtures written again from the desktop.
+- `THIRD_PARTY_NOTICES.md`: Space Grotesk, Inter and JetBrains Mono (desktop woff2, phone ttf); Fraunces and
+  Nunito Sans marked as no longer shipped.
+- `packaging/roundtable.spec` and `installer.iss` use `packaging/darkness.ico`; the old `roundtable.ico`/`.png`
+  removed.
+- `watch.js`'s bar colours and every old token name in `kinds.js`, `rewind.js`, `search.js`, `compose.js`,
+  `gallery.js`, `notify.js`, `proof.js`, `tools.js` moved to the new tokens; the aliases dropped from `style.css`.
+  `test_contrast.py` now checks every `static/*.js` for written colours and old token names.
+- Home's Ring and `ring.webp`: measured the painted ring (rim at 46% of the picture, centre 0.7% right and 1.6% up);
+  `.ring-disc` now draws the art at 109% at `58.8% 30.5%`, so the lights sit on the rim (it was 118%, centred,
+  which left them inside the glow). The wordmark is narrower (200px) so it clears the eclipse's edge. With no
+  projects the backdrop's own eclipse is turned off (two eclipses showed). Ash draws its chrome ring and types
+  the name (the art is pale, made for dark). The backdrop-brightness test runs now and passes.
+- Phone Table: `eclipse_phone` drawn at 60% (was 85%) so the drawn rim leads; the outer thin circle is the
+  intended orbit, not the art.
+- README intro (Eclipse instead of Candlelit Oak, the data folder for new and old installs), "What's new in
+  1.0.0", `whatsnew.md` written again; version 1.0.0 in `pyproject.toml` and `__init__.py` (the phone's
+  versionCode follows).
+- `plans/gaps.md`: four picture gaps from the art job (editing, see-through, safe parallel spending, size).
+- CLAUDE.md, AGENTS.md, PLAN.md, HANDOFF.md under the new name; PLAN.md has the waves 4–9 table.
+
+Decided (reversible): names machines read keep the old name (package, command, repository, AppId,
+applicationId, pairing link, `remote.PREFIX`, `ROUNDTABLE_*`, `rt-theme`); `~/.roundtable` is not renamed
+(core/config.py, harness/config.py and onphone.py all read it); the old-name starter stays until 1.2.0.
+
+Still open: the release itself (merge to main, `app.yml` with `release_tag: v1.0.0`); after 1.0.0 the
+`upgrade-test` job still looks for the last `RoundtableHold-Setup-*` release (right for the 1.x line, change at
+1.2.0 with the starter); on the owner's PC: the in-app update from 0.12.0, the one-time firewall question, the
+pinned taskbar icon; on the phone: the 1.0.0 test APK over 0.12.0, still paired.
 
 ## 2026-11-27 – 0.12.0: wave 3 put together
 

@@ -1,11 +1,33 @@
-# Roundtable Hold – plan
+# Darkness Harness – plan
+
+(Roundtable Hold before 1.0.0.)
 
 The owner writes the idea and makes the decisions; models from every maker plan, build,
 check and fix it together, and every task is easy to see on the desktop and the phone.
 What was done when, and why: [DEVLOG.md](DEVLOG.md). Where things stand right now:
-[HANDOFF.md](HANDOFF.md). What Roundtable couldn't do yet: [plans/gaps.md](plans/gaps.md).
+[HANDOFF.md](HANDOFF.md). What the harness couldn't do yet: [plans/gaps.md](plans/gaps.md).
 
-## Decisions so far
+## Darkness Harness: the releases from 1.0.0
+
+The owner's aim (27 November 2026): whole apps and games from one idea, every model working at once, a
+harness that improves itself, and a darker look. One wave of helpers per release:
+
+| Wave | Release | What the owner gets | State |
+|---|---|---|---|
+| 1–3 | 0.10.0–0.12.0 | Autopilot, the done list, comfort on the phone, proof, rewind, web search, kinds | **Released** |
+| 4 | 1.0.0 | The new name (Darkness Harness) and the new look (Eclipse); nothing installed is lost | **Ready**: put together on `d1-integrate`, waiting to be merged and released |
+| 5 | 1.1.0 | Whole apps and games, finished and tested (stages, the done list, play-testing, money limits) | Being built on the `d2-*` branches |
+| 6 | 1.2.0 | Every model at once, checking each other | Planned |
+| 7 | 1.3.0 | It learns and improves itself: routing, prompts and tools, safely | Planned |
+| 8 | 1.4.0 | Everything the other harnesses do (`plans/parity.md`) | Planned |
+| 9 | 1.5.0 | The rows once declined, and the proof run | Planned |
+
+Names machines read keep the old name for good: the `roundtable` package and command (`darkness` is a
+second command), the repository, the installer's AppId, the phone's applicationId, the pairing link,
+`remote.PREFIX`, `~/.roundtable` and the `ROUNDTABLE_*` variables. Old data folders, keys and the
+projects folder are used where they are; nothing is moved.
+
+## Decisions so far (before 1.0.0, under the old name)
 
 - **One interface for every provider** (Anthropic native, OpenAI-compatible for
   DeepSeek and others, image APIs, plugins); roles map to models in config, with

@@ -4,11 +4,22 @@ What was decided while you were away, so you can read it later. The owner's rule
 2026): switch freely without asking; anything super important goes to Fable for advice first,
 and is noted here – the question, Fable's advice, and what was done. Newest first.
 
-Roundtable's own model switches are in the hub journal as decisions ("Switched by Roundtable:
-… Why: …", each with its undo command).
+The harness's own model switches are in the hub journal as decisions ("Switched by the harness:
+… Why: …", each with its undo command; older ones say "Switched by Roundtable:").
 
 ## 2026-11-27
 
+- **Darkness Harness 1.0.0 is put together and ready** (not released yet). Roundtable Hold becomes
+  Darkness Harness in the Eclipse look you picked, on the PC and the phone; your data, keys, hub, projects
+  folder and phone pairing stay exactly where they are. Small choices made for you, all reversible:
+  - the hidden settings folder `~/.roundtable` keeps its name (several parts read it; renaming one would
+    split your settings);
+  - the old `RoundtableHold.exe` stays as a tiny starter that opens the new app, so a taskbar pin you made
+    keeps working; it goes in 1.2.0;
+  - on Home the project lights now sit exactly on the painted ring; with no projects there's one eclipse,
+    not two; in Ash (the light theme) the ring is drawn and the name typed, because the painted art is made
+    for dark backgrounds;
+  - the phone's eclipse picture is a little softer, so the drawn ring stands out.
 - **Wave 5 (1.1.0, "finished, not just built"): Fable's advice on its big questions, followed.**
   - *Fixing things past the amount you approved:* yes, within limits it can't change itself – up to 25%
     over what you agreed (never less than 50 cents of room), at most two "check it works and fix" rounds

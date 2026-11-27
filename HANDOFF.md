@@ -1,47 +1,55 @@
-# Handoff – 26 November 2026 (evening)
+# Handoff – 27 November 2026 (evening)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
-`DEVLOG.md`, `plans/owner-todo.md` and `plans/gaps.md`. Nothing important lives only
-on a machine (`/tmp`, the scratchpad and the yardstick lab are throw-away).
+`DEVLOG.md`, `plans/owner-todo.md`, `plans/notes-for-owner.md` and `plans/gaps.md`.
+Nothing important lives only on a machine (`/tmp`, the scratchpad and any lab are
+throw-away).
 
 ## 1. What this is
 
-Roundtable Hold: the owner writes an idea, Roundtable turns it into a plan they argue
-with, then models from every maker build it task by task, each task reviewed, all of it
-visible on the desktop app and the phone. Details: CLAUDE.md, "The pieces".
+**Darkness Harness** (Roundtable Hold before 1.0.0): the owner writes an idea, the harness
+turns it into a plan they argue with, then models from every maker build it task by task,
+each task reviewed and proved, all of it visible on the desktop app and the phone. The aim
+from 1.0.0: whole apps and games from one idea, every model at once, a harness that
+improves itself. Details: CLAUDE.md, "The pieces".
+
+Names machines read keep the old name for good: the `roundtable` package and command
+(`darkness` is a second command), the repository `MEZTKING/agent-harness`, the installer's
+AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pair` link,
+`remote.PREFIX` (`roundtable:`), `~/.roundtable`, `ROUNDTABLE_*` variables and `rt-theme`.
+`tests/test_passage.py` and `tests/test_brand_words.py` guard both sides of that line.
 
 ## 2. Where things stand
 
 | Piece | State |
 |---|---|
-| Desktop app | **0.9.0** (26 November): rebuilt from scratch (`ui/static/` ES modules, design in `docs/desktop-design.md`): the Hall with every project as a seat, Needs you first, editable routing, Settings for everything (keys with a real Test, recommended setup, spending, hub, phone pairing, backups, plugins, updates). Claude Opus 5.5 (medium) codes by default, DeepSeek V4 Flash backs it up; no V4 Pro (owner) |
-| Roundtable Mobile | 0.9.0 test APK on the release (updates itself from Settings → About): plain words, Needs you organised, several connections at once (This phone + PC + hub), Your computers, watch builds anywhere, shared settings. **This phone (beta)**: Roundtable inside the app (proot), runtime releases `runtime-…` signed with the TEST key |
-| Phone ↔ PC sync | Built (`sync.py`, `ui/syncapi.py`, `data/MultiBackend.kt`): machine seats, claims, live sessions, shared settings, carry on, pairing. **Never run on real machines** |
-| Existing apps (repository mode) | Built: own branch, the repo's rules, baseline + new-failure checks, per-project settings file. Tried on MSE Studio (plan made, then the owner paused it; nothing pushed) |
-| Engines | MCP tool servers (Unreal, Godot, Blender), the Godot game checker – not yet tried with the real programs |
-| Hub (`agent-hub-data`) | Agents: harness, mse-studio-engine, mcsupermods, blockloom, cutline-studio, music-player, me, knightgame, agent-harness; the owner's to-do list is empty |
+| Waves 1–3 | **Released** as 0.10.0, 0.11.0 and 0.12.0: autopilot and several tasks at once, comfort on the phone, proof, rewind, web search, kinds, the command line, pounds |
+| Wave 4 → **1.0.0** | **Ready, not released**: the new name and the Eclipse look on the PC and the phone, the safe upgrade (old data folder, keys and pairing used where they are; an old-name starter exe; both APK names; the firewall rules moved). Put together on branch `d1-integrate`; all tests green. The `upgrade-test` CI job already passed once |
+| Wave 5 → 1.1.0 | Being built on the `d2-*` branches (stages, the done list, finishing, play-testing, money limits, shipping, unsticking). Step 0 (the stages' seam, behaviour-neutral) is already in 1.0.0 |
+| Waves 6–9 | Planned (PLAN.md's table): every model at once, it learns, the parity sweep, the rows once declined |
+| Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
+| Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
 
-**The next step everything waits on:** the owner shares one folder from the Claude desktop app
-(suggested `C:\Users\Rakib\Roundtable`, Settings → Claude Code → Remote Control) and plugs the phone in
-by USB; then test on the real PC and phone (CLAUDE.md "Test on the owner's PC"): the 0.9.0 desktop, pairing,
-This phone, the sync, Godot, Unreal.
+## 3. What to do next
 
-## 3. Where to read more
+1. Release 1.0.0 (CLAUDE.md "Releasing"): pull request from the session branch to `main`, CI
+   green, merge, run `app.yml` with `release_tag: v1.0.0`; check the installer and both APK
+   names are on the release; tell the owner plainly (the README's "What's new in 1.0.0").
+2. On the owner's PC through Remote Control (once a folder is shared): the in-app update from
+   0.12.0, the one-time firewall question, an old taskbar pin, the new Start-menu entry. On the
+   phone by USB: the 1.0.0 test APK over 0.12.0, still paired.
+3. Merge wave 5's `d2-*` branches when their helpers report, then 1.1.0.
+4. At 1.2.0: remove the old-name starter (`packaging/old_name_starter.py`, the spec's second
+   EXE, the installer lines) and point `upgrade-test` at the last 1.x installer.
+5. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending, size), Ask me
+   first on the phone, owner to-dos that leave the app.
 
+## 4. Where to read more
+
+- The look: `docs/desktop-design.md` ("The look: Eclipse"), `docs/art.md` (every picture, its
+  prompt and cost). The phone's look: `mobile/.../ui/theme/Theme.kt`.
 - What the owner must do: `plans/owner-todo.md`; decisions made for them (with Fable's advice):
   `plans/notes-for-owner.md`.
-- What Roundtable can't do yet: `plans/gaps.md`. Next releases: `PLAN.md` (Proof it works next),
-  then kinds (`plans/kinds.md`), self-repair later (`plans/self-repair.md`), the whole workflow
-  (`plans/workflow.md`), borrowed ideas (`plans/inspiration.md`).
-- The lab used for real runs is throw-away (the scratchpad `yard/`); its harness.yaml shows the
-  owner's split: Openference and OpenRouter for planning, design and checks, DeepSeek V4.1-Flash
-  direct for coding, GLM-5.3 through OpenRouter as fallback; no DeepSeek V4 Pro for now (owner).
-
-## 4. What to do next
-
-1. Check the 0.9.0 release and the runtime release exist; tell the owner.
-2. Real-machine tests once a folder is shared (above); fix what they find.
-3. plans/gaps.md: Ask me first on the phone, owner to-dos that leave the app, the estimate's picture
-   prices, a model set's own changes shared between machines, the phone's release signing key.
-4. Then: kinds (plans/kinds.md), proof for more app types, the owner's next project.
+- Parity with other harnesses: `plans/parity.md`; kinds: `plans/kinds.md`; the whole workflow:
+  `plans/workflow.md`; borrowed ideas: `plans/inspiration.md`.

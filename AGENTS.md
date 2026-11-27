@@ -1,12 +1,15 @@
 # Instructions for any coding agent (the short version)
 
+This is Darkness Harness (Roundtable Hold before 1.0.0; the `roundtable` package and command keep
+the old name).
+
 Full rules: [CLAUDE.md](CLAUDE.md). Where things stand: [HANDOFF.md](HANDOFF.md). Plan:
 [PLAN.md](PLAN.md). The newest work is at the top of [DEVLOG.md](DEVLOG.md).
 
 1. **Read** HANDOFF.md, CLAUDE.md, PLAN.md, `plans/owner-todo.md` and `plans/gaps.md`
    before changing anything.
-2. **Use Roundtable, and grow it.** If Roundtable can't do something the work needs, add
-   it to Roundtable (with a test) or write it in `plans/gaps.md`. Don't leave a
+2. **Use the harness, and grow it.** If the harness can't do something the work needs, add
+   it to the harness (with a test) or write it in `plans/gaps.md`. Don't leave a
    workaround as the answer.
 3. **The owner is not a programmer.** Anything they read: plain, short British English;
    errors say what to do next.
