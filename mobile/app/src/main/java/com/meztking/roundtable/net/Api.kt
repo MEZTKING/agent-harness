@@ -205,6 +205,12 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         call("POST", "/api/projects", obj { put("dir", dir); put("goal", goal); put("approve", approveFirst) })
     }
 
+    /** The message box's calls (ui/attachapi.py: drafts, files in parts, start, send, @ files); nothing else. */
+    suspend fun attach(method: String, path: String, body: String? = null): String {
+        require(path.startsWith("/api/attach/")) { "not a message-box call" }
+        return call(method, path, body)
+    }
+
     suspend fun closeTodo(agent: String, id: String) { call("POST", "/api/journal/${q(agent)}/${q(id)}/close", "{}") }
     suspend fun logEntry(agent: String, kind: String, text: String, priority: String = "normal") {
         call("POST", "/api/journal/${q(agent)}", obj { put("kind", kind); put("text", text); put("priority", priority) })
