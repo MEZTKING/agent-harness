@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..providers.base import ToolSpec
+from . import livecmd
 from .gate import Gate
 from .safeenv import clean_env
 
@@ -225,13 +226,18 @@ class Workspace:
         if refused:  # the owner said no, didn't answer in time, or it was too long to show them
             raise ToolError(refused)
         timeout = min(int(a.get("timeout") or self.command_timeout), self.command_timeout * 5)
+        # shown as it prints (.harness/live/<task>-<n>.log) with a Stop for this one command (livecmd.py);
+        # the orchestrator sets ``live`` to (project folder, task id), else it is this folder's "run" log
+        live_root, live_task = getattr(self, "live", None) or (self.root, "run")
         try:
-            res = subprocess.run(
-                a["command"], shell=True, cwd=self.root, capture_output=True, text=True, timeout=timeout,
-                env=clean_env(),  # never the owner's keys or git login (safeenv.py)
+            res = livecmd.run_streaming(
+                a["command"], self.root, clean_env(),  # never the owner's keys or git login (safeenv.py)
+                timeout, livecmd.slot(live_root, live_task), root=live_root,
             )
         except subprocess.TimeoutExpired:
             raise ToolError(f"command timed out after {timeout}s")
+        except livecmd.Stopped:
+            raise ToolError("the owner stopped this command; don't run it again unless they ask")
         out = f"exit code: {res.returncode}\n--- stdout ---\n{res.stdout}\n--- stderr ---\n{res.stderr}"
         return _truncate(out)
 
