@@ -39,9 +39,11 @@ GROUPS = ["Websites", "Web apps", "Browser games", "Desktop apps", "Mobile apps"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 ROLE_RE = re.compile(r"^[a-z][a-z0-9_]{0,30}$")
 KIND_KEYS = {"schema", "id", "name", "blurb", "group", "status", "extends", "match", "examples", "needs", "roles",
-             "plan", "look", "proof", "pictures", "targets", "extras_allowed", "plugins", "estimate"}
+             "plan", "look", "proof", "pictures", "targets", "extras_allowed", "plugins", "estimate", "start", "ship"}
 EXTRA_KEYS = {"schema", "id", "name", "blurb", "status", "match", "needs", "targets", "proof", "plan", "task",
-              "pc_only"}
+              "pc_only", "ship"}
+RECIPE_KEYS = ("start", "ship")  # how to start the thing built and how to build it to hand out (d2-ship tightens)
+MAX_RECIPE_WORDS = 500
 PLAN_KEYS = {"has_ui", "skeleton_first", "spec_sections", "questions", "dont"}
 EXTRA_PLAN_KEYS = {"dont"}
 PROOF_KEYS = {"id", "how", "words", "optional", "command", "seconds", "status", "path"}
@@ -200,6 +202,8 @@ def validate(raw: Any, lines: dict[str, int] | None = None, is_extra: bool = Fal
     _check_plan(raw.get("plan"), bad, EXTRA_PLAN_KEYS if is_extra else PLAN_KEYS)
     _check_proof(raw.get("proof"), bad)
     _check_estimate(raw.get("estimate"), bad)
+    for k in RECIPE_KEYS:
+        _check_recipe(k, raw.get(k), bad)
     if probs:
         return None, probs
     data = dict(raw)
@@ -292,6 +296,15 @@ def _check_proof(proof: Any, bad) -> None:
             bad(f"{p}.seconds", "seconds must be a number above 0")
         if "optional" in item and not isinstance(item["optional"], bool):
             bad(f"{p}.optional", "optional must be true or false")
+
+
+def _check_recipe(key: str, recipe: Any, bad) -> None:
+    if recipe is None:
+        return
+    if (not isinstance(recipe, dict)
+            or not all(isinstance(k, str) and isinstance(v, str) and len(v) <= MAX_RECIPE_WORDS
+                       for k, v in recipe.items())):
+        bad(key, f"{key} must be a list of settings, each a short line of words (like command: npm start)")
 
 
 def _check_estimate(est: Any, bad) -> None:

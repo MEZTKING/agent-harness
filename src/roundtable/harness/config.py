@@ -109,7 +109,7 @@ class RoleSpec:
 
 FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compaction", "memory", "workers",
                     "parallel", "rewind", "attachments", "retention", "websearch", "proof", "kinds",
-                    "terminal", "money", "discovery")
+                    "terminal", "money", "discovery", "prep", "finish", "unstick", "stages", "playtest", "ship")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:
@@ -128,6 +128,7 @@ class Limits:
     command_timeout: int = 120
     max_parallel: int = 1
     max_scout_steps: int = 30  # steps for reading one reference (scout.py)
+    max_auto_tasks: int = 8  # tasks the stages may add by themselves for one goal (Orchestrator.add_tasks)
 
 
 @dataclass
@@ -628,6 +629,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             command_timeout=int(lim.get("command_timeout", 120)),
             max_scout_steps=int(lim.get("max_scout_steps", 30)),
             max_parallel=max(1, int(lim.get("max_parallel", 1) or 1)),
+            max_auto_tasks=max(0, int(lim.get("max_auto_tasks", 8))),
         ),
         allow_shell=bool(ws.get("allow_shell", True)),
         git=bool(ws.get("git", True)),
