@@ -97,8 +97,10 @@ def test_a_plan_made_before_1_2_0_is_lean_and_a_new_one_takes_the_setting(tmp_pa
     assert orch.project.meta()["checking"] == "balanced" == dial.level(orch)
     orch.cfg.sections["tandem"] = {"default": "maximum"}
     assert dial.level_for_new_plan(orch) == "maximum"
-    assert dial.for_task(orch, orch.project.tasks()[0]) == {"rivals": 1, "panel": 1, "explore": False, "why": ""}
-    assert dial.for_plan(orch) == {"planners": 1} and dial.allow(orch, "panel", 1.0)
+    # the plan is balanced: an ordinary task gets one builder and one checker, and may try a newer model
+    assert dial.for_task(orch, orch.project.tasks()[0]) == {"rivals": 1, "panel": 1, "explore": True, "why": ""}
+    # the council asks before a new plan's level is written: the next plan's level (maximum) answers
+    assert dial.for_plan(orch) == {"planners": 3} and dial.allow(orch, "panel", 1.0)
     dial.spent(orch, "panel", 0.01, "T1")
     row = json.loads((orch.project.root / dial.LEDGER).read_text().splitlines()[0])
     assert (row["what"], row["usd"], row["task"]) == ("panel", 0.01, "T1")
