@@ -93,8 +93,8 @@ function stagesStyles() {
   document.head.append(h("style", { id: "stg-style" }, `
 .stg-words { margin: 4px 0 6px; }
 .stg-chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
-.stg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); background: var(--color-sunken); font-family: var(--font-body); }
-.stg-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700; background: var(--color-oak-line); }
+.stg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); font-family: var(--font-body); }
+.stg-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700; background: var(--color-line); }
 .stg-done .stg-n { background: var(--color-good-soft); color: var(--color-good); }
 .stg-now { border-color: var(--color-good); }
 .stg-stuck { border-color: var(--color-bad); }

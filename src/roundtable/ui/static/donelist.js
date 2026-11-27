@@ -104,7 +104,7 @@ function more(path, i) {
 function doneStyles() {
   if (typeof document === "undefined" || document.getElementById("dl-style")) return;
   document.head.append(h("style", { id: "dl-style" }, `
-.dl { margin: 6px 0; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); background: var(--color-sunken); }
+.dl { margin: 6px 0; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); }
 .dl > summary { padding: 6px 10px; cursor: pointer; }
 .dl-words, .dl-line { font-family: var(--font-body, inherit); }
 .dl-line { margin: 4px 0; }
@@ -113,14 +113,14 @@ function doneStyles() {
 .dl-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .dl-item { display: flex; gap: 8px; align-items: flex-start; }
 .dl-main { min-width: 0; flex: 1; }
-.dl-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--color-oak-line); flex: none; }
+.dl-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--color-line); flex: none; }
 .dl-passed .dl-mark { background: var(--color-good-soft); color: var(--color-good); }
 .dl-failed .dl-mark { background: var(--color-bad-soft); color: var(--color-bad); }
 .dl-unchecked .dl-mark { background: var(--color-warn-soft); color: var(--color-warn); }
-.dl-tag { font-size: 11px; padding: 0 6px; border-radius: var(--radius-small); border: 1px solid var(--color-oak-line); color: var(--color-text); opacity: .8; }
+.dl-tag { font-size: 11px; padding: 0 6px; border-radius: var(--radius-small); border: 1px solid var(--color-line); color: var(--color-text); opacity: .8; }
 .dl-more { margin-top: 4px; font-size: 12px; }
 .dl-pics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; margin: 4px 0; }
-.dl-pic { padding: 0; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); cursor: zoom-in; }
+.dl-pic { padding: 0; border: 1px solid var(--color-line); border-radius: var(--radius-small); overflow: hidden; background: var(--color-surface); cursor: zoom-in; }
 .dl-pic img { display: block; width: 100%; height: auto; }
 `));
 }

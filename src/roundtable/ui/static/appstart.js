@@ -70,7 +70,7 @@ function appStartStyles() {
 .as-starting { color: var(--color-warn); background: var(--color-warn-soft); }
 .as-failed { color: var(--color-bad); background: var(--color-bad-soft); }
 .as-bad { color: var(--color-bad); }
-.as-frame { display: block; width: 100%; height: 520px; margin-top: 10px; border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); background: var(--color-surface); }
+.as-frame { display: block; width: 100%; height: 520px; margin-top: 10px; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-surface); }
 .as-more > summary { cursor: pointer; font-size: 12px; color: var(--color-muted); }
 .as-more code { font-family: var(--font-mono); }
 `));
