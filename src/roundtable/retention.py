@@ -16,6 +16,8 @@ What it removes (and nothing else), each with a limit in ``retention:`` in harne
   uncommitted, untracked or ignored files that matter (build caches like node_modules don't count) –
   removed the way the run itself does it (``worktrees.json`` updated, a ``worktree_removed`` event);
   ``worktrees_merged``; never while ``parallel.keep_worktrees`` is on
+* plug-in drafts from "Make one" (``<home>/plugin-drafts/``) older than ``drafts_days`` that no plug-in entry
+  points at (adding one copies it, so a draft is only ever a starting point)
 
 Never: a project's own files, anything the owner sent (attachments), anything touched in the last
 ``min_age_minutes``, a project that is running or paused – every path is checked to be inside one of the
@@ -57,6 +59,7 @@ DEFAULTS: dict[str, Any] = {
     "shots_keep": 30,  # picture folders per project: enough to compare a month of tasks
     "hub_sessions_keep": 20,  # runs per project in the hub: the phone's list shows the last few
     "worktrees_merged": True,  # a merged task's copy of the project is no longer needed
+    "drafts_days": 14,  # a plug-in draft not added in a fortnight is never going to be: make it again if wanted
     "min_age_minutes": 60,  # a safety floor: never touch what was written in the last hour
 }
 LOG_NAME = "retention.jsonl"
@@ -71,7 +74,7 @@ MB = 1024 * 1024
 
 @dataclass
 class Removed:
-    what: str  # logs, app_log, events (archived), spill, live, rewind, shots, hub_sessions, worktrees
+    what: str  # logs, app_log, events (archived), spill, live, rewind, shots, hub_sessions, worktrees, plugin_drafts
     path: str
     bytes: int
     note: str = ""
@@ -260,6 +263,20 @@ class Sweep:
                 continue
             if self.older_than(f, self.limits["logs_days"]):
                 self.remove("logs", f, logs)
+
+    def plugin_drafts(self, home: Path, cfg: Any = None) -> None:
+        drafts = Path(home) / "plugin-drafts"
+        if not drafts.is_dir():
+            return
+        used = ""
+        path = getattr(cfg, "path", None)
+        if path:
+            custom = Path(path).parent / "custom.yaml"
+            used = custom.read_text(encoding="utf-8", errors="replace") if custom.is_file() else ""
+        for d in sorted(drafts.iterdir()):
+            if d.is_dir() and not d.is_symlink() and d.name not in used \
+                    and self.older_than(d, self.limits["drafts_days"]):
+                self.remove("plugin_drafts", d, drafts, "a plug-in draft that was never added")
 
     def project(self, root: Path, cfg: Any = None) -> None:
         root = Path(root)
@@ -532,7 +549,8 @@ def tidy(cfg: Any = None, home: Path | None = None, hub: Any = None, hub_lock: A
     if not limits["enabled"]:
         sweep.result.skipped.append("retention is off (retention.enabled: false)")
         return sweep.result
-    steps: list[tuple[str, Callable[[], None]]] = [("the app's logs", lambda: sweep.app_logs(home))]
+    steps: list[tuple[str, Callable[[], None]]] = [("the app's logs", lambda: sweep.app_logs(home)),
+                                                   ("plug-in drafts", lambda: sweep.plugin_drafts(home, cfg))]
     for root in (projects if projects is not None else _projects(cfg)):
         steps.append((str(root), lambda root=root: sweep.project(Path(root), cfg)))
     if hub is not None:
@@ -565,7 +583,7 @@ def set_auto(home: Path, on: bool) -> bool:
 
 GROUP_NAMES = {"logs": "Old app logs", "app_log": "The app's log, shortened", "events": "Old history, packed away",
                "spill": "Spill files", "shots": "Old pictures", "hub_sessions": "Old runs in the hub",
-               "worktrees": "Working copies of finished tasks"}
+               "worktrees": "Working copies of finished tasks", "plugin_drafts": "Plug-in drafts never added"}
 
 
 def details(groups: dict[str, Any]) -> list[str]:

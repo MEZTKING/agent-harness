@@ -658,3 +658,31 @@ def apply_wizard_kind(orch, w: dict[str, Any]) -> None:
         orch.set_kind(w["kind"], w.get("extras") or [], by="owner", replan=False)
     except HarnessError:
         pass  # not ready or not allowed: Roundtable's own guess stands
+
+
+# -- the app's own cards (not a project's): the harness's fixes to itself (improve/selfrepair.py) ----------------
+def app_asks(app) -> list[dict[str, Any]]:
+    """Cards about the harness itself: a fault it found in its own code, and a fix ready to look at."""
+    try:
+        from .improve import selfrepair
+
+        return [{**a, "path": "", "app": True} for a in selfrepair.ask(app)]
+    except Exception:  # noqa: BLE001 - a card about the harness never breaks the owner's list
+        return []
+
+
+def is_app_ask(ask_id: str) -> bool:
+    return str(ask_id or "").startswith("selfrepair-")
+
+
+def answer_app_ask(app, ask_id: str, chosen) -> dict[str, Any]:
+    """The owner's answer to one of the app's own cards; a yes to a fix starts it as a background job."""
+    from .improve import selfrepair
+
+    r = selfrepair.answer(app, ask_id, chosen)
+    if ask_id.startswith("selfrepair-done-"):
+        return {"reply": "Got it."}
+    if r.get("started") is False:
+        return {"reply": "Left as it is."}
+    return {"reply": "Trying a fix: it works on a copy and opens a draft pull request only if every test passes."}
+

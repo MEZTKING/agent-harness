@@ -55,6 +55,10 @@ from .showstage import ShowStage
 from .stages import StagesStage
 from .unstick import UnstickStage, wasted_words
 from .worktrees import ParallelStage, Worktrees
+from .charterstage import CharterStage
+from .recallstage import RecallStage
+from .skillstage import SkillStage
+from ..improve.canary import WatchStage
 from .gate import Gate
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
@@ -277,7 +281,9 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
 
 class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
                    MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
-                   DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage):
+                   DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
+                   WatchStage, CharterStage, SkillStage, RecallStage):
+    # wave 7: the watch after a learned change, the charter's fixed lines and the house style, skills, look_up
     # the wave 5 stages (money, the done list, stages and parts, unsticking, finishing, playing, shipping)
     # each add their part through the hooks below; with no done list, stages or kind a run is as before
     def __init__(
@@ -333,7 +339,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
     METRIC_PARTS = ("_tags_metric", "_rivals_metric", "_agent_metric")  # (task, ref) -> dict merged into the metrics row
     # wave 7 (it learns): the charter's fixed lines and the house style in every system prompt, tools a stage
     # adds (recall), skills, the owner's documents for the planner, the watch's numbers
-    SYSTEM_PARTS = ("_charter_system", "_style_system")  # (prompt_name) -> str added to the system prompt
+    SYSTEM_PARTS = ("_style_system", "_charter_system")  # (prompt_name) -> str added to the system prompt
     TOOL_PARTS = ("_recall_tools",)  # (role) -> list[Tool]; a tool never replaces one already in the box
     WORKER_PARTS += ("_skills_worker_part",)
     PLAN_PARTS += ("_docs_plan_part",)
@@ -361,8 +367,9 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         return default if got is None else got
 
     def _hook_fault(self, name: str, error: Exception) -> None:
-        """A stage's hook failed (already in the events). Does nothing until the self-repair hook-up (wave 7)."""
-        return None
+        """A stage's hook failed (already in the events): noted for self-repair (a fault inside the harness only)."""
+        from ..improve import selfrepair
+        selfrepair.note(name, error)
 
     def _system(self, system: str, name: str = "") -> str:
         """The system prompt a model gets: ``system``, the repository's rules, then every SYSTEM_PARTS answer
@@ -1758,18 +1765,25 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
     def _learn_after_run(self) -> None:
         """improve.after_each_run: look at what the runs showed and apply what the policy allows.
 
-        Rules only (no model calls, no replay tests, no probes), so it costs nothing; what changed goes
+        Rules only (no model calls, no replay tests, no probes), so it costs nothing, unless the owner set a
+        learning allowance: then tests and health checks are paid from it and stop at its cap; what changed goes
         into the journal as a decision, so the owner can read later what was switched and why.
         """
         self._hook("_watch_after_run")  # the watch (wave 7) runs even when learning by itself is off
-        if not self.base_cfg.improve.get("after_each_run") or not self.base_cfg.lab_dir:
+        try:
+            from ..improve import wallet
+            paid = bool(self.base_cfg.lab_dir) and wallet.allowance(self.base_cfg) > 0
+        except Exception:  # noqa: BLE001 - a broken allowance setting means no paid learning
+            paid = False
+        if not (self.base_cfg.improve.get("after_each_run") or paid) or not self.base_cfg.lab_dir:
             return
         try:
             from ..improve.lab import Lab
             from ..improve.loop import cycle
 
             lab = Lab(self.base_cfg.lab_dir)
-            report = cycle(self.base_cfg.variant(), lab, use_llm=False, test=False, probe=False)
+            # with a learning allowance the tests and the health check are paid from it (improve/wallet.py)
+            report = cycle(self.base_cfg.variant(), lab, use_llm=False, test=paid, probe=paid, wallet=paid)
         except Exception as e:  # learning is a bonus; never fail a run over it
             self.emit("learn_failed", {"error": str(e)[:300]})
             return

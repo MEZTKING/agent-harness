@@ -59,7 +59,7 @@ class KindStage:
         if not chosen.get("id"):
             return None
         try:
-            k = kindlib.resolve(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
+            k = _resolve_learned(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
         except kindlib.KindError as e:
             self._kind_say("kind_error", {"error": str(e)})
             return None
@@ -77,7 +77,7 @@ class KindStage:
             if not chosen.get("id"):
                 return
             try:
-                kind = kindlib.resolve(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
+                kind = _resolve_learned(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
             except kindlib.KindError:
                 return
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -91,7 +91,7 @@ class KindStage:
         if not chosen.get("id"):
             return {"ok": False, "reply": "This project has no kind yet."}
         try:
-            k = kindlib.resolve(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
+            k = _resolve_learned(chosen["id"], chosen.get("extras") or [], self._kind_catalog())
         except kindlib.KindError as e:
             return {"ok": False, "reply": f"Couldn't use the newest recipe: {e}."}
         if p.is_file():
@@ -375,3 +375,10 @@ class KindStage:
         except Exception as e:  # noqa: BLE001 - the hub is optional
             self.emit("hub_error", {"error": f"gallery: {e}"})
 
+
+def _resolve_learned(kind_id, extras, catalog):
+    """The kind with the owner's extras and, on top, what the lab learned for it (an applied kind tweak,
+    improve/toolkind.py); only plan don't lines, task notes and proof lines that are not commands."""
+    from ..improve import toolkind
+
+    return toolkind.resolve_with_tweaks(kind_id, extras, catalog=catalog)

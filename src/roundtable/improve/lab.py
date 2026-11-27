@@ -399,6 +399,12 @@ class Lab:
             if p.applied_version in undone:
                 p.status = "rolled_back"
                 self.save_proposal(p)
+                spec = KINDS.get(p.kind)
+                if spec and spec.on_undo:  # e.g. a tool rolled past is switched off too (its files are kept)
+                    try:
+                        spec.on_undo(self, p)
+                    except Exception as e:  # noqa: BLE001 - the state is already restored; say what was left on
+                        self._log("undo_hook_failed", proposal=p.id, error=str(e)[:300])
         for v in undone:  # an undo rolled back: the change it took out is in force again
             meta = self._json(f"versions/{v:04d}/meta.json", {})
             if meta.get("undo"):

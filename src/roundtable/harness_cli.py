@@ -263,7 +263,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--project", action="append", default=[], help="extra project dirs to learn from")
     s = isub.add_parser("stats", help="how each model has done, from the projects' metrics")
     s.add_argument("--by-tag", action="store_true", help="per kind of work (game logic, shaders, layout...)")
+    s.add_argument("--checkers", action="store_true", help="how each checker's verdicts held up (the panel's reviews)")
     s.add_argument("--project", action="append", default=[], help="extra project dirs to learn from")
+    s = isub.add_parser("yardstick", help="the fixed set of small made-up tasks every change is measured on")
+    s.add_argument("--job", choices=["builder", "reviewer", "planner"], help="only this job's tasks")
+    s.add_argument("--check", action="store_true", help="check the set itself (no model is called)")
+    s.add_argument("--run", action="store_true", help="measure the current set-up for --role (spends money)")
+    s.add_argument("--role", default="coder")
+    s.add_argument("--max-cost", type=float, default=1.0)
     s = isub.add_parser("propose", help="suggest your own change")
     s.add_argument("role")
     g = s.add_mutually_exclusive_group(required=True)
@@ -348,7 +355,25 @@ def _improve(args, cfg) -> None:
             print("\nNext: roundtable improve show ID, then test / apply / reject")
     elif args.icmd == "stats":
         ds = collect(lab, extra=[Path(p) for p in args.project])
-        print(stats_table(ds, by_tag=args.by_tag) if ds.stats else "(no metrics yet - run some projects first)")
+        print(stats_table(ds, by_tag=args.by_tag, checkers=args.checkers) if ds.stats or args.checkers
+              else "(no metrics yet - run some projects first)")
+    elif args.icmd == "yardstick":
+        from .harness.agent import Budget
+        from .improve import yardstick
+
+        if args.check:
+            problems = yardstick.check_set()
+            print("\n".join(problems) if problems else "The yardstick is sound: every task fails as it starts "
+                                                       "and passes with its answer.")
+            if problems:
+                sys.exit(1)
+        elif args.run:
+            print(f"Measuring {args.role} on the yardstick, budget ${args.max_cost:.2f}...")
+            res = yardstick.baseline(cfg, lab, args.role, Budget(args.max_cost), runs=1, on_event=on_event)
+            print(f"{res['passed']} of {res['of']} passed, ${res['spent_usd']:.4f}"
+                  + (f" ({res['note']})" if res.get("note") else ""))
+        else:
+            print(yardstick.listing(args.job))
     elif args.icmd == "propose":
         from .improve.lab import Proposal
 
@@ -374,7 +399,7 @@ def _improve(args, cfg) -> None:
     elif args.icmd == "test":
         p = lab.proposal(args.id)
         print(f"Testing {p.id} on up to {args.samples} past task(s), budget ${args.max_cost:.2f}...")
-        evaluate(cfg, lab, p, samples=args.samples, max_cost=args.max_cost, on_event=on_event)
+        evaluate(cfg, lab, p, samples=args.samples, max_cost=args.max_cost, on_event=on_event, yard=True)
         _show_proposal(lab.proposal(args.id))
     elif args.icmd == "apply":
         p = lab.proposal(args.id)
@@ -392,7 +417,7 @@ def _improve(args, cfg) -> None:
             bad = [r.model for r in reports if r.bad]
             if bad and not args.force:
                 sys.exit(f"not applied: {', '.join(bad)} acting up right now. Retry later, or use --force.")
-        version = lab.apply(p, cfg, reason="manual")
+        version = lab.apply(p, cfg, reason="manual", by_owner=True)  # the owner's own command
         print(f"applied {p.id} as version {version}: {p.summary()}\nundo with: roundtable improve rollback {version}")
     elif args.icmd == "reject":
         p = lab.proposal(args.id)

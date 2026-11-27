@@ -86,7 +86,11 @@ def test_a_bare_seam_runs_exactly_as_before(tmp_path):
 
 def test_the_full_orchestrator_at_lean_runs_exactly_as_the_bare_seam(tmp_path):
     bare, _, _ = _run(tmp_path / "bare", Seam)
-    full, events, _ = _run(tmp_path / "full", NoKind, level="lean")
+    class NoSkills(NoKind):  # wave 7's skills would reach this made-up task (its tags match); the dial is what's compared
+        def _skills_for(self, task):
+            return []
+
+    full, events, _ = _run(tmp_path / "full", NoSkills, level="lean")
     assert dial.level(full) == "lean"
     assert _shape(full) == _shape(bare)
     assert not {"stage_error"} & set(kinds(events))

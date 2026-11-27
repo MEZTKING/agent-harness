@@ -303,3 +303,29 @@ def test_cli_dry_run(tmp_path, monkeypatch, capsys):
     retention.main(["--dry-run", "--no-hub"])
     out = capsys.readouterr().out
     assert "would remove" in out and (tmp_path / "home" / "logs" / "old.log").is_file()
+
+
+def test_old_plugin_drafts_go_unless_a_plugin_points_at_them(tmp_path):
+    """Wave 7: drafts from "Make one" that were never added are tidied after a fortnight; one in use stays."""
+    import os
+    import time
+    from types import SimpleNamespace
+
+    from roundtable import retention
+
+    home = tmp_path / "home"
+    old, used, new = (home / "plugin-drafts" / n for n in ("old-tool-1", "used-tool-2", "new-tool-3"))
+    for d in (old, used, new):
+        d.mkdir(parents=True)
+        (d / "plugin.toml").write_text("id = 'x'\n", encoding="utf-8")
+    month = time.time() - 30 * 86400
+    for d in (old, used):
+        for f in (d, d / "plugin.toml"):
+            os.utime(f, (month, month))
+    harness = tmp_path / "cfg" / "harness.yaml"
+    harness.parent.mkdir()
+    harness.write_text("roles: {}\n", encoding="utf-8")
+    (harness.parent / "custom.yaml").write_text(f"plugins:\n  used: {{path: {used}}}\n", encoding="utf-8")
+    res = retention.tidy(SimpleNamespace(path=str(harness), retention={}), home=home, projects=[])
+    assert not old.exists() and used.is_dir() and new.is_dir()
+    assert any(r.what == "plugin_drafts" for r in res.removed)

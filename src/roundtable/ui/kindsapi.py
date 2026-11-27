@@ -111,7 +111,9 @@ def one_kind(app, q: dict) -> dict[str, Any]:
         return {"kind": doc}
     home = _home(app)
     extras = [x for x in _first(q, "extras").split(",") if x]
-    k = kindlib.resolve(_first(q, "id"), extras, home=home)
+    from ..improve import toolkind  # with the learned kind tweak on top, as a project sees it
+
+    k = toolkind.resolve_with_tweaks(_first(q, "id"), extras, home=home)
     names, missing = tools()
     return _card(k, kindlib.read_state(home), names, missing)
 

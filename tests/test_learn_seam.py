@@ -397,7 +397,7 @@ def test_spent_today_counts_what_learning_spent(tmp_path, monkeypatch):
 
 def test_the_new_parts_are_listed():
     o = Orchestrator
-    assert o.SYSTEM_PARTS == ("_charter_system", "_style_system") and o.TOOL_PARTS == ("_recall_tools",)
+    assert o.SYSTEM_PARTS == ("_style_system", "_charter_system") and o.TOOL_PARTS == ("_recall_tools",)
     assert o.WORKER_PARTS[-1] == "_skills_worker_part" and o.PLAN_PARTS[-1] == "_docs_plan_part"
     assert o.ATTEMPT_PARTS[-2:] == ("_skills_attempt", "_recall_attempt")
     assert o.METRIC_PARTS[-1] == "_watch_metric"
