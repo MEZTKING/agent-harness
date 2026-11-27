@@ -1,8 +1,8 @@
-# Making a game in Godot (and Blender) with Roundtable
+# Making a game in Godot (and Blender) with Darkness Harness
 
-Godot suits Roundtable well. A Godot project is plain text files (scenes, scripts, settings),
-so Roundtable's models can read and write it directly, and Godot runs without a screen, so
-Roundtable can start the game itself to check it. Blender makes the 3D models; Godot reads
+Godot suits the harness well. A Godot project is plain text files (scenes, scripts, settings),
+so the harness's models can read and write it directly, and Godot runs without a screen, so
+the harness can start the game itself to check it. Blender makes the 3D models; Godot reads
 Blender's files as they are.
 
 There are three ways for the models to work, and you can use all three together:
@@ -52,7 +52,7 @@ It's [MCP for Blender](https://github.com/ahujasid/mcp-for-blender) (MIT, free).
   mostly need a credit line in your game (CC-BY). Sketchfab and the AI model makers need their
   own paid keys.
 
-## 4. Tell Roundtable about them
+## 4. Tell Darkness Harness about them
 
 In `harness.yaml`:
 
@@ -69,7 +69,7 @@ mcp_servers:
     timeout: 300
 
 godot:
-  path: C:\Godot\Godot_v4.7-stable_win64_console.exe   # so Roundtable can start the game to check it
+  path: C:\Godot\Godot_v4.7-stable_win64_console.exe   # so the harness can start the game to check it
 
 roles:
   game_builder:
@@ -91,10 +91,10 @@ Save or export models as **glTF (.glb)** straight into the Godot project's folde
 `models/`). Godot imports them by itself, and updates them when the file changes. The `modeller`
 role above is told to do exactly that, so the `game_builder` can place them.
 
-## How Roundtable checks a Godot game
+## How Darkness Harness checks a Godot game
 
 When a project has a Godot 4 game (`project.godot` in the project's folder or one folder down,
-such as `game/`), Roundtable checks it itself after every approved task. The editor needn't be
+such as `game/`), the harness checks it itself after every approved task. The editor needn't be
 open.
 
 1. It opens the project without a window and runs the main scene for a moment, noting every
@@ -105,9 +105,9 @@ open.
 3. While building, the coder and the reviewer have a **run_game** tool: they start the game
    themselves and fix their own errors before you see them.
 
-Roundtable never downloads Godot. It looks at the `godot: path` setting, then `GODOT`, then
+The harness never downloads Godot. It looks at the `godot: path` setting, then `GODOT`, then
 `godot` or `godot4` on the computer, then the usual folders. On Windows, point it at the
-**console** Godot program (it comes in the same zip) so Roundtable can read its messages:
+**console** Godot program (it comes in the same zip) so the harness can read its messages:
 
 ```yaml
 godot:
@@ -117,7 +117,7 @@ godot:
   enabled: true   # false: never start Godot
 ```
 
-If Godot isn't found the task still finishes and Roundtable says so. The main scene must be
+If Godot isn't found the task still finishes and the harness says so. The main scene must be
 set (**Project → Project Settings → Application → Run → Main Scene**), or there's nothing to start.
 
 ## If something goes wrong

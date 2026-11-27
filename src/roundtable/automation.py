@@ -617,7 +617,7 @@ class GitHub:
             raise AutomationError(f"GitHub can't find {repo}, or your GitHub key can't read it. Check the name, "
                                   "or give the key access to that repository.")
         if status in (403, 429):
-            raise AutomationError("GitHub asked Roundtable to slow down. It tries again in a few minutes.")
+            raise AutomationError("GitHub asked the harness to slow down. It tries again in a few minutes.")
         raise AutomationError(f"GitHub answered with an error ({status}). It tries again in a few minutes.")
 
     def get(self, repo: str, path: str, **params: Any) -> Any:
@@ -978,7 +978,7 @@ def _run_schedule(ctx: Ctx, a: dict[str, Any], st: dict[str, Any], s: dict[str, 
             t = _once_at(when)
             if t and ctx.now - t > timedelta(hours=s["catch_up_hours"]):  # missed for good
                 _update_state(ctx.home, a["id"], lambda x: x.update(last_slot=iso(t)), ctx.machine)
-                return [_record(ctx, a, "Missed: Roundtable wasn't running at that time, so it didn't run.", False)]
+                return [_record(ctx, a, "Missed: the harness wasn't running at that time, so it didn't run.", False)]
         return []
     item = _schedule_item(a, iso(slot))
     root = _target(ctx, item) if item["what"] == "goal" else None
@@ -1000,7 +1000,7 @@ def _run_github(ctx: Ctx, a: dict[str, Any], st: dict[str, Any], s: dict[str, An
                   ctx.machine)
     token = github_token()
     if not token:
-        return [_record(ctx, a, "Add your GitHub key on the Automations page, so Roundtable can read GitHub.", False)]
+        return [_record(ctx, a, "Add your GitHub key on the Automations page, so the harness can read GitHub.", False)]
     try:
         items = poll(a, GitHub(token, ctx.http))
     except AutomationError as e:

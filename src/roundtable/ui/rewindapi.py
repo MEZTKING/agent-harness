@@ -50,7 +50,7 @@ def _error(text: str, status: int = 400):
 def _root(app, q: dict) -> Path:
     cfg = app.cfg()
     if not cfg:
-        raise _error("Roundtable isn't set up on this computer yet. Finish the set-up in Settings first.", 503)
+        raise _error("The harness isn't set up on this computer yet. Finish the set-up in Settings first.", 503)
     path = _first(q, "path")
     if not path:
         raise _error("Choose a project first.")

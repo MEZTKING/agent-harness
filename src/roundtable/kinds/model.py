@@ -190,7 +190,7 @@ def validate(raw: Any, lines: dict[str, int] | None = None, is_extra: bool = Fal
     if known_needs is not None and isinstance(raw.get("needs"), list):
         for i, n in enumerate(raw["needs"]):
             if isinstance(n, str) and n not in known_needs:
-                bad(f"needs.{i}", f"needs names {n!r}, which isn't a tool Roundtable knows "
+                bad(f"needs.{i}", f"needs names {n!r}, which isn't a tool the harness knows "
                                   f"(one of: {', '.join(sorted(known_needs))})")
     if "pc_only" in raw and not isinstance(raw["pc_only"], bool):
         bad("pc_only", "pc_only must be true or false")
@@ -501,7 +501,7 @@ def propose(goal: str, kinds: Catalog | dict[str, Kind] | None = None,
             why = "because you said " + " and ".join(f"“{m}”" for m in said[:2])
             scored.append((k.id, round(score, 2), why))
     scored.sort(key=lambda x: (-x[1], x[0]))
-    other = ("other", 0.0, "it doesn't look like anything Roundtable has a recipe for yet" if not scored
+    other = ("other", 0.0, "it doesn't look like anything the harness has a recipe for yet" if not scored
              else "if it's none of these")
     if "other" in pool:
         scored.append(other)
@@ -749,7 +749,7 @@ def wizard_options(home: Path | str | None = None, catalog: Catalog | None = Non
     ks = sorted((k for k in cat.kinds.values() if k.id != "other"), key=lambda k: (order.get(k.group, 99), k.name))
     out = [{"id": k.id, "label": k.name, "description": k.blurb, "group": k.group} for k in ks if k.usable]
     out += [{"id": k.id, "label": k.name, "description": k.blurb, "group": "Coming", "disabled": True,
-             "tip": "Not ready yet: Roundtable can't build or prove this sort of thing so far."}
+             "tip": "Not ready yet: the harness can't build or prove this sort of thing so far."}
             for k in ks if not k.usable]
     if "other" in cat.kinds:
         out.append({"id": "other", "label": "Something else", "description": cat.kinds["other"].blurb, "group": "Other"})

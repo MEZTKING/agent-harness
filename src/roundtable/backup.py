@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
+from .brand import NAME
 
 FORMAT = 1
 MAGIC = b"RTBK"
@@ -381,7 +382,7 @@ def decrypt(blob: bytes, passphrase: str) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     if not blob.startswith(MAGIC) or len(blob) < 33:
-        raise BackupError("This file isn't a locked Roundtable backup.")
+        raise BackupError("This file isn't a locked backup from this app.")
     header, salt, nonce = blob[:33], blob[5:21], blob[21:33]
     try:
         return AESGCM(_key(passphrase, salt)).decrypt(nonce, blob[33:], header)
@@ -604,9 +605,9 @@ def open_backup(file: str | Path, passphrase: str | None = None) -> Opened:
         zf = zipfile.ZipFile(io.BytesIO(data))
         manifest = json.loads(zf.read("manifest.json"))
     except (zipfile.BadZipFile, KeyError, ValueError):
-        raise BackupError(f"{path.name} isn't a Roundtable backup, or it's damaged.") from None
+        raise BackupError(f"{path.name} isn't a backup from this app, or it's damaged.") from None
     if manifest.get("format", 0) > FORMAT:
-        raise BackupError("This backup was made by a newer Roundtable Hold. Update Roundtable Hold first.")
+        raise BackupError(f"This backup was made by a newer {NAME}. Update {NAME} first.")
     return Opened(path, manifest, zf)
 
 
@@ -647,7 +648,7 @@ def restore_plan(opened: Opened, home: Path | None = None) -> list[dict]:
 def summary(opened: Opened, plan: list[dict]) -> list[str]:
     m = opened.manifest
     count = {a: sum(p["action"] == a for p in plan) for a in ("new", "replace", "same")}
-    lines = [f"Backup of {m.get('host', '?')} made {m.get('created', '?')} (Roundtable Hold {m.get('roundtable', '?')}).",
+    lines = [f"Backup of {m.get('host', '?')} made {m.get('created', '?')} ({NAME} {m.get('roundtable', '?')}).",
              f"{len(plan)} files: {count['new']} new, {count['replace']} would replace what's here now, "
              f"{count['same']} already the same."]
     for proj in m.get("projects", []):

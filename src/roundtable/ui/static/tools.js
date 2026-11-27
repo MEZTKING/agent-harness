@@ -135,7 +135,7 @@ function serverRow(s, t, draw) {
           act(ev.currentTarget, () => post("/api/tools/servers/remove", { name: s.name }), "Removed", () => draw());
       } }, "Remove") : null),
     h("details", {}, h("summary", { class: "small muted" }, "More"), h("p", { class: "small" }, h("code", {}, s.where)),
-      s.removable ? null : h("p", { class: "small muted" }, "Set in Roundtable's settings file, so it's changed there.")),
+      s.removable ? null : h("p", { class: "small muted" }, "Set in the harness's settings file, so it's changed there.")),
     out);
 }
 

@@ -196,7 +196,7 @@ def test_harness_writes_project_history(tmp_path):
     assert "harness finished goal 'bakery site'" in b["last_session"]["text"]
     steps = b["last_session"]["next"]
     assert steps == ["Look at what was built and say what you think",
-                     "Rate the tasks in the app (good or bad), so Roundtable learns"]
+                     "Rate the tasks in the app (good or bad), so the harness learns"]
     assert not any("/" in s or "roundtable " in s for s in steps)  # no paths or commands for the owner
     assert "roundtable feedback" in b["last_session"]["details"]
     done = [e["text"] for e in hub.journal.entries("harness", kinds=["done"])]

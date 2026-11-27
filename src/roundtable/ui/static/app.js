@@ -1,6 +1,6 @@
-// Roundtable Hold – the desktop command centre. Plain ES modules, no build step.
+// Darkness Harness – the desktop command centre. Plain ES modules, no build step.
 // The shell: the rooms in the header, the router, today's spend, the work running now and the update banner.
-import { h, fill, get, post, S, refreshHall, seatByPath, money, act, needsCount } from "./core.js";
+import { BRAND, h, fill, get, post, S, refreshHall, seatByPath, money, act, needsCount } from "./core.js";
 import { drawAutopilot, loadAutopilot } from "./autopilot.js";
 import { viewHall } from "./hall.js";
 import { viewNeeds } from "./needs.js";
@@ -93,9 +93,11 @@ function header(rt) {
   const tp = document.getElementById("today-gbp");
   if (tp) { tp.textContent = gbp ? ` ${gbp}` : ""; tp.hidden = !gbp; }
   if (rt.autopilot) drawAutopilot(rt.autopilot, true);
-  document.title = needs ? `(${needs}) Roundtable Hold` : "Roundtable Hold";
+  document.title = needs ? `(${needs}) ${BRAND.name}` : BRAND.name;
 }
 const headerNode = document.getElementById("top");
+// The name in the header comes from BRAND too, so index.html can never show an old one for long.
+for (const el of document.querySelectorAll(".brand-name")) el.textContent = BRAND.name;
 S.listeners.add({ node: headerNode, fn: header });
 async function poll() {
   await refreshHall();
@@ -108,7 +110,7 @@ async function checkUpdate() {
   try {
     const st = await get("/api/update");
     if (!st.available) return;
-    fill(el, h("b", {}, "A new Roundtable Hold is ready"), h("span", { class: "muted" }, st.latest && /^\d+\.\d+/.test(st.latest) ? `Version ${st.latest}` : ""),
+    fill(el, h("b", {}, `A new ${BRAND.name} is ready`), h("span", { class: "muted" }, st.latest && /^\d+\.\d+/.test(st.latest) ? `Version ${st.latest}` : ""),
       h("span", { class: "spacer" }),
       h("button", { class: "primary", title: "Backs up your settings first, then updates", onclick: (ev) => act(ev.currentTarget, () => post("/api/update", {}), "Updating…",
         (j) => { el.hidden = true; if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, "Update now"),

@@ -144,7 +144,7 @@ class RepoStage:
         if code != 0 or name in PROTECTED:
             from .orchestrator import HarnessError
 
-            raise HarnessError(f"{name!r} can't be Roundtable's branch: choose another name for `branch` in the "
+            raise HarnessError(f"{name!r} can't be the harness's branch: choose another name for `branch` in the "
                                "project's settings (never main or master)")
         return name
 
@@ -164,7 +164,7 @@ class RepoStage:
         exists = self._git_out("rev-parse", "--verify", "-q", f"refs/heads/{name}")[0] == 0
         code, _, err = self._git_out("checkout", "-q", *([name] if exists else ["-b", name]))
         if code != 0:
-            raise HarnessError(f"Couldn't switch the app to Roundtable's branch {name}: {err}. Commit or put away "
+            raise HarnessError(f"Couldn't switch the app to the harness's branch {name}: {err}. Commit or put away "
                                "your own changes in the app first, then try again.")
         meta = self.project.meta()
         meta["repository"]["branch"] = name
@@ -189,7 +189,7 @@ class RepoStage:
         start = repo.get("start_branch") or ""
         protected = set(PROTECTED) | ({start} if start and start != branch else set())
         if current != branch or current in protected:
-            raise HarnessError(f"Roundtable won't commit on {current or 'a detached HEAD'}: its work goes on {branch}. "
+            raise HarnessError(f"The harness won't commit on {current or 'a detached HEAD'}: its work goes on {branch}. "
                                f"Switch the app to {branch} (git checkout {branch}), then run again.")
 
     def _card_status(self, status: str) -> str:
@@ -207,10 +207,10 @@ class RepoStage:
             return ""
         st = self.project_settings().values
         pieces = reporules.read_rules(self.project.root, st.get("rules_files") or [], int(st.get("rules_budget") or 12000))
-        branch = repo.get("branch") or "Roundtable's own branch"
+        branch = repo.get("branch") or "the harness's own branch"
         lines = [
             "# The repository's own rules (follow them)",
-            f"This is the owner's existing app, in a git repository. Roundtable's work goes on the branch {branch}.",
+            f"This is the owner's existing app, in a git repository. The harness's work goes on the branch {branch}.",
             "- Work on the branch you're on. Never switch branches, push, open pull requests, tag or release.",
             "- Don't start paid CI or anything that costs money or reaches outside (no workflow runs, no deploys).",
             "- Where the rules below say to keep a devlog (or a changelog or handoff), add the entry for your change.",
@@ -233,7 +233,7 @@ class RepoStage:
         repo = self._repo()
         if repo:
             out.append("# This is an existing app\nThe project is the owner's existing app in a git repository "
-                       f"(Roundtable works on the branch {repo.get('branch') or 'of its own'}). Plan changes to it — "
+                       f"(the harness works on the branch {repo.get('branch') or 'of its own'}). Plan changes to it — "
                        "fixes, speed-ups, tidying — not a new build: read the code first, keep each task small and "
                        "checkable, keep what works, and follow the repository's own rules. Set has_ui only when the "
                        "task changes screens people look at.")

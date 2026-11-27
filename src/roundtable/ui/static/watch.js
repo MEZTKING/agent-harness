@@ -1,7 +1,7 @@
 // Watch and App: following the work like a session (every step, changes in colour, pictures) and the app itself.
 // Several tasks run at once: the ones still going sit side by side at the top, each one line with where its time
 // went and how full its context is; the details (the split in words, tokens, files changed) are folded.
-import { h, fill, get, post, act, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q, refreshHall, has } from "./core.js";
+import { BRAND, h, fill, get, post, act, every, card, money, ago, clock, jobName, modelName, taskPill, picture, fileSize, q, refreshHall, has } from "./core.js";
 import { hubSession } from "./machines.js";
 import { hubCommand } from "./asks.js";
 import { rewindButton } from "./rewind.js";
@@ -49,7 +49,7 @@ export async function watchTab(seat, now) {
       if (d.run && d.run.run_id !== runId) { runId = d.run.run_id; held = []; if (d.run.since) d = await hubSession(s, runId, 0) || d; }
       held = held.concat(d.events || []);
       status.textContent = d.live ? `Following it live${d.claim && d.claim.machine_name ? ` on ${d.claim.machine_name}` : ""}` : d.run ? `The newest build, ${ago(d.run.ended || d.run.started)}` : "";
-      fill(term, held.length ? remoteSteps(held) : h("p", { class: "t-meta" }, s.status === "done" ? "This project was built before Roundtable kept a step list."
+      fill(term, held.length ? remoteSteps(held) : h("p", { class: "t-meta" }, s.status === "done" ? "This project was built before the harness kept a step list."
         : d.message || "No build of this project has been watched yet: it shows here once one starts."));
       if (stick) term.scrollTop = term.scrollHeight;
       return;
@@ -83,12 +83,12 @@ export function dur(ms) {
   return hr ? `${hr}h ${m % 60}m` : `${m}m ${sec % 60 ? `${sec % 60}s` : ""}`.trim();
 }
 const PART_TIP = {
-  first: "Waiting for the model's first word after Roundtable sent it the work",
+  first: "Waiting for the model's first word after the harness sent it the work",
   writing: "The model writing its answer",
   model: "The model thinking and writing (this model doesn't say when its first word came)",
   tools: "Reading, writing and running things in the project",
   you: "Waiting for your answer to an Ask me first card",
-  other: "Roundtable's own work between the steps: saving, checking, plugins",
+  other: "The harness's own work between the steps: saving, checking, plugins",
 };
 // the bar: only time that was recorded; nothing recorded, no bar (never a bar of zeros)
 export function timeBar(time) {
@@ -243,7 +243,7 @@ export async function appTab(seat, now) {
   }, () => (now().status === "running" ? 4000 : 15000));
 }
 
-// "Take pictures now": for a finished project built before Roundtable took pictures
+// "Take pictures now": for a finished project built before the harness took pictures
 function takeButton(fn) {
   return h("div", { class: "row" }, h("button", { class: "primary", title: "Opens the app as it is now and takes its pictures (no AI, no cost)",
     onclick: (ev) => act(ev.currentTarget, fn, "Taking the pictures: they show here in a minute", () => refreshHall()) }, "Take pictures now"));
@@ -270,8 +270,8 @@ async function hubApp(seat, now) {
 const day = (iso) => { try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(iso).slice(0, 10); } };
 function liveApp(L) {
   if (!L.preview) {
-    return card("The app", h("p", { class: "muted" }, L.entry ? "The app opens here in the Roundtable Hold desktop app." : "Nothing to open yet: the app's first page hasn't been made."),
-      L.start_command ? h("p", { class: "small muted" }, "It has its own way of starting: Roundtable shows its page as it is for now.") : null);
+    return card("The app", h("p", { class: "muted" }, L.entry ? `The app opens here in the ${BRAND.name} desktop app.` : "Nothing to open yet: the app's first page hasn't been made."),
+      L.start_command ? h("p", { class: "small muted" }, "It has its own way of starting: the harness shows its page as it is for now.") : null);
   }
   const frame = h("iframe", { class: "live-frame", src: L.preview, title: "The app, live", sandbox: "allow-scripts allow-same-origin allow-forms" });
   const wrap = h("div", { class: "live-wrap" }, frame);
@@ -283,14 +283,14 @@ function liveApp(L) {
     h("div", { class: "row" }, sizes,
       h("button", { class: "small", title: "Load the app again (after a task changed it)", onclick: () => { frame.src = L.preview; } }, "Reload"),
       h("a", { class: "btn small", href: L.preview, target: "_blank", rel: "noopener", title: "Open the app in its own window" }, "Open in a window"))),
-  h("p", { class: "small muted" }, "The real app, running from its folder. It can't reach the internet or Roundtable itself."),
+  h("p", { class: "small muted" }, "The real app, running from its folder. It can't reach the internet or the harness itself."),
   wrap);
 }
 function livePictures(path, L, finished = false, seat = null) {
   const rec = L.latest;
   if (!rec && finished) return card("Pictures", h("p", { class: "muted" }, "No pictures of this project yet."),
     takeButton(() => post("/api/project", { path, action: "show_it" })));
-  if (!rec) return card("Pictures", h("p", { class: "muted" }, "Roundtable takes pictures of the app after every finished task. None yet."));
+  if (!rec) return card("Pictures", h("p", { class: "muted" }, "The harness takes pictures of the app after every finished task. None yet."));
   const kinds = Object.keys(rec.pictures || {}), errs = rec.errors || [];
   const earlier = (L.history || []).filter((r) => Object.keys(r.pictures || {}).length);
   return card(h("div", { class: "card-head" }, h("h2", {}, finished ? "Final pictures" : "Pictures"),

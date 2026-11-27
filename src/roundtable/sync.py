@@ -37,6 +37,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from .brand import NAME
 
 MACHINE_ENV = "ROUNDTABLE_MACHINE"  # set by `roundtable phone serve --local`: the phone's seat
 MACHINE_NAME_ENV = "ROUNDTABLE_MACHINE_NAME"
@@ -120,7 +121,7 @@ def register_seat(hub, seat: str, title: str, kind: str = "pc", description: str
     root = hub_root(hub)
     if root is None:
         return False
-    description = description or f"Roundtable on this {words_for(kind)}"
+    description = description or f"{NAME} on this {words_for(kind)}"
     for _ in range(3):  # another machine may have changed hub.yaml at the same moment: read it again
         hub.store.sync(force=True)
         path = root / "hub.yaml"
@@ -670,7 +671,7 @@ def machine_words(m: dict[str, Any]) -> str:
         b = m["building"][0]
         return f"{yours} is building {b.get('folder') or b.get('hub_name') or 'a project'}."
     if not m.get("listening") and not m.get("this"):
-        return f"{yours} is on, but not listening for commands: open Roundtable Hold there."
+        return f"{yours} is on, but not listening for commands: open {NAME} there."
     return f"{yours} is on."
 
 
@@ -794,7 +795,7 @@ def publish_shared(hub, values: dict[str, Any], machine: dict[str, str] | None =
     machine = machine or this_machine()
     data = {**_clean(values), "changed_by": machine["id"], "changed_by_name": machine["name"],
             "changed_at": utcnow(), "change_id": secrets.token_hex(6)}
-    text = ("# Settings every Roundtable machine shares (written by Roundtable Hold; the last change wins).\n"
+    text = (f"# Settings every {NAME} machine shares (written by {NAME}; the last change wins).\n"
             "# API keys are never here: they stay on each machine.\n" + yaml.safe_dump(data, sort_keys=False))
     hub.store.write_json({SHARED_FILE: TextFile(text)}, f"settings: changed on {machine['name']}")
     return data

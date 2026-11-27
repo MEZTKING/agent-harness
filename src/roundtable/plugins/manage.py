@@ -35,6 +35,7 @@ from .builtin import BUILTIN_MANIFESTS
 from .host import PluginHost, code_home, plugins_home
 from .manifest import SKIP, Manifest, check_api, find_manifest, project_dependencies
 from ..core.files import remove_tree
+from ..brand import NAME
 
 Confirm = Callable[[Manifest], bool]
 Runner = Callable[..., Any]
@@ -140,7 +141,7 @@ def set_settings(harness_path: str | Path | None, pid: str, values: dict[str, An
 def remove_plugin(harness_path: str | Path | None, pid: str, purge: bool = False) -> None:
     """Forget a plugin and delete its copied code; its data folder stays unless ``purge``."""
     if pid in BUILTIN_MANIFESTS:
-        raise PluginError(f"{BUILTIN_MANIFESTS[pid].name} comes with Roundtable Hold: switch it off instead "
+        raise PluginError(f"{BUILTIN_MANIFESTS[pid].name} comes with {NAME}: switch it off instead "
                           f"(`roundtable plugin disable {pid}`)")
     path = _path(harness_path)
     custom = load_custom(path)
@@ -228,7 +229,7 @@ def add_plugin(harness_path: str | Path | None, source: str, confirm: Confirm, r
         manifest = find_manifest(folder)
         check_api(manifest)
         if manifest.id in BUILTIN_MANIFESTS:
-            raise PluginError(f"{manifest.id!r} is the name of a plugin that comes with Roundtable Hold; "
+            raise PluginError(f"{manifest.id!r} is the name of a plugin that comes with {NAME}; "
                               "the plugin needs another id")
         if not confirm(manifest):
             raise NeedsOk(manifest)

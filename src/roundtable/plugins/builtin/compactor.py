@@ -23,6 +23,7 @@ from typing import Any
 
 from ..api import Plugin, PluginContext
 from ..manifest import parse_manifest
+from ...brand import NAME
 
 CHEAP_MODEL = "deepseek/deepseek-v4-flash"
 MARK = "[Earlier steps, summarised to save room]"
@@ -37,7 +38,7 @@ MANIFEST = parse_manifest({
     "description": ("When a long task's conversation gets very big, a cheap model sums up the older steps, so "
                     "each step costs less. The task, the files changed and the last few steps are kept as "
                     "they were."),
-    "author": "Roundtable Hold",
+    "author": NAME,
     "licence": "MIT",
     "homepage": "",
     "entry": "roundtable.plugins.builtin.compactor:Compactor",

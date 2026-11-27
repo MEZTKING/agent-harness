@@ -245,7 +245,7 @@ def peek_file(root: str | Path, rel: str, line: int = 0, around: int = 20) -> di
     """Lines around ``line`` of a project file, for the app to show (only inside the project)."""
     p = safe_file(root, rel)
     if p is None:
-        raise ValueError("That file isn't one Roundtable can show (it's outside the project, private or gone).")
+        raise ValueError("That file isn't one the harness can show (it's outside the project, private or gone).")
     if p.stat().st_size > MAX_FILE_BYTES:
         return {"file": rel, "lines": [], "from": 0, "words": "This file is too big to show here."}
     text = _read(p)

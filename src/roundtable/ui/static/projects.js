@@ -55,7 +55,7 @@ function row(s, x) {
 
 // ---------- a new project: a few cards to tap ----------
 export async function viewNew() {
-  if (!S.ov.harness) return page("New project", null, card("Roundtable can't build on this computer yet",
+  if (!S.ov.harness) return page("New project", null, card("The harness can't build on this computer yet",
     h("p", {}, "Its settings are missing or have a problem. Open Settings to set it up, then come back."), h("a", { class: "btn primary", href: "#/settings" }, "Open Settings")));
   const w = await get("/api/asks?wizard=1");
   const withFiles = await has("/api/attach/start");  // the message box (compose.js): pictures and files with the idea
@@ -120,7 +120,7 @@ function typeIt(dir, withFiles) {
     placeholder: "What should be built? Who is it for, what must it do, anything to avoid… Attach a sketch or a photo if you like." }) : null;
   const goal = box || h("textarea", { rows: 4, required: true, placeholder: "What should be built? Who is it for, what must it do, anything to avoid…", "aria-label": "What to build" });
   const refs = h("textarea", { rows: 2, placeholder: "Links, projects or a description, one a line (optional)", "aria-label": "Make it like this",
-    title: "Roundtable reads each one first and makes something similar: the ideas, how it works and its style, never its name, art, music or text." });
+    title: "The harness reads each one first and makes something similar: the ideas, how it works and its style, never its name, art, music or text." });
   const approve = h("input", { type: "checkbox", checked: true });
   const form = h("form", { class: "stack", onsubmit: async (ev) => {
     ev.preventDefault();

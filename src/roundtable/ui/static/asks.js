@@ -82,7 +82,7 @@ export function askCard(ask, onAnswer, opts = {}) {
       o.picture && opts.pictures && opts.pictures[o.picture] ? h("img", { class: "ask-pic", src: opts.pictures[o.picture], alt: o.label }) : null,
       h("b", {}, ask.multi ? h("i", { class: "tick" + (on ? " on" : "") }) : h("kbd", {}, i + 1), h("span", { class: "grow" }, o.label),
         o.disabled ? h("span", { class: "muted small" }, o.group || "Coming") : null,
-        o.id === rec ? h("span", { class: "rec-mark", title: "What Roundtable would pick" }, "Recommended") : null),
+        o.id === rec ? h("span", { class: "rec-mark", title: "What the harness would pick" }, "Recommended") : null),
       o.description ? h("span", {}, o.description) : null);
     });
     const otherBtn = ask.allow_other !== false && !textOnly ? h("button", { class: "ask-opt other", type: "button", disabled: opts.disabled,

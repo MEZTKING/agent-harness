@@ -52,7 +52,7 @@ RULES = "## Rules (never moved)"
 PINNED = "## Pinned facts"
 RECENT = "## Recent"
 TOOLS = "## Tools found"
-INTRO = ("What Roundtable remembers. Edit it freely: Rules never move; old lines move word for word to "
+INTRO = ("What the harness remembers. Edit it freely: Rules never move; old lines move word for word to "
          "memory-archive.md when this gets long.")
 
 DEFAULTS: dict[str, Any] = {"enabled": True, "budget_chars": 12000, "pinned_chars": 4000, "block_chars": 3000,
@@ -481,7 +481,7 @@ def memory_block(project_root: str | Path | None, cfg: Any = None, home: str | P
     if not st["enabled"]:
         return ""
     budget = st["block_chars"]
-    header = ("What Roundtable remembers (from earlier work and the owner; the owner's rules win over "
+    header = ("What the harness remembers (from earlier work and the owner; the owner's rules win over "
               "anything else here):")
     machine: list[str] = []
     if st["machine"]:

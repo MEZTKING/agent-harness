@@ -17,7 +17,7 @@ export async function notesPage(notes) {
   const parts = [await savedDocs(), await journal(notes.id, false)];
   if (notes.runner && notes.runner.brief) {
     const b = notes.runner.brief;
-    parts.push(card("Roundtable's own list", h("p", { class: "muted small" }, "Things Roundtable noted that don't belong to one project."),
+    parts.push(card("The harness's own list", h("p", { class: "muted small" }, "Things the harness noted that don't belong to one project."),
       (b.open_todos || []).length ? h("ul", { class: "entries" }, b.open_todos.map((e) => entryRow(notes.runner.id, e, true))) : h("p", { class: "muted" }, "Nothing open.")));
   }
   return page("My notes", "Your own notes, to-dos and plans that don't belong to one project. Every computer and agent connected to your hub can read them.",
@@ -70,7 +70,7 @@ export function entryRow(agent, e, open, reload = () => refreshHall()) {
       h("p", {}, e.priority === "high" ? h("b", { class: "prio", title: "Marked important" }, "Important · ") : null, e.text),
       (e.next || []).length ? h("ul", { class: "small" }, e.next.map((n) => h("li", {}, n))) : null,
       e.details ? h("details", {}, h("summary", { class: "small" }, "More"), h("p", { class: "pre-line small" }, e.details)) : null,
-      h("span", { class: "muted small" }, when(e.created_at), e.source === "ui" ? " · from this app" : e.source === "harness" ? " · from Roundtable" : e.source ? " · from a session" : "",
+      h("span", { class: "muted small" }, when(e.created_at), e.source === "ui" ? " · from this app" : e.source === "harness" ? " · from the harness" : e.source ? " · from a session" : "",
         e.status && e.status !== "open" ? ` · ${e.status === "dropped" ? "taken off" : e.status}` : "")),
     open ? h("span", { class: "row" }, h("button", { class: "small", title: "It's done", onclick: close(false) }, "Done"),
       h("button", { class: "small icon", title: "Take it off the list without doing it", "aria-label": "Take it off", onclick: close(true) }, "×")) : null);
@@ -116,6 +116,6 @@ function briefOnly(seat) {
   const all = [...(b.open_todos || []).map((e) => ({ ...e, kind: "todo", status: "open" })), ...(b.open_plans || []).map((e) => ({ ...e, kind: "plan" })),
     ...(b.recent_decisions || []).map((e) => ({ ...e, kind: "decision" })), ...(b.recent_done || []).map((e) => ({ ...e, kind: "done" }))]
     .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
-  return card("Journal", h("p", { class: "muted small" }, "What Roundtable wrote about this project in the hub."),
+  return card("Journal", h("p", { class: "muted small" }, "What the harness wrote about this project in the hub."),
     all.length ? h("ul", { class: "entries" }, all.map((e) => entryRow(b.agent || seat.id, e, e.status === "open"))) : empty("Nothing written about it yet."));
 }

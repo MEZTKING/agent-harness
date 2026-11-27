@@ -57,6 +57,7 @@ Run `roundtable COMMAND --help` for details.
 from __future__ import annotations
 
 import sys
+from .brand import NAME
 
 HUB_COMMANDS = {"where", "log", "todo", "close", "session", "history", "agents", "cards", "card", "send",
                 "inbox", "reply", "thread", "subscribe", "mcp", "ui"}
@@ -215,7 +216,7 @@ def _autopilot(argv: list[str]) -> None:
     from .harness.config import load_config
 
     p = argparse.ArgumentParser(prog="roundtable autopilot", description=(
-        "While you're away, Roundtable answers what waits for you with the recommended answers. It never "
+        "While you're away, the harness answers what waits for you with the recommended answers. It never "
         "raises a limit, spends past its own limit, or picks anything that asks 'Are you sure?'."))
     p.add_argument("what", nargs="*", help="on | off | status | log | never PROJECT")
     p.add_argument("--until", help="when to stop: 08:00, 8am, 1h, tonight (default: when you turn it off)")
@@ -274,7 +275,7 @@ def _update(argv: list[str], cmd: str) -> None:
     info = install_info()
     if cmd == "version":
         where = info.path or info.url or "package archive"
-        print(f"Roundtable Hold {__version__} ({info.kind} install, {info.ref or '-'} @ {info.commit[:7] or '-'}, {where})")
+        print(f"{NAME} {__version__} ({info.kind} install, {info.ref or '-'} @ {info.commit[:7] or '-'}, {where})")
         return
     try:
         if args.check:

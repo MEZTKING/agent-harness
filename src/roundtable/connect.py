@@ -29,6 +29,7 @@ import yaml
 
 from .core.config import AGENT_ID_RE, find_config, load_config, parse_config, saved_hub_pointer
 from .core.store import GitStore, TextFile
+from .brand import NAME
 
 HOOK_EVENTS = {"SessionStart": "session-start", "Stop": "stop", "SessionEnd": "session-end"}
 HOOK_TIMEOUT_S = 60
@@ -207,7 +208,7 @@ def connect(directory: str | Path = ".", agent: str | None = None, hub_config: s
 
 
 def cloud_setup_script() -> str:
-    return f"""# Roundtable Hold for Claude Code cloud sessions: install the `roundtable` command.
+    return f"""# {NAME} for Claude Code cloud sessions: install the `roundtable` command.
 # The hub is found automatically when the session also has the agent-hub-data repository.
 pip install --quiet "{INSTALL_URL}" || echo "roundtable: install failed; hub tools unavailable"
 """
@@ -267,12 +268,12 @@ def session_start_text(agent: str) -> str:
 
     hub = _hub()
     if agent not in hub.config.agents:
-        return (f"Roundtable Hold: project {agent!r} isn't in the hub yet. Run `roundtable connect` in this repo "
+        return (f"{NAME}: project {agent!r} isn't in the hub yet. Run `roundtable connect` in this repo "
                 f"(or add it to {hub.config.path}).")
     hub.store.sync()
     brief = hub.journal.brief(agent, agent)
     has_journal = brief["last_session"] or brief["open_todos"] or brief["open_plans"] or brief["recent_done"]
-    parts = [f"Roundtable Hold: this repo is project `{agent}` in the hub. Use the roundtable tools (hub_where, "
+    parts = [f"{NAME}: this repo is project `{agent}` in the hub. Use the roundtable tools (hub_where, "
              "hub_inbox, hub_send, hub_reply, hub_log, hub_close, hub_session_end) to coordinate with the other "
              "projects and keep the journal current.",
              Journal.format_brief(brief) if has_journal else f"No journal entries yet for {agent}."]
@@ -302,7 +303,7 @@ def stop_decision(agent: str, event: dict[str, Any]) -> dict[str, Any] | None:
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(agent, encoding="utf-8")
     return {"decision": "block", "reason": (
-        f"Roundtable Hold: this session has changed files in project `{agent}`. Before you stop, call "
+        f"{NAME}: this session has changed files in project `{agent}`. Before you stop, call "
         "hub_session_end with a short summary and concrete next steps (and hub_log 'done' / 'todo' for anything "
         "worth tracking), so the next session can pick up where this one left off. One line is fine for a small "
         "step; this reminder is shown once per session.")}
@@ -343,7 +344,7 @@ def run_hook(name: str, agent: str, event: dict[str, Any]) -> int:
         else:
             print(f"roundtable hook: unknown hook {name!r}", file=sys.stderr)
     except Exception as e:  # offline, hub missing, ... : say so, never block Claude
-        msg = f"Roundtable Hold hub unavailable ({type(e).__name__}: {str(e)[:300]})"
+        msg = f"{NAME} hub unavailable ({type(e).__name__}: {str(e)[:300]})"
         if name == "session-start":
             print(msg)  # becomes part of Claude's context, so it can tell the user
         print(msg, file=sys.stderr)

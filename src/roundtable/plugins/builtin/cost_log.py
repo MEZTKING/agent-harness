@@ -12,6 +12,7 @@ from typing import Any
 
 from ..api import Plugin, PluginContext
 from ..manifest import parse_manifest
+from ...brand import NAME
 
 MANIFEST = parse_manifest({
     "id": "cost-log",
@@ -19,7 +20,7 @@ MANIFEST = parse_manifest({
     "version": "1.0.0",
     "description": ("Writes every model call (which model, how many tokens, what it cost) to a spreadsheet "
                     "file you can open in Excel. Off until you switch it on."),
-    "author": "Roundtable Hold",
+    "author": NAME,
     "licence": "MIT",
     "homepage": "",
     "entry": "roundtable.plugins.builtin.cost_log:CostLog",

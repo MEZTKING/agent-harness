@@ -230,7 +230,7 @@ def test_migration_swaps_v4_pro_for_flash_in_an_edited_file(paths):
     assert new == text.replace("deepseek-v4-pro", "deepseek-v4-flash") and new.startswith("# mine\n")
     assert (paths.config / "harness.yaml.before-2026-11-26").read_text(encoding="utf-8") == text
     decisions = hub_decisions(paths)
-    assert any(t.startswith("Switched by Roundtable:") and "Why: the owner said no DeepSeek V4 Pro" in t
+    assert any(t.startswith("Switched by the harness:") and "Why: the owner said no DeepSeek V4 Pro" in t
                for t in decisions)
 
 

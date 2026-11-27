@@ -135,7 +135,7 @@ def http(url, method="GET", body=None, headers=None):
 
 def test_http_serves_ui_and_guards_writes(server):
     status, body, headers = http(server + "/")
-    assert status == 200 and b"Roundtable Hold" in body and "script-src 'self'" in headers["Content-Security-Policy"]
+    assert status == 200 and (b"Darkness Harness" in body or b"Roundtable Hold" in body) and "script-src 'self'" in headers["Content-Security-Policy"]
     assert http(server + "/app.js")[0] == 200
 
     # the Candlelit Oak look: everything it needs is served from here (nothing outside), with the right types

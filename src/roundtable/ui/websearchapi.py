@@ -88,7 +88,7 @@ def save(app, body: dict[str, Any]) -> dict[str, Any]:
 
     path = _path(app)
     if not path or not path.is_file():
-        raise ApiError("Roundtable's settings aren't set up on this computer yet. Run the set-up in Settings first.",
+        raise ApiError("The harness's settings aren't set up on this computer yet. Run the set-up in Settings first.",
                        503)
     custom = load_custom(path)
     mine = dict(custom.get("websearch") or {})

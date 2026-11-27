@@ -43,18 +43,18 @@ function body(d, draw) {
       : empty("None yet. Add one below: for example, plan the next goal of a project every weekday at 9:00.")),
     card("Add an automation", form(null, d, send)),
     d.github.set ? h("details", { class: "fold" }, h("summary", {}, "Your GitHub key"),
-      h("p", { class: "small muted" }, `Roundtable reads GitHub with ${d.github.which}. It asks GitHub every few minutes; nothing on the internet can reach this computer.`),
+      h("p", { class: "small muted" }, `The harness reads GitHub with ${d.github.which}. It asks GitHub every few minutes; nothing on the internet can reach this computer.`),
       keyForm(send, "Change it")) : null,
   ];
 }
 
 function keyCard(send) {
-  return card("Your GitHub key", h("p", {}, "To read issues and checks, Roundtable needs a GitHub key that can read those repositories (a fine-grained key with Issues and Actions: read)."),
+  return card("Your GitHub key", h("p", {}, "To read issues and checks, the harness needs a GitHub key that can read those repositories (a fine-grained key with Issues and Actions: read)."),
     keyForm(send, "Save"));
 }
 function keyForm(send, label) {
   const f = h("input", { type: "password", autocomplete: "off", class: "grow", placeholder: "github_pat_…", "aria-label": "GitHub key",
-    title: "Kept in this computer's own key store, never in a file Roundtable writes" });
+    title: "Kept in this computer's own key store, never in a file the harness writes" });
   return h("div", { class: "row" }, f, h("button", { class: "primary", type: "button", onclick: (ev) => { const v = f.value; f.value = ""; send({ action: "github_key", key: v }, ev.currentTarget); } }, label));
 }
 
@@ -75,7 +75,7 @@ function row(a, d, send, draw) {
     h("div", { class: "row" },
       h("button", { type: "button", title: "Do it now. Building still waits for your OK.", onclick: (ev) => send({ action: "run", id: a.id }, ev.currentTarget) }, "Run now"),
       a.editable ? h("button", { type: "button", onclick: () => { edit.hidden = !edit.hidden; if (!edit.firstChild) fill(edit, form(a, d, send)); } }, "Edit")
-        : h("span", { class: "small muted", title: "Written in Roundtable's settings file (automation: list:)" }, "Set in Roundtable's settings")),
+        : h("span", { class: "small muted", title: "Written in the harness's settings file (automation: list:)" }, "Set in the harness's settings")),
     edit,
     h("details", {}, h("summary", { class: "small" }, "More"),
       h("p", { class: "small" }, a.money, a.spent_usd ? ` Spent so far: ${money(a.spent_usd)}.` : ""),

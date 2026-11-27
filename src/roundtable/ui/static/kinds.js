@@ -1,11 +1,11 @@
 // Kinds (ui/kindsapi.py): the first card on a plan ("This looks like a website… Right?") and the Gallery's
-// "What Roundtable can make" tab. Short first; the recipe's details fold behind "More".
+// "What it can make" tab. Short first; the recipe's details fold behind "More".
 import { h, fill, get, post, act, card, empty, dialog, toast } from "./core.js";
 
 const STATUS_TIP = {
   proven: "Something built with this passed every check that counts.",
   trial: "It can be used, but nothing built with it has passed its checks yet.",
-  not_yet: "Not ready: Roundtable can't build or check this sort of thing so far.",
+  not_yet: "Not ready: the harness can't build or check this sort of thing so far.",
 };
 
 export function statusPill(status, words) {
@@ -38,9 +38,9 @@ export function kindCard(kind, path, after) {
   return box;
 }
 
-// One kind's card in the gallery's "What Roundtable can make".
+// One kind's card in the gallery's "What it can make".
 export function kindTile(k, onStart) {
-  const needs = k.missing.length ? h("p", { class: "small kd-miss", title: "Roundtable can install these for you on the Tools page" },
+  const needs = k.missing.length ? h("p", { class: "small kd-miss", title: "The harness can install these for you on the Tools page" },
     `Needs ${k.missing.join(" and ")} on this computer. `, h("a", { href: "#/tools" }, "Install")) : null;
   return h("article", { class: "kd-tile" + (k.usable ? "" : " kd-off") },
     h("div", { class: "kd-head" }, h("b", {}, k.name), statusPill(k.status, k.status_words)),

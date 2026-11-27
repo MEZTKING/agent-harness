@@ -255,7 +255,7 @@ def test_run_install_says_what_to_do(tmp_path):
     out = prereq.run_install("blender", lambda _: None, s=s2, stream=lambda *a: 1, recheck=lambda: s2)
     assert not out["ok"] and "code 1" in out["words"]
     out = prereq.run_install("blender", lambda _: None, s=s2, stream=lambda *a: -1978335189, recheck=lambda: s2)
-    assert "Close Roundtable Hold and open it again" in out["words"]
+    assert "Close Darkness Harness and open it again" in out["words"]
 
 
 # -- Needs you ------------------------------------------------------------------------------------------

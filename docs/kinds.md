@@ -6,7 +6,7 @@ anything". The plan and the reasons are in `plans/kinds.md`; this page is how it
 
 **The engine stays the same.** A kind is a folder of data. Nothing in a kind is code. A kind changes what
 the builders are told, the shape of the plan, what is checked and what the owner reads. It never picks
-models and never changes Roundtable's own code.
+models and never changes the harness's own code.
 
 ## A kind's folder
 
@@ -64,7 +64,7 @@ estimate: {tasks: [6, 12], usd: [1.5, 4.0], minutes: [30, 90]}   # "a guess" unt
 ```
 
 A card with a mistake is refused, with the line named ("line 5: status can't say proven…"). The Gallery's
-*What Roundtable can make* lists refused cards under a fold.
+*What the harness can make* lists refused cards under a fold.
 
 `extends` merges: settings replace, except `needs` (added up), `proof` (by id), `roles` (added up),
 `plan.dont` (added up) and `plan.questions` (by id). Prompts along the chain are joined, parent first.
@@ -76,7 +76,7 @@ Proof `how`: `page_opens`, `command`, `play`, `picture`, `file_exists` (with `pa
    under "Coming", and "Something else" (`other`). `kinds.from_wizard(chosen, other, idea)` turns the answer
    into `{kind, extras, by, why}` (the old answers web, game, android, windows still work).
 2. **Any other start** (the phone's New idea, an automation, the command line): `propose` picks one and
-   keeps it as Roundtable's guess: `meta["kind"] = {id, extras, by: "roundtable", why, confirmed: false}`.
+   keeps it as the harness's guess: `meta["kind"] = {id, extras, by: "roundtable", why, confirmed: false}`.
 3. **The first card on every plan**: "This looks like a browser game, because you said “play”. Right?" with
    the top three and Something else. Changing it before approval re-plans (the card says it costs about one
    plan); after approval the kind is fixed.
@@ -119,11 +119,11 @@ catalogue, because a kind's prompts steer the builders.
 | `kinds/gallery.py` | `record`, `entries`, `one`, `hide`, `star`, `again`, `hub_files`, `refresh_state` |
 | `harness/kindstage.py` | `KindStage`: `_kind`, `_kind_cfg`, `_kind_propose`, `set_kind`, `_kind_freeze`, `kind_use_newest`, `_kind_doc`, `_kind_ask`, `_kind_plan_part`, `_kind_worker_part`, `_kind_proof`, `_kind_proof_plan`, `_gallery_record` |
 | `ui/kindsapi.py` | `/api/kinds…` and `/api/gallery…` |
-| `ui/static/kinds.js`, `gallery.js` | the plan's kind card, the Gallery room and *What Roundtable can make* |
+| `ui/static/kinds.js`, `gallery.js` | the plan's kind card, the Gallery room and *What the harness can make* |
 | `mobile/…/data/Kinds.kt`, `ui/KindCard.kt`, `ui/GalleryScreen.kt` | the phone's twins |
 
 ## Adding a kind
 
 Add a folder under `kinds/builtin/` (or the owner's own folder), start it `status: trial`, give it at least
-one proof line that Roundtable can check by itself, and add it to the proposals test in `tests/test_kinds.py`.
+one proof line that the harness can check by itself, and add it to the proposals test in `tests/test_kinds.py`.
 Add a kind only when a project needs it.

@@ -107,7 +107,7 @@ def test_manifest_checks_and_the_api_version():
     with pytest.raises(PluginError, match="plugin id"):
         manifest(pid="Bad Id")
     check_api(manifest(api=API_VERSION))
-    with pytest.raises(PluginError, match="newer Roundtable Hold"):
+    with pytest.raises(PluginError, match="newer Darkness Harness"):
         check_api(manifest(api=API_VERSION + 1))
 
 
@@ -359,7 +359,7 @@ def test_enable_disable_and_settings_persist_in_custom_yaml(harness):
         manage.set_settings(harness, "cost-log", {"colour": "red"})
     with pytest.raises(ValueError, match="whole number"):
         manage.set_settings(harness, "token-saver", {"min_bytes": "lots"})
-    with pytest.raises(PluginError, match="comes with Roundtable"):
+    with pytest.raises(PluginError, match="comes with Darkness Harness"):
         manage.remove_plugin(harness, "token-saver")
 
 

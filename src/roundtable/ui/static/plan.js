@@ -168,7 +168,7 @@ function likeSection(refs, busy, edit) {
       r.report ? h("p", { class: "muted small", title: "Code is only used when its licence clearly allows it, and then it's credited" }, `Licence: ${rep.licence} · its code: ${rep.code_reuse}`) : null);
   };
   return h("div", {},
-    h("p", { class: "muted small" }, "Things you want it to be like. Roundtable makes something similar, never a copy: no names, characters, art, music or text taken."),
+    h("p", { class: "muted small" }, "Things you want it to be like. The harness makes something similar, never a copy: no names, characters, art, music or text taken."),
     refs.map(one),
     busy ? null : h("div", { class: "row" }, inp, h("button", { class: "small", title: "It's read (a few cents) when you next update the plan",
       onclick: () => inp.value.trim() && edit({ action: "reference_add", text: inp.value.trim() }, "Added: update the plan to read it and use it") }, "Add")));
@@ -190,7 +190,7 @@ function lookSection(lk, busy, edit, startJob) {
   };
   return h("div", {},
     h("p", { class: "muted small" }, dirs.length ? "The looks in detail. Choose one on the Look card above: every task then follows it."
-      : "No looks yet. Roundtable can design three different looks for the app, with a picture of each, for you to choose from."),
+      : "No looks yet. The harness can design three different looks for the app, with a picture of each, for you to choose from."),
     dirs.length ? h("div", { class: "looks" }, dirs.map(one)) : null,
     dirs.length && !Object.keys(lk.pictures || {}).length && lk.render_note ? h("p", { class: "muted small" }, lk.render_note) : null,
     busy ? null : h("div", { class: "row" }, brief, h("button", { class: "small", title: "Asks the designer for new looks (a few cents)",
@@ -199,7 +199,7 @@ function lookSection(lk, busy, edit, startJob) {
 
 // ---------- a plan another computer published ----------
 async function hubPlan(seat) {
-  if (!seat.hub_name) return card("No plan here", h("p", { class: "muted" }, "This project keeps a journal but has no plan in Roundtable."));
+  if (!seat.hub_name) return card("No plan here", h("p", { class: "muted" }, "This project keeps a journal but has no plan in the harness."));
   let p;
   try { p = await get(`/api/hub/plan?${q({ name: seat.hub_name })}`); } catch (e) { return card("The plan couldn't open", h("p", {}, e.message)); }
   const need = { project: seat.id, hub_agent: p.agent || seat.hub_agent, hub_name: seat.hub_name };

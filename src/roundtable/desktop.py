@@ -26,6 +26,7 @@ from importlib import resources
 from pathlib import Path
 
 from .core import secrets as vault
+from .brand import NAME, SWITCHED
 
 APP_NAME = "RoundtableHold"
 KEYRING_SERVICE = "Roundtable Hold"
@@ -261,13 +262,13 @@ def migrate_configs(paths: Paths, today=None) -> list[str]:
     new = text
     if _template_hash(text) in OLD_TEMPLATES:
         new = resources.files("roundtable").joinpath("templates/harness.example.yaml").read_text(encoding="utf-8")
-        done.append("Switched by Roundtable: the first-run model choices became the recommended setup "
+        done.append(f"{SWITCHED} the first-run model choices became the recommended setup "
                     "(Claude plans, DeepSeek V4 Flash codes, other makers check). Why: the old settings "
                     "had never been changed, and the owner chose the recommended split.")
     elif any(old in text for old in NO_PRO):
         for old, flash in NO_PRO.items():
             new = new.replace(old, flash)
-        done.append("Switched by Roundtable: DeepSeek V4 Pro was replaced with DeepSeek V4 Flash in harness.yaml. "
+        done.append(f"{SWITCHED} DeepSeek V4 Pro was replaced with DeepSeek V4 Flash in harness.yaml. "
                     "Why: the owner said no DeepSeek V4 Pro for now.")
     if not done or new == text:
         return []
@@ -314,7 +315,7 @@ def write_local_hub(paths: Paths, agents: dict | None = None) -> None:
         "agents": agents or {"me": {"description": "My own notes and plans that don't belong to one project"}},
         "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}],
     }
-    paths.hub_yaml.write_text("# Roundtable Hold hub (this computer only). Connect GitHub sync in Settings.\n"
+    paths.hub_yaml.write_text(f"# {NAME} hub (this computer only). Connect GitHub sync in Settings.\n"
                               + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
 
 
@@ -354,7 +355,7 @@ def connect_github_hub(paths: Paths, url: str, log=print) -> None:
                "rules": [{"from": "*", "to": "*", "allow": ["read_card", "message"]}]}
         log("repository has no hub.yaml yet; starting a new hub in it")
     cfg["storage"] = {"type": "git", "path": str(target), "branch": (cfg.get("storage") or {}).get("branch", "main")}
-    paths.hub_yaml.write_text("# Roundtable Hold hub, synced with " + url + "\n" + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+    paths.hub_yaml.write_text(f"# {NAME} hub, synced with " + url + "\n" + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     log("hub connected")
 
 
@@ -455,7 +456,7 @@ def self_test(paths: Paths) -> int:
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    p = argparse.ArgumentParser(prog="roundtable-app", description="Roundtable Hold desktop app")
+    p = argparse.ArgumentParser(prog="roundtable-app", description=f"{NAME} desktop app")
     p.add_argument("--self-test", action="store_true", help="start headless, check the UI answers, exit")
     p.add_argument("--browser", action="store_true", help="open in the default browser instead of an app window")
     p.add_argument("--port", type=int)
@@ -472,13 +473,13 @@ def main(argv: list[str] | None = None) -> int:
     keystore.load_into_env(provider_key_names(paths))
     httpd, app = start_server(paths, keystore, args.port)
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    print(f"Roundtable Hold running at {url} (data: {paths.home})", flush=True)
+    print(f"{NAME} running at {url} (data: {paths.home})", flush=True)
 
     if not args.browser:
         try:
             import webview  # pywebview: native window (Edge WebView2 on Windows)
 
-            webview.create_window("Roundtable Hold", url, width=1280, height=860, min_size=(420, 600))
+            webview.create_window(NAME, url, width=1280, height=860, min_size=(420, 600))
             webview.start()  # blocks until the window is closed
             httpd.shutdown()
             return 0

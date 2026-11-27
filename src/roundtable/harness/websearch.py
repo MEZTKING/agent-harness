@@ -206,7 +206,7 @@ def _json(status: int, body: bytes, who: str) -> Any:
     try:
         return json.loads(body.decode("utf-8", errors="replace") or "{}")
     except json.JSONDecodeError:
-        raise SearchError(f"{who} sent an answer Roundtable couldn't read") from None
+        raise SearchError(f"{who} sent an answer the harness couldn't read") from None
 
 
 def _hit(title: Any, url: Any, snippet: Any) -> dict[str, str] | None:

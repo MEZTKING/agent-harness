@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from .brand import NAME
 
 # what the recommended setup owns in harness.yaml; every other setting stays the owner's
 OWNED = ("roles", "profiles", "default_profile", "planner_role", "critic_role", "reviewer_role", "design_role",
@@ -98,7 +99,7 @@ def apply(harness_path: str | Path, today: date | None = None) -> dict[str, Any]
     tpl = template_raw()
     mine = {k: v for k, v in new.items() if k not in OWNED and k != "providers"}
     stamp = (today or date.today()).isoformat()
-    text = (f"# Roundtable configuration: who does what. The recommended setup, written by Roundtable Hold on {stamp}"
+    text = (f"# {NAME} configuration: who does what. The recommended setup, written by {NAME} on {stamp}"
             + (f";\n# the file before it is {backup.name}." if backup else ".") + "\n"
             "# Model references are \"<provider>/<model>\". Change them in the app (Models) or here.\n\n"
             + yaml.safe_dump({"providers": new["providers"]}, sort_keys=False, allow_unicode=True) + "\n"

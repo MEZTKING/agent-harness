@@ -3,7 +3,7 @@
 // paste or drop; big pictures are made smaller here first), @file references from the project, speaking
 // instead of typing where this browser can, and – for a project at work – Next task or Now.
 // Server side: ui/attachapi.py and attachments.py.
-import { h, fill, get, post, q, toast } from "./core.js";
+import { BRAND, h, fill, get, post, q, toast } from "./core.js";
 
 const PART = 1_000_000;  // base64 characters a request (the app's servers take 2 MB at most)
 const MAX_PX = 1568;     // a longer picture is made smaller before it leaves this window
@@ -198,7 +198,7 @@ export function composer(opts = {}) {
       }
       saveSoon();
     };
-    rec.onerror = (ev) => { if (ev.error === "not-allowed") toast("The microphone isn't allowed. Allow it for Roundtable Hold, then try again.", true); };
+    rec.onerror = (ev) => { if (ev.error === "not-allowed") toast(`The microphone isn't allowed. Allow it for ${BRAND.name}, then try again.`, true); };
     rec.onend = () => { listening = null; mic.classList.remove("on"); mic.textContent = "Speak"; mic.setAttribute("aria-pressed", "false"); };
     try { rec.start(); } catch { return; }
     listening = rec; mic.classList.add("on"); mic.textContent = "Stop"; mic.setAttribute("aria-pressed", "true");

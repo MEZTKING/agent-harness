@@ -2,7 +2,7 @@
 
 Some programs can be driven by AI models through **MCP** (the Model Context Protocol). The program
 runs a small "MCP server" that offers tools, such as "put this actor in the level" or "read this
-blueprint". Roundtable can hand those tools to a role, so the models doing a task can use the
+blueprint". The harness can hand those tools to a role, so the models doing a task can use the
 program directly. Unreal Engine 5.8's MCP plugin works this way, and so do many community servers
 (for Blender, databases, browsers and more).
 
@@ -22,7 +22,7 @@ mcp_servers:
     url: "http://127.0.0.1:8000/mcp"
 ```
 
-**A program Roundtable starts for you** and talks to directly (most community servers):
+**A program the harness starts for you** and talks to directly (most community servers):
 
 ```yaml
 mcp_servers:
@@ -38,7 +38,7 @@ Every server can also have:
 | Setting | What it does | If left out |
 |---|---|---|
 | `tools` | Only these tools are offered, e.g. `[get_*, spawn_actor]` (`*` matches anything) | every tool |
-| `timeout` | How many seconds one tool may take before Roundtable gives up on it | 120 |
+| `timeout` | How many seconds one tool may take before the harness gives up on it | 120 |
 | `enabled` | `false` turns the server off without deleting it | `true` |
 | `headers` | Extra lines sent with each request (only for servers with `url`) | none |
 
@@ -102,9 +102,9 @@ alter anything in an editor you have open.
 Good to know about Unreal's server:
 
 - It only listens on your own computer and has no password, so the editor must be open on the same
-  PC that runs Roundtable.
+  PC that runs the harness.
 - With **Enable Tool Search** on (the default), it offers only four tools: `list_toolsets`,
   `describe_toolsets`, `describe_tools` and `call_tool`. The model first looks up what is there,
   then runs the real tool through `call_tool`. That's expected, not a fault.
-- The editor does one thing at a time, so Roundtable sends it one request at a time.
+- The editor does one thing at a time, so the harness sends it one request at a time.
 - Tools that only read (and change nothing) are marked "(read-only)" in their description.
