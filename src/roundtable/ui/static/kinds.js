@@ -86,7 +86,7 @@ export async function kindsTab() {
     const start = (k, idea) => startWizard({ kind: { chosen: [k.id] }, ...(idea ? { idea: { other: idea } } : {}) });
     fill(box,
       h("p", { class: "muted" }, d.words),
-      d.groups.map((g) => h("section", { class: "kd-group" }, h("h2", {}, g.group), h("div", { class: "kd-grid" }, g.kinds.map((k) => kindTile(k, start))))),
+      h("div", { class: "kd-groups" }, d.groups.map((g) => h("section", { class: "kd-group" }, h("h2", {}, g.group), h("div", { class: "kd-grid" }, g.kinds.map((k) => kindTile(k, start)))))),
       d.problems.length ? h("details", { class: "fold" }, h("summary", { title: "Kinds whose file has a mistake: they aren't offered until it's fixed" },
         `${d.problems.length} kind${d.problems.length > 1 ? "s" : ""} couldn't be read`),
         h("ul", { class: "small" }, d.problems.map((p) => h("li", {}, `${p.where}: ${p.problems.join("; ")}`)))) : null,
@@ -128,8 +128,9 @@ export function kindStyles() {
 .kd-st.kd-proven { background: var(--color-ok-soft, #e3efd9); color: var(--color-ok, #3f6b2a); }
 .kd-st.kd-trial { background: var(--color-accent-soft); color: var(--color-accent); }
 .kd-st.kd-not_yet { background: var(--color-sunken); color: var(--color-muted); }
+.kd-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 16px; align-items: start; }
 .kd-group h2 { margin: 18px 0 8px; font-size: 16px; }
-.kd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.kd-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .kd-tile { border: 1px solid var(--color-oak-line); border-radius: var(--radius-small); padding: 12px 14px; background: var(--color-surface); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .kd-tile p { margin: 0; } .kd-off { opacity: .6; }
 .kd-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
