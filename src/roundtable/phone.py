@@ -78,6 +78,13 @@ PHONE_ROUTES = {
     ("GET", "/api/tandem"),  # the checking level, its allowance and who built and checked each task (ui/tandemapi.py)
     ("GET", "/api/usage"),  # what each service has used against the owner's limits (ui/usageapi.py); limits stay on the PC
     ("GET", "/api/agents"),  # the named agents, to name who did what (ui/agentsapi.py); changes stay on the PC
+    # wave 7 (it learns): read-only, except an undo of a learned change and the owner's own house style
+    ("GET", "/api/learning/wallet"),  # learning's weekly allowance and what it spent; the figure is set on the PC
+    ("GET", "/api/style"), ("POST", "/api/style"),  # the house style (how agents write for the owner)
+    ("GET", "/api/charter"),  # what the harness can never change by itself
+    ("GET", "/api/market"),  # the plug-ins and skills list; adding or removing stays on the PC
+    ("GET", "/api/learned"), ("POST", "/api/learned/undo"),  # what it learned; the phone may only undo a line
+    ("GET", "/api/recall"), ("POST", "/api/recall/ask"),  # search by meaning, and Ask (the price comes first)
 }
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))

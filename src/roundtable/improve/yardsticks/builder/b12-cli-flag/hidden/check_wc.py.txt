@@ -1,0 +1,12 @@
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+p = Path(tempfile.mkdtemp()) / "notes.txt"
+p.write_text("one two\nthree\n", encoding="utf-8")
+plain = subprocess.run([sys.executable, "wc.py", str(p)], capture_output=True, text=True)
+assert plain.stdout.strip() == "2 3 14", plain.stdout + plain.stderr
+only = subprocess.run([sys.executable, "wc.py", "--lines", str(p)], capture_output=True, text=True)
+assert only.stdout.strip() == "2", only.stdout + only.stderr
+print("ok")

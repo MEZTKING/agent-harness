@@ -1,14 +1,14 @@
 [
  {
   "body": "a made-up message",
-  "created_at": "2026-11-27T18:57:14Z",
+  "created_at": "2026-11-27T21:44:10Z",
   "hops": 0,
-  "id": "20261127T185714621870Z-745213",
+  "id": "20261127T214410232237Z-9f0760",
   "in_reply_to": null,
   "kind": "ask",
   "recipient": "frontend",
   "sender": "proj",
   "subject": "hello",
-  "thread_id": "20261127T185714621870Z-745213"
+  "thread_id": "20261127T214410232237Z-9f0760"
  }
 ]

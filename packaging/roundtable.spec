@@ -5,7 +5,7 @@
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).parent
 ICON = str(ROOT / "packaging" / "darkness.ico")
@@ -25,14 +25,20 @@ hidden = (
     + collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
     + collect_submodules("mcp_types")
     + collect_submodules("tzdata")  # schedules keep summer time on Windows
+    # the app's own Python (--python, roundtable/pyexec.py) runs the yardstick's checks and self-repair's tests
+    # with pytest; the plug-in box's child (--plugin-box)
+    + collect_submodules("pytest") + collect_submodules("_pytest") + collect_submodules("pluggy")
+    + collect_submodules("iniconfig") + collect_submodules("packaging") + ["py"]
+    + ["roundtable.pyexec", "roundtable.plugins.boxworker", "roundtable.plugins.guard", "roundtable.plugins.boxapi"]
 )
 
 a = Analysis(
     [str(ROOT / "packaging" / "roundtable_app.py")],
     pathex=[str(ROOT / "src")],
-    datas=collect_data_files("roundtable") + collect_data_files("tzdata"),  # UI, prompts, templates
+    datas=collect_data_files("roundtable") + collect_data_files("tzdata")  # UI, prompts, templates, yardsticks
+    + copy_metadata("pytest") + copy_metadata("pluggy"),
     hiddenimports=hidden,
-    excludes=["mcp.cli", "tkinter", "pytest"],
+    excludes=["mcp.cli", "tkinter"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

@@ -1,0 +1,11 @@
+def line_total(price, quantity, discount=0.0):
+    return price * quantity * (1 - discount)
+
+
+def order_total(lines):
+    return round(sum(line_total(*line) for line in lines), 2)
+
+
+def invoice_total(lines, tax):
+    net = sum(line_total(*line) for line in lines)
+    return round(net * (1 + tax), 2)

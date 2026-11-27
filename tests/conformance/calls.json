@@ -809,6 +809,67 @@
     "label",
     "tasks"
    ]
+  },
+  {
+   "name": "learned",
+   "method": "GET",
+   "path": "/api/learned",
+   "needs": [
+    "lines",
+    "waiting",
+    "never",
+    "wallet"
+   ]
+  },
+  {
+   "name": "learned_undo",
+   "method": "POST",
+   "path": "/api/learned/undo",
+   "body": {
+    "id": "{learned}"
+   },
+   "needs": [
+    "ok",
+    "lines"
+   ]
+  },
+  {
+   "name": "learning_wallet",
+   "method": "GET",
+   "path": "/api/learning/wallet",
+   "needs": [
+    "allowance",
+    "spent",
+    "left",
+    "words"
+   ]
+  },
+  {
+   "name": "style",
+   "method": "GET",
+   "path": "/api/style",
+   "needs": [
+    "on",
+    "text"
+   ]
+  },
+  {
+   "name": "charter",
+   "method": "GET",
+   "path": "/api/charter"
+  },
+  {
+   "name": "market",
+   "method": "GET",
+   "path": "/api/market"
+  },
+  {
+   "name": "recall",
+   "method": "GET",
+   "path": "/api/recall",
+   "query": {
+    "q": "bakery"
+   }
   }
  ]
 }

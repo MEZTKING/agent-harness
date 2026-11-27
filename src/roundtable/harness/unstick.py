@@ -311,8 +311,8 @@ class UnstickStage:
         )
         cap = _CappedBudget(limit_usd=float(s["max_usd_per_task"]), parent=self.budget)
         try:
-            res = run_agent(self.cfg, ref, self._with_repo_rules(
-                "You work out why a task in a build didn't pass, and what to do about it."), prompt, box, cap,
+            res = run_agent(self.cfg, ref, self._system(
+                "You work out why a task in a build didn't pass, and what to do about it.", "unstick"), prompt, box, cap,
                 max_steps=int(s["max_steps"]), max_tokens=role.max_tokens, options=role.options,
                 require_terminal="diagnose", on_event=self.emit, saver=self._saver(), role=role.name)
             cost = res.cost_usd

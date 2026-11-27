@@ -107,6 +107,15 @@ def test_every_phone_call_answers(paired, monkeypatch):
     notes = app.dispatch("GET", "/api/notes", {}, {}).get("notes") or [{"name": "none"}]
     values = {"project": project, "agent": "proj", "file": "README.md",
               "message": msg[0]["id"], "note": notes[0].get("name", "none")}
+    # one made-up learned change, so the phone's Undo has a line to undo (wave 7)
+    from roundtable.improve.lab import Lab, Proposal
+
+    lab = Lab(orch.base_cfg.lab_dir)
+    role = next(r for r, spec in orch.base_cfg.roles.items() if spec.kind == "chat")
+    planted = lab.add_proposal(Proposal(id="", kind="options", role=role, change={"options": {"temperature": 0.3}},
+                                        rationale="made up", risk="low", source="rules"))
+    lab.apply(planted, orch.base_cfg, reason="made up", by_owner=True)
+    values["learned"] = planted.id
 
     write = os.environ.get("ROUNDTABLE_WRITE_FIXTURES") == "1"
     failures = []

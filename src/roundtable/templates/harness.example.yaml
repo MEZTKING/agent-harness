@@ -177,6 +177,7 @@ improve:
   # probes_file: ./probes.yaml      # your own probes (see `roundtable probe --help` / README)
   # analyst_role: orchestrator      # model that reads history and proposes changes (default: planner)
   # lab_dir: ./.harness-lab         # proposals, learned settings, versions
+  allowance_usd_per_week: 2         # what learning may spend by itself each week (0 = off); you set it
 
 # Self-improvement: after each run, apply model switches the numbers clearly back (rules only,
 # no model calls); each switch is written in the journal with its reason and undo command.

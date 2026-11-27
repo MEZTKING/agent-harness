@@ -1,0 +1,11 @@
+id: r05-title-ok
+version: 1
+job: reviewer
+tags:
+- html
+title: Rename the page
+description: Change the page title and heading in index.html from "Shop" to "Corner shop".
+acceptance: index.html's title and h1 both read Corner shop
+summary: Changed the title and the h1 to Corner shop.
+truth: approve
+planted: ''

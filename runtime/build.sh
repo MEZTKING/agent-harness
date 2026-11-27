@@ -42,6 +42,7 @@ for abi in "${abis[@]}"; do
     docker buildx build --platform "$platform" --target "$target" -f "$here/Dockerfile" \
       --build-arg "BASE_IMAGE=${BASE_IMAGE:-debian:bookworm-slim}" --build-arg "ABI=$abi" \
       --output "type=tar,dest=$tarfile" "$out"
+    python3 "$here/flatten_tar.py" "$tarfile"   # the phone refuses hard links and pax headers
     rm -f "$tarfile.xz"
     xz -T0 -6 "$tarfile"
   done

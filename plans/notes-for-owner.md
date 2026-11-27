@@ -9,6 +9,44 @@ The harness's own model switches are in the hub journal as decisions ("Switched 
 
 ## 2026-11-27
 
+- **Your answers for wave 9 (asked in the chat):** sound and music – yes, capped at $2 a project (Fable first
+  compares two services on price and on whether you own what they make, then you pick one; until then sounds
+  are made in code); Telegram or Slack – no; the animated office view – yes, up to $10 of our own pixel art
+  (quoted first, you approve the sheet); a public tunnel into your PC – no.
+- **Fable's advice followed without asking** (no money, nothing opened up): usage counts stay on your
+  computer; OpenTelemetry only on your computer; on an iPhone the phone screens open as a page on your own
+  Wi-Fi, through the paired link, not a real app; no command line into the PC from the phone; a running
+  app's frame on the phone is view-only through the paired link; a maker's live voice and paid search stay off.
+- **The two forks were re-read:** both are at the versions the parity list used; their newest notes add a
+  Browser tab (DSH), keeping your place when the screen width changes (DSH) and task numbers on cards (MD) –
+  added to wave 8.
+
+- **Wave 7 (1.3.0, "it learns"): you chose a learning allowance of $2 a week.** It counts inside your daily
+  limit, shows as its own line ("Learning: $0.42 of $2 this week"), unused money doesn't roll over, and you
+  can change it any time. The first real cycle writes its true cost beside this figure.
+- **Fable's advice on the rest, followed:**
+  - *What it may change by itself:* model order and small option changes that passed a test. Builder
+    instructions wait for your tap until three watched changes have been kept, then you're asked once.
+    The reviewer's and planner's instructions, tools, kind tweaks and any new company always wait for you.
+  - *Automatic undo:* always on. After a change, the next tasks are compared with before; a clear drop (a
+    fifth less work passed, at least five tasks seen) undoes it, tells you in one line and offers "Put it
+    back". A change it undid is never applied by itself again.
+  - *Plug-ins in a box:* every installed plug-in runs boxed (no keys, no internet, only its own folder)
+    unless you tap "Trusted" for one you wrote. On Windows the box is partly enforced inside Python, so a
+    plug-in written on purpose to break out could; the in-app list only holds plug-ins we have read, pinned
+    to a version.
+  - *Learning shared between your machines* through the private hub: numbers, model names and scrubbed
+    instruction text only – never project names, code, file names, task titles or checkers' words.
+  - *A privacy hole found and fixed:* the analyst saw rejection text from every project; now only from
+    projects that allow its company.
+  - *Fixes to its own code:* asked first each time with the price (up to $1.50), a draft pull request only,
+    never merged by itself, never touching the gate, keys, money, companies, the rules or the release files.
+  - *Your own documents:* agents can look them up within each project's "who may see it" lists, with a
+    "Never leaves this computer" tick. *Search by meaning* runs on your computer, free.
+  - *Skills list:* about ten of our own; others' only where the licence is open, with credit.
+  - *Nothing deletes;* the fixed safety lines add about 150 tokens to each model call.
+- **1.2.0 ("every model at once") merged and releasing;** the six starter faces cost $0.40.
+
 - **Wave 6 (1.2.0, "every model at once"): Fable's advice on its big questions, followed.**
   - *How much extra checking costs:* three levels – Lean (as today), Balanced (the default: a second
     builder on hard tasks and a second checker on hard and risky ones, about a fifth more, capped near a

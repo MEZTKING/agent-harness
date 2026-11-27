@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roundtable-hold"
-version = "1.2.0"
+version = "1.3.0"
 description = "Roundtable Hold: the best AI models working together - a cross-repo hub with project journals, a role-routed multi-provider project harness, self-improvement and a web UI."
 requires-python = ">=3.10"
 dependencies = [
@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pillow>=10"]   # pillow: the picture tests (proof, play-testing); also a runtime need now
-desktop = ["pywebview>=5", "keyring>=24"]
+desktop = ["pywebview>=5", "keyring>=24", "pytest>=8"]   # pytest: the app's own Python runs checks with it (packaging/roundtable.spec)
 
 [project.scripts]
 roundtable = "roundtable.main:main"
@@ -33,7 +33,8 @@ roundtable-app = "roundtable.desktop:main"  # the desktop app (from source)
 where = ["src"]
 
 [tool.setuptools.package-data]
-roundtable = ["templates/*.yaml", "prompts/*.md", "ui/static/*", "ui/static/agents/*", "kinds/builtin/**/*"]
+roundtable = ["templates/*.yaml", "prompts/*.md", "ui/static/*", "ui/static/agents/*", "kinds/builtin/**/*",
+              "improve/yardsticks/**/*", "plugins/catalogue.json", "skills/builtin/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

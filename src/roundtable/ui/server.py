@@ -49,7 +49,10 @@ def _lines(raw) -> list[str]:
 FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "filesapi", "whatsnewapi", "tidyapi",
                                 "searchapi", "attachapi", "rewindapi", "proofapi", "terminalapi", "moneyapi",
                                 "websearchapi", "kindsapi", "doneapi", "stagesapi", "appapi", "councilapi",
-                                "usageapi", "strengthsapi", "agentsapi", "tandemapi")
+                                "usageapi", "strengthsapi", "agentsapi", "tandemapi",
+                                # wave 7: the learning wallet, the house style and charter, plug-ins and skills,
+                                # what it learned, search by meaning and the owner's documents
+                                "walletapi", "styleapi", "marketapi", "learnedapi", "recallapi")
 
 
 def _feature_routes(app) -> dict:
@@ -685,6 +688,10 @@ class UIApp:
                 continue
             busy = self._busy(root)
             out += [{**a, "busy": busy} for a in asks]
+        if not path:  # the harness's own cards (a fault in its own code, a fix ready to look at)
+            from ..asks import app_asks
+
+            out += app_asks(self)
         return {"asks": out}
 
     def asks_post(self, body):
@@ -696,6 +703,13 @@ class UIApp:
         cfg = self.need_cfg()
         if isinstance(body.get("wizard"), dict):
             return self._wizard_start(cfg, body["wizard"])
+        from ..asks import answer_app_ask, is_app_ask
+
+        if is_app_ask(str(body.get("id", ""))):
+            try:
+                return answer_app_ask(self, str(body["id"]), body.get("chosen"))
+            except ValueError as e:
+                raise ApiError(str(e))
         proj = self.project(cfg, body.get("path", ""))
         if self._busy(proj.root) and not str(body.get("id", "")).startswith("command:"):  # a command waits on its own run
             raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
@@ -896,7 +910,7 @@ class UIApp:
             from ..improve.evaluate import evaluate
 
             def run(job: Job):
-                res = evaluate(cfg, lab, p, samples=int(body.get("samples") or 3), max_cost=float(body.get("max_cost") or 2),
+                res = evaluate(cfg, lab, p, samples=int(body.get("samples") or 3), max_cost=float(body.get("max_cost") or 2), yard=True,
                                on_event=lambda k, d: job.line(harness_event_line(k, d) or "") if harness_event_line(k, d) else None)
                 job.line(f"verdict: {res['verdict']} ({'passed' if res['passed'] else 'not passed'}) on "
                          f"{res['tasks_compared']} task(s)")
@@ -920,7 +934,7 @@ class UIApp:
                 if not body.get("force") and not (p.test and p.test.get("passed")) \
                         and not (p.source == "rules" and p.kind == "routing"):
                     raise RuntimeError("not applied: no passed replay test (test it first, or force)")
-                version = lab.apply(p, cfg, reason="ui")
+                version = lab.apply(p, cfg, reason="ui", by_owner=True)  # the owner's own tap
                 job.line(f"applied {p.id} as version {version}: {p.summary()}")
                 return {"version": version}
 

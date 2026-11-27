@@ -219,6 +219,18 @@
    "value": ""
   },
   {
+   "choices": [
+    "all",
+    "none"
+   ],
+   "default": "all",
+   "description": "Which of your documents this project's agents may look up: all, or none.",
+   "key": "documents",
+   "source": "default",
+   "type": "choice",
+   "value": "all"
+  },
+  {
    "choices": [],
    "default": "",
    "description": "Anything the planner should know about this project, in your own words.",

@@ -6,9 +6,11 @@ import { notifySettings } from "./notify.js";
 import { tidyCard } from "./tidy.js";
 import { poundsSettings } from "./pounds.js";
 import { usageCard } from "./usage.js";
+import { walletCard } from "./wallet.js";
+import { houseStyleBox } from "./housestyle.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
-  ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
+  ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["writing", "How agents write", "The house style: how the agents write for you"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
   ["phone", "Your phone", "Use the harness from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
   ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
@@ -19,7 +21,7 @@ export async function viewSettings(section = "keys") {
   const nav = h("nav", { class: "side-nav", "aria-label": "Settings" }, SECTIONS.map(([k, t, tip]) =>
     h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)),
     h("a", { href: "#/automations", title: "Work that starts by itself: schedules, GitHub issues, failed checks" }, "Automations"));
-  const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, hub: hubPart, phone: phonePart, backups: backupsPart,
+  const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, writing: writingPart, hub: hubPart, phone: phonePart, backups: backupsPart,
     notifications: notifySettings, plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
   const body = await views[section](st);
   return page("Settings", `${BRAND.name} ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
@@ -133,7 +135,14 @@ const LIMITS = [["max_usd_per_day", "Most for one day, on every project", "When 
   ["max_cost_usd", "Most for one project", "A project stops at this and asks you before spending more."],
   ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."]];
 // What each service has used against your limits comes first (usage.js), then the shared limits.
-async function spendingPart() { return [usageCard(), ...[await sharedSpending()].flat()]; }
+// learning's own weekly allowance (improve/wallet.py) sits with the rest of the money
+async function spendingPart() { return [usageCard(), ...[await sharedSpending()].flat(), walletCard()]; }
+
+// ---------- how agents write (the house style, harness/housestyle.py) ----------
+async function writingPart() {
+  const box = await houseStyleBox();
+  return box ? card(null, box) : card("How agents write", h("p", { class: "muted" }, "The house style can't be read right now."));
+}
 
 async function sharedSpending() {
   const gbp = await poundsSettings().catch(() => null);  // dollars only, or pounds beside them (pounds.js)
@@ -272,7 +281,7 @@ async function backupsPart() {
 async function pluginsPart() {
   let st;
   try { st = await get("/api/plugins"); } catch (e) { return card("Plugins", h("p", {}, e.message)); }
-  const trust = `A plugin is someone's program: it can do anything ${BRAND.name} can. Only add plugins from people you trust.`;
+  const trust = "Each plugin you add runs in its own box: it may only do what it asked for. Still, only add plugins from people you trust.";
   const send = async (btn, body, ok) => {
     try {
       if (btn) btn.disabled = true;
@@ -281,6 +290,10 @@ async function pluginsPart() {
         const perms = (r.needs_ok.permissions || []).map((p) => `• ${p.words}`).join("\n");
         if (!(await dialog({ title: `Add ${r.needs_ok.name || "this plugin"}?`, text: `It asks to:\n${perms || "• nothing special"}\n\n${trust}`, yes: "Add it" }))) return;
         return send(btn, { ...body, confirmed: (r.needs_ok.permissions || []).map((p) => p.id) }, ok);
+      }
+      if (r && r.needs_sure) {
+        if (!(await dialog({ title: `Trust ${r.needs_sure.name}?`, text: r.needs_sure.warning, yes: "Trust it", danger: true }))) return location.reload();
+        return send(btn, { ...body, sure: true }, ok);
       }
       if (ok) toast(ok);
       location.reload();
@@ -297,6 +310,9 @@ async function pluginsPart() {
         h("label", { class: "switch", title: p.enabled ? "Switch it off" : "Switch it on" }, h("input", { type: "checkbox", checked: p.enabled, onchange: (ev) => send(null, { action: ev.target.checked ? "enable" : "disable", id: p.id }, ev.target.checked ? "Switched on" : "Switched off") }), p.enabled ? "On" : "Off")),
       h("p", { class: "small" }, p.description || ""),
       p.problem ? h("p", { class: "warn small" }, p.problem) : null,
+      p.builtin ? null : h("div", { class: "row" }, h("span", { class: "muted small grow", title: p.box_words }, p.trusted ? "Trusted (runs as the app)" : "In its box"),
+        h("label", { class: "switch", title: p.trusted ? "Put it back in its box" : "Let it run as the app itself, outside its box: only for a plugin you wrote or have read" },
+          h("input", { type: "checkbox", checked: !!p.trusted, onchange: (ev) => send(null, { action: "trust", id: p.id, trusted: ev.target.checked }, ev.target.checked ? "Trusted: it runs as the app" : "Back in its box") }), "Trusted")),
       (p.permissions || []).length ? h("p", { class: "muted small", title: trust }, "It may: " + p.permissions.map((x) => x.words).join("; ")) : null,
       fields.length ? h("details", {}, h("summary", { class: "small" }, "Its settings"), fields, h("button", { class: "small", onclick: (ev) => {
         const values = {};

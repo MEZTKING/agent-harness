@@ -1,0 +1,5 @@
+def page(items, number, size):
+    """Page ``number`` (from 1) of ``items``, ``size`` items a page."""
+    if number < 1:
+        raise ValueError("pages start at 1")
+    return items[(number - 1) * size:number * size]

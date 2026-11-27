@@ -1,0 +1,20 @@
+{
+ "allowance": 0.0,
+ "by_what": {},
+ "choices": [
+  0.0,
+  1.0,
+  2.0,
+  5.0
+ ],
+ "day_limit": 0.0,
+ "left": 0.0,
+ "lines": [],
+ "next_run": null,
+ "on": false,
+ "spent": 0.0,
+ "spent_elsewhere": 0.0,
+ "spent_here": 0,
+ "week": "2026-W48",
+ "words": "Learning by itself is off"
+}

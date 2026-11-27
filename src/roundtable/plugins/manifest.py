@@ -13,7 +13,8 @@ installed with pip), or as ``[tool.roundtable.plugin]`` in its ``pyproject.toml`
     entry = "cost_log:plugin"          # module:object
     api = 1                            # the plugin API version it needs
     hooks = ["after_model_call"]
-    permissions = []                   # network, files, shell, secrets:<host>
+    permissions = []                   # network, files, shell, project:read, secrets:<host>
+    tool_timeout = 60                  # seconds a tool may take in the box (at most 300)
 
     [settings.file_name]
     type = "string"                    # string, integer, number or boolean
@@ -79,6 +80,7 @@ class Manifest:
     hooks: list[str] = field(default_factory=list)
     permissions: list[str] = field(default_factory=list)
     settings: dict[str, Setting] = field(default_factory=dict)
+    tool_timeout: float = 60.0  # seconds one of its tools may take in its box (at most 300)
 
     def defaults(self) -> dict[str, Any]:
         return {k: s.default for k, s in self.settings.items()}
@@ -140,11 +142,17 @@ def parse_manifest(raw: dict[str, Any]) -> Manifest:
     if bad:
         raise PluginError(f"{pid}: unknown permission(s) {', '.join(bad)}; "
                           f"use {', '.join(PERMISSIONS)} or secrets:<host>")
+    try:
+        tool_timeout = float(raw.get("tool_timeout", 60))
+    except (TypeError, ValueError):
+        raise PluginError(f"{pid}: tool_timeout must be a number of seconds")
+    if not 1 <= tool_timeout <= 300:
+        raise PluginError(f"{pid}: tool_timeout must be between 1 and 300 seconds")
     return Manifest(id=pid, name=_need(raw, "name"), version=str(raw.get("version") or "0"),
                     description=str(raw.get("description", "")).strip(), entry=entry, api=api,
                     author=str(raw.get("author", "")), licence=str(raw.get("licence") or raw.get("license") or ""),
                     homepage=str(raw.get("homepage", "")), hooks=hooks, permissions=perms,
-                    settings=_settings(raw.get("settings")))
+                    settings=_settings(raw.get("settings")), tool_timeout=tool_timeout)
 
 
 def check_api(m: Manifest) -> None:

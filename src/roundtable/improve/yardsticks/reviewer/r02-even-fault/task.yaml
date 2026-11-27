@@ -1,0 +1,12 @@
+id: r02-even-fault
+version: 1
+job: reviewer
+tags:
+- python
+- bug
+title: Add is_even
+description: 'Add is_even(n) to numbers.py: True for even whole numbers, False for odd ones.'
+acceptance: is_even(4) is True and is_even(7) is False
+summary: Added is_even(n) to numbers.py using the remainder.
+truth: reject
+planted: return n % 2 == 1

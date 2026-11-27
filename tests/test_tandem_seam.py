@@ -59,8 +59,9 @@ def test_the_new_hooks_are_listed_and_only_the_stages_define_them():
     assert {"_council_doc", "_dial_doc"} <= set(Orchestrator.DOC_PARTS)
     assert "_agent_worker_part" in Orchestrator.WORKER_PARTS
     assert {"_router_estimate", "_dial_estimate"} <= set(Orchestrator.ESTIMATE_PARTS)
-    assert Orchestrator.ATTEMPT_PARTS == ("_router_attempt", "_panel_attempt", "_rivals_attempt", "_agent_attempt")
-    assert Orchestrator.METRIC_PARTS == ("_tags_metric", "_rivals_metric", "_agent_metric")
+    # wave 6's own, in order; wave 7 adds its names after them (tests/test_learn_seam.py)
+    assert Orchestrator.ATTEMPT_PARTS[:4] == ("_router_attempt", "_panel_attempt", "_rivals_attempt", "_agent_attempt")
+    assert Orchestrator.METRIC_PARTS[:3] == ("_tags_metric", "_rivals_metric", "_agent_metric")
     for name in NEW_HOOKS:
         assert not callable(getattr(Seam, name, None)), name  # the bare seam has none of them
         assert name not in vars(Orchestrator), name  # the full one has them only from its stages (wave 6)
@@ -85,7 +86,11 @@ def test_a_bare_seam_runs_exactly_as_before(tmp_path):
 
 def test_the_full_orchestrator_at_lean_runs_exactly_as_the_bare_seam(tmp_path):
     bare, _, _ = _run(tmp_path / "bare", Seam)
-    full, events, _ = _run(tmp_path / "full", NoKind, level="lean")
+    class NoSkills(NoKind):  # wave 7's skills would reach this made-up task (its tags match); the dial is what's compared
+        def _skills_for(self, task):
+            return []
+
+    full, events, _ = _run(tmp_path / "full", NoSkills, level="lean")
     assert dial.level(full) == "lean"
     assert _shape(full) == _shape(bare)
     assert not {"stage_error"} & set(kinds(events))

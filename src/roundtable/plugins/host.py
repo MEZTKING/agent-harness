@@ -1,5 +1,9 @@
 """The plugin host: finds the plugins that are switched on, loads them and calls their hooks.
 
+Installed plugins run in their own box (``sandbox.py``) unless the owner marked them Trusted;
+built-in plugins run in the app. A boxed plugin is a ``sandbox.BoxedPlugin`` in ``Loaded.obj``, with
+the same hooks, so everything below calls it the same way.
+
 One host per harness config (``HarnessConfig.plugin_host()``). Each model conversation
 (``run_agent``) gets a ``Conversation`` from it; events of a whole run go through
 ``notify``. A plugin that goes wrong is switched off until ``begin_run`` (the next run), its
@@ -48,6 +52,9 @@ class Loaded:
     status: str = "off"  # on | off | broken | needs_ok
     problem: str = ""  # why it isn't on, in plain words
     path: str = ""
+    boxed: bool = False  # runs in its own box (sandbox.py)
+    trusted: bool = False  # the owner said it may run as the app itself
+    granted: list[str] = field(default_factory=list)  # the permissions the owner said yes to
 
     @property
     def id(self) -> str:
@@ -84,14 +91,36 @@ def load_installed(pid: str, spec: dict[str, Any]) -> Loaded:
         item.problem = (f"{manifest.name} now asks for more: {', '.join(asked)}. Switch it on again to "
                         "say yes, or remove it.")
         return item
+    item.granted = [p for p in manifest.permissions if p in (spec.get("permissions") or [])]
+    item.trusted = bool(spec.get("trusted"))
     try:
         check_api(manifest)
-        item.obj = _instance(load_object(manifest.entry, import_paths=import_paths(path)))
-        _check_hooks(item)
+        if item.trusted:
+            item.obj = _instance(load_object(manifest.entry, import_paths=import_paths(path)))
+            _check_hooks(item)
+        else:
+            from . import sandbox
+
+            if "shell" not in item.granted:
+                compiled = sandbox.compiled_files(path)
+                if compiled:
+                    return _broken(item, compiled_words(manifest.name, compiled))
+            item.obj = sandbox.boxed_plugin(path, manifest, item.granted, plugins_home() / pid)
+            item.boxed = True
     except Exception as e:  # a broken plugin never stops the app
-        return _broken(item, f"{manifest.name} could not start ({type(e).__name__}: {e})")
+        return _broken(item, f"{manifest.name} could not start ({_kind(e)}: {e})")
     item.status = "on"
     return item
+
+
+def compiled_words(name: str, files: list[str]) -> str:
+    shown = ", ".join(files[:3]) + (f" and {len(files) - 3} more" if len(files) > 3 else "")
+    return (f"{name} has compiled parts ({shown}) that its box can't watch, so it can't run. Ask its maker for "
+            "a version without them, or one that asks to run programs.")
+
+
+def _kind(e: BaseException) -> str:
+    return str(getattr(e, "kind", "") or type(e).__name__)
 
 
 def _safe_settings(manifest: Manifest, values: dict[str, Any]) -> dict[str, Any]:
@@ -129,6 +158,10 @@ class PluginHost:
         self.cfg = cfg
         self.off_this_run: dict[str, str] = {}  # id -> the plain message
         self.run_state: dict[str, dict[str, Any]] = {}
+        for p in plugins:
+            if p.boxed and p.obj is not None:
+                p.obj.fault = lambda hook, e, emit, p=p: self.fail(p, hook, e, emit)
+                p.obj.is_off = lambda p=p: p.id in self.off_this_run
 
     @classmethod
     def from_config(cls, cfg: Any) -> "PluginHost":
@@ -144,9 +177,21 @@ class PluginHost:
         return next((p for p in self.plugins if p.id == pid), None)
 
     def begin_run(self) -> None:
-        """A new run: plugins switched off by an error get another chance."""
+        """A new run: plugins switched off by an error get another chance, each box starts afresh."""
         self.off_this_run.clear()
         self.run_state.clear()
+        self.stop_boxes()
+
+    def stop_boxes(self) -> None:
+        """Stop every plugin's box (each starts again when next used)."""
+        for p in self.plugins:
+            if p.boxed and p.obj is not None:
+                try:
+                    p.obj.stop()
+                except Exception:  # noqa: BLE001
+                    pass
+
+    close = stop_boxes
 
     def active(self, hook: str) -> list[Loaded]:
         return [p for p in self.plugins if p.has(hook) and p.id not in self.off_this_run]
@@ -158,7 +203,14 @@ class PluginHost:
         return PluginContext(p.id, dict(p.settings), plugins_home() / p.id, project_root=project_root, role=role,
                              state=state if state is not None else {},
                              shared=shared if shared is not None else {}, _emit=emit,
-                             _cost=self._cost)
+                             _cost=self._cost, _http=lambda *a, **k: self._http(p, *a, **k))
+
+    def _http(self, p: Loaded, method: str, url: str, headers: dict[str, str] | None = None, body: Any = None,
+              timeout: float = 30) -> dict[str, Any]:
+        """``ctx.http``: a request to a host the plugin has ``secrets:<host>`` for, the key added here."""
+        from .sandbox import secret_request
+
+        return secret_request(self.cfg, p.granted, method, url, headers=headers, body=body, timeout=timeout)
 
     def _cost(self, model: str, usage: Any) -> float | None:
         if self.cfg is None:
@@ -174,8 +226,13 @@ class PluginHost:
     # -- errors -------------------------------------------------------------------
     def fail(self, p: Loaded, hook: str, error: BaseException, emit: Emit | None) -> None:
         """Switch a plugin off for the rest of this run and tell the owner, plainly."""
-        message = (f"The plugin \"{p.manifest.name}\" went wrong ({hook}: {type(error).__name__}: {error}). "
-                   "It's switched off until this run ends; the run carries on without it. If it keeps "
+        from .sandbox import SandboxError
+
+        if isinstance(error, SandboxError):
+            what = f"The plugin \"{p.manifest.name}\" was stopped by its box ({hook}): {error}."
+        else:
+            what = f"The plugin \"{p.manifest.name}\" went wrong ({hook}: {_kind(error)}: {error})."
+        message = (f"{what} It's switched off until this run ends; the run carries on without it. If it keeps "
                    f"happening, switch it off in Settings > Plugins or with `roundtable plugin disable {p.id}`.")
         self.off_this_run[p.id] = message
         _write_error_log(p.id, hook, error)

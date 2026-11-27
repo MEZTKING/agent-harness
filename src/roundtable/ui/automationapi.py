@@ -41,7 +41,7 @@ def listing(app) -> dict[str, Any]:
     which = next((n for n in (au.TOKEN_KEY, *au.TOKEN_FALLBACKS) if vault.get(n)), "")
     out: dict[str, Any] = {
         "enabled": s["enabled"],
-        "automations": [au.view(a, state.get(a["id"]) or {}) | ({"on": False} if (state.get(a["id"]) or {}).get("off")
+        "automations": [au.view(a, state.get(a["id"]) or {}, cfg=ctx.cfg) | ({"on": False} if (state.get(a["id"]) or {}).get("off")
                                                                else {})
                         for a in au.every(ctx.cfg, ctx.home)],
         "projects": [{"path": str(p), "name": p.name} for p in (project_dirs(ctx.cfg) if ctx.cfg else [])],

@@ -3,6 +3,8 @@
 import { h, fill, get, post, S, act, card, page, tabs, empty, ago, money, plural, every, patch, jobName, modelName, toast, dialog, seg, readable, has } from "./core.js";
 import { strengthsTab } from "./strengths.js";
 import { jobCaps } from "./usage.js";
+import { learnedTab } from "./learned.js";
+import { walletCard } from "./wallet.js";
 
 export async function viewModels(tab = "jobs") {
   if (!S.ov.harness) return page("Models", null, card("The harness can't build on this computer yet",
@@ -10,7 +12,7 @@ export async function viewModels(tab = "jobs") {
   const t = tabs([["jobs", "Who does what", "Which model does each job, and its backups"], ["health", "Health check", "Whether each model answers like it usually does"],
     ["strengths", "Strengths", "What each model is best at, learned from real runs"],
     ["agents", "Agents", "Your named agents: one for each job, with a face, notes and what they learned"],
-    ["learning", "Learning", "Changes the harness suggests from its own runs"]], tab, (k) => `#/models${k === "jobs" ? "" : "/" + k}`);
+    ["learning", "What it learned", "What the harness changed from its own runs, each with an Undo, and what waits for you"]], tab, (k) => `#/models${k === "jobs" ? "" : "/" + k}`);
   const body = tab === "health" ? await health() : tab === "learning" ? await learning() : tab === "strengths" ? await strengthsTab()
     : tab === "agents" ? await agents() : await jobs();
   return page("Models", tab === "jobs" ? "Each job goes to the model you choose; if it can't answer, its backups take over in order." : null, t, body);
@@ -201,51 +203,42 @@ function describe(p) {
 }
 async function learning() {
   const R = S.routing || await loadRouting();
-  const box = h("div", { class: "stack" });
-  const load = async () => {
-    const [data, jobs] = await Promise.all([get("/api/proposals"), get("/api/jobs")]);
-    const running = jobs.find((j) => j.target === "improve" && j.status === "running");
-    const startJob = (body, msg) => (ev) => act(ev.currentTarget, () => post("/api/improve", body), msg, (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; });
-    const open = data.proposals.filter((p) => ["proposed", "tested"].includes(p.status)), closed = data.proposals.filter((p) => !["proposed", "tested"].includes(p.status));
-    const prop = (p) => {
-      const [w, c] = PSTATE[p.status] || [readable(p.status), ""];
-      return h("article", { class: "proposal" },
-        h("div", { class: "row" }, h("b", { class: "grow" }, describe(p)), h("span", { class: "pill " + c }, w), h("span", { class: "pill" }, RISK[p.risk] || p.risk),
-          h("span", { class: "muted small" }, p.source === "owner" ? "your idea" : "the harness's idea", ` · ${ago(p.created_at)}`)),
-        h("p", { class: "small" }, p.rationale),
-        p.kind === "prompt" ? h("details", {}, h("summary", { class: "small" }, "The new instructions"), h("p", { class: "pre-line small" }, p.change.prompt_text)) : null,
-        p.test ? h("p", { class: "small" }, `Tested on ${plural(p.test.tasks_compared, "earlier task")}: now ${p.test.current.approved} approved for ${money(p.test.current.cost_usd)}, with the change ${p.test.candidate.approved} for ${money(p.test.candidate.cost_usd)}. `,
-          h("b", {}, p.test.passed ? "Better or as good." : "Not better."), p.test.note ? ` ${p.test.note}` : "") : null,
-        ["proposed", "tested"].includes(p.status) ? h("div", { class: "row" },
-          h("button", { disabled: !!running, title: "Does a few earlier tasks again with the change, to compare (up to $2)", onclick: startJob({ action: "test", id: p.id, samples: 3, max_cost: 2 }, "Testing it…") }, "Test it"),
-          h("button", { class: "primary", disabled: !!running, title: "Checks the models answer, then uses it", onclick: startJob({ action: "apply", id: p.id }, "Using it…") }, "Use it"),
-          h("button", { disabled: !!running, title: "Use it without a passed test", onclick: async (ev) => {
-            if (await dialog({ title: "Use it without a test?", text: "It hasn't passed a test yet. You can undo it later under What it has learned.", yes: "Use it anyway" })) startJob({ action: "apply", id: p.id, force: true }, "Using it…")(ev);
-          } }, "Use it without a test"),
-          h("button", { class: "danger", onclick: (ev) => act(ev.currentTarget, () => post("/api/improve", { action: "reject", id: p.id }), "Turned down", load) }, "Turn down")) : null);
-    };
-    const applied = data.history.filter((x) => x.event === "applied").reverse();
-    const learnedRoles = Object.entries((data.learned || {}).roles || {});
-    fill(box,
-      card("How it learns", h("p", {}, POLICY[data.policy] || `Policy: ${data.policy}.`),
-        h("p", { class: "muted small" }, "Your own choices in Who does what are never overwritten: what the harness learns sits on top, and can be undone."),
-        h("div", { class: "row" },
-          h("button", { class: "primary", disabled: !!running, title: "Looks through the finished tasks for better choices (free)", onclick: startJob({ action: "analyze" }, "Looking…") }, "Look for improvements"),
-          h("button", { disabled: !!running, title: "A model reads the history too and suggests changes (up to $2)", onclick: startJob({ action: "analyze", llm: true, max_cost: 2 }, "A model is looking…") }, "Ask a model to look"),
-          running ? h("a", { href: `#/activity/work/${running.id}` }, "Working on it now…") : null)),
-      card(`Suggestions (${open.length})`, open.length ? open.map(prop) : h("p", { class: "muted" }, "No suggestions waiting. Press Look for improvements after a few projects, or suggest one below.")),
-      suggest(R, load),
-      card("What it has learned", learnedRoles.length || data.learned_prompts.length ? h("ul", {}, learnedRoles.map(([role, sp]) => h("li", {}, h("b", {}, jobName(role)), ": ",
-        sp.model ? [modelName(sp.model), ...(sp.fallback || []).map((m) => `, then ${modelName(m)}`)] : "", sp.options && sp.options.effort ? ` · thinks ${sp.options.effort}` : "")),
-      data.learned_prompts.map((n) => h("li", {}, h("b", {}, jobName(n)), ": its own instructions"))) : h("p", { class: "muted" }, "Nothing yet: it works exactly as set in Who does what."),
-      applied.length ? h("ul", { class: "plain history" }, applied.map((x) => h("li", {}, h("span", { class: "grow" }, x.summary ? x.summary.replace(/\s+/g, " ").replace(/^(routing|options|prompt)\s+(\S+)\s*/, (_, k, r) => `${jobName(r)}: `).replace(/(\w+\/[\w.\-/ ]+)/g, (m) => modelName(m.trim())).replace(/ -> /g, ", then ") : "A change", h("span", { class: "muted small" }, ` · ${ago(x.at)}`)),
-        h("button", { class: "small danger", title: "Go back to how it was before this change (later changes are undone too)", onclick: async (ev) => {
-          if (await dialog({ title: "Undo this change?", text: "Everything learned after it is undone too.", yes: "Undo", danger: true })) act(ev.currentTarget, () => post("/api/improve", { action: "rollback", version: x.version }), "Undone", load);
-        } }, "Undo")))) : null),
-      closed.length ? h("details", { class: "card fold" }, h("summary", {}, `Earlier suggestions (${closed.length})`), closed.map(prop)) : null);
+  // learning's weekly money on top, then what it learned (one line each, with Undo), what waits for you (today's
+  // suggestions among it) and what it can never change (improve/ledger.py)
+  return h("div", { class: "stack" }, walletCard(), await learnedTab({ suggestions: (reload) => suggestions(R, reload), walletLine: false }));
+}
+async function suggestions(R, reload) {
+  const [data, jobs] = await Promise.all([get("/api/proposals"), get("/api/jobs")]);
+  const running = jobs.find((j) => j.target === "improve" && j.status === "running");
+  const startJob = (body, msg) => (ev) => act(ev.currentTarget, () => post("/api/improve", body), msg, (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; });
+  const open = data.proposals.filter((p) => ["proposed", "tested"].includes(p.status));
+  const closed = data.proposals.filter((p) => ["rejected"].includes(p.status));
+  const prop = (p) => {
+    const [w, c] = PSTATE[p.status] || [readable(p.status), ""];
+    return h("article", { class: "proposal" },
+      h("div", { class: "row" }, h("b", { class: "grow" }, describe(p)), h("span", { class: "pill " + c }, w), h("span", { class: "pill" }, RISK[p.risk] || p.risk),
+        h("span", { class: "muted small" }, p.source === "owner" ? "your idea" : "the harness's idea", ` · ${ago(p.created_at)}`)),
+      h("details", {}, h("summary", { class: "small" }, "More"), h("p", { class: "small" }, p.rationale),
+        p.kind === "prompt" ? h("p", { class: "pre-line small" }, p.change.prompt_text) : null),
+      p.test ? h("p", { class: "small" }, `Tested on ${plural(p.test.tasks_compared, "earlier task")}: now ${p.test.current.approved} approved for ${money(p.test.current.cost_usd)}, with the change ${p.test.candidate.approved} for ${money(p.test.candidate.cost_usd)}. `,
+        h("b", {}, p.test.passed ? "Better or as good." : "Not better."), p.test.note ? ` ${p.test.note}` : "") : null,
+      ["proposed", "tested"].includes(p.status) ? h("div", { class: "row" },
+        h("button", { disabled: !!running, title: "Tries the change on practice tasks and a few earlier tasks, to compare (up to $2)", onclick: startJob({ action: "test", id: p.id, samples: 3, max_cost: 2 }, "Testing it…") }, "Test it"),
+        h("button", { class: "primary", disabled: !!running, title: "Checks the models answer, then uses it", onclick: startJob({ action: "apply", id: p.id }, "Using it…") }, "Use it"),
+        h("button", { disabled: !!running, title: "Use it without a passed test", onclick: async (ev) => {
+          if (await dialog({ title: "Use it without a test?", text: "It hasn't passed a test yet. You can undo it later under What it learned.", yes: "Use it anyway" })) startJob({ action: "apply", id: p.id, force: true }, "Using it…")(ev);
+        } }, "Use it without a test"),
+        h("button", { class: "danger", onclick: (ev) => act(ev.currentTarget, () => post("/api/improve", { action: "reject", id: p.id }), "Turned down", reload) }, "Turn down")) : null);
   };
-  await load();
-  return box;
+  return h("div", { class: "stack" },
+    h("p", {}, POLICY[data.policy] || `Policy: ${data.policy}.`),
+    h("div", { class: "row" },
+      h("button", { class: "primary", disabled: !!running, title: "Looks through the finished tasks for better choices (free)", onclick: startJob({ action: "analyze" }, "Looking…") }, "Look for improvements"),
+      h("button", { disabled: !!running, title: "A model reads the history too and suggests changes (up to $2)", onclick: startJob({ action: "analyze", llm: true, max_cost: 2 }, "A model is looking…") }, "Ask a model to look"),
+      running ? h("a", { href: `#/activity/work/${running.id}` }, "Working on it now…") : null),
+    open.length ? open.map(prop) : h("p", { class: "muted" }, "No suggestions waiting. Press Look for improvements after a few projects, or suggest one below."),
+    suggest(R, reload),
+    closed.length ? h("details", { class: "fold" }, h("summary", {}, `Turned down (${closed.length})`), closed.map(prop)) : null);
 }
 function suggest(R, reload) {
   let kind = "routing";

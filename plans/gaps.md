@@ -8,6 +8,20 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Learning's real cost is unmeasured** (27 November, wave 7): the weekly learning allowance ($2, the
+  owner's figure) and the yardstick were only run with scripted models. One small real cycle (balance before
+  and after, the real cost of one prompt test beside the guesses in DEVLOG) is the next check. → 1.3.x.
+- **The frozen app's own Python and the plug-in box are untried on Windows** (27 November, wave 7):
+  `--python` (pyexec.py, pytest bundled) and `--plugin-box` work through the real entry script here, the
+  Windows Job Object and a boxed plug-in trying the internet only run on the owner's PC through Remote
+  Control. On Windows "no internet" and "only its own folder" are held inside Python (it stops a plug-in that
+  tries, not one written to break out); a kernel-level box needs Windows Sandbox or WSL. → 1.3.x, then later.
+- **Search by meaning uses no maker's embeddings** (27 November, wave 7): `recall.embeddings` is read and does
+  nothing; there is no embeddings call to price yet. PDFs are found by their name only (the standard library
+  can't read their text). → later.
+- **Documents and the memory picture aren't on the phone** (27 November, wave 7): the phone has What it
+  learned (with Undo) only. → next phone slice.
+
 - **Pictures: no editing of an earlier picture** (27 November, the Eclipse art for 1.0.0): the image route
   (`providers/chat_images.py`, ChatImagesProvider) can only make new pictures. The ring had to be cut out of
   the backdrop by hand with Pillow. It should take an earlier picture and an instruction. → 1.1.0.
@@ -99,13 +113,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **Question cards: a reworded question loses its typed answer only in Hub mode** (26 November):
   a card answered from the phone is refused when the question changed since (its `stamp`); the
   reply says so, but the phone doesn't fetch the new card until the next refresh. → release 4.
-- **Plugins can't be held to their permissions** (26 November): a plugin is Python running
-  inside Roundtable, so `network`, `files` and `shell` are what it says, not what it's
-  allowed. Running plugins in a separate process with no network and only their own folder
-  would make them real. → release 3.
-- **No plugin catalogue** (26 November): plugins are added by folder, git link or pip name.
-  A list of known plugins to browse and add from the app (and a check for new versions)
-  → release 3.
 - **Plugins from pip need Python on the computer** (26 November): the Windows app has no pip,
   so `plugin add <pip name>` needs a Python installed; folders and git links work without.
   Fetching a wheel ourselves would close it, for plugins with no compiled parts.
@@ -172,6 +179,11 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **Plugins can't be held to their permissions** → fixed in 1.3.0: every installed plugin runs in its own box
+  (plugins/sandbox.py); Trusted ones and built-ins run in the app. (Was: a plugin was Python running inside the app, so its permissions were what it said, not what it was allowed.)
+- **No plugin catalogue** → fixed in 1.3.0: Tools → Plug-ins and skills (plugins/market.py, catalogue.json),
+  pinned to exact commits, with newer versions shown; and Make one (plugins/make.py).
 
 - **Reviews can still reject for the wrong reasons** (fixed in 1.2.0, 27 November): a rejection counts only
   when it quotes the line of the task, its done list, its don't list or the failing test output that the work

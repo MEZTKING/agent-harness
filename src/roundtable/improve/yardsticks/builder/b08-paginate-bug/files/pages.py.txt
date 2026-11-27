@@ -1,0 +1,3 @@
+def page(items, number, size):
+    """Page ``number`` (from 1) of ``items``, ``size`` items a page."""
+    return items[number * size:(number + 1) * size]

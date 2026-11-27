@@ -1,5 +1,40 @@
 <!-- The README's "What's new" sections, bundled with the app for its "What's new" card. Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->
 
+### What's new in 1.3.0
+
+It learns: the harness gets better from its own work, within money you set, and you can undo anything it
+changed.
+
+- **Learning by itself, on its own weekly money**: you choose an allowance (Settings → Spending; off until you
+  do). Once a week it tests the changes it suggests and uses the small ones that pass. It stops at the
+  allowance and says so: "Learning has used this week's $2; it carries on next week."
+- **Practice tasks**: every suggested change is tried on a fixed set of small made-up tasks with checks that
+  can't be argued with, beside a few of your earlier tasks. Changes to the checker's instructions can be tested
+  at last.
+- **Watched, and undone by itself**: after a change, the next tasks are compared with before. If the work
+  clearly gets worse, the change is undone by itself and you are told in one line, with Put back.
+- **What it learned** (Models): one plain line per change, each with Undo; what waits for your yes; and what it
+  can never change by itself (the safety gate, your keys, money, who may see a project, plug-ins' permissions,
+  your house style). The phone shows the lines too, with Undo.
+- **Your house style** (Settings → How agents write): how every agent writes to you. Short and plain unless
+  you say otherwise.
+- **Plug-ins in their own box**: every plug-in you add runs apart from the app, with no internet, no other
+  programs and only its own folder unless you allowed more. A list of plug-ins and skills under Tools, and
+  **Make one**: a plug-in from one sentence, tested in its box before it is offered.
+- **Ask about anything** (Search): "what did we decide about the colours?" finds the answer across your plans,
+  memory, journal and **your own documents**, even in other words; Ask answers with quotes, the price shown
+  first. Agents look your documents up instead of guessing (a "Never leaves this computer" tick keeps one to
+  you). **Who knows what** draws which agents built and checked what.
+- **Shared between your machines**: what it learned, its weekly spending and your house style travel through
+  your private hub; an undo on any machine wins everywhere. Never project names, code or anyone's words.
+- **Fixes to itself** (off until you say yes): when the same fault in the harness's own code happens three
+  times, it can offer to try a fix for up to $1.50, as a draft pull request it never merges.
+
+Beta notes: real learning costs real money: the first weekly cycle on your allowance shows what a test truly
+costs, so watch Settings → Spending the first week. On Windows the plug-in box stops a plug-in that tries to go
+online or outside its folder, but it is not proof against one written on purpose to break out (other programs
+are blocked by Windows itself); only add plug-ins from people you trust.
+
 ### What's new in 1.2.0
 
 Every model at once: several makers' models now build, check and plan together, and you choose how much.
@@ -106,20 +141,3 @@ Roundtable Hold is now Darkness Harness. Everything you have stays.
 - **Watch shows timings**: how long each step and each wait took, and the tokens used.
 - **Tidy-up**: old logs and copies are cleared once a day (Settings → Advanced); **What's new** shows after
   an update.
-
-### What's new in 0.10.0
-
-- **A safety switch for stuck helpers**: the same step over and over, error after error, huge output, too
-  many tokens or no progress – Roundtable warns the helper, then blocks it for a step, then stops the task
-  (`breaker:` in harness.yaml). Every step records how long it took.
-- **Ask me first**: risky commands (deleting outside the project, sending code to GitHub, installing from
-  the internet, administrator rights…) wait for your tap – Allow once, Always allow in this project, or
-  Don't allow – on the desktop, the phone and through the hub. "all" asks for every command; "off" never.
-- **Several tasks at once** (`limits.max_parallel`, default still 1; wave 2 turns it to 3): each task in
-  its own copy of the project, merged back in order; a clash becomes a small fix-up task.
-- **Notifications**: finished, needs you, failed, money, idle – never twice; answer buttons on the phone's
-  notifications; a bell and pop-ups on the desktop (Settings → Notifications).
-- **Automations** (Settings → Automations): schedules, GitHub issues with a label, failed checks – they
-  plan by themselves and build only with your OK (or within a spending limit you set).
-- **Tools** (new tab): what this computer has for building – Git, Node, Python, Godot, Unreal, Blender,
-  Claude Code… – with Install buttons, and the tool servers (Unreal, Godot, Blender) your helpers use.

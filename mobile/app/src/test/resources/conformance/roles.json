@@ -21,7 +21,7 @@
   {
    "description": "",
    "kind": "chat",
-   "learned": false,
+   "learned": true,
    "models": [
     "a/planner"
    ],

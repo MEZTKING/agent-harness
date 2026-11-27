@@ -1,0 +1,26 @@
+id: p06-quiz-page
+version: 1
+job: planner
+tags:
+- web
+- game
+title: A quiz game web page with a high-score table
+goal: 'A quiz game web page with a high-score table. No server: everything runs in the browser.'
+dont:
+- 'No server: everything runs in the browser.'
+description: A quiz game web page with a high-score table.
+acceptance: a plan with done-when lines and stages, nothing from the don't list
+check:
+- shape:
+    min_tasks: 2
+    max_tasks: 14
+    acceptance: true
+    stages: true
+    forbidden:
+    - \bbackend\b
+    - \bdatabase\b
+    - \bnode\.?js\b
+    - \bexpress\b
+    must_mention:
+    - (?i)score
+max_steps: 8

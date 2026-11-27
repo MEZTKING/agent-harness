@@ -13,7 +13,9 @@ from roundtable.providers.scripted import ScriptedImages, ScriptedProvider, repl
 
 from .test_harness import RAW, Brain, tool_names
 
-GOOD_PROMPT = "You are a careful engineer. Always read files before editing them, and run the tests before finishing."
+GOOD_PROMPT = ("You are a careful engineer. Always read files before editing them. No placeholders, no TODO stubs "
+               "for required behaviour. Add tests for what you build and run them with run_command before finishing. "
+               "When the task is done, call finish_task with a short summary.")
 
 
 class Judge(Brain):
@@ -45,10 +47,17 @@ def make_cfg(tmp_path, raw=RAW, brain=None, improve=None):
 
 
 def run_projects(cfg, tmp_path, n=2):
-    for i in range(n):
-        orch = Orchestrator(cfg, tmp_path / f"p{i}")
-        orch.start(f"goal {i}")
-        assert orch.run() == "done"
+    """Made-up past runs. With a learning allowance a run learns by itself afterwards (paid from the wallet);
+    the set-up runs here don't, so each test drives the cycle itself."""
+    allowance = cfg.improve.pop("allowance_usd_per_week", None)
+    try:
+        for i in range(n):
+            orch = Orchestrator(cfg, tmp_path / f"p{i}")
+            orch.start(f"goal {i}")
+            assert orch.run() == "done"
+    finally:
+        if allowance is not None:
+            cfg.improve["allowance_usd_per_week"] = allowance
 
 
 def test_projects_register_and_base_commits_recorded(tmp_path):
@@ -156,7 +165,7 @@ def test_replay_evaluation_prefers_better_model(tmp_path):
     run_projects(cfg, tmp_path, 1)
     good = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["b/coder2"]},
                                      rationale="r", risk="low"))
-    res = evaluate(cfg, lab, good, samples=2, max_cost=5)
+    res = evaluate(cfg, lab, good, samples=2, max_cost=5, yard=False)
     assert res["tasks_compared"] == 2
     assert res["current"]["approved"] == 0 and res["candidate"]["approved"] == 2
     assert res["verdict"] == "better" and res["passed"]
@@ -167,7 +176,7 @@ def test_replay_evaluation_prefers_better_model(tmp_path):
     bad = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["a/coder"]},
                                     rationale="r", risk="low"))
     cfg.roles["coder"].models = cfg.roles["coder"].models[1:]  # pretend coder2 is current
-    res = evaluate(cfg, lab, bad, samples=1, max_cost=5)
+    res = evaluate(cfg, lab, bad, samples=1, max_cost=5, yard=False)
     assert res["verdict"] == "worse" and not res["passed"]
 
 
@@ -175,10 +184,10 @@ def test_replay_guards(tmp_path):
     cfg, lab = make_cfg(tmp_path)
     p = Proposal(id="R", kind="routing", role="coder", change={"models": ["b/coder2"]}, rationale="r")
     with pytest.raises(EvalError):
-        evaluate(cfg, lab, p)  # no history yet
+        evaluate(cfg, lab, p, yard=False)  # no history yet, and the yardstick is off
     rev = Proposal(id="V", kind="routing", role="reviewer", change={"models": ["b/x"]}, rationale="r")
     with pytest.raises(EvalError):
-        evaluate(cfg, lab, rev)
+        evaluate(cfg, lab, rev, yard=False)  # replays can't test the judge itself
 
 
 def test_cycle_policy(tmp_path):
@@ -300,7 +309,7 @@ def test_replay_keeps_to_the_projects_allowed_providers(tmp_path):
     p = lab.add_proposal(Proposal(id="", kind="routing", role="coder", change={"models": ["b/coder2", "a/coder"]},
                                   rationale="r", risk="low"))
     brain.models.clear()
-    res = evaluate(cfg, lab, p, samples=2, max_cost=5)
+    res = evaluate(cfg, lab, p, samples=2, max_cost=5, yard=False)
     assert res["tasks_compared"] >= 1
     assert brain.models and "coder2" not in brain.models
     assert all(r["model"] in (None, "a/coder") for side in ("current", "candidate") for r in res[side]["runs"])
@@ -310,5 +319,5 @@ def test_replay_keeps_to_the_projects_allowed_providers(tmp_path):
                                        rationale="r", risk="low"))
     brain.models.clear()
     with pytest.raises(EvalError):
-        evaluate(cfg, lab, only_b, samples=2, max_cost=5)
+        evaluate(cfg, lab, only_b, samples=2, max_cost=5, yard=False)
     assert "coder2" not in brain.models

@@ -1,0 +1,22 @@
+id: b07-gdscript-damage
+version: 1
+job: builder
+tags:
+- godot
+- gdscript
+- game-logic
+title: The player takes damage
+description: 'In player.gd add a signal died and a function take_damage(amount: int) that lowers health
+  by amount, never below 0, and emits died when health reaches 0.'
+acceptance: player.gd declares signal died and func take_damage(amount); health never goes below 0; died
+  is emitted at 0
+check:
+- contains:
+    path: player.gd
+    text:
+    - (?m)^signal\s+died
+    - func\s+take_damage\s*\(\s*amount
+    - (max\s*\(|maxi\s*\(|clamp\w*\s*\(|health\s*<\s*0|health\s*<=\s*0)
+    - (emit_signal\s*\(\s*[\"']died[\"']|died\.emit\s*\()
+    - extends\s+CharacterBody2D
+max_steps: 10

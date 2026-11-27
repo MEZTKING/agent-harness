@@ -1,0 +1,15 @@
+id: b01-mean-bug
+version: 1
+job: builder
+tags:
+- python
+- bug
+title: Fix the average
+description: 'stats.py has a function mean(numbers) that gives the wrong answer: mean([2, 4, 6]) should
+  be 4. Fix it. An empty list must raise ValueError ("no numbers").'
+acceptance: mean([2, 4, 6]) == 4; mean([5]) == 5; mean([]) raises ValueError
+check:
+- run:
+  - '{python}'
+  - check_mean.py
+max_steps: 12

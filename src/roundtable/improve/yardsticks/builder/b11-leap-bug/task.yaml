@@ -1,0 +1,16 @@
+id: b11-leap-bug
+version: 1
+job: builder
+tags:
+- python
+- bug
+- dates
+title: Fix leap years
+description: dates.py says every year divisible by 4 is a leap year. Fix is_leap for centuries (1900 is
+  not a leap year, 2000 is) so days_in_month is right too.
+acceptance: is_leap(1900) is False, is_leap(2000) and is_leap(2024) are True; February 1900 has 28 days
+check:
+- run:
+  - '{python}'
+  - check_dates.py
+max_steps: 10

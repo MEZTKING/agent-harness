@@ -2,7 +2,8 @@
 // The API is ui/searchapi.py (GET /api/search, /api/search/peek, /api/memory; POST /api/memory, /api/memory/note).
 // Results open the right place: a project's Plan or Journal, Letters, or a window with the file, note or memory.
 import { h, fill, get, post, q, act, toast, dialog, page, card, empty, seg, markdown, when, refreshHall, seatByPath,
-  projectHref, S } from "./core.js";
+  projectHref, S, has } from "./core.js";
+import { askBox, documentsPage, memoryPicture } from "./recall.js";
 
 // this page's few looks, kept here so style.css stays as it is
 const CSS = `
@@ -85,8 +86,21 @@ export async function viewSearch(words = "") {
       onclick: () => openMemory({ machine: true }) }, "This computer's memory"));
   setTimeout(() => field.focus(), 0);
   draw();
-  return page("Search", "Find any word in your plans, tasks, journal, letters, memory, notes and files.",
-    h("div", { class: "stack" }, h("div", { class: "row" }, field), where, status, list, more));
+  const find = h("div", { class: "stack" }, h("div", { class: "row" }, field), where, status, list, more);
+  if (!(await has("/api/recall"))) return page("Search", "Find any word in your plans, tasks, journal, letters, memory, notes and files.", find);
+  // wave 7: ask a question across everything (search by meaning, on this computer), your documents, who knows what
+  const panel = h("div", { class: "stack" });
+  const show = async (which) => {
+    if (which === "documents") fill(panel, await documentsPage());
+    else if (which === "who") fill(panel, await memoryPicture());
+    else { fill(panel, askBox(), find); field.focus(); }
+  };
+  const switcher = seg([["find", "Find", "Ask a question, or find words in everything"],
+    ["documents", "Your documents", "Your own files the agents may look up instead of guessing"],
+    ["who", "Who knows what", "Which agents built and checked what, and which documents each project used"]], "find", show, "What to show");
+  await show("find");
+  return page("Search", "Ask a question or find any word in your plans, tasks, journal, letters, memory, notes, files and documents.",
+    h("div", { class: "stack" }, switcher, panel));
 }
 
 function marked(text, words) {

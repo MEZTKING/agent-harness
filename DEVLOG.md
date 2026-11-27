@@ -6,6 +6,139 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 1.3.0: wave 7 put together ("it learns")
+
+Asked: merge the seven wave 7 branches in the plan's order, do every hook-up line from the helpers' reports and
+the coordinator's decisions (including the frozen app's `--python` mode with pytest bundled), one scripted
+end-to-end check with the owner's $2 allowance, the screens, version 1.3.0 with its notes, gaps and parity. No
+release, no real money.
+
+Merged (no textual conflicts; `git merge --no-edit`, never rebased), in the plan's order: d4-sandbox (2dfe2cc),
+d4-charter (d69c5e9, 207069b, f80a8e6), d4-evidence (e3e4b9d), d4-loop (5fe6203), d4-tools (e760dd1), d4-memory
+(b4f4ac6), d4-ledger (0c2ca62, 1d71516, b57f36d). The merged tree had 15 failing tests before any hook-up: tests
+each helper wrote against Step 0's stubs, which now meet the real charter, watch and kinds (all kept, see below).
+
+What each part is, plainly:
+- **The box** (d4-sandbox): every installed plug-in runs in its own process, no keys, no internet, no other
+  programs, only its own folder unless granted (`plugins/sandbox.py`, `guard.py`, `boxworker.py`, `boxapi.py`).
+- **The charter** (d4-charter): what learning can never change, checked in one place; protected prompt lines;
+  fixed rules at the end of every system prompt; the house style (`improve/charter.py`, `harness/charterstage.py`,
+  `housestyle.py`, `ui/styleapi.py`).
+- **The yardstick** (d4-evidence): 12 builder, 8 reviewer and 6 planner practice tasks with objective checks;
+  `evaluate(…, budget, yard)`; rules 4 and 5 from the panel's reviews and the tag numbers; the analyst sees a
+  project's text only when that project allows its maker (`improve/yardstick.py`, `yardsticks/`).
+- **The wallet and the watch** (d4-loop): learning's weekly allowance and its ledger, the weekly slot, the watch
+  that undoes a clear drop (`improve/wallet.py`, `canary.py`, `loop.py`, `ui/walletapi.py`).
+- **Tools** (d4-tools): tool and kind-tweak proposals, Make one, the list, ten skills (`plugins/make.py`,
+  `market.py`, `skills.py`, `harness/skillstage.py`, `improve/toolkind.py`).
+- **Memory** (d4-memory): search by meaning on this computer, the owner's documents, `look_up`, Who knows what
+  (`recall.py`, `documents.py`, `harness/recallstage.py`).
+- **The ledger** (d4-ledger): What it learned with Undo on desktop and phone, sharing through the hub,
+  self-repair as a draft pull request only (`improve/ledger.py`, `share.py`, `selfrepair.py`).
+
+Hook-ups (all done):
+- `harness/orchestrator.py`: WatchStage, CharterStage, SkillStage, RecallStage in the bases (MRO checked: no new
+  clash; the two old ones, `_look_wanted` and `_shots_wanted`, are wave 5's); `SYSTEM_PARTS = ("_style_system",
+  "_charter_system")` so the fixed rules end every prompt; `_hook_fault` → `selfrepair.note`; `_learn_after_run`
+  pays tests and probes from the wallet when the allowance is above 0. `tests/test_stage_hooks.py` STAGES and
+  HOOKS gain the new stages and part names.
+- `ui/server.py` FEATURE_APIS: walletapi, styleapi, marketapi, learnedapi, recallapi; Apply passes
+  `by_owner=True`, Test `yard=True`; `/api/asks` carries the harness's own cards (`asks.app_asks`,
+  `answer_app_ask`). `harness_cli.py`: `improve stats --checkers`, `improve yardstick [--job] [--check] [--run]`,
+  Apply by the owner.
+- `phone.py` PHONE_ROUTES, as decided: GET wallet, GET/POST style, GET charter, GET market, GET learned and POST
+  learned/undo only, GET recall and POST recall/ask. Conformance: seven calls in `calls.json`, fixtures rewritten
+  (one made-up learned change to undo), `ConformanceTest.kt` makes them; Api.kt's prefixes; `SettingsScreen`
+  shows `LearnedCard` (the PC's lab, else this phone's).
+- `sync.py`: the house style and `learning.allowance_usd_per_week` shared like the limits (`save_allowance`);
+  `share.tick` after the shared settings. `automation.py`: the built-in Learning slot, not while a project
+  builds, its money line, built-ins not editable. `autopilot.decide` leaves learning and self-repair cards.
+- `projectsettings`: `documents` (all or none). `retention`: plug-in drafts never added go after 14 days.
+- `kindstage.py` (three places) and `kindsapi.py`: `toolkind.resolve_with_tweaks`; `yardstick.run` builds its
+  candidate with `toolkind.candidate_for`; `improve/__init__.py` imports `toolkind` so the kinds register.
+- `Lab.rollback` calls `on_undo` for every change it rolls past (a tool is switched off, its files kept).
+- The frozen app: `src/roundtable/pyexec.py` (`--python`: `-m`, `-c` or a script; `python_command()`,
+  `command()`; a child started as `sys.executable` runs as Python too, by the `ROUNDTABLE_AS_PYTHON` marker);
+  `packaging/roundtable_app.py` and `main.main` take `--plugin-box` then `--python` before anything else; the spec
+  bundles pytest, `_pytest`, pluggy, iniconfig and packaging (pytest was excluded) and lists the box's modules;
+  the yardstick's `run` checks and self-repair's suite go through it. `tests/test_pyexec.py` runs it through the
+  real entry script, pytest included.
+- Desktop: Settings → Spending has the learning card, Settings → How agents write the house style, each plug-in
+  "In its box" or "Trusted" with a switch that asks first; Models → What it learned (wallet card on top, the
+  ledger, today's suggestions inside Waiting for you; the old undo-everything-after list is gone); Tools →
+  Plug-ins and skills; Search → Find with Ask, Your documents, Who knows what; Needs you shows a fault in itself.
+- `plans/parity.md`: MD-27, MD-56, MD-59, MD-60, MD-85, DS-63, DS-64 to Have (MD-56 "on this computer; a maker's
+  embeddings optional (not built yet)", MD-85 "10 skills, the other lists 227", DS-63 "10 skills and no outside
+  plug-ins yet"); counts 116 have, 32 partly, 9 missing. `plans/gaps.md`: the two plug-in items fixed; new open
+  items for the unmeasured real cost, the untried frozen modes, embeddings and PDFs, the phone's documents.
+
+Found and fixed while putting it together (each with a test):
+- **Make one could never offer a plug-in**: its tests ran `python -m pytest` inside the box, which holds only the
+  standard library. Drafts now test with `unittest`; a test runs the template in the real box.
+- **Two desktop modules didn't load** (market.js, recall.js: a bracket too many each). `node --check file.js`
+  missed both; `tests/test_static_syntax.py` checks every module as an ES module.
+- **The wallet's tests bypassed the verdict**: the loop called `yardstick.run` itself, so nothing was saved on
+  the proposal and replays were skipped. It goes through `evaluate(budget=…)` now. A test cut short by the
+  allowance is put back for next week (the note it looked for had moved).
+- **A clearly better change failed for costing more on replays**: `_combine` failed anything "costlier" even
+  when the yardstick was better (12 of 12 against 0 of 12). It follows the plan's rule now: not worse on either,
+  better on one; equal-but-dearer alone still fails, and the note says so.
+- **The ledger showed raw rows** ("{'id': 'gate', …}") for what it can never change: `charter.never()` gives the
+  titles. A change tested on practice tasks says so with their counts beside the replays'.
+- The memory picture drew agents outside its frame and showed "kind:website"; a document's date read "21 hours
+  ago" (a day only); the Learning tab showed learning's money twice.
+- A charter refusal of an automatic apply stopped the old (command-line) cycle too; caught now.
+- Tests made deterministic or order-proof: a share test overwrote the real "tool" kind for the rest of the run;
+  a wallet test depended on random proposal ids; set-up runs in `test_improve.run_projects` no longer learn by
+  themselves once an allowance is set.
+
+End to end (`tests/test_learning_e2e.py`, scripted, no network): allowance $2; the scheduled Learning job undoes a
+planted bad planner change ("Planner now temperature 1.2: work passed fell from 90% to 20% over 5 tasks"), tests
+a waiting coder change on 12 practice tasks within the wallet ("it passed 12 of 12 practice tasks against 0 of
+12") and applies it (low risk, the owner's "low" policy); the ledger shows both lines (Undo; Put back); the
+wallet's total equals the usage ledger's "(learning)" lines; the charter refuses a coder prompt without "run them
+with run_command", even with the owner's tap.
+
+Decided (reversible): the merge order is the plan's (sandbox, charter, evidence, loop, tools, memory, ledger), not
+the brief's list; drafted plug-ins use unittest rather than opening the box to site-packages; a "Settings → How
+agents write" section for the house style; the phone's learned API stays undo-only (no POST /api/learned).
+
+Open (only a real run, the owner's PC or the phone can prove): the real cost of one cycle on the $2 (balance
+before and after, beside the guesses); the frozen `--python` and `--plugin-box` starts, the Windows Job Object
+and a boxed plug-in trying the internet (Remote Control); whether real reviewers quote the planted line; real
+sharing between the PC and the phone; the LearnedCard on a real phone; a real self-repair (needs a GitHub key
+that may write, and the repository's visibility checked); the ranking of search by meaning on real projects.
+
+## 2026-11-27 – wave 7, step 0: the seams the seven helpers build on (towards 1.3.0, "it learns")
+
+Asked: the coordinator's step 0 from the wave 7 plan, before the helpers branch: the lab's kinds registry, undo of
+one change, rebuild, a state id, the frozen stubs, and the orchestrator and config seams. Nothing changes for a run.
+
+Done:
+- `improve/lab.py`: `KindSpec`, `KINDS`, `register_kind`; routing, options and prompt moved in with the same
+  results, summaries and error words. `PROPOSAL_KINDS` kept (the analyst's enum). `STATUSES` gains `undone` and
+  `needs_owner`. `Proposal` gains `applied_at`, `machine`, `watch`, `undone_why`, `origin`. `Lab.apply(…, by_owner)`
+  asks `charter.check` first (a refusal that wants a tap marks the proposal `needs_owner`), then lays the change,
+  `on_apply`, and `canary.start`. `Lab.undo(pid, why, by, cfg=None)` takes a snapshot, then rebuilds from the
+  snapshot before the earliest change no longer in force with every still-applied change laid again in order
+  (so two undos in turn never bring the first back); rolling back that snapshot puts the change back.
+  `Lab.rebuild(changes, cfg)`, `Lab.state_id()` (12 characters, from the settings and prompts, not the comments).
+  `is_duplicate` counts `undone`. History rows gain `id` and `machine`. `rollback` is as before.
+- Stubs with frozen signatures: `improve/charter.py`, `wallet.py`, `yardstick.py`, `canary.py`, `share.py`,
+  `plugins/sandbox.py`.
+- `harness/orchestrator.py`: `SYSTEM_PARTS`, `_system(system, name)` at the three system-prompt sites (the unstick
+  diagnosis is named "unstick"), `TOOL_PARTS` with `_part_tools` after each `websearch.add_tools` (never replaces a
+  tool), the new worker, plan, attempt and metric part names, `_hook_fault`, `_watch_after_run` before the
+  `after_each_run` test, learning's spend in `_spent_today`.
+- `config.FEATURE_SECTIONS` gains eight sections; `merge_custom` now carries `improve:` from custom.yaml (not its
+  paths). `automation.WHATS` gains `learn` (does nothing until `wallet.job` exists). Api.kt's feature prefixes,
+  pyproject's package data.
+- The owner chose a learning allowance of $2 a week: the code's default stays 0 (off); the template
+  `harness.example.yaml` carries `improve.allowance_usd_per_week: 2`, so new set-ups start with the owner's figure.
+- Tests: `tests/test_learn_seam.py` (23); `test_tandem_seam.py` checks wave 6's part names as a prefix now.
+
+Open: the helpers fill the stubs; the template's $2 does nothing until the wallet is built.
+
 ## 2026-11-27 – 1.2.0: wave 6 put together ("every model at once")
 
 Asked: merge the seven wave 6 branches in order (d3-limits, d3-router, d3-panel with both its commits, d3-rivals,

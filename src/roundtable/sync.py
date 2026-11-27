@@ -712,9 +712,17 @@ def local_snapshot(harness_path: Path | None, home: Path) -> dict[str, Any]:
                              "max_real_usd_per_run": cfg.limits.max_real_usd_per_run,
                              "max_usd_per_day": cfg.limits.max_usd_per_day}
             out["default_profile"] = cfg.default_profile
+            from .improve import wallet
+
+            out["learning"] = {"allowance_usd_per_week": wallet.allowance(cfg)}  # learning's weekly money
         except Exception:
             pass
-        roles = load_custom(Path(harness_path)).get("roles") or {}
+        custom = load_custom(Path(harness_path))
+        if isinstance(custom.get("style"), dict):  # the house style (how agents write for the owner)
+            from .harness import housestyle
+
+            out["style"] = housestyle.clean(custom["style"])
+        roles = custom.get("roles") or {}
         out["roles"] = {r: {k: v for k, v in (spec or {}).items() if k in ("model", "fallback")}
                         for r, spec in roles.items()}
     st = autopilot.load(home)
@@ -754,6 +762,15 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
                             "cap": float(ap.get("cap") or 2.0)}
     if "default_profile" in values:
         out["default_profile"] = values.get("default_profile") or None
+    if isinstance(values.get("style"), dict):
+        from .harness import housestyle
+
+        out["style"] = housestyle.clean(values["style"])
+    learning = values.get("learning")
+    if isinstance(learning, dict) and learning.get("allowance_usd_per_week") is not None:
+        from .improve import wallet
+
+        out["learning"] = {"allowance_usd_per_week": wallet.clean_allowance(learning["allowance_usd_per_week"])}
     roles = values.get("roles")
     if isinstance(roles, dict):
         out["roles"] = {}
@@ -783,6 +800,7 @@ def for_apps(shared: dict[str, Any] | None, profiles: list[str]) -> dict[str, An
     return {"limits": dict(shared.get("limits") or {}),
             "autopilot": {"on": bool(ap.get("on")), "cap": ap.get("cap"), "until": ap.get("until")},
             "default_profile": shared.get("default_profile"), "profiles": profiles, "roles": roles,
+            "style": shared.get("style"), "learning": shared.get("learning"),
             "updated_at": shared.get("changed_at", ""), "updated_by": shared.get("changed_by_name")
             or shared.get("changed_by", ""), "updated_by_seat": shared.get("changed_by", "")}
 
@@ -821,6 +839,8 @@ def apply_shared(shared: dict[str, Any], harness_path: Path | None, home: Path, 
             custom["roles"] = roles
         if values.get("default_profile"):
             custom["default_profile"] = values["default_profile"]
+        if "style" in values:
+            custom["style"] = {"on": values["style"]["on"], "text": values["style"]["text"]}
         if json.dumps(custom, sort_keys=True, default=str) != before:
             old = Path(harness_path).parent / "custom.yaml"
             keep = old.read_text(encoding="utf-8") if old.is_file() else None
@@ -835,6 +855,16 @@ def apply_shared(shared: dict[str, Any], harness_path: Path | None, home: Path, 
                     old.unlink(missing_ok=True)
                 else:
                     old.write_text(keep, encoding="utf-8")
+        if "learning" in values:  # the owner's weekly figure for learning, set on another machine
+            from .improve import wallet
+
+            try:
+                here = wallet.allowance(load_config_quiet(harness_path))
+            except Exception:  # noqa: BLE001
+                here = None
+            if here != values["learning"]["allowance_usd_per_week"]:
+                wallet.save_allowance(harness_path, values["learning"]["allowance_usd_per_week"])
+                done.append("learning's allowance")
     ap = values.get("autopilot")
     if ap is not None:
         st = autopilot.load(home)
@@ -891,7 +921,8 @@ def change_shared(hub, changes: dict[str, Any], harness_path: Path | None, home:
                   machine: dict[str, str] | None = None) -> dict[str, Any]:
     """The owner changed shared settings in the app: this machine first, then the hub (last change wins)."""
     current = {**local_snapshot(harness_path, home), **{k: v for k, v in (read_shared(hub) or {}).items()
-                                                         if k in ("limits", "autopilot", "default_profile", "roles")}}
+                                                         if k in ("limits", "autopilot", "default_profile", "roles",
+                                                                  "style", "learning")}}
     clean = _clean(changes)
     if "limits" in clean:
         clean["limits"] = {**(current.get("limits") or {}), **clean["limits"]}
@@ -932,4 +963,17 @@ def tick(app, listening: bool = True) -> dict[str, Any]:
             out["shared"] = sync_shared(hub, harness, home, app.cfg(), me)
     except Exception as e:
         out["error"] = f"shared settings: {e}"[:300]
+    try:  # what the harness learned, shared between the owner's machines (improve/share.py; never raises)
+        from .improve import share
+
+        out["learning"] = share.tick(app)
+    except Exception as e:
+        out["learning"] = {"error": str(e)[:300]}
     return out
+
+
+def load_config_quiet(harness_path):
+    """This machine's harness config, for comparing a shared value with its own."""
+    from .harness.config import load_config
+
+    return load_config(str(harness_path))

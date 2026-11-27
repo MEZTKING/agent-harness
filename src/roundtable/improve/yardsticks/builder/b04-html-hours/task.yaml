@@ -1,0 +1,26 @@
+id: b04-html-hours
+version: 1
+job: builder
+tags:
+- html
+- web
+title: An opening hours page
+description: 'Write index.html: a page with the title "Opening hours", a heading saying the same, and
+  a table with one row for each day from Monday to Sunday giving the hours (Sunday: Closed).'
+acceptance: index.html has the title Opening hours, a table, and a row for each of the seven days
+check:
+- file_exists: index.html
+- contains:
+    path: index.html
+    text:
+    - (?is)<title>\s*Opening hours\s*</title>
+    - (?i)<h1[^>]*>\s*Opening hours
+    - (?i)<table
+    - Monday
+    - Tuesday
+    - Wednesday
+    - Thursday
+    - Friday
+    - Saturday
+    - (?is)Sunday.{0,40}Closed
+max_steps: 10

@@ -55,6 +55,10 @@ from .showstage import ShowStage
 from .stages import StagesStage
 from .unstick import UnstickStage, wasted_words
 from .worktrees import ParallelStage, Worktrees
+from .charterstage import CharterStage
+from .recallstage import RecallStage
+from .skillstage import SkillStage
+from ..improve.canary import WatchStage
 from .gate import Gate
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
@@ -277,7 +281,9 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
 
 class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
                    MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
-                   DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage):
+                   DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
+                   WatchStage, CharterStage, SkillStage, RecallStage):
+    # wave 7: the watch after a learned change, the charter's fixed lines and the house style, skills, look_up
     # the wave 5 stages (money, the done list, stages and parts, unsticking, finishing, playing, shipping)
     # each add their part through the hooks below; with no done list, stages or kind a run is as before
     def __init__(
@@ -331,6 +337,14 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
     ESTIMATE_PARTS += ("_router_estimate", "_dial_estimate")
     ATTEMPT_PARTS = ("_router_attempt", "_panel_attempt", "_rivals_attempt", "_agent_attempt")  # (task, ref) -> dict merged into the attempt
     METRIC_PARTS = ("_tags_metric", "_rivals_metric", "_agent_metric")  # (task, ref) -> dict merged into the metrics row
+    # wave 7 (it learns): the charter's fixed lines and the house style in every system prompt, tools a stage
+    # adds (recall), skills, the owner's documents for the planner, the watch's numbers
+    SYSTEM_PARTS = ("_style_system", "_charter_system")  # (prompt_name) -> str added to the system prompt
+    TOOL_PARTS = ("_recall_tools",)  # (role) -> list[Tool]; a tool never replaces one already in the box
+    WORKER_PARTS += ("_skills_worker_part",)
+    PLAN_PARTS += ("_docs_plan_part",)
+    ATTEMPT_PARTS += ("_skills_attempt", "_recall_attempt")
+    METRIC_PARTS += ("_watch_metric",)
     END_STEPS = ("_finish_step", "_ship_step", "_done_gate")  # (tasks) -> None, "again", or a status to stop with
 
     def _hook(self, name: str, *a: Any, default: Any = None) -> Any:
@@ -345,8 +359,34 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             raise
         except Exception as e:  # noqa: BLE001 - a stage is a help
             self.emit("stage_error", {"stage": name, "error": str(e)[:300]})
+            try:
+                self._hook_fault(name, e)
+            except Exception:  # noqa: BLE001 - noting a fault never breaks the run
+                pass
             return default
         return default if got is None else got
+
+    def _hook_fault(self, name: str, error: Exception) -> None:
+        """A stage's hook failed (already in the events): noted for self-repair (a fault inside the harness only)."""
+        from ..improve import selfrepair
+        selfrepair.note(name, error)
+
+    def _system(self, system: str, name: str = "") -> str:
+        """The system prompt a model gets: ``system``, the repository's rules, then every SYSTEM_PARTS answer
+        for the prompt ``name`` (lines no learned prompt can drop, because they are never stored in one)."""
+        text = self._with_repo_rules(system)
+        for part_name in self.SYSTEM_PARTS:
+            part = self._hook(part_name, name)
+            if part:
+                text = f"{text}\n\n{part}"
+        return text
+
+    def _part_tools(self, box: Toolbox, role: RoleSpec) -> None:
+        """The stages' own tools (TOOL_PARTS) for ``role``; a tool already in the box is kept."""
+        for part_name in self.TOOL_PARTS:
+            for tool in self._hook(part_name, role) or []:
+                if tool.spec.name not in box.tools:
+                    box.add(tool)
 
     def _end_steps(self, tasks: list[Task]) -> str | None:
         """Every task is done: the end steps in order (start it, ship it, the done gate). The first that
@@ -857,6 +897,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             self._hook(name, schema)
         box = self.ws.toolbox(READ_ONLY)
         websearch.add_tools(box, self.cfg, role, self.emit, self.project.root)  # the planner may look things up
+        self._part_tools(box, role)
         box.add(Tool(
             ToolSpec("submit_plan", "Submit the plan: the plan document and its tasks. Call exactly once when complete.",
                      schema),
@@ -1279,7 +1320,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 last = last or ProviderError(f"{ref} was skipped: no credit or its limit is reached")
                 continue
             try:
-                res = run_agent(self.cfg, ref, self._with_repo_rules(system), prompt, box, self.budget,
+                res = run_agent(self.cfg, ref, self._system(system, role.prompt), prompt, box, self.budget,
                                 max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
                                 options=role.options, require_terminal=require, on_event=self.emit,
                                 saver=self._saver(), role=role.name)
@@ -1378,6 +1419,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         box = self.ws.toolbox(REVIEW_TOOLS)
         self._add_mcp_tools(box, reviewer)
         websearch.add_tools(box, self.cfg, reviewer, self.emit, self.project.root)
+        self._part_tools(box, reviewer)
         game = self._game_tool()
         if game is not None:
             box.add(game)
@@ -1557,6 +1599,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             box = self.ws.toolbox(role.tools)
             self._add_mcp_tools(box, role)
             websearch.add_tools(box, self.cfg, role, self.emit, self.project.root)
+            self._part_tools(box, role)
             if "write_file" in box.tools or "edit_file" in box.tools or "run_game" in (role.tools or []):
                 game = self._game_tool()  # a Godot game: the coder can start it and see its errors
                 if game is not None:
@@ -1564,7 +1607,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             box.add(Tool(ToolSpec("finish_task", "Call when the task is complete.",
                                   _obj({"summary": {"type": "string"}}, ["summary"])), finish_task, terminal=True))
             try:
-                res = run_agent(self.cfg, ref, self._with_repo_rules(self.cfg.prompt_text(role.prompt)),
+                res = run_agent(self.cfg, ref, self._system(self.cfg.prompt_text(role.prompt), role.prompt),
                                 self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
@@ -1696,6 +1739,15 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         roots = {Path(r).resolve() for r in project_dirs(self.cfg)} | {self.project.root.resolve()}
         total = 0.0
+        lab_dir = self.base_cfg.lab_dir
+        if lab_dir and Path(lab_dir).is_dir():  # what learning spent today counts too (wave 7, wallet.py)
+            from ..improve import wallet
+            from ..improve.lab import Lab
+
+            try:
+                total += float(wallet.spent_today(Lab(lab_dir)) or 0)
+            except Exception:  # noqa: BLE001 - a missing number never stops a run
+                pass
         for root in roots:
             try:
                 rows = (root / ".harness" / "spend.jsonl").read_text(encoding="utf-8").splitlines()
@@ -1713,17 +1765,25 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
     def _learn_after_run(self) -> None:
         """improve.after_each_run: look at what the runs showed and apply what the policy allows.
 
-        Rules only (no model calls, no replay tests, no probes), so it costs nothing; what changed goes
+        Rules only (no model calls, no replay tests, no probes), so it costs nothing, unless the owner set a
+        learning allowance: then tests and health checks are paid from it and stop at its cap; what changed goes
         into the journal as a decision, so the owner can read later what was switched and why.
         """
-        if not self.base_cfg.improve.get("after_each_run") or not self.base_cfg.lab_dir:
+        self._hook("_watch_after_run")  # the watch (wave 7) runs even when learning by itself is off
+        try:
+            from ..improve import wallet
+            paid = bool(self.base_cfg.lab_dir) and wallet.allowance(self.base_cfg) > 0
+        except Exception:  # noqa: BLE001 - a broken allowance setting means no paid learning
+            paid = False
+        if not (self.base_cfg.improve.get("after_each_run") or paid) or not self.base_cfg.lab_dir:
             return
         try:
             from ..improve.lab import Lab
             from ..improve.loop import cycle
 
             lab = Lab(self.base_cfg.lab_dir)
-            report = cycle(self.base_cfg.variant(), lab, use_llm=False, test=False, probe=False)
+            # with a learning allowance the tests and the health check are paid from it (improve/wallet.py)
+            report = cycle(self.base_cfg.variant(), lab, use_llm=False, test=paid, probe=paid, wallet=paid)
         except Exception as e:  # learning is a bonus; never fail a run over it
             self.emit("learn_failed", {"error": str(e)[:300]})
             return

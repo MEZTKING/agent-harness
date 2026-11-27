@@ -1,0 +1,17 @@
+id: b12-cli-flag
+version: 1
+job: builder
+tags:
+- python
+- cli
+- feature
+title: Count lines only
+description: 'wc.py prints "<lines> <words> <characters>" for a file: python wc.py notes.txt. Add a --lines
+  option (python wc.py --lines notes.txt) that prints only the number of lines. Without it, the output
+  stays as it is.'
+acceptance: python wc.py --lines FILE prints just the line count; python wc.py FILE is unchanged
+check:
+- run:
+  - '{python}'
+  - check_wc.py
+max_steps: 12

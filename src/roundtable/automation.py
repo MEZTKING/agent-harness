@@ -66,6 +66,7 @@ DAY_WORDS = {"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thur
              "sat": "Saturday", "sun": "Sunday"}
 KINDS = ("schedule", "issues", "ci")
 WHATS = ("idea", "goal", "health", "backup")
+WHATS += ("learn",)  # wave 7: learning within its weekly allowance (improve/wallet.py)
 CATCH_UP_H = 6.0  # a slot missed while the computer was off still fires this long after
 EARLY_S = 5  # a wake this close before a slot was that slot's
 POLL_MINUTES = 5.0
@@ -376,6 +377,14 @@ def every(cfg, home: Path) -> list[dict[str, Any]]:
             continue
         a["source"] = "settings"
         out.append(a)
+    from .improve import wallet  # the built-in weekly learning slot, only while there's an allowance
+
+    try:
+        extra = wallet.automation(cfg) if cfg else None
+    except Exception:  # noqa: BLE001 - a broken allowance setting means no learning slot
+        extra = None
+    if extra and not any(a["id"] == extra["id"] for a in out):
+        out.append(extra)
     return out
 
 
@@ -482,14 +491,25 @@ def what_words(a: dict[str, Any]) -> str:
         return "Checks that your models are working."
     if what == "backup":
         return "Backs up your settings and plans."
+    if what == "learn":
+        return "Learns from your past runs, within its weekly allowance."
     if what == "idea":
         return f"Plans a new project: “{a['do']['text'][:140]}”."
     return f"Plans the next goal for {_project_name(a['do']['project'])}: “{a['do']['text'][:140]}”."
 
 
-def money_words(a: dict[str, Any], st: dict[str, Any]) -> str:
+def money_words(a: dict[str, Any], st: dict[str, Any], cfg: Any = None) -> str:
     if a["kind"] == "schedule" and a["do"]["what"] == "backup":
         return "Costs nothing."
+    if a["kind"] == "schedule" and a["do"]["what"] == "learn":
+        if cfg is not None:
+            from .improve import wallet
+
+            try:
+                return wallet.money_words(cfg)
+            except Exception:  # noqa: BLE001
+                pass
+        return "Spends only learning's own weekly allowance."
     spent = float(st.get("spent_usd") or 0)
     if a["start_by_itself"]:
         left = max(0.0, a["cap_usd"] - spent)
@@ -512,15 +532,15 @@ def next_run(a: dict[str, Any], st: dict[str, Any], now: datetime) -> str | None
     return iso(due_slot(a, st, now) or next_slot(when, now))
 
 
-def view(a: dict[str, Any], st: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
+def view(a: dict[str, Any], st: dict[str, Any], now: datetime | None = None, cfg: Any = None) -> dict[str, Any]:
     """An automation as the page shows it."""
     now = now or utcnow()
     return {**a, "what": what_words(a), "when_words": when_words(a["when"]) if a["kind"] == "schedule" else
-            "Looks at GitHub every few minutes", "money": money_words(a, st),
+            "Looks at GitHub every few minutes", "money": money_words(a, st, cfg),
             "last_run": st.get("last_run"), "last_result": st.get("last_result") or "",
             "last_ok": st.get("last_ok", True), "next_run": next_run(a, st, now),
             "made": list(reversed(st.get("made") or []))[:10], "waiting": st.get("waiting") or [],
-            "spent_usd": round(float(st.get("spent_usd") or 0), 4), "editable": a.get("source") != "settings"}
+            "spent_usd": round(float(st.get("spent_usd") or 0), 4), "editable": a.get("source") not in ("settings", "builtin")}
 
 
 # -- the app's list: add, edit, switch, remove -------------------------------------------------------------
@@ -950,6 +970,14 @@ def act(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], approved: bool = Fals
     if what == "backup":
         ctx.start("backup", f"backup ({a['name']})", "backup", _backup_job(ctx, a))
         return {"id": a["id"], "name": a["name"], "text": "Backup started.", "ok": True}
+    if what == "learn":
+        from .improve import wallet
+
+        job = getattr(wallet, "job", None)  # filled in by the learning loop (wave 7); until then: not now
+        if not callable(job):
+            return None
+        ctx.start("improve", "learning", "improve", job(ctx, a))
+        return {"id": a["id"], "name": a["name"], "text": "Learning started.", "ok": True}
     return None
 
 
@@ -984,6 +1012,11 @@ def _run_schedule(ctx: Ctx, a: dict[str, Any], st: dict[str, Any], s: dict[str, 
     root = _target(ctx, item) if item["what"] == "goal" else None
     if root and _is_busy(ctx, root):
         return []  # tried again on the next tick, inside the catch-up window
+    if item["what"] == "learn":
+        from .improve import wallet
+
+        if wallet.busy(ctx):
+            return []  # learning never runs while a project builds: tried again inside the catch-up window
     if not claim(ctx.hub, a["id"], item["key"], _me(ctx.machine), ctx.lock):
         _update_state(ctx.home, a["id"], lambda x: x.update(last_slot=iso(slot)), ctx.machine)
         return []  # another machine (or this one before a restart) did this slot
@@ -1194,7 +1227,7 @@ def main(argv: list[str]) -> None:
     if not items:
         print("No automations yet. Add one on the Automations page of the app.")
     for a in items:
-        v = view(a, state.get(a["id"]) or {})
+        v = view(a, state.get(a["id"]) or {}, cfg=cfg)
         print(f"{a['id']}  {'on ' if a['on'] else 'off'}  {a['name']}\n    {v['what']} {v['when_words']}."
               f"\n    last: {v['last_run'] or 'never'} {v['last_result']}\n    next: {v['next_run'] or '-'}")
 

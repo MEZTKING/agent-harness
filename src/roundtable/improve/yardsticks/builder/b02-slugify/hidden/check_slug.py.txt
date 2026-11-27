@@ -1,0 +1,9 @@
+from textutil import slugify, title_case
+
+assert slugify("Hello, World!") == "hello-world", slugify("Hello, World!")
+assert slugify("  Many   spaces ") == "many-spaces"
+assert slugify("Already-slug") == "already-slug"
+assert slugify("Room 101 -- B") == "room-101-b"
+assert slugify("!!!") == ""
+assert title_case("hello there") == "Hello There"
+print("ok")

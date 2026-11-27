@@ -1,4 +1,4 @@
-# Handoff – 27 November 2026 (night)
+# Handoff – 27 November 2026 (late night, after wave 7)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -30,7 +30,9 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 | Beta in 1.1.0 | Only tried against stand-ins: a real Godot play, real EXE/APK/mod builds and starts, real browser journeys and the App tab's frame on Windows, the phone's done card and stage strip on a real phone |
 | Wave 6 → **1.2.0** | **Ready, not released**, on branch `d3-integrate` (on top of 1.1.0): every model at once – the checking dial (Lean, Balanced, Maximum, priced on the plan, its own allowance), rivals on hard tasks, checkers from other makers who must quote what's broken, the router and Strengths, rival planners under Maximum, named agents, limits per service and job, "who has seen this project", `makers_allowed`. All tests green; DEVLOG has every hook-up and the 10 % figures |
 | Beta in 1.2.0 | Only scripted so far: the real cost of the extra checking against the estimate, how often a checker must be asked again, real pickers and councils, OpenRouter's picture size, the phone's checking buttons on a real phone. The six starter faces are not made yet (initials show) |
-| Waves 7–9 | Planned (PLAN.md's table): it learns, the parity sweep, the rows once declined |
+| Wave 7 → **1.3.0** | **Ready, not released**, on branch `d4-integrate` (on top of 1.2.0 and wave 7's step 0): it learns – learning's own weekly allowance (the owner chose $2), the yardstick of practice tasks, the watch that undoes a clear drop, What it learned with Undo (desktop and phone), the charter and the house style, plug-ins in their own box, Make one and the list of plug-ins and skills, search by meaning and your documents, Who knows what, sharing between machines, self-repair as a draft pull request. All tests green; DEVLOG has every hook-up |
+| Beta in 1.3.0 | Only scripted so far: the real cost of a cycle on $2, the frozen `--python` and `--plugin-box` starts and the Job Object on Windows, real sharing between the PC and the phone, a real self-repair |
+| Waves 8–9 | Planned (PLAN.md's table): the parity sweep, the rows once declined |
 | Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
 | Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
 
@@ -53,9 +55,16 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
    10 % figures in DEVLOG); then release after 1.1.0.
 5. At 1.2.0: remove the old-name starter (`packaging/old_name_starter.py`, the spec's second
    EXE, the installer lines) and point `upgrade-test` at the last 1.x installer.
-6. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending), Ask me
-   first on the phone, owner to-dos that leave the app, window pictures of an EXE and an emulator the
-   harness starts (moved to wave 8). Wave 7: the lab learning from `reviews.jsonl` and the tag stats.
+6. Wave 7 / 1.3.0 (branch `d4-integrate`): release after 1.2.0. Before or soon after: on the owner's PC through
+   Remote Control, the frozen app's `--python -m pytest` and `--plugin-box`, the Job Object test
+   (`test_windows_job_object_allows_one_process`) and one boxed plug-in trying the internet; one small real
+   learning cycle on the $2 (balance before and after; write the real cost of one test in DEVLOG); the
+   LearnedCard and its Undo on the phone by USB.
+7. Wave 8: the parity sweep (`plans/parity.md`: 9 missing, 32 partly), plus window pictures of an EXE and an
+   emulator the harness starts, sound and music. Wave 9: the rows once declined.
+8. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending), Ask me first on the phone,
+   owner to-dos that leave the app, and wave 7's open items (real cost, frozen modes, embeddings and PDFs, the
+   phone's documents).
 
 ## 4. Where to read more
 

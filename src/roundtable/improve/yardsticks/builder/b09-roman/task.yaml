@@ -1,0 +1,15 @@
+id: b09-roman
+version: 1
+job: builder
+tags:
+- python
+- feature
+title: Roman numerals
+description: Write to_roman(n) in roman.py for whole numbers 1 to 3999 (4 is IV, 1994 is MCMXCIV). Anything
+  outside that range raises ValueError.
+acceptance: to_roman gives the standard numerals from 1 to 3999 and raises ValueError outside
+check:
+- run:
+  - '{python}'
+  - check_roman.py
+max_steps: 12

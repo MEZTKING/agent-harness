@@ -34,7 +34,10 @@ EXTRA = {"id": "F1", "title": "fix", "role": "coder", "description": "write f1.t
 
 HOOKS = (*Orchestrator.PLAN_PARTS, *Orchestrator.SCHEMA_PARTS, *Orchestrator.DOC_PARTS, *Orchestrator.WORKER_PARTS,
          *Orchestrator.ESTIMATE_PARTS, *Orchestrator.END_STEPS, "_stage_ready", "_unstick_task", "_unstick_end",
-         "_money_agreed", "_money_gate", "_money_charge")
+         "_money_agreed", "_money_gate", "_money_charge",
+         # wave 7: the system parts (charter, house style), the stages' tools, attempt and metric parts, the watch
+         *Orchestrator.SYSTEM_PARTS, *Orchestrator.TOOL_PARTS, *Orchestrator.ATTEMPT_PARTS, *Orchestrator.METRIC_PARTS,
+         "_watch_after_run")
 
 
 from roundtable.harness.agentstage import AgentStage  # noqa: E402
@@ -44,9 +47,14 @@ from roundtable.harness.panel import PanelStage  # noqa: E402
 from roundtable.harness.rivals import RivalsStage  # noqa: E402
 from roundtable.harness.router import RouterStage  # noqa: E402
 from roundtable.harness.usage import UsageStage  # noqa: E402
+from roundtable.harness.charterstage import CharterStage  # noqa: E402
+from roundtable.harness.recallstage import RecallStage  # noqa: E402
+from roundtable.harness.skillstage import SkillStage  # noqa: E402
+from roundtable.improve.canary import WatchStage  # noqa: E402
 # wave 6's stages (models in tandem) first, then wave 5's
 STAGES = (UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
-          MoneyStage, DoneStage, PrepStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage)
+          MoneyStage, DoneStage, PrepStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
+          WatchStage, CharterStage, SkillStage, RecallStage)  # wave 7's
 # the Orchestrator's own methods over the stages that were there before wave 5 (it uses no zero-argument super)
 Seam = type("Seam", tuple(b for b in Orchestrator.__bases__ if b not in STAGES),
             {k: v for k, v in vars(Orchestrator).items() if k not in ("__dict__", "__weakref__")})

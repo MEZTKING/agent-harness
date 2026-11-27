@@ -372,6 +372,9 @@ def decide(orch, ask: dict[str, Any], state: dict[str, Any], now: datetime | Non
         return _decide_failed(orch, ask)
     if kind == "money":
         return None, "money pauses always wait for you: autopilot never raises a limit or spends more"
+    if kind in ("learning", "selfrepair", "selfrepair_done") or ask.get("pause") == "learning":
+        # learning's weekly allowance and fixes to the harness's own code are the owner's alone (wave 7)
+        return None, "learning's allowance and fixes to the harness itself always wait for you"
     if kind == "not_finished":  # "Try fixing again" at most once, within its money; never "Accept as it is"
         from .harness.donestage import decide_not_finished
 
