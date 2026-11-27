@@ -65,6 +65,7 @@ const speech = () => window.SpeechRecognition || window.webkitSpeechRecognition 
 
 // opts: key (the draft's name, e.g. "new-idea" or "chat:<project>"), project (a project's path: @ lists its files),
 // placeholder, label, rows, modes (show Next task / Now), sendLabel, textless (only pictures and files),
+// noFiles (words only: drafts and Speak, no Attach, paste or drop – a letter),
 // onSend({text, mode, key, items}) -> resolves when sent (the box is then cleared), hint (a line under the box)
 export function composer(opts = {}) {
   style();
@@ -76,7 +77,7 @@ export function composer(opts = {}) {
   const saved = h("span", { class: "compose-saved muted", title: "What you write is kept, even if you close the app, until you send it." });
   const at = h("ul", { class: "compose-at", role: "listbox", hidden: true, "aria-label": "Files in the project" });
   const input = h("input", { type: "file", multiple: true, hidden: true, onchange: () => { addFiles([...input.files]); input.value = ""; } });
-  const attach = h("button", { type: "button", class: "small", title: "Add pictures or files. You can also paste a picture or drop files on the box.",
+  const attach = opts.noFiles ? null : h("button", { type: "button", class: "small", title: "Add pictures or files. You can also paste a picture or drop files on the box.",
     onclick: () => input.click() }, "Attach");
   const mic = speech() && !opts.textless ? h("button", { type: "button", class: "small mic", "aria-pressed": "false",
     title: "Speak instead of typing. Your words appear in the box; nothing is sent until you press Send. Your computer's speech service turns speech into words.",
@@ -135,6 +136,7 @@ export function composer(opts = {}) {
     return r.draft;
   }
   async function addFiles(list) {
+    if (!attach) return;  // words only
     attach.disabled = true;
     try { for (const f of list) { const d = await addOne(f); if (d) show(d); } }
     catch (e) { toast(e.message, true); }
@@ -144,12 +146,13 @@ export function composer(opts = {}) {
     try { show(await post("/api/attach/remove", { key, id })); } catch (e) { toast(e.message, true); }
   }
   area.addEventListener("paste", (ev) => {
+    if (!attach) return;
     const pics = [...(ev.clipboardData ? ev.clipboardData.files : [])];
     if (pics.length) { ev.preventDefault(); addFiles(pics); }
   });
-  root.addEventListener("dragover", (ev) => { ev.preventDefault(); root.classList.add("drop"); });
+  root.addEventListener("dragover", (ev) => { if (!attach) return; ev.preventDefault(); root.classList.add("drop"); });
   root.addEventListener("dragleave", () => root.classList.remove("drop"));
-  root.addEventListener("drop", (ev) => { ev.preventDefault(); root.classList.remove("drop"); addFiles([...ev.dataTransfer.files]); });
+  root.addEventListener("drop", (ev) => { if (!attach) return; ev.preventDefault(); root.classList.remove("drop"); addFiles([...ev.dataTransfer.files]); });
 
   // -- @file --
   async function lookAt() {

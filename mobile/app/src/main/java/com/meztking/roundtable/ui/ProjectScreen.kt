@@ -346,11 +346,16 @@ private fun PlanButtons(sent: Map<String, String>, a: ProjectActions, pending: B
             var problem by remember { mutableStateOf<String?>(null) }
             Composer(
                 key = "note:${a.path}",
-                onSend = { d, read -> box.send(d, a.path, "note", read) },
+                onSend = { d, read ->
+                    // the words wait in the plan for Update plan; pictures and files go to the planner with them
+                    if (d.text.isBlank()) throw com.meztking.roundtable.data.ComposerProblem("Write what should change first.")
+                    a.command("note:${d.text.hashCode()}", "note", mapOf("text" to d.text.trim()))
+                    if (d.files.isNotEmpty()) box.send(d, a.path, "note", read) else "Noted."
+                },
                 onSent = { writing = false; problem = null; a.refresh() },
                 onProblem = { problem = it },
                 sender = box, project = a.path,
-                placeholder = "What should change?", sendLabel = "Add this note", showDelivery = true,
+                placeholder = "What should change?", sendLabel = "Add this note",
             )
             problem?.let { Text(it, color = Hall.bad, style = MaterialTheme.typography.bodySmall) }
             Text("Your notes and answers wait until you press Update plan.", style = MaterialTheme.typography.bodySmall, color = Hall.muted)

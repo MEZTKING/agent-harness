@@ -10,6 +10,7 @@ import { planTab } from "./plan.js";
 import { watchTab, appTab } from "./watch.js";
 import { journalTab, notesPage } from "./journal.js";
 import { filesTab } from "./files.js";
+import { composer } from "./compose.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
@@ -74,9 +75,12 @@ function moveOn(s) {
     if (s.status === "running") out.push(h("a", { class: "btn primary", href: projectHref(s.id, "watch") }, h("i", { class: "cdl" }), "Watch it work"));
     if (["done", "idle"].includes(s.status) && !(s.actions || []).length) out.push(h("button", { class: s.status === "done" ? "primary" : "", title: "Give it a new goal: the planner adds tasks for it, then builds them",
       onclick: async (ev) => {
-        const goal = await dialog({ title: "Add to this project", text: "What should it do next? The planner adds tasks for it, then builds them.", yes: "Add and build",
-          input: { rows: 4, placeholder: "e.g. add a page with the opening hours" } });
-        if (goal && goal.trim()) act(ev.currentTarget, () => post("/api/project", { path: s.path, action: "extend", goal: goal.trim() }), "Added: the planner is on it", () => { location.hash = projectHref(s.id, "watch"); });
+        const box = composer({ key: `goal:${s.path}`, project: s.path, rows: 4, label: "What it should do next",
+          placeholder: "e.g. add a page with the opening hours. Add a sketch or a file if it helps." });
+        const yes = await dialog({ title: "Add to this project", text: "What should it do next? The planner adds tasks for it, then builds them.", yes: "Add and build", body: box, wide: true });
+        const goal = box.composer.text().trim();
+        if (yes && goal) act(ev.currentTarget, async () => { await box.composer.saveNow(); return post("/api/attach/send", { key: box.composer.key, path: s.path, as: "goal", text: goal }); },
+          "Added: the planner is on it", () => { location.hash = projectHref(s.id, "watch"); });
       } }, "Add to it"));
     return out;
   }
@@ -171,7 +175,7 @@ function moneyCard(d, plan) {
 }
 
 // talk to the planner: ask about the project, or give an instruction for the next tasks
-let draft = "", steer = false;
+let steer = false;  // Ask or Instruct, kept between visits
 function chatCard(seat) {
   const log = h("div", { class: "chat", role: "log", "aria-live": "polite" });
   let pending = null, history = [];
@@ -184,25 +188,23 @@ function chatCard(seat) {
   const msg = (m) => h("div", { class: "msgl " + (m.who === "owner" ? "you" : "orc") + (m.steer ? " steer" : "") },
     h("small", {}, m.who === "owner" ? (m.steer ? "You · instruction" : "You") : "Planner", m.at ? ` · ${ago(m.at)}` : ""), h("div", { class: "body" }, m.text),
     m.steer && m.who === "owner" ? h("div", { class: "steer-note" }, "The next tasks follow this") : null);
-  const input = h("textarea", { rows: 2, class: "grow", "aria-label": "Your message", oninput: (ev) => { draft = ev.target.value; } });
-  input.value = draft;
-  const send = h("button", { class: "primary", type: "submit" }, "Send");
+  // the message box (compose.js): pictures, files, @, Speak; an instruction can reach the task working now
+  const box = composer({ key: `chat:${seat.path}`, project: seat.path, rows: 2, label: "Your message", modes: true,
+    placeholder: "A question about this project, or an instruction for the next tasks",
+    onSend: async ({ text, key, mode }) => {
+      if (pending) return;
+      pending = { text, steer }; draw();
+      try {
+        const r = await post("/api/attach/send", { key, path: seat.path, as: steer ? "note" : "chat", mode, text });
+        if (steer) toast(r.reply || "Noted: the next tasks follow it");
+      } finally { pending = null; await load(); }
+    } });
   const mode = h("div", { class: "seg", role: "group", "aria-label": "Kind of message" });
-  const setMode = (v) => { steer = v; input.placeholder = v ? "An instruction for the next tasks" : "A question about this project";
-    fill(mode, [[false, "Ask", "A question: the planner answers, nothing changes"], [true, "Instruct", "An instruction: the next tasks follow it"]].map(([k, t, tip]) =>
+  const setMode = (v) => { steer = v;
+    fill(mode, [[false, "Ask", "A question: the planner answers, nothing changes"], [true, "Instruct", "An instruction: the next tasks follow it (Now: the task working now too)"]].map(([k, t, tip]) =>
       h("button", { type: "button", class: k === v ? "on" : "", "aria-pressed": String(k === v), title: tip, onclick: () => setMode(k) }, t))); };
   setMode(steer);
-  input.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); form.requestSubmit(); } });
-  const form = h("form", { class: "compose", onsubmit: async (ev) => {
-    ev.preventDefault();
-    const text = input.value.trim();
-    if (!text || pending) return;
-    pending = { text, steer }; input.value = ""; draft = ""; send.disabled = true; draw();
-    try { await post("/api/chat", { path: seat.path, message: text, steer }); if (steer) toast("Noted: the next tasks follow it"); }
-    catch (e) { toast(e.message, true); input.value = text; draft = text; }
-    pending = null; send.disabled = false;
-    await load();
-  } }, mode, h("div", { class: "row" }, input, send));
+  const form = h("div", { class: "stack" }, mode, box);
   const load = async () => { try { history = await get(`/api/chat?${q({ path: seat.path })}`); } catch { history = history || []; } draw(); };
   load();
   return card("Talk to the planner", log, form);
