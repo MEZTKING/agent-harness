@@ -17,6 +17,7 @@ import json
 from datetime import datetime, timezone
 import os
 import subprocess
+import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -32,6 +33,7 @@ from .repostage import RepoStage
 from .safeenv import clean_env
 from .saver import TokenSaver
 from .showstage import ShowStage
+from .worktrees import ParallelStage, Worktrees
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
 from .config import HarnessConfig, ModelRef, RoleSpec
 from ..providers.base import ToolSpec
@@ -58,6 +60,7 @@ class Task:
     base_commit: str | None = None  # project state the task started from (for replays)
     section: str = ""  # the plan's spec section (or decision) this task belongs to
     stronger: bool = False  # the owner asked to retry it with the Quality setting's model
+    merge_of: str = ""  # a fix-up task: brings in this task's changes, which clashed (worktrees.py)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -67,6 +70,9 @@ class Task:
 
 class HarnessError(RuntimeError):
     pass
+
+
+_IO_LOCK = threading.RLock()  # several tasks at once write the same .harness files (worktrees.py)
 
 
 class Project:
@@ -85,10 +91,11 @@ class Project:
         return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else default
 
     def _write(self, name: str, data) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        tmp = self.dir / f".{name}.tmp"
-        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        tmp.replace(self.dir / name)
+        with _IO_LOCK:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            tmp = self.dir / f".{name}.tmp"
+            tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            tmp.replace(self.dir / name)
 
     def meta(self) -> dict[str, Any]:
         return self._read("project.json", {})
@@ -111,9 +118,11 @@ class Project:
         (self.dir / "plan.md").write_text(plandoc.render_markdown(doc, goal_tasks) + "\n", encoding="utf-8")
 
     def append(self, name: str, row: dict[str, Any]) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        with open(self.dir / name, "a", encoding="utf-8") as f:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        line = json.dumps(row, ensure_ascii=False) + "\n"
+        with _IO_LOCK:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            with open(self.dir / name, "a", encoding="utf-8") as f:
+                f.write(line)
 
     def saved_tokens_est(self) -> int:
         """Tokens the token saver kept out of the task conversations so far (an estimate)."""
@@ -189,13 +198,15 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
+class Orchestrator(ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage):
     def __init__(
         self,
         cfg: HarnessConfig,
         project_dir: str | Path,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ):
+        self._tl = threading.local()  # the task this thread runs: its id, worktree and Workspace (worktrees.py)
+        self._lock = threading.RLock()
         self.base_cfg = cfg
         self.project = Project(project_dir)
         self.cfg = self._settle_cfg(cfg.for_profile(self.profile()))
@@ -211,6 +222,15 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
         self._last_real_check = 0.0
         self._mcp = None  # the MCP servers' clients for this run (mcp_tools.MCPPool), started on first use
         self.mcp_allowed = True  # off for the lab's replays: they must not drive the owner's open editor
+
+    @property
+    def ws(self) -> Workspace:
+        """The Workspace the tools write in: the running task's worktree when tasks run at once."""
+        return getattr(self._tl, "ws", None) or self._ws
+
+    @ws.setter
+    def ws(self, value: Workspace) -> None:
+        self._ws = value
 
     # -- MCP servers -----------------------------------------------------------
     def _add_mcp_tools(self, box: Toolbox, role: RoleSpec) -> None:
@@ -232,34 +252,40 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
 
     # -- logging -------------------------------------------------------------
     def emit(self, kind: str, data: dict[str, Any]) -> None:
-        row = {"at": utcnow(), "event": kind, **data}
-        self.project.append("events.jsonl", row)
-        if self._live is not None:  # watched from the other machine (sync.py)
-            self._live.add(kind, row)
-        plugins_notify(self.cfg, kind, data, self.project.root, self.emit)
-        if self._listener:
-            self._listener(kind, data)
+        tid = getattr(self._tl, "task", None)
+        if tid and "task" not in data:  # every event of a task says which (Watch shows several at once)
+            data = {"task": tid, **data}
+        with self._lock:
+            row = {"at": utcnow(), "event": kind, **data}
+            self.project.append("events.jsonl", row)
+            if self._live is not None:  # watched from the other machine (sync.py)
+                self._live.add(kind, row)
+            plugins_notify(self.cfg, kind, data, self.project.root, self.emit)
+            if self._listener:
+                self._listener(kind, data)
 
     def _save_spend(self) -> None:
-        meta = self.project.meta()
-        meta["spent_usd"] = round(self.budget.spent_usd, 6)
-        meta["unpriced_calls"] = self.budget.unpriced_calls
-        self.project.save_meta(meta)
+        with self._lock:
+            meta = self.project.meta()
+            meta["spent_usd"] = round(self.budget.spent_usd, 6)
+            meta["unpriced_calls"] = self.budget.unpriced_calls
+            self.project.save_meta(meta)
 
     def _set_status(self, status: str, **extra: Any) -> None:
-        meta = self.project.meta()
-        if not status.startswith("paused"):
-            meta.pop("pause", None)  # why it last paused: only while it is paused
-        meta.update(status=status, updated_at=utcnow(), **extra)
-        self.project.save_meta(meta)
+        with self._lock:
+            meta = self.project.meta()
+            if not status.startswith("paused"):
+                meta.pop("pause", None)  # why it last paused: only while it is paused
+            meta.update(status=status, updated_at=utcnow(), **extra)
+            self.project.save_meta(meta)
         self.emit("status", {"status": status, **extra})
 
     # -- git -------------------------------------------------------------------
-    def _git(self, *args: str, check: bool = True) -> str:
+    def _git(self, *args: str, check: bool = True, cwd: Path | None = None) -> str:
         res = subprocess.run(
             ["git", "-c", "user.name=agent-harness", "-c", "user.email=harness@localhost",
              "-c", "commit.gpgsign=false", *args],
-            cwd=self.project.root, capture_output=True, text=True,
+            cwd=cwd or self.project.root, capture_output=True, text=True,
             env=clean_env(),  # a hook a worker wrote runs without the owner's keys
         )
         if check and res.returncode != 0:
@@ -296,11 +322,12 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
     def _diff(self) -> str:
         if not self.cfg.git or not (self.project.root / ".git").exists():
             return "(git disabled - inspect files directly)"
-        self._git("add", "-A", check=False)
-        has_head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=self.project.root,
+        root = self._work_root()  # the task's own worktree when tasks run at once
+        self._git("add", "-A", check=False, cwd=root)
+        has_head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=root,
                                   capture_output=True, env=clean_env()).returncode == 0
-        diff = self._git("diff", "--cached", *(["HEAD"] if has_head else []), check=False)
-        self._git("reset", "-q", check=False)
+        diff = self._git("diff", "--cached", *(["HEAD"] if has_head else []), check=False, cwd=root)
+        self._git("reset", "-q", check=False, cwd=root)
         if len(diff) > MAX_DIFF:
             diff = diff[:MAX_DIFF] + f"\n... [diff truncated, {len(diff) - MAX_DIFF} more chars - read files directly]"
         return diff or "(no changes)"
@@ -1025,7 +1052,7 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
 
     def _saver(self) -> TokenSaver:
         """A fresh token saver for one conversation; originals spill into .harness/spill."""
-        return TokenSaver(self.cfg.token_saver, self.project.root, on_event=self.emit)
+        return TokenSaver(self.cfg.token_saver, self._work_root(), on_event=self.emit)
 
     def _worker_prompt(self, task: Task, tasks: list[Task], feedback: list[str]) -> str:
         deps = [t for t in tasks if t.id in task.depends_on]
@@ -1451,6 +1478,10 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
             stop = self._prepare_run()  # the project's settings, setup and the checks' baseline
             if stop:
                 return stop
+            if self._parallel_width() > 1:  # several tasks at once, each in its own worktree (worktrees.py)
+                self._git_commit("harness: snapshot before task")  # worktrees branch from a commit
+                if self._head():
+                    return self._run_parallel(max_tasks)
 
             executed = finished_this_run = 0
             while True:
@@ -1508,7 +1539,11 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
                 self.emit("task_start", {"task": task.id, "title": task.title, "role": task.role,
                                          "index": next(i for i, t in enumerate(tasks, 1) if t is task),
                                          "total": len(tasks)})
-                ok = self._run_task(task, tasks)
+                self._tl.task = task.id  # its events say which task they belong to
+                try:
+                    ok = self._run_task(task, tasks)
+                finally:
+                    self._tl.__dict__.pop("task", None)
                 task.status = "done" if ok else "failed"
                 self.project.save_tasks(tasks)
                 self.emit("task_end", {"task": task.id, "status": task.status, "summary": task.summary[:500]})
@@ -1667,6 +1702,15 @@ class Orchestrator(RepoStage, LookStage, ReferenceStage, ShowStage):
             raise HarnessError(f"no task {task_id!r}")
         if t.status in ("done", "running"):
             raise HarnessError(f"task {task_id} is {t.status}; only a failed or waiting task can be accepted")
+        trees = Worktrees(self.project.root)
+        if self.cfg.git and trees.exists(t.id):  # it ran in a worktree of its own: bring its work in
+            self._git_commit("harness: snapshot before task")
+            trees.commit(t.id, f"[{t.id}] {t.title} (accepted by the owner)")
+            merged = trees.merge_into_project(t.id, f"[{t.id}] {t.title} (accepted by the owner)")
+            if not merged.ok:
+                raise HarnessError(f"task {t.id}'s work clashes with work done since ({', '.join(merged.conflicts[:5])}): "
+                                   "try it again instead, so it starts from the project as it is now")
+            self._tidy_worktree(t.id, trees)
         t.status = "done"
         t.summary = f"Accepted by the owner{': ' + note if note else ''}. " + (t.summary or "")
         self.project.save_tasks(tasks)

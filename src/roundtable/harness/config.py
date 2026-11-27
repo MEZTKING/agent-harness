@@ -618,6 +618,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             max_usd_per_day=float(lim.get("max_usd_per_day", 0) or 0),
             command_timeout=int(lim.get("command_timeout", 120)),
             max_scout_steps=int(lim.get("max_scout_steps", 30)),
+            max_parallel=max(1, int(lim.get("max_parallel", 1) or 1)),
         ),
         allow_shell=bool(ws.get("allow_shell", True)),
         git=bool(ws.get("git", True)),

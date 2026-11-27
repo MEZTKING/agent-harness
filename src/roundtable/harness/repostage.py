@@ -337,14 +337,26 @@ class RepoStage:
         self.emit("baseline", {"command": values["test"], "passed": base["passed"], "failing": len(base["failing"])})
         return base
 
+    def _work_root(self) -> Path:
+        """Where the task running in this thread works: its worktree, else the project's folder."""
+        tl = getattr(self, "_tl", None)
+        return getattr(tl, "root", None) or self.project.root
+
+    def _checks_baseline(self) -> dict[str, Any] | None:
+        """The checks' starting point for this thread's task: its worktree's, else the repository's."""
+        tl = getattr(self, "_tl", None)
+        own = getattr(tl, "baseline", None)
+        return own if own is not None else self.project.meta().get("baseline")
+
     def _task_checks(self, task) -> dict[str, Any] | None:
         """Run the test command after a task; ``blame`` when it broke something that worked before the run."""
         values = self.project_settings().values
         if not values.get("test"):
             return None
-        res = checkslib.run(self.project.root, values["test"], values["env"], values["timeout"])
+        # with several tasks at once, the task's own worktree and the baseline taken there (worktrees.py)
+        res = checkslib.run(self._work_root(), values["test"], values["env"], values["timeout"])
         now = checkslib.summarise(res)
-        base = self.project.meta().get("baseline")
+        base = self._checks_baseline()
         cmp = checkslib.compare(base, now)
         cmd = values["test"]
         verdict = cmp["verdict"]
