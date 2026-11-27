@@ -7,9 +7,11 @@ match: [windows, exe, desktop app, pc program, program for my pc]
 needs: [node]
 targets: [exe]
 pc_only: true
-task: "Add a last task that wraps the finished web app as a Windows program (an Electron or similar shell), builds it and puts the .exe in dist/."
+task: "Add a last task that wraps the finished web app as a Windows program (an Electron or similar shell) with an npm script called dist that builds one portable .exe (it runs without installing) into dist/ (npm run dist; no code signing)."
 plan:
   dont:
     - {text: "No code signing certificate bought", why: "That costs money: the owner decides"}
 proof:
   - {id: exe_built, how: file_exists, path: "dist/*.exe", words: "The EXE was built"}
+ship: {build: "npm install && npm run dist", artefact: "dist/*.exe", smoke: start, needs: [node], os: [windows],
+       target: exe}

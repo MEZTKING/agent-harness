@@ -18,11 +18,11 @@ code, for builders.
 
 | Project | Features | Have | Partly | Missing | Not wanted |
 |---|---|---|---|---|---|
-| Munder Difflin | 92 | 50 | 25 | 9 | 8 |
-| DSH Mobile + the DeepSeek Harness | 80 | 52 | 16 | 5 | 7 |
-| **Both** | **172** | **102** | **41** | **14** | **15** |
+| Munder Difflin | 92 | 52 | 23 | 9 | 8 |
+| DSH Mobile + the DeepSeek Harness | 80 | 54 | 14 | 5 | 7 |
+| **Both** | **172** | **106** | **37** | **14** | **15** |
 
-*Statuses refreshed for 0.12.0 (27 November 2026), after waves 1–3; each changed row names its wave. When
+*Statuses refreshed for 1.1.0 (27 November 2026), after waves 1–5; each changed row names its wave. When
 this list was first written (0.9.0) the count was 47 have, 55 partly, 55 missing.*
 
 In one sentence: Roundtable is ahead on planning, proof, money and the phone-and-PC link, and behind
@@ -50,7 +50,7 @@ it's first in the ranking below.
 | MD-05 | Hire an agent: name, role, model, face | A person-like agent you can name and keep | `components/AddAgentModal.tsx`, `src/shared/hire.ts` | **Partly**: jobs (roles) with plain names in Models (`routing.py`); no agent that keeps a name, face and memory across projects |
 | MD-06 | Agent Gallery and shareable hires | Ready-made agents to browse; share one as a file or link | `src/shared/hire.ts` (`hire@1` manifest, `munderdifflin://hire` link), `docs/hires/` | **Have** (on trial): kinds as folders of data, shared as `.rtkind` files, and the Gallery of finished work (`kinds/`, `static/gallery.js`, the phone's Gallery; wave 3) |
 | MD-07 | Temps: an agent hired for one job | Spawned for a task, torn down after | `src/shared/tempAgent.ts` | **Have**: every task is a fresh model conversation (`harness/agent.py` `run_agent`) |
-| MD-08 | A prep assistant ("Dwight") | Gathers repo context and rewrites your request before the orchestrator sees it | `src/shared/broadcast.ts`, CHANGELOG "Dwight" | **Partly**: the repo's rules, references and the critic (`harness/reporules.py`, `scout.py`, `orchestrator._critique`); nothing rewrites the idea first |
+| MD-08 | A prep assistant ("Dwight") | Gathers repo context and rewrites your request before the orchestrator sees it | `src/shared/broadcast.ts`, CHANGELOG "Dwight" | **Have** (wave 5): before planning, the idea is tidied into a brief (what it is, who it's for, what's implied, what's unclear) on the planner's model, capped at 5 cents; your words stay the goal, the brief sits under More and anything it adds becomes ideas (`harness/prep.py`, `donestage.py`) |
 | MD-09 | Prefer an agent that already fits | Routes to an existing agent by name or fit before hiring | CHANGELOG "Orchestrator delegates opportunistically" | **Have**: tasks go to roles by kind of job (`harness/config.py` roles) |
 | MD-10 | Agent-to-agent mail | Agents ask and tell each other things | `src/main/hive.ts` (outbox → inbox) | **Have**: hub messages (`hub/service.py`, MCP `hub_send`, `hub_reply`) |
 | MD-11 | Message types, threads, hop cap, bounce | Stops two agents ping-ponging; mail to nobody comes back | `HIVE.md` §4, `src/shared/broadcast.ts`, test `hive-hop-cap` | **Partly**: kinds and threads (`hub/service.py`, `core/models.py`); no hop cap, no bounce |
@@ -66,7 +66,7 @@ it's first in the ranking below.
 | MD-21 | Safe worktree clean-up | A worktree with uncommitted work is kept, and says why | `src/shared/worktreeFate.ts`, `worktreeList.ts` | **Have**: a worktree goes only when merged and clean, with its reason kept (wave 1; the daily tidy-up, wave 2) |
 | MD-22 | Dependencies linked into worktrees | A new worktree doesn't reinstall `node_modules` | `src/main/worktreeDeps.ts` | **Partly**: each worktree runs the project's setup (`worktrees._lane_baseline`, wave 1); nothing is linked in |
 | MD-23 | Restore the team after a restart | One click brings every agent back where it was | `src/main/lastSessionSave.ts`, `src/shared/resumeStore.ts` | **Have**: a run resumes from `.harness/` exactly where it stopped (`orchestrator.py`) |
-| MD-24 | Handoff per piece of work | Each agent writes what it did, so the next one picks up | `src/shared/handoff.ts`, `src/main/handoffJob.ts` | **Partly**: the hub journal's "where was I" and session-end hooks (`hub/journal.py`, `connect.py`), the repo's HANDOFF read (`reporules.py`); a task that splits doesn't leave a written handoff for the next |
+| MD-24 | Handoff per piece of work | Each agent writes what it did, so the next one picks up | `src/shared/handoff.ts`, `src/main/handoffJob.ts` | **Have** (wave 5): every retry, split or re-plan of a stuck task gets a written handover (attempts, last review, files changed, what's left) that the next worker reads (`harness/handoff.py`, `unstick.py`); also the hub journal and the repo's HANDOFF as before |
 | MD-25 | A clean start when work changes | Handoff, then clear, when an agent switches to other work | `src/shared/switchClear.ts` | **Have** by design: each task starts a new conversation |
 | MD-26 | Compaction | Old turns summarised when a conversation gets big | `src/shared/contextTriggerDecide.ts`, `src/core/contextTriggerTimer.ts` | **Have**: a long task's older steps summed up (built-in plugin `compactor`, wave 2) |
 | MD-27 | House response style, editable | Every agent answers short, factual, plain; you can edit the rules | `src/shared/responseStyle.ts`, `components/ResponseStyleSection.tsx` | **Partly**: prompts in code plus learned prompts (`improve/lab.py`); no "house style" box in Settings |
@@ -234,7 +234,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-29 | Plan mode and plan review | Read the plan before it starts; approve or decline | `ask_user_question` `plan-review` | **Have**, deeper: the living plan with choices, critique and estimate (`harness/plandoc.py`) |
 | DS-30 | Todo list | What the agent will do next | Details panel, "todo lists" | **Have**: the task board (`ui/static/plan.js`) |
 | DS-31 | Subagents: read them, send a follow-up | See what a helper did and tell it more | `ui/screens/main/SheetSubagents.kt`, `subagents/prompt` | **Partly**: every task's steps in Watch; no follow-up to one task's model |
-| DS-32 | Agent teams (beta) | Teammates and a shared board: waits on, files each plans to change, who owns it, overlap warnings | `ui/screens/main/SheetAgentTeam.kt`, `docs/PROTOCOL.md` "Agent Teams" | **Partly**: roles, a task board with depends-on, several tasks at once (wave 1); no files-to-change per task |
+| DS-32 | Agent teams (beta) | Teammates and a shared board: waits on, files each plans to change, who owns it, overlap warnings | `ui/screens/main/SheetAgentTeam.kt`, `docs/PROTOCOL.md` "Agent Teams" | **Have** (wave 5): each task names the files it plans to change; overlaps are warned about and run one after the other, files changed outside the plan are noted (`harness/stages.py`, `ui/stagesapi.py`, `static/stages.js`, the phone's `StageStrip.kt`) |
 | DS-33 | Background jobs: list, stop, follow | A long command runs apart; watch or stop it | `ui/screens/main/JobOutputSheet.kt`, `job/kill`, `job/follow` | **Have**: desktop Jobs with live logs, and a task's command followed and stopped (wave 3) |
 | DS-34 | Where a turn's time went | Waiting for the first word, writing, tools, waiting for you | `ui/screens/main/TrajectoryOverview.kt`, `TrajectoryTab.kt` | **Have**: where each task's time went (wave 2) |
 | DS-35 | Context and usage card | Tokens in and out, cache hit rate, context full | `ui/screens/main/UsageCard.kt` | **Have**: tokens, the context gauge and the cache share (wave 2) |
@@ -265,7 +265,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-50 | Full-screen preview of many file types | CSV tables, JSON trees, notebooks, PDFs, pictures, video, audio, archives, find in file | `ui/screens/main/preview/` | **Partly**: pictures (pinch to zoom), markdown, downloads of apk/zip/exe (`LiveTab.kt`, `watch.js`) |
 | DS-51 | Markdown drawn like GitHub | Tables, badges, code with colours | `ui/screens/main/DocumentFrontmatter.kt`, CHANGELOG 0.20.0 | **Partly**: `MarkdownView.kt`, `data/Markdown.kt`; plain tables and code |
 | DS-52 | Save a copy of any file | Put it on the phone | CHANGELOG "Save a copy" | **Have**: save a copy of any file (wave 2) |
-| DS-53 | Browser tab for local addresses | Open `localhost:5173` the agent started | `ui/screens/main/browser/` | **Partly**: the Live tab runs the app from its folder (`ui/live.py`, `LiveTab.kt`); apps started with a command aren't shown yet |
+| DS-53 | Browser tab for local addresses | Open `localhost:5173` the agent started | `ui/screens/main/browser/` | **Have** (wave 5): the App tab starts an app that runs with a command, shows it in a frame on its local address and stops it (`harness/appserver.py`, `ui/appapi.py`, `static/appstart.js`); this PC only, never from the phone |
 | DS-54 | Office files to PDF | Open a Word or Excel file | `officeToPdf/render` | **Missing** |
 | DS-55 | Projects on the phone | New, clone a repo (private with a token), import a folder or zip, share as zip, Files app | `app/runtime/workspace/` | **Partly**: This phone builds projects from an idea and syncs the hub; no clone, import or share |
 

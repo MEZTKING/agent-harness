@@ -92,7 +92,7 @@ def test_proven_is_earned_not_written(tmp_path):
     assert card["typical"] == "about $3.45 · about 41.2 min" and not card["guess"]
     G.hide(tmp_path, "cake-shop", "goal-3")
     assert K.status_words(k, K.read_state(tmp_path)) == "Proven (3 built)"  # hiding isn't unbuilding
-    assert K.status_words(K.resolve("java-mod"), state) == "Not yet"
+    assert K.status_words(K.Kind(id="later", name="Later", status="not_yet"), state) == "Not yet"
 
 
 def test_gallery_api(tmp_path, monkeypatch):

@@ -291,3 +291,172 @@ def game_tool(root: Path, settings: Any):
     return Tool(ToolSpec(
         "run_game", "Start the Godot game without a window for a moment (after importing it) and report its "
                     "script and loading errors. Use it to test your GDScript and scenes.", _obj({}, [])), run_game)
+
+
+# -- playing it (harness/playtest.py) ---------------------------------------------------------
+# Godot can't be steered turn by turn from outside, so a play is planned first: a list of inputs at set
+# frames, read by a small driver script given on the command line (``--script``). The driver loads the
+# game's main scene and presses the inputs; the project's own files are never changed. The driver and
+# its input file live in a temporary folder outside the project and are removed afterwards.
+PLAY_FPS = 10  # Movie Maker's frames a second while playing (60 seconds are 600 pictures, most deleted)
+DEFAULT_ACTIONS = ("ui_right", "ui_accept", "ui_left", "ui_up", "ui_down")
+INPUT_FLAG = "--harness-input="
+PLAY_DRIVER = """extends SceneTree
+# Written by the harness for one play and deleted afterwards: it loads the game's main scene and
+# presses the inputs listed in the file given after --harness-input= (an action, pressed or released,
+# at a frame). Nothing in the game's own folder is changed.
+
+var events = []
+var frame = 0
+var next_event = 0
+
+
+func _initialize():
+	var path = ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("%(flag)s"):
+			path = a.substr(%(flag_len)d)
+	var f = FileAccess.open(path, FileAccess.READ)
+	if f:
+		var got = JSON.parse_string(f.get_as_text())
+		if got is Array:
+			events = got
+	var main = str(ProjectSettings.get_setting("application/run/main_scene", ""))
+	if main == "":
+		push_error("No main scene is set: Project Settings, Application, Run, Main Scene")
+	else:
+		change_scene_to_file.call_deferred(main)
+
+
+func _process(_delta):
+	while next_event < events.size() and int(events[next_event].get("frame", 0)) <= frame:
+		var e = events[next_event]
+		next_event += 1
+		var act = str(e.get("action", ""))
+		if not InputMap.has_action(act):
+			continue
+		var ev = InputEventAction.new()
+		ev.action = act
+		ev.pressed = bool(e.get("pressed", false))
+		Input.parse_input_event(ev)
+		print("HARNESS_INPUT frame=%%d %%s %%s" %% [frame, act, "down" if ev.pressed else "up"])
+	frame += 1
+	return false
+""" % {"flag": INPUT_FLAG, "flag_len": len(INPUT_FLAG)}
+
+
+def input_actions(project: Path) -> list[str]:
+    """The game's own input actions from project.godot's [input] section, then Godot's usual ui_ ones."""
+    try:
+        text = (Path(project) / "project.godot").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    own: list[str] = []
+    section = ""
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            section = s[1:-1].strip()
+            continue
+        if section == "input":
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]{0,60})\s*=", s)
+            if m and m.group(1) not in own:
+                own.append(m.group(1))
+    return own[:12] + [a for a in DEFAULT_ACTIONS if a not in own]
+
+
+def play_schedule(actions: list[str], seconds: float, fps: int = PLAY_FPS) -> list[dict[str, Any]]:
+    """A plan for a play: each action held in turn (a short tap for jump-like ones, longer for moving),
+    with a pause between, round and round until the time is up. [{frame, action, pressed}]."""
+    total = max(1, int(seconds * fps))
+    out: list[dict[str, Any]] = []
+    if not actions:
+        return out
+    frame, i = fps // 2, 0  # half a second to start
+    while frame < total - 1:
+        name = actions[i % len(actions)]
+        short = any(w in name.lower() for w in ("jump", "accept", "fire", "shoot", "attack", "select", "action"))
+        hold = max(1, fps // 5) if short else max(2, fps)
+        out.append({"frame": frame, "action": name, "pressed": True})
+        out.append({"frame": min(total - 1, frame + hold), "action": name, "pressed": False})
+        frame += hold + max(1, fps // 2)
+        i += 1
+    return out
+
+
+def schedule_text(schedule: list[dict[str, Any]], fps: int = PLAY_FPS, limit: int = 30) -> str:
+    """The plan in words for the model that watches: "0.5 s: ui_right held 1.0 s"."""
+    downs = {}
+    lines = []
+    for e in schedule:
+        if e["pressed"]:
+            downs[e["action"]] = e["frame"]
+        elif e["action"] in downs:
+            start = downs.pop(e["action"])
+            lines.append(f"{start / fps:.1f} s: {e['action']} held {(e['frame'] - start) / fps:.1f} s")
+    more = f"\n… and {len(lines) - limit} more" if len(lines) > limit else ""
+    return "\n".join(lines[:limit]) + more
+
+
+def record_play(project: Path, godot: str, seconds: float, out_dir: Path, schedule: list[dict[str, Any]],
+                keep: int = 12, runner: Any = None, fps: int = PLAY_FPS, timeout: int | None = None) -> dict[str, Any]:
+    """Play the game with the planned inputs while Movie Maker records, and keep ``keep`` frames spread
+    over the play as ``turn-01.png`` … in ``out_dir``. ``runner(cmd, timeout, cwd) -> (code, output)`` is
+    how the command runs (the workspace's own command path in a run; ``run`` here by default).
+
+    Returns {frames: [Path], errors, output_tail, code, timed_out}. Raises NoDisplay or GodotError."""
+    prefix = display_prefix()
+    if prefix is None:
+        raise NoDisplay("not played: this computer has no screen to draw the game on (install xvfb to play "
+                        "it without one)")
+    project, out_dir = Path(project), Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("turn-*.png"):
+        old.unlink()
+    frames_dir = out_dir / "frames"
+    shutil.rmtree(frames_dir, ignore_errors=True)
+    frames_dir.mkdir()
+    total = max(2, int(seconds * fps))
+    timeout = int(timeout or max(60, seconds * 4 + 60))
+    tmp = Path(tempfile.mkdtemp(prefix="harness-play-"))  # outside the project, removed below
+    try:
+        driver, inputs = tmp / "harness_play_driver.gd", tmp / "harness_play_input.json"
+        driver.write_text(PLAY_DRIVER, encoding="utf-8")
+        import json as _json
+
+        inputs.write_text(_json.dumps(sorted(schedule, key=lambda e: e["frame"])), encoding="utf-8")
+        cmd = prefix + [godot, "--path", str(project), "--script", str(driver),
+                        "--write-movie", str(frames_dir.resolve() / "frame.png"), "--fixed-fps", str(fps),
+                        "--quit-after", str(total)]
+        if prefix:
+            cmd += ["--rendering-driver", "opengl3"]
+        cmd += ["--", INPUT_FLAG + str(inputs)]
+        try:
+            code, output = (runner or run)(cmd, timeout, project)
+        except OSError as e:
+            raise GodotError(f"Godot couldn't be started ({e}): check godot: path in harness.yaml")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    shots = sorted(frames_dir.glob("frame*.png"))
+    kept: list[Path] = []
+    if shots:
+        n, k = len(shots), max(1, min(keep, len(shots)))
+        picks = sorted({round(i * (n - 1) / max(1, k - 1)) for i in range(k)}) if k > 1 else [n - 1]
+        for j, i in enumerate(picks, 1):
+            dest = out_dir / f"turn-{j:02d}.png"
+            shots[i].replace(dest)
+            kept.append(dest)
+    shutil.rmtree(frames_dir, ignore_errors=True)
+    return {"frames": kept, "errors": errors_in(output or ""), "output_tail": (output or "").strip()[-TAIL_CHARS:],
+            "code": code, "timed_out": code is None}
+
+
+def test_command(project: Path, godot: str = "godot") -> list[str] | None:
+    """The game's own tests, when it has GUT or gdUnit4 in addons/ (verify at implementation: beta)."""
+    project = Path(project)
+    if (project / "addons" / "gut" / "gut_cmdln.gd").is_file():
+        return [godot, "--headless", "--path", str(project), "-s", "res://addons/gut/gut_cmdln.gd", "-gexit"]
+    if (project / "addons" / "gdUnit4" / "bin" / "GdUnitCmdTool.gd").is_file():
+        return [godot, "--headless", "--path", str(project), "-s", "res://addons/gdUnit4/bin/GdUnitCmdTool.gd",
+                "--ignoreHeadlessMode", "-a", "res://test"]
+    return None

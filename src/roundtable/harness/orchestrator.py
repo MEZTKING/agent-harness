@@ -29,13 +29,21 @@ from .agent import AgentResult, Budget, BudgetExceeded, OutOfCredit, run_agent
 from . import plandoc
 from . import livecmd
 from . import websearch
+from . import donelist
+from .donestage import DoneStage
+from .finishstage import FinishStage
 from .kindstage import KindStage
 from .lookstage import LookStage
+from .moneystage import AllowanceReached, MoneyStage
+from .playtest import PlayStage
 from .refstage import ReferenceStage, new_reference
 from .repostage import RepoStage
 from .safeenv import clean_env
 from .saver import TokenSaver
+from .shipstage import ShipStage
 from .showstage import ShowStage
+from .stages import StagesStage
+from .unstick import UnstickStage, wasted_words
 from .worktrees import ParallelStage, Worktrees
 from .gate import Gate
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
@@ -233,7 +241,10 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
     return new
 
 
-class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage):
+class Orchestrator(MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
+                   DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage):
+    # the wave 5 stages (money, the done list, stages and parts, unsticking, finishing, playing, shipping)
+    # each add their part through the hooks below; with no done list, stages or kind a run is as before
     def __init__(
         self,
         cfg: HarnessConfig,
@@ -517,7 +528,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         est = doc.get("estimate") or {}
         return {"title": plandoc.plan_title(doc) if doc else "", "summary": doc.get("summary", ""),
                 "state": plandoc.state_sentence(doc, tasks, meta), "waiting": waiting,
-                "estimate": plandoc.estimate_line(est) if est and not meta.get("plan_approved") else ""}
+                "estimate": plandoc.estimate_line(est, meta.get("agreed")) if est and not meta.get("plan_approved") else ""}
 
     def _hub_update(self, status: str, note: str | None = None) -> None:
         try:
@@ -1073,7 +1084,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         return {"version": new_doc["version"], "summary": summary, **diff}
 
     PLAN_ACTIONS = ("choose", "answer", "dont_add", "dont_remove", "idea", "section", "scope_add", "scope_remove", "note",
-                    "look", "reference_add", "reference_remove")
+                    "look", "reference_add", "reference_remove", "done_add", "done_remove")
 
     def plan_update(self, action: str, **kw: Any) -> dict[str, Any]:
         """The owner edits the plan. Edits wait in `pending` until revise_plan applies them (one model call)."""
@@ -1152,6 +1163,16 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             if not text:
                 raise HarnessError("write the change you want")
             note(text, f"note:{len(pend)}:{text[:20]}")
+        elif action == "done_add":  # the owner's own line on the done list (donelist.py)
+            try:
+                donelist.owner_add(self.project.root, doc, kw, note)
+            except ValueError as e:
+                raise HarnessError(str(e))
+        elif action == "done_remove":
+            try:
+                donelist.owner_remove(self.project.root, doc, kw, note)
+            except KeyError as e:
+                raise HarnessError(str(e).strip("'"))
         else:
             raise HarnessError(f"action must be one of {', '.join(self.PLAN_ACTIONS)}, revise or approve")
         self.project.save_plan_doc(doc)
@@ -1637,6 +1658,7 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
         except Exception as e:  # splitting is a help, not a must: the task stays failed for the owner
             self.emit("split_failed", {"task": task.id, "error": str(e)[:300]})
             return False
+        self._hook("_handoff_split", task, r.get("added", []))  # the new tasks read what was left (handoff.py)
         self.emit("task_split", {"task": task.id, "summary": r["summary"]})
         self._journal("note", f"[{task.id}] was too big for one attempt; split: {r['summary']}")
         return True
@@ -1702,6 +1724,9 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                             return got
                         self._finish(tasks)
                         return "done"
+                    stop = self._hook("_stage_stop")  # "Stop after each stage" (stages.py)
+                    if stop:
+                        return stop
                     self._set_status("blocked")
                     return "blocked"
                 if not finished_this_run and executed and self._real_spend_over_limit(0.5):
@@ -1756,6 +1781,8 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                     self._journal("done", f"[{task.id}] {task.title}", details=task.summary[:2000])
                     self._resolved(f"failed:{task.id}", note="task completed")
                 self._after_task(task, ok)
+                if ok:
+                    self._hook("_stage_after_task", task)  # files changed outside the plan (stages.py)
                 if not ok and (self._split_if_too_big(task)
                                or self._hook("_unstick_task", task, tasks, default=False)):
                     continue  # replaced by smaller tasks, or worked out another way; carry on with those
@@ -1769,6 +1796,10 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
                         t.attempts = [a for a in t.attempts if a.get("outcome") != "error"]
             self.project.save_tasks(tasks)
             self._save_spend()
+            if isinstance(e, AllowanceReached):
+                self._set_status("paused", pause="allowance", reason=str(e))
+                self._attention("money", "Autopilot's spending limit is reached: this run waits for you")
+                return "paused"
             if isinstance(e, OutOfCredit):
                 self._set_status("paused", reason=str(e), pause="credit")
                 self._attention("money", f"{e}: top up that account, then run the project again")
@@ -1786,12 +1817,14 @@ class Orchestrator(KindStage, ParallelStage, RepoStage, LookStage, ReferenceStag
             res = self._run_with_fallback(
                 role, "You write concise project completion reports.",
                 f"{self._project_context(tasks)}\n\nWrite a short report for the project owner: what was built, "
-                "how to run/use it, and known limitations or next steps. Plain markdown, no tool calls needed.",
+                "how to run/use it, and known limitations or next steps. Plain markdown, no tool calls needed."
+                + wasted_words(tasks, self.project.root),
                 self.ws.toolbox(READ_ONLY),
             )
             summary = res.text
         except (HarnessError, BudgetExceeded) as e:
             summary = f"(summary unavailable: {e})"
+        summary += self._hook("_done_report_note", default="")  # "Finished: 5 of 7 checked …" (donestage.py)
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
         self._resolved("approval", "budget", "money", note="the run finished")

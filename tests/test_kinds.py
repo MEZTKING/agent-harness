@@ -49,10 +49,10 @@ def own_kind(home, kid, text, files=None):
 def test_builtin_kinds_load_and_none_says_proven():
     cat = K.load_all(None)
     assert cat.problems == []
-    assert {"other", "web-app", "website", "browser-game", "java-mod"} <= set(cat.kinds)
+    assert {"other", "web-app", "website", "browser-game", "java-mod", "android-app"} <= set(cat.kinds)
     assert set(cat.extras) == {"apk", "exe"}
     assert all(k.status in ("trial", "not_yet") for k in [*cat.kinds.values(), *cat.extras.values()])
-    assert cat.kinds["java-mod"].usable is False and cat.kinds["web-app"].usable
+    assert cat.kinds["java-mod"].usable and cat.kinds["android-app"].usable and cat.kinds["web-app"].usable
 
 
 def test_extends_shares_pieces_and_extras_stack():
@@ -122,7 +122,8 @@ IDEAS = [
     ("a timer app for my android phone", "web-app", ["apk"]),
     ("a notes app as a windows exe", "web-app", ["exe"]),
     ("a script that renames my photos by date", "other", []),
-    ("a minecraft mod with copper lanterns", "other", []),  # the mod kind isn't ready: never proposed
+    ("a minecraft mod with copper lanterns", "java-mod", []),
+    ("a native android app in kotlin", "android-app", []),
 ]
 
 
@@ -131,7 +132,7 @@ def test_propose_on_twelve_made_up_ideas(idea, kind, extras):
     cat = K.load_all(None)
     got = K.propose(idea, cat)
     assert got[0][0] == kind, got
-    assert got[-1][0] == "other" and "java-mod" not in [g[0] for g in got]
+    assert got[-1][0] == "other"
     if kind != "other":
         assert got[0][2].startswith("because you said “")
     assert K.propose_extras(idea, got[0][0], cat) == extras
@@ -142,13 +143,23 @@ def test_wizard_options_and_answers():
     ids = [o["id"] for o in opts]
     assert ids[-1] == "other" and opts[-1]["label"] == "Something else"
     mod = next(o for o in opts if o["id"] == "java-mod")
-    assert mod["disabled"] and mod["group"] == "Coming" and mod["tip"]
-    assert ids.index("java-mod") > max(ids.index(i) for i in ("website", "web-app", "browser-game"))
+    assert not mod.get("disabled") and mod["group"] == "Mods and add-ons"
+    assert ids.index("android-app") < ids.index("java-mod") < ids.index("other")
     assert K.from_wizard("android")["kind"] == "web-app" and K.from_wizard("android")["extras"] == ["apk"]
     assert K.from_wizard("game")["kind"] == "browser-game"
     w = K.from_wizard("other", other="a little shop window site", idea="bakery")
     assert w["kind"] == "website" and w["by"] == "roundtable"
-    assert K.from_wizard("java-mod", idea="a mod")["kind"] == "other"  # not ready: proposed instead
+    assert K.from_wizard("java-mod", idea="a mod")["kind"] == "java-mod"
+    # a kind that isn't ready is greyed under Coming, after the usable ones, and never chosen
+    cat = K.load_all(None)
+    cat.kinds["later"] = K.Kind(id="later", name="Later thing", status="not_yet", group="Desktop apps")
+    opts = K.wizard_options(catalog=cat)
+    later = next(o for o in opts if o["id"] == "later")
+    assert later["disabled"] and later["group"] == "Coming" and later["tip"]
+    assert [o["id"] for o in opts].index("later") > max(i for i, o in enumerate(opts) if not o.get("disabled")
+                                                        and o["id"] != "other")
+    assert K.from_wizard("later", idea="a mod", catalog=cat)["kind"] == "java-mod"  # not ready: proposed instead
+    assert "later" not in [g[0] for g in K.propose("a later thing", cat)]
 
 
 # -- the overlay --------------------------------------------------------------------------------------------------------
@@ -194,8 +205,12 @@ def test_kind_is_proposed_confirmed_and_frozen_at_approval(tmp_path, monkeypatch
     assert r["replanned"] and orch.project.plan_doc()["kind"]["id"] == "web-app"
     assert "Stack, Screens, Data, How to run it" in orch.planner_jobs[-1] and "Web app" in orch.planner_jobs[-1]
     assert orch._kind_ask() is None  # confirmed: no question left
+    later = home / "kinds" / "later-thing"  # an own kind that isn't ready yet
+    later.mkdir(parents=True)
+    (later / "kind.yaml").write_text("schema: kind@1\nid: later-thing\nname: Later thing\nstatus: not_yet\n",
+                                     encoding="utf-8")
     with pytest.raises(HarnessError):
-        orch.set_kind("java-mod")  # not ready yet
+        orch.set_kind("later-thing")  # not ready yet
     orch.approve()
     frozen = json.loads((orch.project.dir / "kind.json").read_text(encoding="utf-8"))
     assert frozen["kind"]["id"] == "web-app"
@@ -229,7 +244,7 @@ def test_proof_plan_reaches_the_proof_stage_when_it_is_there(tmp_path, monkeypat
 
     monkeypatch.setattr(pkg, "proof", fake, raising=False)
     assert orch._kind_proof_plan() == ["starts", "tests", "plays"]
-    assert next(i for i in orch._kind_proof() if i["id"] == "plays")["status"] == "not_yet"
+    assert next(i for i in orch._kind_proof() if i["id"] == "plays")["status"] == "trial"  # played since d2-play (harness/playtest.py)
 
 
 # -- sharing a kind ---------------------------------------------------------------------------------------------------------
@@ -328,7 +343,7 @@ def test_kinds_api(tmp_path, monkeypatch):
     assert game["status_words"] == "On trial" and game["typical"].endswith("(a guess)")
     assert game["missing"] == ["Playwright's browser"] and game["needs"][0] == {"id": "node", "name": "Node.js",
                                                                                  "missing": False}
-    assert groups["Mods and add-ons"][0]["status_words"] == "Not yet"
+    assert groups["Mods and add-ons"][0]["status_words"] == "On trial" and groups["Mobile apps"][0]["id"] == "android-app"
     assert {e["id"] for e in cat["extras"]} == {"apk", "exe"}
     one = r[("GET", "/api/kinds/one")]({"id": ["web-app"], "extras": ["apk"]})
     assert one["extras"] == [{"id": "apk", "name": "Android app (APK)"}] and "music player" in one["more"]["card"]

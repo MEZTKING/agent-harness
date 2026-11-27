@@ -371,7 +371,8 @@ def _game_shots(root: Path, game: Path, out_dir: Path, record: dict[str, Any], s
 
 def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
                godot: Any = None, out_dir: Path | None = None, latest: bool = True,
-               commit: str | None = None) -> dict[str, Any]:
+               commit: str | None = None, ws: Any = None, kind_start: Any = None,
+               start_seconds: float | None = None) -> dict[str, Any]:
     """Start the app from its folder, take its pictures, and write ``shots.json``. Never raises.
 
     ``godot`` is the ``godot:`` setting: a project with no web page but a Godot game is started
@@ -380,7 +381,11 @@ def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
     ``out_dir`` is where the pictures go (by default ``.harness/shots/<task>/`` of the folder pictured:
     a task's worktree is pictured into the project's own folder this way); ``latest=False`` leaves
     ``latest.json`` as it is (pictures for the proof, not yet the Live tab's); ``commit`` is the commit
-    the pictures show (by default the folder's own, or ``""`` when it has changes not committed yet)."""
+    the pictures show (by default the folder's own, or ``""`` when it has changes not committed yet).
+
+    ``ws`` (the task's Workspace) lets an app that starts with a command be started for its pictures
+    (harness/appserver.py: through the gate, with a free port in PORT, ended afterwards) when its plain page
+    isn't the real app; ``kind_start`` is the kind's ``start:`` recipe. Without ``ws`` nothing is started."""
     root = Path(project_root)
     out_dir = Path(out_dir) if out_dir is not None else shots_root(root) / _safe_task(task_id)
     base = shots_root_of(out_dir)
@@ -396,17 +401,19 @@ def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
     record: dict[str, Any] = {"task": task_id, "dir": rel, "at": _now(), "seq": _next_seq(base.parent.parent),
                               "commit": commit, "entry": None, "title": "", "pictures": {}, "errors": [], "note": ""}
     entry = entry_page(root)
+    from . import appserver
+
+    recipe = appserver.start_recipe(root, kind_start) if ws is not None else None
+    if recipe and appserver.needs_start(root, recipe):
+        return _started_shots(root, recipe, out_dir, record, render, latest, ws, start_seconds)
     game = godotlib.project_dir(root) if not entry and getattr(godot, "enabled", True) else None
     if game is not None:
         return _game_shots(root, game, out_dir, record, godot, latest)
     if not entry:
-        record["note"] = ("nothing to open yet: no index.html (apps started with a command come in a later "
-                          "version of the harness)")
+        record["note"] = ("nothing to open yet: the app starts with a command (start it from the App tab)"
+                          if start_command(root) else "nothing to open yet: no index.html and no start command")
         return _write_record(out_dir, record, latest)
     record["entry"] = entry
-    start = start_command(root)
-    if start:
-        record["note"] = f"the app has a start command ({start}); for now the harness shows its page as it is"
     kinds = [k for k in KINDS if k != "dark" or supports_dark(root)]
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.*"):
@@ -418,6 +425,41 @@ def take_shots(project_root: Path, task_id: str, render: Callable | None = None,
                      "jpg": str(out_dir / f"{k}.jpg"), "width": KINDS[k][0], "height": KINDS[k][1],
                      "dark": KINDS[k][2]} for k in kinds]
             results = (render or render_pages)(jobs)
+    except NoRenderer:
+        record["note"] = "pictures skipped: Playwright isn't installed on this computer"
+        results = []
+    except Exception as e:  # pictures are a help, never a reason to fail
+        record["failed"] = f"the pictures couldn't be taken: {str(e)[:300]}"
+        results = []
+    record["pictures"] = {k: f"{k}.png" for k in kinds if (out_dir / f"{k}.png").is_file()}
+    record["errors"] = _errors(results or [])
+    record["title"] = next((str(r.get("title") or "") for r in results or [] if r.get("title")), "")[:200]
+    return _write_record(out_dir, record, latest)
+
+
+def _started_shots(root: Path, recipe: dict[str, Any], out_dir: Path, record: dict[str, Any], render: Callable | None,
+                   latest: bool, ws: Any, start_seconds: float | None) -> dict[str, Any]:
+    """An app that starts with a command: started, pictured on its own address, then ended."""
+    from . import appserver
+
+    record["entry"] = "/"
+    record["started"] = recipe["command"]
+    kinds = [k for k in KINDS if k != "dark" or supports_dark(root)]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("*.*"):
+        if old.suffix in (".png", ".jpg"):
+            old.unlink()
+    results: list[dict[str, Any]] = []
+    try:
+        with appserver.Running(root, recipe["command"], ws=ws, port=recipe.get("port"), ready=recipe.get("ready", ""),
+                               seconds=start_seconds or appserver.START_SECONDS) as app:
+            if not app.ok:
+                record["note"] = f"the app couldn't be started for its pictures: {app.error}"
+            else:
+                jobs = [{"kind": k, "url": app.url, "base": app.url, "png": str(out_dir / f"{k}.png"),
+                         "jpg": str(out_dir / f"{k}.jpg"), "width": KINDS[k][0], "height": KINDS[k][1],
+                         "dark": KINDS[k][2]} for k in kinds]
+                results = (render or render_pages)(jobs)
     except NoRenderer:
         record["note"] = "pictures skipped: Playwright isn't installed on this computer"
         results = []

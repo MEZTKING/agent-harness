@@ -1,0 +1,69 @@
+{
+ "checked": 0,
+ "failed": 0,
+ "finished": true,
+ "goal_index": 0,
+ "items": [
+  {
+   "by": "kind",
+   "checked_at": "2026-11-27T17:33:52Z",
+   "checked_by": "finish",
+   "evidence": {},
+   "how": "page_opens",
+   "id": "D1",
+   "kind_id": "starts",
+   "must": true,
+   "state": "unchecked",
+   "text": "It opens with no errors",
+   "words": "There's nothing to open yet: no page and no start command."
+  },
+  {
+   "by": "kind",
+   "checked_at": "2026-11-27T17:33:52Z",
+   "checked_by": "finish",
+   "command": "npm test",
+   "evidence": {
+    "command": "npm test"
+   },
+   "how": "command",
+   "id": "D2",
+   "kind_id": "tests",
+   "must": false,
+   "state": "unchecked",
+   "text": "Its tests pass",
+   "words": "“npm test” has nothing to run yet: there's no package.json."
+  }
+ ],
+ "mark_words": {
+  "failed": "It was tried and doesn't work yet",
+  "open": "Not checked yet",
+  "passed": "It was shown to work",
+  "unchecked": "It couldn't be checked here"
+ },
+ "marks": {
+  "failed": "✗",
+  "open": "·",
+  "passed": "✓",
+  "unchecked": "?"
+ },
+ "must_failed": [],
+ "passed": 0,
+ "rounds": [
+  {
+   "at": "2026-11-27T17:33:52Z",
+   "by": "finish",
+   "item": "D1",
+   "passed": null,
+   "words": "There's nothing to open yet: no page and no start command."
+  },
+  {
+   "at": "2026-11-27T17:33:52Z",
+   "by": "finish",
+   "item": "D2",
+   "passed": null,
+   "words": "“npm test” has nothing to run yet: there's no package.json."
+  }
+ ],
+ "unchecked": 2,
+ "words": "Finished: 0 of 2 checked, 2 couldn’t be checked here"
+}

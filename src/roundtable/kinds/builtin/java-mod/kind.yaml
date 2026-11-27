@@ -1,17 +1,31 @@
 schema: kind@1
 id: java-mod
 name: Minecraft or Java mod
-blurb: A mod for a Java game. Not ready yet.
+blurb: A mod for a Java game, built into a .jar file.
 group: Mods and add-ons
-status: not_yet
-match: [minecraft, mod, fabric, forge mod, data pack, datapack]
-examples: ["a Minecraft mod that adds a copper lantern"]
+status: trial
+match: [minecraft, mod, mods, fabric, forge mod, neoforge, quilt, data pack, datapack, java mod]
+examples: ["a Minecraft mod that adds a copper lantern", "a Fabric mod with a new sword"]
 needs: [java]
+roles:
+  prompts: {orchestrator: prompts/planner.md, coder: prompts/coder.md}
 plan:
   has_ui: false
+  skeleton_first: true
   spec_sections: [Game and version, What it adds, How to build it]
+  questions:
+    - id: loader
+      header: Mod loader
+      question: "Which mod loader should it use?"
+      options: [{id: fabric, label: "Fabric"}, {id: neoforge, label: "NeoForge"}, {id: forge, label: "Forge"}]
+      recommended: fabric
+  dont:
+    - {text: "No game files copied into the project", why: "The game's own files belong to its maker"}
+    - {text: "No upload to a mod site", why: "Publishing is the owner's choice"}
 look: off
 proof:
-  - {id: builds, how: command, command: "./gradlew build", status: not_yet, words: "It builds"}
+  - {id: builds, how: command, command: "./gradlew build", words: "It builds"}
+  - {id: jar_built, how: file_exists, path: "build/libs/*.jar", words: "The mod file (.jar) was built"}
 targets: [jar]
+ship: {build: "./gradlew build", artefact: "build/libs/*.jar", smoke: mod, needs: [java], target: jar}
 estimate: {tasks: [6, 16], usd: [2.0, 6.0], minutes: [40, 120]}
