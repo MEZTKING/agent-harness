@@ -32,6 +32,23 @@ class ComfortTest {
         Comfort.reset()
     }
 
+    @Test fun theTablesOrderByHandSurvivesARestart() {
+        val c = Comfort.get(ctx)
+        val hub = listOf("alpha", "beta", "gamma", "delta")
+        // a drag: delta to the top, beta to the end
+        val dragged = Comfort.moved(Comfort.moved(hub, 3, 0), 2, 3)
+        assertEquals(listOf("delta", "alpha", "gamma", "beta"), dragged)
+        c.reorder(dragged)
+        Comfort.reset()
+        val again = Comfort.get(ctx)
+        assertEquals(dragged, again.order)
+        // a new project from the hub follows the ones the owner placed; pinned still come first; nothing is dropped
+        val (shown, away) = Comfort.arrange(hub + "epsilon", { it }, setOf("gamma"), setOf("alpha"), again.order)
+        assertEquals(listOf("gamma", "delta", "beta", "epsilon"), shown)
+        assertEquals(listOf("alpha"), away)
+        assertEquals(hub, Comfort.moved(hub, 9, 0)) // a drag of a row that has gone changes nothing
+    }
+
     @Test fun defaultsAreTheUsualLook() {
         val c = Comfort.get(ctx)
         assertEquals(Accent.VIOLET, c.accent)
