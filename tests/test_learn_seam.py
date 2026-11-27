@@ -220,7 +220,7 @@ def test_new_proposal_fields_history_rows_and_old_files_still_read(tmp_path, mon
     p = lab.add_proposal(_p("routing", {"models": ["b/coder2"]}))
     lab.apply(p, cfg)
     q = lab.proposal(p.id)
-    assert q.applied_at and q.machine == "pc-test" and q.watch is None and q.undone_why == "" and q.origin == ""
+    assert q.applied_at and q.machine == "pc-test" and q.watch["state"] == "watching" and q.undone_why == "" and q.origin == ""
     row = lab.history()[0]
     assert row["id"].startswith("H") and row["machine"] == "pc-test"
     old = {"id": "P1", "kind": "routing", "role": "coder", "change": {"models": ["a/x"]}, "rationale": "r",
