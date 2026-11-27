@@ -56,7 +56,7 @@
     "stamp": "cdfbec2f0b"
    },
    "asks": 2,
-   "at": "2026-11-27T16:28:24Z",
+   "at": "2026-11-27T17:27:57Z",
    "kind": "run",
    "name": "Proj",
    "order": 1,
@@ -64,7 +64,7 @@
    "project": "proj",
    "rank": 0,
    "task": null,
-   "text": "plan ready (about $0.27 + unpriced models, ~12 min): look at it, then approve it to start",
+   "text": "plan ready (about $0.41 + unpriced models, ~19 min): look at it, then approve it to start",
    "via": "here"
   },
   {
@@ -72,8 +72,8 @@
     "done"
    ],
    "agent": "proj",
-   "at": "2026-11-27T16:28:24Z",
-   "id": "cc93ea",
+   "at": "2026-11-27T17:27:57Z",
+   "id": "24e2fa",
    "kind": "todo",
    "name": "Proj",
    "order": 0,
@@ -93,19 +93,19 @@
    "brief": {
     "agent": "proj",
     "description": "the harness project",
-    "last_activity": "2026-11-27T16:28:24Z",
+    "last_activity": "2026-11-27T17:27:57Z",
     "last_session": null,
-    "last_ts": 1795796904.785863,
+    "last_ts": 1795800477.129458,
     "open_plans": [],
     "open_todos": [
      {
       "agent": "proj",
       "closed_at": "",
       "closed_note": "",
-      "created_at": "2026-11-27T16:28:24Z",
+      "created_at": "2026-11-27T17:27:57Z",
       "details": "",
       "for_owner": true,
-      "id": "cc93ea",
+      "id": "24e2fa",
       "kind": "todo",
       "next": [],
       "plan_ready": false,
@@ -114,7 +114,7 @@
       "status": "open",
       "tags": [],
       "text": "check the logo colours",
-      "ts": 1795796904.785863
+      "ts": 1795800477.129458
      }
     ],
     "recent_decisions": [],
@@ -122,13 +122,13 @@
     "repo": ""
    },
    "description": "the harness project",
-   "detail": "plan ready (about $0.27 + unpriced models, ~12 min): look at it, then approve it to start",
+   "detail": "plan ready (about $0.41 + unpriced models, ~19 min): look at it, then approve it to start",
    "failed_task": null,
    "goal": "Bakery site",
    "high": 1,
    "id": "proj",
    "kind": "both",
-   "last_activity": "2026-11-27T16:28:24Z",
+   "last_activity": "2026-11-27T17:27:57Z",
    "last_session": null,
    "machine": "pc-vm",
    "machine_name": "PC (VM)",

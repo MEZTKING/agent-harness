@@ -4,9 +4,28 @@
  "doc": {
   "critique": null,
   "decisions": [],
+  "done_list": [
+   {
+    "by": "kind",
+    "how": "page_opens",
+    "id": "D1",
+    "kind_id": "starts",
+    "must": true,
+    "text": "It opens with no errors"
+   },
+   {
+    "by": "kind",
+    "command": "npm test",
+    "how": "command",
+    "id": "D2",
+    "kind_id": "tests",
+    "must": false,
+    "text": "Its tests pass"
+   }
+  ],
   "dont": [],
   "estimate": {
-   "at": "2026-11-27T16:28:24Z",
+   "at": "2026-11-27T17:27:57Z",
    "by_role": {
     "coder": {
      "basis": "default",
@@ -23,9 +42,22 @@
      "tasks": 1
     }
    },
-   "cost_usd": 0.2674,
-   "extras": [],
-   "minutes": 11.5,
+   "cost_usd": 0.4126,
+   "extras": [
+    {
+     "id": "unstick",
+     "minutes": 1.5,
+     "usd": 0.0275,
+     "words": "Working out up to 1 stuck task"
+    },
+    {
+     "id": "finish",
+     "minutes": 6.0,
+     "usd": 0.1177,
+     "words": "checking it works and fixing what breaks: about $0.12"
+    }
+   ],
+   "minutes": 19.0,
    "note": "rough: from past runs where there are some, else typical sizes; unpriced models aren't counted",
    "proof_usd": 0.0,
    "tasks": 3,
@@ -38,7 +70,7 @@
   "has_ui": null,
   "history": [
    {
-    "at": "2026-11-27T16:28:24Z",
+    "at": "2026-11-27T17:27:56Z",
     "change": "first plan",
     "version": 1
    }
@@ -81,7 +113,7 @@
   "title": "",
   "version": 1
  },
- "line": "plan ready (about $0.27 + unpriced models, ~12 min)",
+ "line": "plan ready (about $0.41 + unpriced models, ~19 min)",
  "name": "proj",
  "open": {
   "choices": 0,
@@ -174,7 +206,7 @@
   }
  ],
  "words": {
-  "estimate": "about $0.27 and 12 minutes (some models have no price yet)",
+  "estimate": "about $0.41 and 19 minutes (some models have no price yet)",
   "state": "Ready for you to approve",
   "title": "Bakery site"
  }

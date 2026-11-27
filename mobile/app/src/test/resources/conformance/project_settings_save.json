@@ -145,6 +145,18 @@
   },
   {
    "choices": [
+    "off",
+    "each"
+   ],
+   "default": "off",
+   "description": "Stop after each stage so you can try it before the next one starts. off: keep going (it still notes when each stage is ready).",
+   "key": "stage_stop",
+   "source": "default",
+   "type": "choice",
+   "value": "off"
+  },
+  {
+   "choices": [
     "",
     "off",
     "risky",

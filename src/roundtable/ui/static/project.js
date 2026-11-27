@@ -14,6 +14,8 @@ import { composer } from "./compose.js";
 import { historyCard } from "./rewind.js";
 import { terminalTab } from "./terminal.js";
 import { poundsTag } from "./pounds.js";
+import { doneLine } from "./donelist.js";
+import { stagesStrip } from "./stages.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
@@ -102,8 +104,9 @@ function moveOn(s) {
 async function overview(seat, now) {
   const waits = h("div", { class: "stack" }), tasksBox = h("div"), money_ = h("div"), chat = h("div"), report = h("div"), brief = h("div");
   const history = h("div");  // what each task changed, Undo and Try another way (rewind.js)
+  const doneBox = h("div"), stagesBox = h("div");  // the done list's one line, the stages' strip
   const grid = h("div", { class: "overview" },
-    h("div", { class: "ov-main" }, waits, tasksBox, history, report, brief),
+    h("div", { class: "ov-main" }, waits, doneBox, stagesBox, tasksBox, history, report, brief),
     h("div", { class: "ov-side" }, money_, chat));
   if (!seat.path) {  // another computer's project, or a hub project: what the hub knows
     const items = (S.rt.needs_you || []).filter((n) => n.project === seat.id);
@@ -127,6 +130,8 @@ async function overview(seat, now) {
     patch(waits, JSON.stringify(items.map((i) => [i.ask.id, i.ask.stamp, i.busy])), () => items.length ? [h("h2", { class: "section-title" }, "Waiting for you"),
       items.map((i) => needCard(i, () => { lastSig = ""; }, { showProject: false }))] : null);
     fill(tasksBox, tasksCard(seat, d));
+    doneLine(path).then((el) => fill(doneBox, el)).catch(() => {});  // "Done when: 5 of 7 ✓" (donelist.js)
+    fill(stagesBox, stagesStrip(seat));  // nothing shows for a plan without stages (stages.js)
     fill(money_, moneyCard(d, plan));
     if (FEAT.has("/api/rewind") && d.tasks.some((t) => t.status === "done")) {
       try { fill(history, await historyCard(seat)); } catch { /* the history is a help: the rest still shows */ }

@@ -748,6 +748,43 @@
     "words",
     "path"
    ]
+  },
+  {
+   "name": "done",
+   "method": "GET",
+   "path": "/api/done",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "items",
+    "words"
+   ]
+  },
+  {
+   "name": "done_evidence",
+   "method": "GET",
+   "path": "/api/done/evidence",
+   "query": {
+    "path": "{project}",
+    "item": "D1"
+   },
+   "needs": [
+    "found",
+    "item"
+   ]
+  },
+  {
+   "name": "stages",
+   "method": "GET",
+   "path": "/api/stages",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "stages",
+    "words"
+   ]
   }
  ]
 }

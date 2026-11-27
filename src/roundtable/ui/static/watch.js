@@ -7,6 +7,7 @@ import { hubCommand } from "./asks.js";
 import { rewindButton } from "./rewind.js";
 import { proofCard } from "./proof.js";
 import { liveOutput } from "./terminal.js";
+import { appStartCard } from "./appstart.js";
 
 const rawUrl = (kind, path, name, task) => `/raw/${kind}?` + new URLSearchParams({ path, name, ...(task ? { task } : {}) });
 const shotUrl = (path, rec, kind) => rawUrl("shot", path, (rec.pictures || {})[kind] || `${kind}.png`, rec.dir || rec.task);
@@ -234,13 +235,17 @@ async function moreDetails(path) {
 export async function appTab(seat, now) {
   if (!seat.path) return hubApp(seat, now);
   const box = h("div", { class: "stack" }, h("p", { class: "muted" }, "Loading…"));
+  const start = h("div");  // "This app starts with a command. Start it", then the app in a frame (appstart.js)
   let sig = "";
-  return every(box, async () => {
+  if (await has("/api/app")) appStartCard(seat).then((el) => fill(start, el)).catch(() => {});
+  const holder = h("div", { class: "stack" }, start, box);
+  every(box, async () => {
     const s = now();
     const L = await get(`/api/project/live?${q({ path: seat.path })}`);
     const sg = JSON.stringify([L.latest && L.latest.at, L.history.length, L.preview, L.entry, s.status]);
     if (sg !== sig) { sig = sg; fill(box, liveApp(L), livePictures(seat.path, L, s.status === "done", seat)); }
   }, () => (now().status === "running" ? 4000 : 15000));
+  return holder;
 }
 
 // "Take pictures now": for a finished project built before the harness took pictures
@@ -270,8 +275,8 @@ async function hubApp(seat, now) {
 const day = (iso) => { try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(iso).slice(0, 10); } };
 function liveApp(L) {
   if (!L.preview) {
-    return card("The app", h("p", { class: "muted" }, L.entry ? `The app opens here in the ${BRAND.name} desktop app.` : "Nothing to open yet: the app's first page hasn't been made."),
-      L.start_command ? h("p", { class: "small muted" }, "It has its own way of starting: the harness shows its page as it is for now.") : null);
+    return card("The app", h("p", { class: "muted" }, L.entry ? `The app opens here in the ${BRAND.name} desktop app.`
+      : L.start_command ? "It starts with a command: start it above." : "Nothing to open yet: the app's first page hasn't been made."));
   }
   const frame = h("iframe", { class: "live-frame", src: L.preview, title: "The app, live", sandbox: "allow-scripts allow-same-origin allow-forms" });
   const wrap = h("div", { class: "live-wrap" }, frame);

@@ -200,7 +200,7 @@
      "id": "browser-game",
      "missing": [],
      "more": {
-      "card": "Uses the web app recipe and adds an artist. \"Played for a minute\" is shown but not checked yet:\nRoundtable can't play the game by itself so far.",
+      "card": "Uses the web app recipe and adds an artist. At the end a model that can see plays the game for a minute and\nsays what broke (\"Played for a minute\"); a broken game becomes a fix task before it's called finished.",
       "look": "art",
       "plugins": [],
       "prompts_for": [
@@ -251,7 +251,7 @@
       },
       {
        "id": "plays",
-       "not_yet": true,
+       "not_yet": false,
        "optional": false,
        "words": "Played for a minute"
       }
@@ -266,13 +266,163 @@
    ]
   },
   {
+   "group": "Desktop apps",
+   "kinds": [
+    {
+     "blurb": "A 2D or 3D game made in Godot 4. Still in beta.",
+     "built": 0,
+     "examples": [
+      "a Godot platformer with three levels",
+      "a small 3D maze game in Godot",
+      "a top-down shooter in Godot"
+     ],
+     "extras": [],
+     "extras_allowed": [],
+     "group": "Desktop apps",
+     "guess": true,
+     "id": "godot-game",
+     "missing": [
+      "Godot"
+     ],
+     "more": {
+      "card": "A game made in Godot 4: plain scenes and GDScript the builders write directly, started by the harness\nitself to check it. The harness opens it without a window, then plays it for a minute with the game's\nown controls and records it; a model that can see says what broke. Needs Godot on this computer.\nStill in beta: it hasn't been tried with a real Godot on your PC yet.",
+      "look": "art",
+      "plugins": [],
+      "prompts_for": [
+       "coder",
+       "orchestrator",
+       "reviewer"
+      ],
+      "roles_added": [
+       "artist"
+      ],
+      "spec_sections": [
+       "Godot version",
+       "Scenes",
+       "Controls",
+       "Art style",
+       "Sound",
+       "How to run it"
+      ],
+      "targets": []
+     },
+     "name": "Godot game",
+     "needs": [
+      {
+       "id": "godot",
+       "missing": true,
+       "name": "Godot"
+      }
+     ],
+     "proof": [
+      {
+       "id": "imports",
+       "not_yet": false,
+       "optional": false,
+       "words": "It opens in Godot with no errors"
+      },
+      {
+       "id": "starts",
+       "not_yet": false,
+       "optional": false,
+       "words": "It starts and can be played"
+      },
+      {
+       "id": "plays",
+       "not_yet": false,
+       "optional": false,
+       "words": "Played for a minute"
+      }
+     ],
+     "source": "builtin",
+     "status": "trial",
+     "status_words": "On trial",
+     "typical": "$2.00–$6.00 · 40–120 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": true
+    }
+   ]
+  },
+  {
+   "group": "Mobile apps",
+   "kinds": [
+    {
+     "blurb": "A native app for Android phones, written in Kotlin.",
+     "built": 0,
+     "examples": [
+      "an Android app that counts my steps",
+      "a Kotlin app for my shopping list"
+     ],
+     "extras": [],
+     "extras_allowed": [],
+     "group": "Mobile apps",
+     "guess": true,
+     "id": "android-app",
+     "missing": [],
+     "more": {
+      "card": "A native Android app in Kotlin (Jetpack Compose), built with the Gradle wrapper as a debug APK.\n\nAt the end the harness builds it with `./gradlew assembleDebug`, checks the APK is a real one with the\nSDK's own tools when they are here, and installs it only on an emulator that is already running – never\non a plugged-in phone, and never signed with a real key. It needs Java and the Android SDK.",
+      "look": "off",
+      "plugins": [],
+      "prompts_for": [
+       "coder",
+       "orchestrator"
+      ],
+      "roles_added": [],
+      "spec_sections": [
+       "Screens",
+       "Data",
+       "Permissions",
+       "How to build it"
+      ],
+      "targets": [
+       "apk"
+      ]
+     },
+     "name": "Android app",
+     "needs": [
+      {
+       "id": "java",
+       "missing": false,
+       "name": "Java (JDK 17 or newer)"
+      },
+      {
+       "id": "android",
+       "missing": false,
+       "name": "Android SDK"
+      }
+     ],
+     "proof": [
+      {
+       "id": "builds",
+       "not_yet": false,
+       "optional": false,
+       "words": "It builds"
+      },
+      {
+       "id": "apk_built",
+       "not_yet": false,
+       "optional": false,
+       "words": "The APK was built"
+      }
+     ],
+     "source": "builtin",
+     "status": "trial",
+     "status_words": "On trial",
+     "typical": "$2.00–$6.00 · 40–130 min (a guess)",
+     "typical_tip": "A guess: nothing has been built with this yet.",
+     "usable": true
+    }
+   ]
+  },
+  {
    "group": "Mods and add-ons",
    "kinds": [
     {
-     "blurb": "A mod for a Java game. Not ready yet.",
+     "blurb": "A mod for a Java game, built into a .jar file.",
      "built": 0,
      "examples": [
-      "a Minecraft mod that adds a copper lantern"
+      "a Minecraft mod that adds a copper lantern",
+      "a Fabric mod with a new sword"
      ],
      "extras": [],
      "extras_allowed": [],
@@ -281,10 +431,13 @@
      "id": "java-mod",
      "missing": [],
      "more": {
-      "card": "Coming later. The first kind with no browser, so it will show that kinds really reshape Roundtable.",
+      "card": "A mod for a Java game such as Minecraft, built with Gradle into a .jar file.\n\nAt the end the harness builds it with `./gradlew build`, checks the .jar is a real one and holds its mod\nfile (fabric.mod.json or mods.toml), and marks it done only then. It needs Java on this computer. Starting\nthe game with the mod is still checked by hand on the owner's PC.",
       "look": "off",
       "plugins": [],
-      "prompts_for": [],
+      "prompts_for": [
+       "coder",
+       "orchestrator"
+      ],
       "roles_added": [],
       "spec_sections": [
        "Game and version",
@@ -306,17 +459,23 @@
      "proof": [
       {
        "id": "builds",
-       "not_yet": true,
+       "not_yet": false,
        "optional": false,
        "words": "It builds"
+      },
+      {
+       "id": "jar_built",
+       "not_yet": false,
+       "optional": false,
+       "words": "The mod file (.jar) was built"
       }
      ],
      "source": "builtin",
-     "status": "not_yet",
-     "status_words": "Not yet",
+     "status": "trial",
+     "status_words": "On trial",
      "typical": "$2.00–$6.00 · 40–120 min (a guess)",
      "typical_tip": "A guess: nothing has been built with this yet.",
-     "usable": false
+     "usable": true
     }
    ]
   },
