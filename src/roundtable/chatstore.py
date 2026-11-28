@@ -411,14 +411,17 @@ def lines_of(home, hub, chat: str) -> list[dict[str, Any]]:
     # a card's later states come as further lines carrying the same card id (any device): the first carrier
     # shows the card with the furthest state; the others keep their words only
     origin: dict[str, dict[str, Any]] = {}
+    for line in sorted(out, key=lambda x: x["who"] == "app"):  # the card's own line first, its state lines after
+        card = line.get("card")
+        if isinstance(card, dict) and card.get("id") and str(card["id"]) not in origin:
+            origin[str(card["id"])] = line
     for line in out:
         card = line.get("card")
         if not isinstance(card, dict) or not card.get("id"):
             continue
         cid = str(card["id"])
-        first = origin.get(cid)
-        if first is None:
-            origin[cid] = line
+        first = origin[cid]
+        if first is line:
             continue
         if CARD_RANK.get(card.get("state"), -1) >= CARD_RANK.get(first["card"].get("state"), -1):
             keep = {k: card[k] for k in ("state", "queued_for", "buttons", "more") if k in card}
