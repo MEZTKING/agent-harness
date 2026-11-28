@@ -11,12 +11,20 @@ import { houseStyleBox } from "./housestyle.js";
 import { buildersCard } from "./builders.js";
 import { permsDefaultBox } from "./perms.js";
 import { dataMoveCard } from "./datamove.js";
+import { languageCard } from "./language.js";
+import { soundServiceCard } from "./sounds.js";
+import { countsCard } from "./counts.js";
+import { tracesCard } from "./traces.js";
+import { webPhoneCard } from "./webphonecard.js";
+import { proofRunCard } from "./proofrun.js";
+import { backupsBrowse } from "./todo.js";
+import { t as wt } from "./words.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["writing", "How agents write", "The house style: how the agents write for you"],
-  ["builders", "Builders", "What the builders may do without asking you, and how they work"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
+  ["builders", "Builders", "What the builders may do without asking you, and how they work"], ["hub", "Hub", "Where your projects, journal and chats are kept and shared"],
   ["phone", "Your phone", "Use the harness from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
-  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"],
+  ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"], ["language", "Language", "The language the app is written in"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
 
 export async function viewSettings(section = "keys") {
@@ -26,7 +34,7 @@ export async function viewSettings(section = "keys") {
     h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)),
     h("a", { href: "#/automations", title: "Work that starts by itself: schedules, GitHub issues, failed checks" }, "Automations"));
   const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, writing: writingPart, builders: buildersPart, hub: hubPart, phone: phonePart, backups: backupsPart,
-    notifications: notifySettings, plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
+    notifications: notifySettings, plugins: pluginsPart, updates: updatesPart, look: lookPart, language: () => [languageCard()], advanced: advancedPart };
   const body = await views[section](st);
   return page("Settings", `${BRAND.name} ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
 }
@@ -38,9 +46,9 @@ async function keysPart(st) {
   const docsFor = (name) => (Object.values(presets).find((p) => p.api_key_env === name) || {}).docs;
   const result = {};
   const rows = st.keys.map((k) => {
-    const input = h("input", { type: "password", class: "grow", autocomplete: "off", disabled: !st.desktop, "aria-label": `${k.label} key`,
+    const input = h("input", { type: "password", class: "grow", autocomplete: "off", disabled: !st.desktop, "aria-label": wt("{label} key", { label: k.label }),
       oninput: (ev) => ev.target.parentNode.querySelector(".save-key")?.classList.toggle("primary", !!ev.target.value.trim()),
-      placeholder: k.set ? "Saved. Paste a new key to replace it" : `Paste your ${k.label} key` });
+      placeholder: k.set ? "Saved. Paste a new key to replace it" : wt("Paste your {label} key", { label: k.label }) });
     const out = h("p", { class: "key-result small", "aria-live": "polite" });
     const pill = k.set ? h("span", { class: "pill good" }, "saved") : h("span", { class: "pill" }, "no key yet");
     result[k.name] = out;
@@ -59,11 +67,11 @@ async function keysPart(st) {
       h("div", { class: "row" }, input,
         st.desktop ? h("button", { class: "small save-key", onclick: (ev) => {
           if (!input.value.trim()) return toast("Paste the key first.", true);
-          act(ev.currentTarget, () => post("/api/setup/keys", { keys: { [k.name]: input.value.trim() } }), `${k.label} key saved`, async (r) => { S.setup = r; input.value = ""; pill.className = "pill good"; pill.textContent = "saved"; await test(null); });
+          act(ev.currentTarget, () => post("/api/setup/keys", { keys: { [k.name]: input.value.trim() } }), wt("{label} key saved", { label: k.label }), async (r) => { S.setup = r; input.value = ""; pill.className = "pill good"; pill.textContent = "saved"; await test(null); });
         } }, "Save") : null,
         h("button", { class: "small", title: "Checks the key works, with a tiny request", onclick: (ev) => test(ev.currentTarget) }, "Test"),
         k.set && st.desktop ? h("button", { class: "small danger", onclick: async (ev) => {
-          if (await dialog({ title: `Remove the ${k.label} key?`, text: "Models from this maker stop working until you add a key again.", yes: "Remove", danger: true }))
+          if (await dialog({ title: wt("Remove the {label} key?", { label: k.label }), text: "Models from this maker stop working until you add a key again.", yes: "Remove", danger: true }))
             act(ev.currentTarget, () => post("/api/setup/keys", { keys: { [k.name]: "" } }), "Key removed", () => location.reload());
         } }, "Remove") : null,
         !k.set && docs ? h("a", { class: "btn small", href: docs, target: "_blank", rel: "noopener", title: "Opens the maker's page where you make a key; copy it and paste it here" }, "Get a key") : null),
@@ -81,15 +89,15 @@ async function servicesPart(st) {
   if (!S.ov.harness) return needsSetup();
   const data = await get("/api/providers");
   const out = h("div", { class: "small", "aria-live": "polite" });
-  const say = (pid, r) => fill(out, h("p", { class: r.ok ? "good" : "bad" }, r.ok ? (r.message || `${pid}: it works`) : r.missing_key ? "There's no key yet: add it under Keys." : `It didn't work: ${r.error}`));
+  const say = (pid, r) => fill(out, h("p", { class: r.ok ? "good" : "bad" }, r.ok ? (r.message || `${pid}: it works`) : r.missing_key ? "There's no key yet: add it under Keys." : wt("It didn't work: {error}", { error: r.error })));
   const rows = data.providers.map((p) => h("div", { class: "svc-row" },
     h("div", { class: "grow" }, h("b", {}, (p.name || p.id).split(" (")[0]), h("small", { class: "muted" }, p.source === "custom.yaml" ? " · added by you" : " · built in")),
     !p.needs_key ? h("span", { class: "pill" }, "no key needed") : p.key_set ? h("span", { class: "pill good" }, "key saved") : h("a", { class: "pill warn", href: "#/settings/keys", title: "Add its key under Keys" }, "no key yet"),
     h("button", { class: "small", title: "Checks it answers", onclick: (ev) => { fill(out, "Testing…"); act(ev.currentTarget, () => post("/api/providers", { action: "test", id: p.id }), null, (r) => say(p.id, r)); } }, "Test"),
     h("button", { class: "small", title: "Lists the models it has (they can then be chosen in Models)", onclick: (ev) => act(ev.currentTarget, () => post("/api/providers", { action: "models", id: p.id }), null,
-      (r) => fill(out, h("details", { open: true }, h("summary", {}, `${plural(r.models.length, "model")} at ${(p.name || p.id).split(" (")[0]}`), h("ul", { class: "plain cols" }, r.models.slice(0, 300).map((m) => h("li", {}, modelName(`${p.id}/${m}`, true))))))) }, "Its models"),
+      (r) => fill(out, h("details", { open: true }, h("summary", {}, wt("{v1} at {v2}", { v1: plural(r.models.length, "model"), v2: (p.name || p.id).split(" (")[0] })), h("ul", { class: "plain cols" }, r.models.slice(0, 300).map((m) => h("li", {}, modelName(`${p.id}/${m}`, true))))))) }, "Its models"),
     p.source === "custom.yaml" ? h("button", { class: "small danger", onclick: async (ev) => {
-      if (await dialog({ title: `Remove ${p.name || p.id}?`, text: "Jobs that use its models fall back to their backups.", yes: "Remove", danger: true }))
+      if (await dialog({ title: wt("Remove {v1}?", { v1: p.name || p.id }), text: "Jobs that use its models fall back to their backups.", yes: "Remove", danger: true }))
         act(ev.currentTarget, () => post("/api/providers", { action: "remove", id: p.id }), "Removed", () => location.reload());
     } }, "Remove") : null));
   const ids = Object.keys(data.presets);
@@ -106,20 +114,21 @@ async function servicesPart(st) {
     const query = {};
     qry.value.split(/[,&]/).map((x) => x.trim()).filter(Boolean).forEach((kv) => { const [k, ...v] = kv.split("="); query[k.trim()] = v.join("=").trim(); });
     act(ev.currentTarget, () => post("/api/providers", { action: "add", preset: preset.value, id: name.value, base_url: url.value, key: key.value, auth_header: hdr.value, query }),
-      (r) => `Added ${data.presets[preset.value].name.split(" (")[0]}`, (r) => { say(r.added.id, r.test); key.value = ""; });
+      (r) => wt("Added {v1}", { v1: data.presets[preset.value].name.split(" (")[0] }), (r) => { say(r.added.id, r.test); key.value = ""; });
   } }, "Add it");
   return [card("AI services", h("p", { class: "muted small" }, "The services the harness can use. Their models can then be chosen for any job in Models."), rows, out),
     card("Add a service", h("p", { class: "muted small" }, "Pick one from the list; it's tested straight away. Anything not listed: choose the custom one (any service that works like OpenAI's)."),
       h("div", { class: "row" }, preset, docs), h("div", { class: "row" }, name, url), h("div", { class: "row" }, key),
       h("details", {}, h("summary", { class: "small" }, "For unusual services (Azure and gateways)"), h("div", { class: "row" }, hdr, qry)),
-      h("div", { class: "row" }, add))];
+      h("div", { class: "row" }, add)),
+    soundServiceCard()];
 }
 
 // ---------- recommended setup ----------
 async function recommendedPart(st) {
   if (!S.ov.harness || !(st.config_exists || {}).harness) return needsSetup();
   const r = await get("/api/setup/recommended");
-  const models = (ms) => ms.length ? h("span", { title: ms.length > 1 ? `If it can't answer: ${ms.slice(1).map((m) => modelName(m)).join(", then ")}` : "" },
+  const models = (ms) => ms.length ? h("span", { title: ms.length > 1 ? wt("If it can't answer: {v1}", { v1: ms.slice(1).map((m) => modelName(m)).join(", then ") }) : "" },
     modelName(ms[0]), ms.length > 1 ? h("span", { class: "muted small" }, ` + ${plural(ms.length - 1, "backup")}`) : null) : h("span", { class: "muted" }, "nobody");
   return card("Recommended setup", h("p", {}, r.summary),
     h("p", { class: "muted small" }, "Three sets of models, chosen per project: ", r.profiles.map((p, i) => [i ? ", " : "", h("b", { title: p.description }, p.name[0].toUpperCase() + p.name.slice(1)),
@@ -137,10 +146,11 @@ async function recommendedPart(st) {
 // ---------- spending (shared by every machine through the hub) ----------
 const LIMITS = [["max_usd_per_day", "Most for one day, on every project", "When the day's spending reaches this, building stops until tomorrow (or until you raise it)."],
   ["max_cost_usd", "Most for one project", "A project stops at this and asks you before spending more."],
-  ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."]];
+  ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."],
+  ["chat_usd_per_day", "Chat, most for one day", "What the chat may spend in a day on every device together; at the limit it says so and offers to raise it for today."]];
 // What each service has used against your limits comes first (usage.js), then the shared limits.
 // learning's own weekly allowance (improve/wallet.py) sits with the rest of the money
-async function spendingPart() { return [usageCard(), ...[await sharedSpending()].flat(), walletCard()]; }
+async function spendingPart() { return [usageCard(), ...[await sharedSpending()].flat(), walletCard(), proofRunCard()]; }
 
 // ---------- how agents write (the house style, harness/housestyle.py) ----------
 async function writingPart() {
@@ -169,7 +179,7 @@ async function sharedSpending() {
   });
   return card("Spending", h("p", { class: "muted small" }, "Real money from your AI services. These limits are shared: your other computers and your phone follow them too."),
     rows,
-    st.updated_at ? h("p", { class: "muted small" }, `Last changed ${ago(st.updated_at)}${st.updated_by ? ` on ${st.updated_by}` : ""}.`) : null,
+    st.updated_at ? h("p", { class: "muted small" }, wt("Last changed {v1}{v2}.", { v1: ago(st.updated_at), v2: st.updated_by ? ` on ${st.updated_by}` : "" })) : null,
     h("div", { class: "row" }, h("button", { class: "primary", onclick: (ev) => {
       const limits = {};
       for (const [k] of LIMITS) { const v = inputs[k].value.trim(); if (v !== "" && Number(v) !== Number(st.limits[k])) limits[k] = Number(v); }
@@ -182,7 +192,7 @@ async function sharedSpending() {
 async function hubPart(st) {
   const mode = st.hub.mode;
   const url = h("input", { class: "grow", placeholder: "Your hub's GitHub address, e.g. https://github.com/you/agent-hub-data", "aria-label": "GitHub address" });
-  return card("Your hub", h("p", {}, "The hub keeps your projects' journals and letters, and shares them with your other computers, your phone and every Claude session."),
+  return card("Your hub", h("p", {}, "The hub keeps your projects' journals and chats, and shares them with your other computers, your phone and every Claude session."),
     h("p", {}, "Now: ", mode === "git" ? h("span", { class: "pill good" }, "Shared through GitHub") : mode === "file" ? h("span", { class: "pill info" }, "On this computer only") : h("span", { class: "pill bad" }, "Not set up"),
       S.ov.agents ? h("span", { class: "muted small" }, ` · ${plural(S.ov.agents.length, "project")}`) : null),
     st.hub.error ? h("p", { class: "bad small" }, "It didn't open: ", st.hub.error) : null,
@@ -191,7 +201,7 @@ async function hubPart(st) {
         h("div", { class: "row" }, url, h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/hub", { mode: "github", url: url.value.trim() }), "Connecting…",
           (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, mode === "git" ? "Connect another" : "Connect"))]
         : h("div", {}, h("p", {}, "Sharing through GitHub needs Git on this computer. Until then everything works on this computer only."),
-          h("a", { class: "btn", href: "https://git-scm.com/download/win", target: "_blank", rel: "noopener", title: `Opens Git's download page; install it, then open ${BRAND.name} again` }, "Get Git for Windows")),
+          h("a", { class: "btn", href: "https://git-scm.com/download/win", target: "_blank", rel: "noopener", title: wt("Opens Git's download page; install it, then open {name} again", { name: BRAND.name }) }, "Get Git for Windows")),
       mode === "git" ? h("div", { class: "row" }, h("button", { onclick: async (ev) => {
         if (await dialog({ title: "Keep the hub on this computer only?", text: "It stops sharing with your other computers and your phone. Nothing is deleted.", yes: "This computer only" }))
           act(ev.currentTarget, () => post("/api/setup/hub", { mode: "local" }), "The hub is on this computer only now", () => location.reload());
@@ -209,27 +219,27 @@ async function phonePart() {
   function draw(s) {
     const pairing = s.pairing ? h("div", { class: "pairing" },
       h("img", { src: s.pairing.qr, alt: "The pairing code as a square picture", width: 220, height: 220 }),
-      h("div", { class: "stack" }, h("p", {}, `In the ${BRAND.short} app on your phone, tap `, h("b", {}, "Pair with a PC"), " and point the camera at this square."),
+      h("div", { class: "stack" }, h("p", {}, wt("In the {short} app on your phone, tap ", { short: BRAND.short }), h("b", {}, "Pair with a PC"), " and point the camera at this square."),
         h("p", {}, "Or type this code: ", h("b", { class: "code" }, s.pairing.code)),
-        h("p", { class: "muted small" }, `It works once, for ${Math.max(1, Math.ceil(s.pairing.expires_in / 60))} more minute${s.pairing.expires_in > 60 ? "s" : ""}.`))) : null;
+        h("p", { class: "muted small" }, wt("It works once, for {v1} more minute{v2}.", { v1: Math.max(1, Math.ceil(s.pairing.expires_in / 60)), v2: s.pairing.expires_in > 60 ? "s" : "" })))) : null;
     fill(box,
       h("p", {}, "Now: ", s.running ? h("span", { class: "pill good" }, "On") : s.enabled ? h("span", { class: "pill bad", title: s.error || "" }, "On, but not working") : h("span", { class: "pill" }, "Off")),
       s.error ? h("p", { class: "bad small" }, s.error, " Turn it off and on again; if it still fails, restart the app.") : null,
-      h("p", { class: "muted small" }, "A paired phone sees every project, answers what waits, approves, tries again, talks to the planner and reads and sends letters. Keys, settings and updates stay on this computer. The connection is private; away from home it works through Tailscale."),
+      h("p", { class: "muted small" }, "A paired phone sees every project, answers what waits, approves, tries again, and chats with the Hall and every project. Keys, settings and updates stay on this computer. The connection is private; away from home it works through Tailscale."),
       h("div", { class: "row" },
         s.running ? h("button", { class: "primary", onclick: (ev) => call(ev.currentTarget, { action: "pair" }) }, "Pair a phone")
           : h("button", { class: "primary", onclick: (ev) => call(ev.currentTarget, { action: "enable" }, "Your phone can connect now") }, "Let my phone connect"),
         s.enabled ? h("button", { onclick: async (ev) => { if (await dialog({ title: "Stop phone access?", text: "Paired phones stay paired and connect again when you turn it back on.", yes: "Turn off" })) call(ev.currentTarget, { action: "disable" }, "Phone access is off"); } }, "Turn off") : null),
       pairing,
       h("h3", {}, "Paired phones"),
-      s.devices.length ? h("ul", { class: "plain devices" }, s.devices.map((d) => h("li", {}, h("b", {}, d.name), h("span", { class: "muted small" }, ` · paired ${ago(d.paired_at)} · last seen ${ago(d.last_seen) || "not yet"}`),
-        h("button", { class: "small danger", onclick: async (ev) => { if (await dialog({ title: `Remove ${d.name}?`, text: "It will need to pair again.", yes: "Remove", danger: true })) call(ev.currentTarget, { action: "revoke", device_id: d.id }, "Phone removed"); } }, "Remove"))))
+      s.devices.length ? h("ul", { class: "plain devices" }, s.devices.map((d) => h("li", {}, h("b", {}, d.name), h("span", { class: "muted small" }, wt(" · paired {v1} · last seen {v2}", { v1: ago(d.paired_at), v2: ago(d.last_seen) || "not yet" })),
+        h("button", { class: "small danger", onclick: async (ev) => { if (await dialog({ title: wt("Remove {name}?", { name: d.name }), text: "It will need to pair again.", yes: "Remove", danger: true })) call(ev.currentTarget, { action: "revoke", device_id: d.id }, "Phone removed"); } }, "Remove"))))
         : h("p", { class: "muted small" }, "None yet."));
   }
   draw(st);
   every(box, async () => { if (st.pairing || box.querySelector(".pairing")) { st = await get("/api/phone"); draw(st); } }, 4000);
   const machines = (await has("/api/machines")) ? (await import("./machines.js")).machinesStrip() : null;
-  return [card("Your phone", box), machines ? card("Your computers", machines) : null];
+  return [card("Your phone", box), await webPhoneCard(), machines ? card("Your computers", machines) : null];
 }
 
 // ---------- backups ----------
@@ -257,12 +267,12 @@ async function backupsPart() {
         s.destination ? h("p", {}, "They go to: ", h("b", { title: s.destination }, s.destination.split(/[\\/]/).slice(-2).join(" › ")))
           : h("p", { class: "warn", title: noDrive }, "There's no Google Drive folder on this computer. Choose a folder below, or ",
             h("a", { href: "https://www.google.com/drive/download/", target: "_blank", rel: "noopener", title: "Opens Google's download page; install it and sign in, then come back" }, "get Google Drive"), "."),
-        h("div", { class: "row" }, folder, h("button", { class: "small", onclick: (ev) => save(ev.currentTarget, { to: folder.value.trim() || "auto" }, "Saved") }, "Use this folder"),
+        h("div", { class: "row" }, folder, backupsBrowse(folder), h("button", { class: "small", onclick: (ev) => save(ev.currentTarget, { to: folder.value.trim() || "auto" }, "Saved") }, "Use this folder"),
           set.to !== "auto" ? h("button", { class: "small", onclick: (ev) => save(ev.currentTarget, { to: "auto" }, "Backups go to Google Drive") }, "Use Google Drive") : null),
         h("p", {}, "Last backup: ", last, s.last.last_error ? h("span", { class: "pill warn" }, "it had a problem") : null),
         s.last.last_error ? h("p", { class: "bad small" }, String(s.last.last_error).replace(/https?:\/\/\S+/g, "").trim()) : null,
         h("div", { class: "row wrap" },
-          h("label", { class: "check", title: `Once a day while ${BRAND.name} is open, never while a project is being built` },
+          h("label", { class: "check", title: wt("Once a day while {name} is open, never while a project is being built", { name: BRAND.name }) },
             h("input", { type: "checkbox", checked: set.daily, onchange: (ev) => save(null, { daily: ev.target.checked }, ev.target.checked ? "Daily backups on" : "Daily backups off") }), "Back up every day"),
           h("label", { class: "check", title: "Older backups from this computer are deleted; nothing else in the folder is touched" }, "Keep the newest ",
             h("input", { type: "number", min: 1, max: 100, value: set.keep, class: "narrow", "aria-label": "How many to keep", onchange: (ev) => save(null, { keep: Number(ev.target.value) }, "Saved") })),
@@ -298,11 +308,11 @@ async function pluginsPart() {
       const r = await post("/api/plugins", body);
       if (r && r.needs_ok) {
         const perms = (r.needs_ok.permissions || []).map((p) => `• ${p.words}`).join("\n");
-        if (!(await dialog({ title: `Add ${r.needs_ok.name || "this plugin"}?`, text: `It asks to:\n${perms || "• nothing special"}\n\n${trust}`, yes: "Add it" }))) return;
+        if (!(await dialog({ title: wt("Add {v1}?", { v1: r.needs_ok.name || "this plugin" }), text: wt("It asks to:\n{v1}\n\n{trust}", { v1: perms || "• nothing special", trust }), yes: "Add it" }))) return;
         return send(btn, { ...body, confirmed: (r.needs_ok.permissions || []).map((p) => p.id) }, ok);
       }
       if (r && r.needs_sure) {
-        if (!(await dialog({ title: `Trust ${r.needs_sure.name}?`, text: r.needs_sure.warning, yes: "Trust it", danger: true }))) return location.reload();
+        if (!(await dialog({ title: wt("Trust {name}?", { name: r.needs_sure.name }), text: r.needs_sure.warning, yes: "Trust it", danger: true }))) return location.reload();
         return send(btn, { ...body, sure: true }, ok);
       }
       if (ok) toast(ok);
@@ -329,7 +339,7 @@ async function pluginsPart() {
         fields.forEach((l) => { const el = l.querySelector("input"); values[el.dataset.key] = el.type === "checkbox" ? el.checked : el.value; });
         send(ev.currentTarget, { action: "settings", id: p.id, values }, "Saved");
       } }, "Save its settings")) : null,
-      p.builtin ? null : h("button", { class: "small danger", onclick: async (ev) => { if (await dialog({ title: `Remove ${p.name || p.id}?`, yes: "Remove", danger: true })) send(ev.currentTarget, { action: "remove", id: p.id }, "Removed"); } }, "Remove"));
+      p.builtin ? null : h("button", { class: "small danger", onclick: async (ev) => { if (await dialog({ title: wt("Remove {v1}?", { v1: p.name || p.id }), yes: "Remove", danger: true })) send(ev.currentTarget, { action: "remove", id: p.id }, "Removed"); } }, "Remove"));
   });
   const source = h("input", { class: "grow", placeholder: "Where it comes from: a folder, a GitHub link or a package name", "aria-label": "Where the plugin comes from", title: "You'll see what it may do before anything is added." });
   return card("Plugins", h("p", { class: "muted small" }, "Extra abilities for the harness, like the token saver. ", h("span", { title: trust }, "Only add plugins from people you trust.")),
@@ -396,6 +406,8 @@ async function advancedPart(st) {
   parts.push(card("Settings files", h("p", { class: "muted small" }, "Everything here can be changed on the other pages. These are the files behind them, for when you're asked to look."),
     await editor("harness", "The harness's settings", "AI services, who does each job, prices and limits."),
     await editor("hub", "The hub's settings", "The projects in the hub, and who may read or write to whom.")));
+  if (await has("/api/counts")) parts.push(await countsCard());
+  if (await has("/api/otel")) parts.push(await tracesCard());
   if (await has("/api/tidy")) parts.push(await tidyCard());
   if (await has("/api/datamove")) parts.push(dataMoveCard());  // the hub or projects to a new place
   return parts;
@@ -411,13 +423,13 @@ export async function viewSetup() {
   const st = S.setup = await get("/api/setup");
   const folder = h("input", { class: "grow", value: st.projects_dir, "aria-label": "Projects folder", title: "Where new projects are made" });
   const me = st.agents.length > 1 ? h("select", { "aria-label": "You are" }, st.agents.map((a) => h("option", { value: a, selected: a === (st.agent || st.agents[0]) }, (S.ov.agents || []).find((x) => x.id === a)?.name || a))) : null;
-  return page(`Welcome to ${BRAND.name}`, "Three quick steps: your keys, your hub, and where projects go. You can change all of it later in Settings.",
+  return page(wt("Welcome to {name}", { name: BRAND.name }), "Three quick steps: your keys, your hub, and where projects go. You can change all of it later in Settings.",
     h("h2", { class: "step" }, "1. Your keys"), ...(await keysPart(st)).slice(0, 1),
     h("h2", { class: "step" }, "2. Your hub"), await hubPart(st),
     h("h2", { class: "step" }, "3. Where projects go"),
     card(null, h("label", { class: "field" }, h("span", { class: "label" }, "Projects folder"), folder),
-      me ? h("label", { class: "field", title: "Your own name in the hub: your notes and letters" }, h("span", { class: "label" }, "You are"), me) : null,
+      me ? h("label", { class: "field", title: "Your own name in the hub: your notes and messages" }, h("span", { class: "label" }, "You are"), me) : null,
       h("div", { class: "row" },
-        h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/done", { projects_dir: folder.value, agent: me ? me.value : null }), "All set", () => { location.hash = "#/"; location.reload(); }) }, `Start using ${BRAND.name}`),
+        h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/done", { projects_dir: folder.value, agent: me ? me.value : null }), "All set", () => { location.hash = "#/"; location.reload(); }) }, wt("Start using {name}", { name: BRAND.name })),
         h("button", { title: "A short check that each model answers (a few cents)", onclick: (ev) => act(ev.currentTarget, () => post("/api/probes", {}), "Checking your models…", (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, "Check my models first"))));
 }

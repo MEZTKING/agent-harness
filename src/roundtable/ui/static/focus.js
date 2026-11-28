@@ -3,6 +3,7 @@
 // module exports them); until then a plain line per step stands in.
 import { h, fill, get, post, toast, q, taskPill, jobName, money } from "./core.js";
 import { liveOutput } from "./terminal.js";
+import { t as wt } from "./words.js";
 
 let OPEN = null;
 
@@ -58,7 +59,7 @@ export async function openFocus(seat, taskId) {
       stop.hidden = t.status !== "running";
       const ch = t.changes || [];
       fill(files, watch.changedFiles ? watch.changedFiles(t, "f:files", open)
-        : [h("h3", {}, ch.length ? `Files it changed (${ch.length})` : "No files changed yet"),
+        : [h("h3", {}, ch.length ? wt("Files it changed ({length})", { length: ch.length }) : "No files changed yet"),
           ch.length ? h("ul", { class: "fx-list" }, ch.map((c) => h("li", {}, h("code", {}, c.path), h("span", { class: "muted small" }, ` +${c.added} −${c.removed}`)))) : null]);
     }
     timer = setTimeout(draw, t && t.status === "running" ? 2500 : 15000);
@@ -83,7 +84,7 @@ function focusStyles() {
 .fx-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 12px; padding: 12px 18px; }
 .fx-main { min-height: 0; display: flex; } .fx-steps { flex: 1; overflow: auto; max-height: none; }
 .fx-side { min-height: 0; overflow: auto; } .fx-side h3 { margin: 4px 0 6px; font-size: 14px; }
-.fx-list { list-style: none; padding-left: 4px; margin: 0; font-size: 12.5px; } .fx-list li { margin: 2px 0; }
+.fx-list { list-style: none; padding-inline-start: 4px; margin: 0; font-size: 12.5px; } .fx-list li { margin: 2px 0; }
 @media (max-width: 800px) { .fx-body { grid-template-columns: 1fr; } }
 `));
 }

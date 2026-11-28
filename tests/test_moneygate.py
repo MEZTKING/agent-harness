@@ -61,6 +61,9 @@ def no_history(monkeypatch):
     """Past runs' averages would replace the typical sizes with this run's tiny scripted costs; these tests
     are about the gate, so the estimate stays on typical sizes."""
     monkeypatch.setattr(plandoc, "history_by_role", lambda files: {})
+    from roundtable.harness import estimatedefaults
+
+    monkeypatch.setattr(estimatedefaults, "rows", lambda files: [])  # nor the real attempts' tokens (wave 9)
 
 
 def card(orch):

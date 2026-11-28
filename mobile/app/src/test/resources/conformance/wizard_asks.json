@@ -1,0 +1,126 @@
+{
+ "asks": [
+  {
+   "allow_other": true,
+   "answer": null,
+   "detail": "",
+   "header": "Make",
+   "id": "kind",
+   "kind": "wizard",
+   "multi": false,
+   "options": [
+    {
+     "description": "A tool or app that runs in the browser.",
+     "group": "Web apps",
+     "id": "web-app",
+     "label": "Web app"
+    },
+    {
+     "description": "A site to read and look at: a shop window, a portfolio, a blog.",
+     "group": "Websites",
+     "id": "website",
+     "label": "Website"
+    },
+    {
+     "description": "Something to play in the browser.",
+     "group": "Browser games",
+     "id": "browser-game",
+     "label": "Browser game"
+    },
+    {
+     "description": "A 2D or 3D game made in Godot 4. Still in beta.",
+     "group": "Desktop apps",
+     "id": "godot-game",
+     "label": "Godot game"
+    },
+    {
+     "description": "A native app for Android phones, written in Kotlin.",
+     "group": "Mobile apps",
+     "id": "android-app",
+     "label": "Android app"
+    },
+    {
+     "description": "A mod for a Java game, built into a .jar file.",
+     "group": "Mods and add-ons",
+     "id": "java-mod",
+     "label": "Minecraft or Java mod"
+    },
+    {
+     "description": "Anything not listed yet, with fewer checks.",
+     "group": "Other",
+     "id": "other",
+     "label": "Something else"
+    }
+   ],
+   "other_hint": "Say what it is in your own words",
+   "question": "What do you want to make?",
+   "recommended": "web-app",
+   "source": {},
+   "stamp": "ec36f5fcb3"
+  },
+  {
+   "allow_other": true,
+   "answer": null,
+   "detail": "For example: “a bakery site with opening hours and a menu”. You can say more later.",
+   "header": "Idea",
+   "id": "idea",
+   "kind": "wizard",
+   "multi": false,
+   "options": [],
+   "other_hint": "Describe your idea",
+   "question": "Your idea, in a few words",
+   "recommended": null,
+   "required": true,
+   "source": {},
+   "stamp": "3dc1cb56d2"
+  },
+  {
+   "allow_other": true,
+   "answer": null,
+   "detail": "The harness makes something similar, never a copy: no names, art, music or text taken.",
+   "header": "Like this",
+   "id": "like",
+   "kind": "wizard",
+   "multi": false,
+   "options": [
+    {
+     "description": "Just from your idea.",
+     "id": "no",
+     "label": "No"
+    }
+   ],
+   "other_hint": "Add links, repositories or names, one per line",
+   "question": "Make it like something you know?",
+   "recommended": "no",
+   "source": {},
+   "stamp": "936a6df085"
+  },
+  {
+   "allow_other": true,
+   "answer": null,
+   "detail": "",
+   "header": "Look",
+   "id": "look",
+   "kind": "wizard",
+   "multi": false,
+   "options": [
+    {
+     "description": "A designer draws three; you pick one.",
+     "id": "yes",
+     "label": "Yes, show me three looks"
+    },
+    {
+     "description": "The builders choose a plain look.",
+     "id": "no",
+     "label": "No"
+    }
+   ],
+   "other_hint": "What should it look like?",
+   "question": "Show you three looks to choose from?",
+   "recommended": "yes",
+   "source": {},
+   "stamp": "6ab973af15"
+  }
+ ],
+ "projects_dir": "/home/owner/lab/projects"
+}

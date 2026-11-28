@@ -5,7 +5,7 @@
   "undone": 1,
   "waiting": 0
  },
- "id": "Pa20557",
+ "id": "Pb15851",
  "lines": [
   {
    "before_after": {
@@ -16,13 +16,13 @@
    "by": "you",
    "can_put_back": true,
    "can_undo": false,
-   "id": "Pa20557",
+   "id": "Pb15851",
    "kind": "options",
    "numbers": {},
    "role": "orchestrator",
    "state": "undone",
    "what": "Planner now temperature 0.3",
-   "when": "2026-11-27T23:33:03Z",
+   "when": "2026-11-28T11:14:20Z",
    "why": "you undid it",
    "words": "Planner now temperature 0.3: you undid it."
   }
@@ -37,6 +37,7 @@
   "What each job may do",
   "Your house style",
   "What it may apply by itself, and this list",
+  "Sound, the office, languages, the iPhone page and the proof run",
   "The fixed rules every agent gets"
  ],
  "not_here": [],

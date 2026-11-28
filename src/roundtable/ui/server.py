@@ -56,7 +56,14 @@ FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "file
                                 # wave 8: change a file, git history, richer previews, the Browser; words as they
                                 # are written, / commands, follow-ups, the queue; what each job may do; the board;
                                 # work that starts from outside, one list of services, CI, moving the data
-                                "editapi", "chatapi", "permsapi", "boardapi", "reachapi")
+                                "editapi", "chatapi", "permsapi", "boardapi", "reachapi",
+                                # wave 9: the app in the owner's language, sound, the office, what you use most,
+                                # run timelines, the iPhone page, a running app's frame, to-dos as actions, the
+                                # proof run
+                                "wordsapi", "soundapi", "officeapi", "countsapi", "otelapi", "webphoneapi",
+                                "appframeapi", "todoapi", "proofrunapi",
+                                # 1.5.0: the chat that replaced Letters (chat.py, chatstore.py)
+                                "chatsapi")
 
 
 def _feature_routes(app) -> dict:
@@ -1273,7 +1280,7 @@ class UIApp:
         except (PermissionError, ValueError) as e:
             raise ApiError(f"The hub didn't take it: {e}. Check the hub's rules let you message this project.") from None
         return {"reply": "Sent: it starts when that computer next checks the hub. Its answer comes back in "
-                         "Letters."}
+                         "its chat."}
 
     def activity(self, q):
         from .roundtable import activity
@@ -1486,6 +1493,12 @@ class UIApp:
         }
 
     def dispatch(self, method: str, path: str, q: dict, body: dict) -> Any:
+        try:  # what you use most, counted on this computer only (names and free text never kept)
+            from .. import localcounts
+
+            localcounts.count(self._backup_home(), localcounts.family(method, path))
+        except Exception:
+            pass
         fn = self.routes().get((method, path))
         if fn:
             return fn(body if method == "POST" else q)
@@ -1640,6 +1653,10 @@ def serve(hub_config: str | None = None, harness_config: str | None = None, agen
     app.phone.start()
     app.preview.start()
     httpd = ThreadingHTTPServer((host, port), make_handler(app, token, allow_remote=remote))
+    app.ui_port = httpd.server_address[1]
+    from . import otelapi
+
+    otelapi.start(app)  # the coding helpers' telemetry on 127.0.0.1, only when switched on
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{httpd.server_address[1]}/"
     if token:
         url += f"?token={token}"

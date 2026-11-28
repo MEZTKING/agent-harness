@@ -74,6 +74,13 @@ class MultiBackend(
         Result.failure(e)
     }
 
+    /**
+     * Who answers the chat of [seat] (null: Hall). Frozen in Step 0; chat-phone fills it in: the PC or This phone
+     * over /api/chats/…, falling to the phone itself after 5 seconds without an answer; in Hub mode the phone's
+     * own brain with a DeepSeek key, else the waiting one.
+     */
+    fun chatBrain(seat: SeatView?): ChatBrain = ChatBrains.choose(parts, seat, seen as? Store)
+
     fun modeFor(seat: SeatView?): Mode = if (Source.of(seat?.source) == Source.HUB) Mode.HUB else if (seat == null) mode else Mode.PC
 
     /** Every seat seen since the app started, by id and hub name: a machine that goes off is still known. */

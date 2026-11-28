@@ -2,6 +2,7 @@
 // first ("Done when: 5 of 7 ✓"), the items when it is opened, each item's evidence behind More.
 // (harness/donelist.py, harness/donestage.py, ui/doneapi.py)
 import { h, fill, get, q, has, enlarge } from "./core.js";
+import { t } from "./words.js";
 
 const MARK_TIP = {
   passed: "It was shown to work",
@@ -56,7 +57,7 @@ export function doneBody(path, d) {
   const list = h("ul", { class: "dl-items" }, (d.items || []).map((i) => itemRow(path, i)));
   const out = [list];
   if (d.unchecked) out.push(h("p", { class: "muted small", title: "Nothing is ticked unless it was really shown to work" },
-    `${d.unchecked} couldn't be checked yet or here: they show no tick.`));
+    t("{unchecked} couldn't be checked yet or here: they show no tick.", { unchecked: d.unchecked })));
   return out;
 }
 

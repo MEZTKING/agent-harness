@@ -296,6 +296,17 @@ def _sdk_dirs(s: System) -> list[Path]:
     return out
 
 
+def _find_gdrive(s: System, tool: Tool) -> dict[str, Any] | None:
+    """Google Drive for desktop's "My Drive" folder (where backups go by themselves; backup.py)."""
+    from .backup import find_drive_folders
+
+    try:
+        found = find_drive_folders(s.home, {"windows": "win32", "mac": "darwin"}.get(s.os, "linux"))
+    except Exception:  # noqa: BLE001 - a drive that isn't ready
+        found = []
+    return {"where": str(found[0]), "version": "", "detail": "your My Drive folder"} if found else None
+
+
 def _find_android(s: System, tool: Tool) -> dict[str, Any] | None:
     for d in _sdk_dirs(s):
         parts = [x for x in ("platform-tools", "cmdline-tools", "build-tools", "platforms") if (d / x).is_dir()]
@@ -406,6 +417,12 @@ CATALOG: list[Tool] = [
          names=("soffice", "libreoffice"), winget="TheDocumentFoundation.LibreOffice", brew=("--cask", "libreoffice"),
          linux="sudo apt install libreoffice", admin=True, size="about 350 MB",
          places=lambda s: [d / "LibreOffice" / "program" / "soffice.exe" for d in _pf(s)] if s.os == "windows" else []),
+    Tool("gdrive", "Google Drive for desktop", "Basics",
+         "Keeps a copy of your settings and plans off this computer (Settings → Backups uses it by itself).",
+         winget="Google.GoogleDrive", brew=("--cask", "google-drive"),
+         linux="Google Drive for desktop isn't made for Linux: choose another backup folder in Settings → Backups.",
+         admin=True, finder=_find_gdrive, version_args=(), size="about 300 MB",
+         note="Sign in to Google Drive once it has installed; backups then go there by themselves."),
     Tool("java", "Java (JDK 17 or newer)", "Phone apps", "Builds Android apps (APKs).",
          names=("java",), version_args=("-version",), min_version="17", winget="EclipseAdoptium.Temurin.17.JDK",
          brew=("--cask", "temurin@17"), linux="sudo apt install openjdk-17-jdk", admin=True, places=_java_places),

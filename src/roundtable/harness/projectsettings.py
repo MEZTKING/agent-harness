@@ -21,7 +21,7 @@ PROJECT_FILE = ".harness/project.yaml"
 REPO_FILE = "roundtable.yaml"
 DEFAULT_RULES_FILES = ["CLAUDE.md", ".claude/CLAUDE.md", "AGENTS.md", "HANDOFF.md", "DEVLOG.md"]
 LIMIT_KEYS = {"max_real_usd_per_run": float, "max_cost_usd": float, "max_attempts_per_task": int,
-              "max_steps_per_task": int}
+              "max_steps_per_task": int, "max_image_usd": float}
 SWITCH = ["auto", "on", "off"]
 
 
@@ -61,7 +61,7 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("checking", "choice", "", "How much extra checking this project gets: lean, balanced or maximum. Empty: "
             "the app's choice.", ("", "lean", "balanced", "maximum")),
     Setting("limits", "number-map", {}, "Money and effort limits for this project only: max_real_usd_per_run, "
-            "max_cost_usd, max_attempts_per_task, max_steps_per_task.", example="max_real_usd_per_run: 2"),
+            "max_cost_usd, max_attempts_per_task, max_steps_per_task, max_image_usd (pictures).", example="max_real_usd_per_run: 2"),
     Setting("look", "choice", "auto", "Offer looks to choose from before building. auto: only for new apps with screens, "
             "or a web app.", tuple(SWITCH)),
     Setting("show_it", "choice", "auto", "Take pictures of the app's screens after each task. auto: when it has "
@@ -79,6 +79,9 @@ SETTINGS: tuple[Setting, ...] = (
             "such as coder or ui-designer. Empty: this computer's choice (Careful).", example="coder: careful"),
 )
 BY_KEY = {s.key: s for s in SETTINGS}
+# settings read by another part of the harness, not shown in the forms: what a new machine needs before the first
+# task (setupdecl.py: repositories cloned next to this one, and system packages)
+READ_ELSEWHERE = {"siblings": "setupdecl.py", "system": "setupdecl.py"}
 
 
 @dataclass
@@ -211,6 +214,8 @@ def load(root: str | Path, profiles: list[str] | None = None) -> ProjectSettings
         if err:
             errors.append(err)
         for key, value in raw.items():
+            if key in READ_ELSEWHERE:
+                continue
             if key not in BY_KEY:
                 warnings.append(f"{name}: the harness doesn't know the setting {key!r} (kept as it is)")
                 continue

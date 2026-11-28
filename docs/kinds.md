@@ -122,6 +122,15 @@ Proof `how`: `page_opens`, `command`, `play`, `picture`, `file_exists` (with `pa
 
 `meta["parts"] = [{id, name, kind, extras, folder}]` is kept from day one; version 1 builds one part.
 
+## Sound (1.5.0)
+
+The game kinds' planners (`browser-game`, `godot-game`: `prompts/planner.md`) plan sound only when a sound role is
+offered, and only what the project's $2 buys: short effects of half a second to three seconds and at most one
+music loop, each a task for the sound role with `sound_options` (`kind`, `seconds`) and an `output_path` under
+`assets/sounds/`. Without a sound role, or once the money runs out, a sound is made in code (the Web Audio API in
+a browser game, an `AudioStreamGenerator` in Godot) and the finish report says which and why
+(`harness/soundstage.py`, `docs/sound.md`).
+
 ## Honest status
 
 The file says `trial` or `not_yet`. **Proven** is computed from the Gallery: at least one record built with

@@ -7,6 +7,7 @@
 import { BRAND, h, fill, get, post, q, toast } from "./core.js";
 import { slashMenu, runCommand, replyLine } from "./slash.js";
 import { queueList } from "./queue.js";
+import { t as wt } from "./words.js";
 
 const PART = 1_000_000;  // base64 characters a request (the app's servers take 2 MB at most)
 const MAX_PX = 1568;     // a longer picture is made smaller before it leaves this window
@@ -22,7 +23,7 @@ function style() {  // the box's own look, once (the coordinator may move it int
 .compose textarea { min-height: 84px; }
 .compose.drop textarea { outline: 2px dashed var(--color-accent); outline-offset: 2px; }
 .compose-files { display: flex; flex-wrap: wrap; gap: 6px; }
-.compose-file { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; border-radius: var(--radius-small);
+.compose-file { display: inline-flex; align-items: center; gap: 6px; padding-block: 3px; padding-inline: 6px 4px; border-radius: var(--radius-small);
   background: var(--color-sunken); border: 1px solid var(--color-line); font-size: 13px; max-width: 260px; }
 .compose-file img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
 .compose-file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -30,7 +31,7 @@ function style() {  // the box's own look, once (the coordinator may move it int
 .compose-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .compose-bar .spacer { flex: 1; }
 .compose-bar .mic.on { background: var(--color-bad-soft); color: var(--color-bad); }
-.compose-at { position: absolute; z-index: 5; left: 0; right: 0; top: 92px; max-height: 220px; overflow: auto; margin: 0; padding: 4px;
+.compose-at { position: absolute; z-index: 5; inset-inline-start: 0; inset-inline-end: 0; top: 92px; max-height: 220px; overflow: auto; margin: 0; padding: 4px;
   list-style: none; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-small); box-shadow: var(--shadow); }
 .compose-at li { padding: 5px 8px; border-radius: 4px; cursor: pointer; font: 13px/1.4 var(--font-mono); }
 .compose-at li.on, .compose-at li:hover { background: var(--color-accent-soft); }
@@ -72,7 +73,9 @@ const speech = () => window.SpeechRecognition || window.webkitSpeechRecognition 
 // onSend({text, mode, key, items}) -> resolves when sent (the box is then cleared), hint (a line under the box),
 // slash (default: on in a project's chat, i.e. with project and modes): a line starting with "/" is a command,
 // queue (default: the same): the messages waiting for the next task, above the box; onOpen(page): a command
-// asked for a page ("board")
+// asked for a page ("board"); enterSends: Enter sends and Shift+Enter starts a new line (the chat), else Ctrl+Enter;
+// slashSends: a "/" line goes to onSend like any message (the chat: the app turns it into a card) instead of running
+// here; cls: an extra class on the box
 export function composer(opts = {}) {
   style();
   const key = opts.key || "message";
@@ -94,11 +97,11 @@ export function composer(opts = {}) {
   const useSlash = opts.slash ?? inChat, useQueue = opts.queue ?? inChat;
   const said = useSlash ? replyLine() : null;
   const waiting = useQueue && opts.project ? queueList(opts.project) : null;
-  const root = h("div", { class: "compose" }, waiting, area, at, files,
+  const root = h("div", { class: "compose" + (opts.cls ? " " + opts.cls : "") }, waiting, area, at, files,
     h("div", { class: "compose-bar" }, attach, mic, modeRow, h("span", { class: "spacer" }), saved, send), said, input,
     opts.hint ? h("p", { class: "muted small" }, opts.hint) : null);
   const menu = useSlash && opts.project ? slashMenu(area, opts.project, root) : null;
-  if (menu) { area.placeholder = `${area.placeholder} (type / for commands)`; area.title = "Type / to see the commands, like /run or /goal"; }
+  if (menu && !opts.slashSends) { area.placeholder = `${area.placeholder} (type / for commands)`; area.title = "Type / to see the commands, like /run or /goal"; }
 
   function drawModes() {
     if (!modeRow) return;
@@ -109,7 +112,7 @@ export function composer(opts = {}) {
     fill(files, items.map((x) => h("span", { class: "compose-file", title: `${x.name}, ${x.size_words}` },
       x.preview ? h("img", { src: x.preview, alt: "" }) : null,
       h("span", { class: "name" }, x.name), h("span", { class: "muted" }, x.size_words),
-      h("button", { type: "button", title: `Take ${x.name} off`, "aria-label": `Remove ${x.name}`, onclick: () => remove(x.id) }, "✕"))));
+      h("button", { type: "button", title: wt("Take {name} off", { name: x.name }), "aria-label": wt("Remove {name}", { name: x.name }), onclick: () => remove(x.id) }, "✕"))));
   }
   function show(d) {
     items = d.items || [];
@@ -195,7 +198,7 @@ export function composer(opts = {}) {
       if (ev.key === "Enter" || ev.key === "Tab") { ev.preventDefault(); pickAt(atList[atPick]); return; }
       if (ev.key === "Escape") { at.hidden = true; return; }
     }
-    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey) && send) { ev.preventDefault(); doSend(); }
+    if (ev.key === "Enter" && send && !ev.isComposing && ((ev.ctrlKey || ev.metaKey) || (opts.enterSends && !ev.shiftKey && !ev.altKey))) { ev.preventDefault(); doSend(); }
   });
   area.addEventListener("blur", () => setTimeout(() => { at.hidden = true; }, 150));
 
@@ -211,7 +214,7 @@ export function composer(opts = {}) {
       }
       saveSoon();
     };
-    rec.onerror = (ev) => { if (ev.error === "not-allowed") toast(`The microphone isn't allowed. Allow it for ${BRAND.name}, then try again.`, true); };
+    rec.onerror = (ev) => { if (ev.error === "not-allowed") toast(wt("The microphone isn't allowed. Allow it for {name}, then try again.", { name: BRAND.name }), true); };
     rec.onend = () => { listening = null; mic.classList.remove("on"); mic.textContent = "Speak"; mic.setAttribute("aria-pressed", "false"); };
     try { rec.start(); } catch { return; }
     listening = rec; mic.classList.add("on"); mic.textContent = "Stop"; mic.setAttribute("aria-pressed", "true");
@@ -224,7 +227,7 @@ export function composer(opts = {}) {
     if (!area.value.trim() && !opts.textless) { toast("Write something first.", true); area.focus(); return; }
     clearTimeout(saveTimer);
     if (send) send.disabled = true;
-    if (menu && /^\/[^/]/.test(area.value.trim())) {  // a command, not a message
+    if (menu && !opts.slashSends && /^\/[^/]/.test(area.value.trim())) {  // a command, not a message
       const line = area.value.trim();
       try {
         clear();

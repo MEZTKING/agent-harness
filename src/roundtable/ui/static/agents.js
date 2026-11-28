@@ -2,6 +2,7 @@
 // agentsTab() is the Agents tab in Models; agentChip(id) is the small face-and-name used in "who did what".
 // (agents.py, ui/agentsapi.py). Until a face is made the agent shows its initials in a ring: chrome, not art.
 import { h, fill, get, post, act, card, empty, dialog, toast, has, money } from "./core.js";
+import { t } from "./words.js";
 
 let cache = null;  // the last /api/agents answer, shared by every chip on the page
 
@@ -12,8 +13,8 @@ async function team(fresh = false) {
 
 function face(a, size = "") {
   return a.face
-    ? h("img", { class: "ag-face " + size, src: a.face, alt: "", title: `${a.name}, the ${a.job_name.toLowerCase()}` })
-    : h("span", { class: "ag-face ag-ring " + size, title: `${a.name} has no face yet`, "aria-hidden": "true" }, a.initials);
+    ? h("img", { class: "ag-face " + size, src: a.face, alt: "", title: t("{name}, the {v1}", { name: a.name, v1: a.job_name.toLowerCase() }) })
+    : h("span", { class: "ag-face ag-ring " + size, title: t("{name} has no face yet", { name: a.name }), "aria-hidden": "true" }, a.initials);
 }
 
 // The small chip: face and name. Empty (removed) when there's no such agent or this copy has no agents.
@@ -37,7 +38,7 @@ export async function agentsTab() {
   const box = h("div", { class: "ag-tab" });
   const draw = async () => {
     let d;
-    try { d = await team(true); } catch (e) { fill(box, empty(`Couldn't read your team: ${e.message}`)); return; }
+    try { d = await team(true); } catch (e) { fill(box, empty(t("Couldn't read your team: {message}", { message: e.message }))); return; }
     const byJob = new Map(d.jobs.map((j) => [j.job, []]));
     for (const a of d.agents) (byJob.get(a.job) || []).push(a);
     fill(box,
@@ -59,7 +60,7 @@ export async function agentsTab() {
 
 function tile(a, redraw) {
   return h("button", { type: "button", class: "ag-tile" + (a.hired ? " ag-hired" : ""), onclick: () => open(a.id, redraw),
-    title: a.about || `${a.name}, the ${a.job_name.toLowerCase()}` },
+    title: a.about || t("{name}, the {v1}", { name: a.name, v1: a.job_name.toLowerCase() }) },
     face(a), h("b", {}, a.name), h("span", { class: "muted small" }, a.job_name));
 }
 
@@ -70,7 +71,7 @@ async function open(id, redraw) {
   const body = h("div", { class: "ag-one" },
     h("div", { class: "row" }, face(a, "ag-big"), h("div", {}, h("p", {}, h("b", {}, a.name), ` · ${a.job_name}`), a.about ? h("p", { class: "muted" }, a.about) : null)),
     h("div", { class: "row" },
-      a.hired ? null : h("button", { type: "button", class: "primary", title: `Give ${a.name} the ${a.job_name.toLowerCase()}'s job; whoever had it steps back`, onclick: (ev) => act(ev.target, () => post("/api/agents", { id: a.id, hire: true }), `${a.name} is hired`, () => { close(); redraw(); }) }, "Hire"),
+      a.hired ? null : h("button", { type: "button", class: "primary", title: t("Give {name} the {v1}'s job; whoever had it steps back", { name: a.name, v1: a.job_name.toLowerCase() }), onclick: (ev) => act(ev.target, () => post("/api/agents", { id: a.id, hire: true }), t("{name} is hired", { name: a.name }), () => { close(); redraw(); }) }, "Hire"),
       h("button", { type: "button", onclick: () => { close(); edit(a, jobs, redraw); } }, "Change"),
       h("button", { type: "button", title: "A picture model makes the face. You see the price first", onclick: (ev) => makeFace(ev.target, a, redraw) }, a.face ? "New face" : "Make a face"),
       h("button", { type: "button", title: "Save this agent as a file to bring in on another computer", onclick: () => share(a) }, "Share"),
@@ -95,7 +96,7 @@ async function edit(a, jobs, redraw) {
   const body = h("div", { class: "ag-form" },
     h("label", {}, "Name", name), h("label", {}, "Job", job), h("label", {}, "One line about it", about),
     h("label", {}, "Face words", traits), h("label", {}, "Your notes (up to 2,000 characters)", notes));
-  if (!(await dialog({ title: a ? `Change ${a.name}` : "New agent", body, yes: "Save", wide: true }))) return;
+  if (!(await dialog({ title: a ? t("Change {name}", { name: a.name }) : "New agent", body, yes: "Save", wide: true }))) return;
   await act(null, () => post("/api/agents", { ...(a ? { id: a.id } : {}), name: name.value, job: job.value, about: about.value, traits: traits.value, notes: notes.value }), (r) => r.reply, redraw);
 }
 
@@ -104,15 +105,15 @@ async function makeFace(btn, a, redraw) {
   if (!p) return;
   if (!p.price.ok) { toast(p.reply, true); return; }
   const words = p.price.usd != null ? `${p.reply} Make it?` : `${p.reply} Make it anyway?`;
-  if (!(await dialog({ title: `A face for ${a.name}`, text: words, yes: "Make it" }))) return;
+  if (!(await dialog({ title: t("A face for {name}", { name: a.name }), text: words, yes: "Make it" }))) return;
   await act(btn, () => post("/api/agents/face", { id: a.id, confirm: true }), (r) => r.reply, () => { cache = null; redraw(); });
 }
 
 async function share(a) {
   const tick = h("input", { type: "checkbox", "aria-label": "Include what it learned" });
-  const body = h("div", {}, h("p", {}, `A file with ${a.name}'s name, job, notes and face. It never holds model choices.`),
+  const body = h("div", {}, h("p", {}, t("A file with {name}'s name, job, notes and face. It never holds model choices.", { name: a.name })),
     h("label", { title: "What it learned may mention your other projects. You see all of it before saving" }, tick, " Include what it learned"));
-  if (!(await dialog({ title: `Share ${a.name}`, body, yes: "Next" }))) return;
+  if (!(await dialog({ title: t("Share {name}", { name: a.name }), body, yes: "Next" }))) return;
   const memory = tick.checked ? "1" : "";
   if (memory) {
     let look;
@@ -124,12 +125,12 @@ async function share(a) {
     const bytes = Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0));
     const link = h("a", { href: URL.createObjectURL(new Blob([bytes], { type: "application/zip" })), download: r.name });
     document.body.append(link); link.click(); link.remove();
-    toast(`Saved ${r.name}`);
+    toast(t("Saved {name}", { name: r.name }));
   });
 }
 
 async function remove(btn, a, after) {
-  if (!(await dialog({ title: `Remove ${a.name}?`, text: "It leaves the team. Its folder, notes and memory are kept in agents/.removed, so nothing is lost.", yes: "Remove", danger: true }))) return;
+  if (!(await dialog({ title: t("Remove {name}?", { name: a.name }), text: "It leaves the team. Its folder, notes and memory are kept in agents/.removed, so nothing is lost.", yes: "Remove", danger: true }))) return;
   await act(btn, () => post("/api/agents/remove", { id: a.id }), (r) => r.reply, after);
 }
 
@@ -149,7 +150,7 @@ async function importFile(input, after) {
     h("p", {}, h("b", {}, w.name), ` · ${w.job_name}`), w.about ? h("p", { class: "muted" }, w.about) : null,
     h("p", { class: "small" }, h("b", {}, "Its notes: ")), h("pre", { class: "ag-mem small" }, w.notes || "(none)"),
     w.memory ? h("details", { class: "fold" }, h("summary", {}, "What it learned elsewhere"), h("pre", { class: "ag-mem small" }, w.memory)) : null,
-    w.dropped.length ? h("p", { class: "small" }, `Left out: its model choices (${w.dropped.join(", ")}). Your own Models decide.`) : null,
+    w.dropped.length ? h("p", { class: "small" }, t("Left out: its model choices ({v1}). Your own Models decide.", { v1: w.dropped.join(", ") })) : null,
     h("p", { class: "small muted" }, "It joins the team but isn't hired until you say so."));
   if (!(await dialog({ title: "Add this agent?", body, yes: "Add it", wide: true }))) return;
   await act(null, () => post("/api/agents/import", { data, confirm: true }), (x) => x.reply, after);
@@ -170,6 +171,6 @@ export function agentStyles() {
 .ag-one .row { gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .ag-form { display: grid; gap: 8px; } .ag-form label { display: grid; gap: 3px; }
 .ag-mem { white-space: pre-wrap; max-height: 240px; overflow: auto; background: var(--color-sunken); border-radius: var(--radius-small); padding: 6px 8px; margin: 4px 0; }
-.ag-file input { margin-left: 6px; }
+.ag-file input { margin-inline-start: 6px; }
 `));
 }

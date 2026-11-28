@@ -1,6 +1,7 @@
 // Tools → "Web search": builders look things up instead of guessing (ui/websearchapi.py, harness/websearch.py).
 // Short first: the switch, which search it uses, today's count and "Try it". Roles, limits and SearXNG under More.
 import { h, fill, get, post, act, plural } from "./core.js";
+import { t } from "./words.js";
 
 const TIP = "Builders can search the web and read public pages, such as a library's real instructions. " +
   "What they read is treated as outside content: described, never obeyed.";
@@ -9,7 +10,7 @@ const NAMES = { auto: "The best one set up", brave: "Brave Search", tavily: "Tav
 export async function webSearchCard() {
   let st;
   try { st = await get("/api/websearch"); } catch (e) {
-    return h("section", { class: "card" }, h("h2", {}, "Web search"), h("p", {}, `Web search isn't available here: ${e.message}`));
+    return h("section", { class: "card" }, h("h2", {}, "Web search"), h("p", {}, t("Web search isn't available here: {message}", { message: e.message })));
   }
   webSearchStyles();
   const box = h("section", { class: "card ws-card" });
@@ -40,7 +41,7 @@ export async function webSearchCard() {
         "Let builders look things up on the web"),
       h("p", { class: "small" }, st.words, " ",
         h("span", { class: "muted", title: "Searches and pages read today, in every project on this computer" },
-          `Today: ${plural(st.today.searches, "search", "searches")}, ${plural(st.today.reads, "page")} read.`)),
+          t("Today: {v1}, {v2} read.", { v1: plural(st.today.searches, "search", "searches"), v2: plural(st.today.reads, "page") }))),
       keyless ? h("p", { class: "small muted", title: "Add the key in Settings → Keys; nothing else to set up" },
         "For steadier results add a Brave Search or Tavily key in Settings → Keys.") : null,
       h("div", { class: "row" },
@@ -78,7 +79,7 @@ function webSearchStyles() {
   if (typeof document === "undefined" || document.getElementById("ws-style")) return;
   document.head.append(h("style", { id: "ws-style" }, `
 .ws-card .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
-.ws-card .ws-num input { width: 5.5em; margin-left: 4px; }
+.ws-card .ws-num input { width: 5.5em; margin-inline-start: 4px; }
 .ws-card .ws-out ul { margin: 4px 0 0 18px; } .ws-card .ws-out li { margin: 2px 0; overflow-wrap: anywhere; }
 .ws-card details { margin-top: 8px; } .ws-card details > label { display: block; margin: 6px 0; }
 `));

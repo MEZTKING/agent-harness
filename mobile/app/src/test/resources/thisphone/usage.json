@@ -1,0 +1,94 @@
+{
+ "fields": {
+  "jobs": [
+   "tokens_per_project",
+   "usd_per_project"
+  ],
+  "services": [
+   "usd_per_day",
+   "usd_per_month",
+   "tokens_per_day"
+  ]
+ },
+ "jobs": [
+  {
+   "caps": {},
+   "name": "Planner",
+   "role": "orchestrator"
+  },
+  {
+   "caps": {},
+   "name": "Project manager",
+   "role": "manager"
+  },
+  {
+   "caps": {},
+   "name": "Coder",
+   "role": "coder"
+  },
+  {
+   "caps": {},
+   "name": "Critic",
+   "role": "critic"
+  },
+  {
+   "caps": {},
+   "name": "Researcher",
+   "role": "scout"
+  },
+  {
+   "caps": {},
+   "name": "Reviewer",
+   "role": "reviewer"
+  },
+  {
+   "caps": {},
+   "name": "Designer",
+   "role": "designer"
+  }
+ ],
+ "note": "Darkness Harness counts what it sent from this computer. The coding helpers on your own subscriptions don't say what's left: their line is what was used.",
+ "services": [
+  {
+   "balance": null,
+   "balance_words": "DeepSeek doesn't say what's left in the account",
+   "caps": {},
+   "id": "deepseek",
+   "left": {},
+   "name": "DeepSeek",
+   "reached": "",
+   "subscription": false,
+   "unpriced_words": "",
+   "used": {
+    "calls": 0,
+    "day_tokens": 0,
+    "day_usd": 0.0,
+    "month_tokens": 0,
+    "month_usd": 0.0,
+    "unpriced": 0
+   },
+   "words": "DeepSeek: $0 this month, no limit set"
+  },
+  {
+   "balance": null,
+   "balance_words": "Anthropic doesn't say what's left in the account",
+   "caps": {},
+   "id": "anthropic",
+   "left": {},
+   "name": "Anthropic",
+   "reached": "",
+   "subscription": false,
+   "unpriced_words": "",
+   "used": {
+    "calls": 0,
+    "day_tokens": 0,
+    "day_usd": 0.0,
+    "month_tokens": 0,
+    "month_usd": 0.0,
+    "unpriced": 0
+   },
+   "words": "Anthropic: $0 this month, no limit set"
+  }
+ ],
+ "words": "No limits set: each project's own money limit still holds."
+}

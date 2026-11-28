@@ -229,6 +229,8 @@ def test_the_phone_may_not_change_files_or_switch_branch():
 
     for method in ("GET", "POST"):
         for p in ("/api/files/save", "/api/files/undo_edit", "/api/files/edit", "/api/git/checkout",
-                  "/api/files/as_pdf", "/api/board/move", "/api/commands/pc", "/api/asktimer"):
+                  "/api/files/as_pdf", "/api/board/move", "/api/commands/pc"):
             assert not phone_allowed(method, p), (method, p)
+    # wave 9: a question's timer may be held from the phone, and only held (phone.PHONE_NARROW)
+    assert not phone_allowed("GET", "/api/asktimer") and phone_allowed("POST", "/api/asktimer")
     assert phone_allowed("GET", "/api/perms") and not phone_allowed("POST", "/api/perms")

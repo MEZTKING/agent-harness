@@ -330,6 +330,17 @@ def session_end_note(agent: str, event: dict[str, Any]) -> dict[str, Any] | None
                                    source="hook")
 
 
+def hand_over(hub=None) -> list[str]:
+    """When a session ends, every project it was running is marked "no reader" in the hub (reach.no_reader), so
+    the phone says nobody runs them and the owner's PC or phone can take them over."""
+    from . import reach
+    from .sync import this_machine
+
+    hub = hub or _hub()
+    return reach.no_reader(hub, this_machine()["id"],
+                           "The session that ran it has ended. Your PC or phone can carry on with it.")
+
+
 def run_hook(name: str, agent: str, event: dict[str, Any]) -> int:
     """Hooks never fail the session: problems are reported and the session goes on."""
     try:
@@ -340,7 +351,10 @@ def run_hook(name: str, agent: str, event: dict[str, Any]) -> int:
             if decision:
                 print(json.dumps(decision))
         elif name == "session-end":
-            session_end_note(agent, event)
+            try:
+                hand_over()  # the projects this session ran: nobody runs them now
+            finally:
+                session_end_note(agent, event)
         else:
             print(f"roundtable hook: unknown hook {name!r}", file=sys.stderr)
     except Exception as e:  # offline, hub missing, ... : say so, never block Claude

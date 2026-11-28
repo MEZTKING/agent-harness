@@ -1,5 +1,51 @@
 <!-- The README's "What's new" sections, bundled with the app for its "What's new" card. Written by `python -m roundtable.updater --whatsnew-bundle`; edit the README instead. -->
 
+### What's new in 1.5.0
+
+Sound, other languages, a little office, and a game built from one idea for a known price.
+
+- **Sound and music for games**: sound effects and a music loop from ElevenLabs (Stable Audio as the second
+  choice), each priced before it's made, never more than $2 a project. If the money runs out or no service is
+  picked, the sound is made in code instead, and the report says which. A project's **Sounds** card plays them.
+- **Your language**: Settings → Language. The app can be shown in eleven other languages, right to left for
+  Arabic; the words are a model's translation and labelled as such. **Read in <language>** under what a builder
+  or reviewer writes translates it, priced first.
+- **Every to-do has a button that does it** in the app (approve, carry on, add the key, turn on backups, set
+  GitHub's default branch…). Every project in the hub has a seat that says who runs it right now, and Approve is
+  sent once.
+- **The office** (once its pictures are made, with your yes to the sample): your agents at work in a little
+  pixel-art office, beside the Ring on Home.
+- **Prove it** (Settings → Spending): one idea, one small game, built end to end for at most $3, with the
+  estimate, the harness's own count and the real fall in the balance side by side.
+- **Private by default**: what you use most, counted on this computer only (Settings → Advanced); a timeline of
+  each run (Watch → More), off unless you turn it on. Before a project's first task on a new computer, one card
+  shows what it needs fetched and installed. The critic looks again after a big change to the plan. Pictures
+  have a limit of their own per project.
+- **The phone**: the timer on a question is held while you type, Answer these, the look's pictures on its card,
+  your documents, hiring, Talk through the PC, a project's sounds and settings (money and checking first).
+
+**Letters are now a chat.**
+
+- **One chat for each project, and one for everything (Hall)**, on the PC and on the phone. Type, and the answer
+  writes itself out straight away. Ask where a project stands, what it cost, or say what to do next.
+- **It answers with the cheap model** (DeepSeek V4 Flash), about a tenth of a cent a message, at most $1 a day on
+  all your devices together (Settings → Spending → Chat, most for one day). At the limit it says so and offers to
+  raise it for today.
+- **Nothing spends without your tap.** Anything that costs money or can't be undone shows as a card with its price
+  and two buttons. Work that needs the PC while it's off waits with a plain line, and the phone can offer to run it
+  on This phone instead.
+- **When no computer is on, the phone can answer by itself** with a DeepSeek key you paste once into the phone's
+  key form. If nothing can answer, the chat says why and what to tap; it never goes quiet.
+- **Pictures, files and voice** in the chat, and the same history on every device, kept in your private hub.
+- **Your old letters are still there**, read only, folded under "Earlier messages" at the top of each chat. The
+  Letters screens are gone; Needs you shows "<project> wrote to you" and opens that chat.
+
+Beta notes: the office art, the language tables and the sound service's prices are made or checked with paid
+calls before the release; the office view, the languages on screen, a sound in a built game and the phone's new
+parts are still to be tried on your own PC and phone. The chat's first real test is yours: the music player's five
+accepted ideas, at most $2, through the chat on the phone. The page for an iPhone is built but stays off until you
+say yes.
+
 ### What's new in 1.4.0
 
 It catches up: everything the two harnesses it was compared with can do, it can do too (the list is in
@@ -131,25 +177,3 @@ Roundtable Hold is now Darkness Harness. Everything you have stays.
 - **The phone app updates in place** and stays paired: same app, new name and look.
 - **Windows SmartScreen may ask again** ("Windows protected your PC"), because the app's file name changed.
   Click **More info → Run anyway**, as before.
-
-### What's new in 0.12.0
-
-- **Kinds**: Roundtable knows what sort of thing you're making – a website, a web app, a browser game or
-  something else – and plans, builds and checks it to suit. The plan's first card asks "This looks like a
-  website. Right?"; the choice is fixed once you approve.
-- **Gallery** (new tab, and on the phone): everything finished, with its pictures and checks, and what
-  Roundtable can make. Hiding never deletes; "Make another like this" starts a new one.
-- **Proof for every task**: pictures before and after, the tests before and after, and one line from a
-  model that can see (advice for the reviewer, at most 5 cents a task, counted in the estimate).
-- **Undo a task**: see the files first, then undo it or go back to before it; "Put it back" undoes the undo
-  for 30 days. **Try another way** makes a separate copy from any task. Never for work already on GitHub.
-- **Web search for builders**: they can look up real documentation instead of guessing (6 searches a task
-  at most; off for projects kept to some providers). Switch and engine on the Tools page.
-- **Command line** (a project's new tab, this PC only): type commands in its folder. A task's command
-  shows as it prints, with a Stop for that one command.
-- **Pounds**: costs also show as "≈ £" beside the dollars (Settings → Spending; the bank's daily rate).
-- **Phone comfort** (beta until tried on your phone): accent colour, true black, text size, buzz, pinned
-  and put-away projects, what you sent, how much Watch shows, a battery checklist, and two panes on a
-  tablet or an open foldable.
-- **The phone finds your PC on the Wi-Fi** (beta until tried at home): "Look for my PC" when pairing, and
-  "Look for it" when the PC's address changed. The installer lets the phone in on private networks only.

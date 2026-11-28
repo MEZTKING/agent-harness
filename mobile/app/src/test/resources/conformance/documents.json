@@ -1,0 +1,23 @@
+{
+ "documents": [],
+ "projects": [
+  {
+   "id": "781013366ac2",
+   "name": "Proj"
+  },
+  {
+   "id": "3adf41e3163b",
+   "name": "Made up garden"
+  },
+  {
+   "id": "3676ab356776",
+   "name": "Made up kite shop"
+  },
+  {
+   "id": "81621376a53c",
+   "name": "Made up another way"
+  }
+ ],
+ "removed": 0,
+ "words": "No documents yet. Drop files here, or link a folder."
+}

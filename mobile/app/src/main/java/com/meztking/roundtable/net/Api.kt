@@ -107,8 +107,9 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
     suspend fun changes(since: String, waitS: Int = 25): Changes =
         ApiJson.decodeFromString(call("GET", "/api/changes?since=${q(since)}&wait=$waitS", client = longPoll))
 
+    /** A question to the planner: it waits for the model's answer, so it gets the slow client's time. */
     suspend fun ask(path: String, message: String, steer: Boolean): ChatReply = ApiJson.decodeFromString(
-        call("POST", "/api/chat", obj { put("path", path); put("message", message); put("steer", steer) }))
+        call("POST", "/api/chat", obj { put("path", path); put("message", message); put("steer", steer) }, client = slow))
 
     suspend fun projectAction(path: String, action: String, task: String? = null, maxCost: Double? = null) {
         call("POST", "/api/project", obj {
@@ -239,6 +240,17 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         return call(method, path, body)
     }
 
+    /** A feature call that may wait for a model or a job to finish (a / command, a follow-up, Ask): it doesn't give up
+     *  after the usual 40 seconds but waits up to [SLOW_S]. */
+    suspend fun slowFeature(method: String, path: String, body: String? = null): String {
+        require(FEATURE_PREFIXES.any { path.startsWith(it) }) { "not a feature call" }
+        return call(method, path, body, client = slow)
+    }
+
+    /** The new-project cards (asks.py wizard_asks), asked one by one on the phone. */
+    suspend fun wizardAsks(): List<com.meztking.roundtable.data.Ask> =
+        com.meztking.roundtable.data.Asks.parse(call("GET", com.meztking.roundtable.data.WizardFlow.URL))
+
     suspend fun closeTodo(agent: String, id: String) { call("POST", "/api/journal/${q(agent)}/${q(id)}/close", "{}") }
     suspend fun logEntry(agent: String, kind: String, text: String, priority: String = "normal") {
         call("POST", "/api/journal/${q(agent)}", obj { put("kind", kind); put("text", text); put("priority", priority) })
@@ -253,6 +265,31 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
         call("POST", "/api/reply", obj { put("as", from); put("message_id", messageId); put("body", body) })
     }
 
+    // -- wave 9: what Part B left, each narrowed by the PC (phone.PHONE_NARROW); raw JSON, read by the screens --------
+    /** Stop a question's clock while the owner types an answer (only a hold: setting a timer stays on the PC). */
+    suspend fun holdTimer(path: String, id: String): String =
+        call("POST", "/api/asktimer", obj { put("path", path); put("id", id); put("hold", true) })
+    /** Answer these: the recommended answer for each ticked card, each {path, id, stamp}. */
+    suspend fun answerSeveral(items: List<Triple<String, String, String>>): String =
+        call("POST", "/api/board/answer-several", buildJsonObject {
+            put("items", kotlinx.serialization.json.JsonArray(items.map { (p, i, s) ->
+                buildJsonObject { put("path", p); put("id", i); put("stamp", s) } }))
+        }.toString())
+    /** The look's pictures, as data addresses only. */
+    suspend fun planLooks(path: String): String = call("GET", "/api/plan/looks?path=${q(path)}")
+    /** Your documents, read only (adding a folder stays on the PC). */
+    suspend fun documents(): String = call("GET", "/api/documents")
+    /** Give this job to an agent that already exists (making or renaming one stays on the PC). */
+    suspend fun hireAgent(id: String, job: String): String =
+        call("POST", "/api/agents", obj { put("id", id); put("job", job); put("hire", true) })
+    /** Talk through the PC: what was heard; the answer may name an action, which waits for a tap. */
+    suspend fun talk(path: String, text: String): String =
+        call("POST", "/api/chat/talk", obj { put("path", path); put("text", text.take(2000)) }, client = slow)
+
+    private val slow: OkHttpClient by lazy {
+        client.newBuilder().readTimeout(SLOW_S, java.util.concurrent.TimeUnit.SECONDS).callTimeout(SLOW_S + 20, java.util.concurrent.TimeUnit.SECONDS).build()
+    }
+
     private val longPoll: OkHttpClient by lazy {
         client.newBuilder().readTimeout(40, java.util.concurrent.TimeUnit.SECONDS).build()
     }
@@ -263,7 +300,17 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
             "/api/learning", "/api/style", "/api/charter", "/api/market",
             "/api/board", "/api/stream", "/api/commands", "/api/ci", "/api/documents", "/api/projects",
             // wave 8, read only: follow-ups, the queue, what each job may do, the services, who listens, git history
-            "/api/follow", "/api/queue", "/api/perms", "/api/integrations", "/api/listening", "/api/git/log")
+            "/api/follow", "/api/queue", "/api/perms", "/api/integrations", "/api/listening", "/api/git/log",
+            // the phone's own views of them: previews of notebooks, archives and media
+            "/api/files/preview",
+            // wave 9: what Part B left, each narrowed by the PC (phone.PHONE_NARROW)
+            "/api/asktimer", "/api/plan/looks", "/api/chat/talk",
+            // wave 9: a project's sounds, read only (ui/soundapi.py)
+            "/api/sounds",
+            // 1.5.0: the chat (ui/chatsapi.py), narrowed by the PC (phone.PHONE_NARROW for tap)
+            "/api/chats")
+        /** How long a slow call may take: a model's answer or a job's first reply. */
+        const val SLOW_S = 300L
         private val JSON = "application/json".toMediaType()
         private fun obj(build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject(build).toString()
 

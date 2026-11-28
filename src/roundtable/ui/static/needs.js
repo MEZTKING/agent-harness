@@ -1,10 +1,13 @@
 // Needs you: everything waiting for the owner, grouped by project, then questions and decisions → money and stopped
-// work → to-dos → letters, each answered on its card.
+// work → to-dos → chats that wrote to you, each answered on its card.
 import { h, fill, get, post, toast, act, S, onHall, refreshHall, projectName, projectHref, page, empty, dot, ago, plural, patch, q, dialog, seatOf } from "./core.js";
 import { askCard, answerHere, answerHub, skipHere, hubCommand } from "./asks.js";
 import { bulkBar } from "./bulk.js";
+import { todoButton } from "./todo.js";
+import { t as wt } from "./words.js";
+import { wroteCard } from "./chat.js";
 
-const RANK_WORDS = ["Questions and decisions", "Money, commands and stopped work", "To-dos", "Letters"];
+const RANK_WORDS = ["Questions and decisions", "Money, commands and stopped work", "To-dos", "Messages"];
 const askRank = (a) => (a.kind === "money" || a.kind === "failed" || a.kind === "command" ? 1 : 0);
 const after = async (done) => { await refreshHall(); if (done) await done(); };
 
@@ -29,6 +32,8 @@ export async function gather(rt, full = true) {
       if (local.has(n.project)) continue;
       if (n.ask) items.push({ project: n.project, rank: n.rank, kind: "local-ask", ask: n.ask, more: n.asks - 1 });
       else items.push({ project: n.project, rank: n.rank, kind: "run", need: n });
+    } else if (n.kind === "ask" && n.ask && n.ask.route) {  // a card answered on its own route here (the office art)
+      items.push({ project: n.project, rank: 0, kind: "route-ask", ask: n.ask, need: n });
     } else if (n.kind === "ask") {
       let asks = [n.ask];
       if (full && n.asks > 1) {
@@ -45,7 +50,7 @@ export function needCard(it, done, opts = {}) {
   const name = projectName(it.project);
   // the harness's own cards (a fix to itself) belong to no project
   const proj = opts.showProject === false || !it.project ? null : h("a", { href: projectHref(it.project), title: "Open this project" }, dot(it.project), name);
-  const more = it.more > 0 ? h("a", { class: "btn small", href: "#/needs", title: "See every card waiting for you" }, `${it.more} more here`) : null;
+  const more = it.more > 0 ? h("a", { class: "btn small", href: "#/needs", title: "See every card waiting for you" }, wt("{more} more here", { more: it.more })) : null;
   if (it.kind === "local-ask") {
     const a = it.ask;
     const skippable = !["approve", "money", "failed", "command"].includes(a.kind);
@@ -57,6 +62,13 @@ export function needCard(it, done, opts = {}) {
       a.link ? h("a", { class: "btn small", href: a.link, target: "_blank", rel: "noopener", title: "Opens the draft pull request on GitHub" }, "Look at it") : null,
       it.busy ? h("span", { class: "muted small" }, "It's working on this project now; answer when it stops.") : null],
       onSkip: skippable ? async () => { try { await skipHere(a); } catch (e) { toast(e.message, true); } await after(done); } : null });
+  }
+  if (it.kind === "route-ask") {  // the paid answers carry "Are you sure?" (askCard), then go to the card's own route
+    return askCard(it.ask, async (ans) => {
+      const r = await post(it.ask.route, { choice: (ans.chosen || [])[0] || "", confirm: !!ans.confirmed });
+      toast((r && (r.reply || r.words)) || "Done");
+      await after(done);
+    }, { compact: opts.compact, project: proj, extra: [more] });
   }
   if (it.kind === "hub-ask") {
     return askCard(it.ask, async (ans) => { await answerHub(it.need, it.ask, ans); await after(done); },
@@ -75,13 +87,13 @@ export function needCard(it, done, opts = {}) {
   }
   if (it.kind === "run") return box(n.actions.includes("budget") ? "Money" : "Stopped", sentence(n.text), runButtons(n, () => after(done)));
   if (it.kind === "todo") {
-    return box("To-do", n.text,
-      h("button", { class: "primary", title: "Done: it comes off the list", onclick: (ev) => act(ev.currentTarget,
+    return box("To-do", n.text, todoButton(n, () => after(done)),
+      h("button", { class: n.action ? "" : "primary", title: "Done: it comes off the list", onclick: (ev) => act(ev.currentTarget,
         () => post(`/api/journal/${encodeURIComponent(n.agent || n.project)}/${encodeURIComponent(n.id)}/close`, {}), "Done: off your list", () => after(done)) }, "Done"),
       h("button", { title: "Take it off the list without doing it", onclick: (ev) => act(ev.currentTarget,
         () => post(`/api/journal/${encodeURIComponent(n.agent || n.project)}/${encodeURIComponent(n.id)}/close`, { dropped: true }), "Taken off your list", () => after(done)) }, "Not needed"));
   }
-  if (it.kind === "messages") return lettersCard(n, done, opts, proj);
+  if (it.kind === "messages") return wroteCard(n);  // "<project> wrote to you", opening its chat (chat.js)
   return box("Waiting", n.text);
 }
 const sentence = (t) => { const s = String(t || "").trim(); return s ? s[0].toUpperCase() + s.slice(1) + (/[.!?]$/.test(s) ? "" : ".") : ""; };
@@ -99,23 +111,6 @@ export function runButtons(n, done) {
     if (a === "resume") return b("Carry on", "Picks up where it stopped", () => go({ action: "run" }), "Carrying on");
     return null;
   });
-}
-
-// unread letters, read on the card; reply or mark them read
-function lettersCard(n, done, opts, proj) {
-  const box = h("article", { class: "need-card letters-card" + (opts.compact ? " compact" : "") },
-    h("div", { class: "ask-head" }, h("span", { class: "chip" }, "Letters"), proj), h("p", { class: "muted small" }, "Loading…"));
-  (async () => {
-    let msgs = [];
-    try { msgs = (await get(`/api/inbox/${encodeURIComponent(n.project)}`)).slice(-(opts.compact ? 2 : 8)).reverse(); } catch (e) { fill(box, h("p", {}, e.message)); return; }
-    const { letterRow } = await import("./letters.js");
-    fill(box, h("div", { class: "ask-head" }, h("span", { class: "chip" }, "Letters"), proj),
-      msgs.length ? msgs.map((m) => letterRow(m, n.project, () => after(done), true)) : h("p", {}, "No unread letters now."),
-      h("div", { class: "row" }, h("a", { class: "btn", href: "#/letters" }, "All letters"),
-        msgs.length ? h("button", { onclick: (ev) => act(ev.currentTarget, () => post(`/api/inbox/${encodeURIComponent(n.project)}/read`, { ids: msgs.map((m) => m.id) }),
-          "Marked as read", () => after(done)) }, "Mark all read") : null));
-  })();
-  return box;
 }
 
 export async function viewNeeds() {
@@ -139,8 +134,8 @@ export async function viewNeeds() {
         items.length ? ordered.map(([pid, its]) => {
           its.sort((a, b) => a.rank - b.rank);
           const counts = {};
-          its.forEach((i) => { const k = i.kind === "todo" ? "to-do" : i.kind === "messages" ? "letters" : i.rank === 1 ? "stop" : "question"; counts[k] = (counts[k] || 0) + 1; });
-          const summary = Object.entries(counts).map(([k, c]) => k === "letters" ? "unread letters" : plural(c, k === "stop" ? "money or stopped task" : k)).join(", ");
+          its.forEach((i) => { const k = i.kind === "todo" ? "to-do" : i.kind === "messages" ? "messages" : i.rank === 1 ? "stop" : "question"; counts[k] = (counts[k] || 0) + 1; });
+          const summary = Object.entries(counts).map(([k, c]) => k === "messages" ? "new messages" : plural(c, k === "stop" ? "money or stopped task" : k)).join(", ");
           return h("section", { class: "need-group", id: `need-${pid}` },
             h("header", { class: "need-group-head" }, h("h2", {}, h("a", { href: projectHref(pid) }, dot(pid), projectName(pid)), h("span", { class: "count" }, its.length)),
               h("span", { class: "muted" }, summary)),

@@ -52,6 +52,8 @@ data class SeatView(
     /** The plan's name in the hub and the hub project commands go to (the PC's seats). */
     val hubName: String = "",
     val hubAgent: String = "",
+    /** Its chat, when the machine says (1.5.0); else [HubChat.chatOf] works it out from the hub name. */
+    val chat: String = "",
     /** The other connections that also see it. */
     val seenIn: List<String> = emptyList(),
 ) {
@@ -203,7 +205,7 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
         var receipts = 0
         if (mine.isNotEmpty()) {
             val letters = hub.messages(identity, mine, s.readIds[identity].orEmpty())
-            // Roundtable's receipts for the owner's own commands don't need them: read at once, shown only in Letters
+            // Roundtable's receipts for the owner's own commands don't need them: read at once, shown only under Earlier messages
             val (done, real) = letters.partition { Letters.isReceipt(it) }
             if (done.isNotEmpty()) runCatching { hub.markRead(identity, done.map { it.id }) }.onSuccess { receipts = done.size }
             real.forEach { m -> needs += letterNeed(m) }
@@ -249,7 +251,7 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
             return "Sent. It waits until you press Update plan."
         }
         hub.command(identity, ask.project, "answer", Asks.commandFields(ask, reply))
-        return "Sent. The harness will reply in Letters."
+        return "Sent. The harness will reply in its chat."
     }
 
     override suspend fun status(project: String) = StatusDoc.parse(hub.status(project))
@@ -285,14 +287,14 @@ class HubBackend(private val hub: GitHubHub, override val identity: String) : Ba
 
     override suspend fun act(need: NeedView, action: String): String = when (action) {
         "read" -> { need.message?.let { markRead(listOf(it)) }; "Marked as read" }
-        // the PC that runs the project ticks it off in its journal and replies in Letters (remote.py todo_done)
+        // the PC that runs the project ticks it off in its journal and replies in its chat (remote.py todo_done)
         "done" -> { hub.command(identity, need.project, "todo_done", mapOf("id" to (need.id ?: error("no id")))); "Sent: it's ticked off when your PC next syncs" }
         else -> ""
     }
 
     override suspend fun command(project: String, action: String, fields: Map<String, Any?>): String {
         hub.command(identity, project, action, fields)
-        return "Sent. The harness will reply in Letters."
+        return "Sent. The harness will reply in its chat."
     }
 
     @Volatile private var lastSeats: List<SeatView> = emptyList()
@@ -426,7 +428,7 @@ class PcBackend(val api: Api, override val identity: String, val here: Source = 
                 openTodos = s.open_todos, high = s.high, unread = s.unread, progress = s.progress, path = s.path,
                 hasPlan = s.path != null, autopilot = s.autopilot,
                 holder = if (s.where == "here" || (s.where.isBlank() && s.path != null)) here.key else "",
-                hubName = s.hub_name, hubAgent = s.hub_agent, machine = s.machine, machineName = s.machine_name,
+                hubName = s.hub_name, hubAgent = s.hub_agent, chat = s.chat, machine = s.machine, machineName = s.machine_name,
             )
         }
         val needs = r.needs_you.map { n ->

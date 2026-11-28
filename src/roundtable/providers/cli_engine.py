@@ -627,6 +627,9 @@ def run_cli_agent(
     key = task_key(prompt)
     resume = "" if opts.get("fresh") else str(opts.get("resume") or load_session(root, key, engine))
     env = clean_env()  # no keys, no hub token, no git login; HOME/USERPROFILE/APPDATA stay (the CLI's sign-in)
+    # the helper's own telemetry (if the owner sends it to 127.0.0.1) says the harness drove it (otel.py)
+    env["OTEL_RESOURCE_ATTRIBUTES"] = ",".join(x for x in (env.get("OTEL_RESOURCE_ATTRIBUTES", ""),
+                                                           "roundtable.driven=true") if x)
 
     snap = Snapshot(root)
     t0 = time.monotonic()

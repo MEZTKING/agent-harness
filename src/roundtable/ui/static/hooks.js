@@ -3,6 +3,7 @@
 // hook's secret is made by the app and shown here once; the automation list keeps only its hash.
 // The API: ui/reachapi.py (/api/hooks/new, /api/hooks/secret) and ui/automationapi.py.
 import { h, post, act, seg, card, dialog, toast } from "./core.js";
+import { t } from "./words.js";
 
 const STYLE = `
 .hook-secret { font-family: var(--font-mono); background: var(--color-sunken); border: 1px solid var(--color-line);
@@ -67,13 +68,13 @@ export function showSecret(r) {
   const address = `${location.origin}${r.path}`;
   const example = `curl -X POST ${address} -H "Content-Type: application/json" -H "${r.header}: <the secret>" -d "{\\"title\\": \\"Fix the login\\", \\"text\\": \\"...\\"}"`;
   const copy = (text, what) => h("button", { type: "button", class: "small", onclick: async () => {
-    try { await navigator.clipboard.writeText(text); toast(`${what} copied.`); } catch { toast("Couldn't copy: select it and copy it by hand.", true); } } }, `Copy ${what.toLowerCase()}`);
+    try { await navigator.clipboard.writeText(text); toast(t("{what} copied.", { what })); } catch { toast("Couldn't copy: select it and copy it by hand.", true); } } }, t("Copy {v1}", { v1: what.toLowerCase() }));
   return dialog({ title: "Your hook's secret", wide: true, yes: "I've copied it", no: null, body: h("div", { class: "stack" },
     h("p", {}, r.note),
     h("span", { class: "label" }, "Address"), h("div", { class: "hook-secret" }, address), copy(address, "Address"),
     h("span", { class: "label" }, "Secret"), h("div", { class: "hook-secret" }, r.secret), copy(r.secret, "Secret"),
     h("details", { class: "fold" }, h("summary", {}, "More"),
-      h("p", { class: "small" }, `Send at most ${r.max_kb} KB. A JSON body may carry a "title".`),
+      h("p", { class: "small" }, t("Send at most {max_kb} KB. A JSON body may carry a \"title\".", { max_kb: r.max_kb })),
       h("div", { class: "hook-secret small" }, example))) });
 }
 
@@ -81,7 +82,7 @@ export function showSecret(r) {
 export function hookRowExtras(a, after) {
   if (a.kind !== "local") return null;
   style();
-  return h("div", { class: "row small" }, h("span", { class: "muted grow", title: "Only programs on this computer can send to it" }, `${location.origin}/hooks/${a.id}`),
+  return h("div", { class: "row small" }, h("span", { class: "muted grow", title: "Only programs on this computer can send to it" }, t("{origin}/hooks/{id}", { origin: location.origin, id: a.id })),
     h("button", { type: "button", class: "small", onclick: async (ev) => {
       if (!(await dialog({ title: "Make a new secret?", text: "The old secret stops working at once. Programs that use it need the new one.", yes: "New secret" }))) return;
       act(ev.currentTarget, () => post("/api/hooks/secret", { id: a.id }), (r) => r.words, (r) => { showSecret(r); if (after) after(); });

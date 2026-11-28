@@ -100,6 +100,8 @@ data class FilesUi(
     val said: String? = null,
     /** When there's no connection to the machine with the files: where they are, in words. */
     val elsewhere: String? = null,
+    /** The richer look at the open file (a notebook, an archive, an office file, a video or song), when there is one. */
+    val preview: com.meztking.roundtable.data.FilePreview? = null,
 )
 
 class FilesActions(
@@ -112,6 +114,8 @@ class FilesActions(
     val saveCopy: (OpenedFile) -> Unit = {},
     val openOutside: (OpenedFile) -> Unit = {},
     val runTests: () -> Unit = {},
+    /** A video or a song: fetched, then handed to the phone's own player. */
+    val play: (OpenedFile) -> Unit = {},
 )
 
 /** The screen with its state: give it the machine's [source] (null in Hub mode, with [elsewhere] saying where). */
@@ -147,14 +151,25 @@ fun FilesScreen(title: String, source: FilesSource?, elsewhere: String, onBack: 
         openDir = { loadDir(it) },
         openFile = { item ->
             if (source != null) {
-                ui = ui.copy(opened = Load(loading = true))
+                ui = ui.copy(opened = Load(loading = true), preview = null)
                 scope.launch {
                     ui = ui.copy(opened = runCatching { Load(source.open(item.path)) }
-                        .getOrElse { Load(error = it.message ?: "That file can't be opened just now.") })
+                        .getOrElse { Load(error = friendly(it)) })
+                    if (com.meztking.roundtable.data.Preview.worthAsking(item.name)) {
+                        val p = runCatching { source.preview(item.path) }.getOrNull()
+                        ui = ui.copy(preview = p)
+                    }
                 }
             }
         },
-        closeFile = { ui = ui.copy(opened = null) },
+        closeFile = { ui = ui.copy(opened = null, preview = null) },
+        play = { f ->
+            if (source != null) scope.launch {
+                val copy = runCatching { source.copy(f.file) }.getOrElse { ui = ui.copy(said = friendly(it)); return@launch }
+                val mime = ui.preview?.mime?.ifBlank { null } ?: copy.mime
+                ui = ui.copy(said = shareFile(ctx, copy.copy(mime = mime), view = true))
+            }
+        },
         saveCopy = { f ->
             if (source != null) scope.launch {
                 val copy = if (f.data != null && f.kind in setOf("image", "pdf")) f else runCatching { source.copy(f.file) }.getOrElse {
@@ -203,7 +218,7 @@ fun FilesBody(ui: FilesUi, a: FilesActions) {
                 Spacer(Modifier.height(6.dp))
                 Text(ui.elsewhere, color = Hall.text, style = MaterialTheme.typography.bodyMedium)
             }
-            ui.opened != null -> Viewer(ui.opened, ui.said, a)
+            ui.opened != null -> Viewer(ui.opened, ui.said, a, ui.preview)
             else -> {
                 PrimaryTabRow(selectedTabIndex = ui.tab, containerColor = Color.Transparent, contentColor = Hall.gold) {
                     Tab(ui.tab == 0, { a.tab(0) }, text = { Text("Files") })
@@ -256,8 +271,9 @@ private const val PHONE_CSV_ROWS = 200
 private const val PHONE_CSV_COLS = 12
 
 @Composable
-private fun Viewer(opened: Load<OpenedFile>, said: String?, a: FilesActions) {
+private fun Viewer(opened: Load<OpenedFile>, said: String?, a: FilesActions, preview: com.meztking.roundtable.data.FilePreview? = null) {
     val f = opened.data
+    var find by rememberSaveable(f?.file) { mutableStateOf("") }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         opened.error?.let { e -> item { ErrorLine(e, a.closeFile) } }
         if (f == null) { if (opened.loading) item { Loading("Opening it…") }; return@LazyColumn }
@@ -271,7 +287,12 @@ private fun Viewer(opened: Load<OpenedFile>, said: String?, a: FilesActions) {
             said?.let { Text(it, Modifier.padding(top = 4.dp), color = Hall.muted, style = MaterialTheme.typography.bodySmall) }
             if (f.words.isNotBlank()) Text(f.words, Modifier.padding(top = 6.dp), color = Hall.muted, style = MaterialTheme.typography.bodyMedium)
         }
+        if (preview != null && preview.preview.isNotBlank()) { item { PreviewBody(preview) { a.play(f) } }; return@LazyColumn }
         if (f.too_big) return@LazyColumn
+        if (f.kind in setOf("code", "text", "markdown", "json", "csv") && !f.text.isNullOrEmpty()) item {
+            FindInFileBar(f.text.orEmpty(), find) { find = it }
+        }
+        if (find.isNotBlank()) return@LazyColumn
         when (f.kind) {
             "image" -> item { Picture(f) }
             "pdf" -> item { Text("Tap Open to read it with the phone's own PDF viewer.", color = Hall.text) }
@@ -346,7 +367,7 @@ private fun AnnotatedString.Builder.withStyle(style: SpanStyle, block: Annotated
     val i = pushStyle(style); block(); pop(i)
 }
 
-private fun coloured(text: String, lang: String): AnnotatedString = buildAnnotatedString {
+internal fun coloured(text: String, lang: String): AnnotatedString = buildAnnotatedString {
     append(text)
     for (s in CodeColours.spans(text, lang)) addStyle(when (s.part) {
         CodeColours.Part.COMMENT -> SpanStyle(color = Hall.muted, fontStyle = FontStyle.Italic)
@@ -468,6 +489,8 @@ class ApiFiles(private val api: Api, private val path: String) : FilesSource {
     override suspend fun log() = Files.log(api.commandLog(path))
     override suspend fun runTests(): String = Files.jobId(api.runTests(path))
     override suspend fun job(id: String) = Files.job(api.job(id))
+    override suspend fun preview(file: String) =
+        com.meztking.roundtable.data.Preview.parse(api.feature("GET", com.meztking.roundtable.data.Preview.url(path, file)))
 }
 
 /** One command row, opened (for pictures in tests). */

@@ -104,7 +104,7 @@ def test_finds_hub_journal_letters_notes_and_plans(app, tmp_path):  # noqa: F811
     got = {h["kind"]: h for h in res["hits"]}
     assert set(got) >= {"journal", "letter", "note", "hub_plan"}
     assert got["journal"]["open"] == {"room": "journal", "agent": "frontend", "id": got["journal"]["open"]["id"]}
-    assert got["letter"]["title"] == "About the teal colour" and got["letter"]["where"].startswith("Letters · from")
+    assert got["letter"]["title"] == "About the teal colour" and got["letter"]["where"].startswith("Earlier messages · from")
     assert got["note"]["open"] == {"room": "note", "name": "ideas.md"}
     assert got["hub_plan"]["title"] == "Navbar redo"
     only = searchapi.routes(app)[("GET", "/api/search")]({"q": ["teal"], "kinds": ["note"]})

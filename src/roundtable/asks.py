@@ -83,6 +83,8 @@ def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
 
     asks += [a for a in [quiet.quiet_ask(orch, meta)] if a]  # a run gone quiet: wait, or stop it (quiet.py)
     asks += [a for a in [ship_offer_ask(orch)] if a]  # make a test phone on this PC (shipstage.py, emulator.py)
+    # the critic offered again after a big change, and what the repository says it needs (wave 9)
+    asks += [a for a in [_lazy("lookagain", "ask")(orch), _lazy("setupdecl", "ask")(orch)] if a]
     if doc and not meta.get("plan_approved"):  # once building, the plan's questions are settled
         asks += _plan_asks(orch, doc, meta)
     name = orch.project.root.name
@@ -619,7 +621,9 @@ APPLY = {"kind": _apply_kind, "command": _apply_command, "decision": _apply_deci
          "profile": _apply_profile, "approve": _apply_approve, "failed": _apply_failed, "money": _apply_money,
          "not_finished": lambda *a: _lazy("donestage", "apply_not_finished")(*a),
          "stuck": lambda *a: _lazy("unstick", "apply_stuck")(*a),
-         "quiet": lambda *a: _lazy("quiet", "apply_quiet")(*a), "ship_offer": _apply_ship_offer}
+         "quiet": lambda *a: _lazy("quiet", "apply_quiet")(*a), "ship_offer": _apply_ship_offer,
+         "look_again": lambda *a: _lazy("lookagain", "apply")(*a),
+         "setup_declared": lambda *a: _lazy("setupdecl", "apply")(*a)}
 
 
 def _lazy(module: str, name: str):

@@ -190,13 +190,14 @@ def test_playwright_browser(tmp_path):
 def test_status_lists_everything_with_words_and_blocks(tmp_path):
     rows = prereq.status(posix(tmp_path))
     ids = [r["id"] for r in rows]
-    assert ids == ["git", "node", "python", "uv", "playwright", "libreoffice", "java", "android", "emulator", "godot",
+    assert ids == ["git", "node", "python", "uv", "playwright", "libreoffice", "gdrive", "java", "android", "emulator", "godot",
                    "unreal", "blender", "claude", "codex"]
     by = {r["id"]: r for r in rows}
     assert all(r["state"] == "missing" and r["words"] == "Not found" for r in rows)
     assert by["claude"]["install"]["blocked"] == "Install Node.js first."
     assert by["git"]["install"]["can"] is False and by["git"]["install"]["text"] == "sudo apt install git"
     assert set(r["group"] for r in rows) <= set(prereq.GROUPS)
+    assert prereq.BY_ID["gdrive"].winget == "Google.GoogleDrive"  # wave 9: backups' folder, installed from the app
 
 
 # -- install commands (never run for real) --------------------------------------------------------------

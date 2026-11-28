@@ -1,4 +1,4 @@
-# Handoff – 27 November 2026 (late night, after wave 8)
+# Handoff – 28 November 2026 (wave 9 and the chat merged, 1.5.0 not released)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -25,49 +25,36 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 | Piece | State |
 |---|---|
 | Waves 1–3 | **Released** as 0.10.0, 0.11.0 and 0.12.0: autopilot and several tasks at once, comfort on the phone, proof, rewind, web search, kinds, the command line, pounds |
-| Wave 4 → **1.0.0** | **Ready, not released**: the new name and the Eclipse look on the PC and the phone, the safe upgrade (old data folder, keys and pairing used where they are; an old-name starter exe; both APK names; the firewall rules moved). Put together on branch `d1-integrate`; all tests green. The `upgrade-test` CI job already passed once |
-| Wave 5 → **1.1.0** | **Ready, not released**, on branch `d2-integrate` (on top of 1.0.0): the done list and prep, stages and parts, trying what was built and fixing what breaks, the App tab's Start, play-testing, real builds of EXE/APK/mod, stuck tasks worked out with handovers, money limits (agreed amount, autopilot's allowance, priced pictures). All tests green; DEVLOG has every hook-up |
-| Beta in 1.1.0 | Only tried against stand-ins: a real Godot play, real EXE/APK/mod builds and starts, real browser journeys and the App tab's frame on Windows, the phone's done card and stage strip on a real phone |
-| Wave 6 → **1.2.0** | **Ready, not released**, on branch `d3-integrate` (on top of 1.1.0): every model at once – the checking dial (Lean, Balanced, Maximum, priced on the plan, its own allowance), rivals on hard tasks, checkers from other makers who must quote what's broken, the router and Strengths, rival planners under Maximum, named agents, limits per service and job, "who has seen this project", `makers_allowed`. All tests green; DEVLOG has every hook-up and the 10 % figures |
-| Beta in 1.2.0 | Only scripted so far: the real cost of the extra checking against the estimate, how often a checker must be asked again, real pickers and councils, OpenRouter's picture size, the phone's checking buttons on a real phone. The six starter faces are not made yet (initials show) |
-| Wave 7 → **1.3.0** | **Ready, not released**, on branch `d4-integrate` (on top of 1.2.0 and wave 7's step 0): it learns – learning's own weekly allowance (the owner chose $2), the yardstick of practice tasks, the watch that undoes a clear drop, What it learned with Undo (desktop and phone), the charter and the house style, plug-ins in their own box, Make one and the list of plug-ins and skills, search by meaning and your documents, Who knows what, sharing between machines, self-repair as a draft pull request. All tests green; DEVLOG has every hook-up |
-| Beta in 1.3.0 | Only scripted so far: the real cost of a cycle on $2, the frozen `--python` and `--plugin-box` starts and the Job Object on Windows, real sharing between the PC and the phone, a real self-repair |
-| Wave 8 → **1.4.0** | **Ready, not released**, on branch `p1-integrate` (on top of 1.3.0 and wave 8's step 0): the board, Focus and answering several; words as they are written, `/` commands, follow-ups, timers, the queue, Talk; what each job may do (Careful by default) and shared dependency folders; changing a file, git history, richer previews, the Browser; work from outside (always waiting for the OK), the stand-up, CI, services, the tool-server catalogue, Move my data; window and phone pictures; the phone's rollback, named failures, projects, Browser tab and fold. Fable's six safety fixes in. All tests green; DEVLOG has every hook-up |
-| Beta in 1.4.0 | Untried on real machines: window pictures, the emulator, junctions, the editor/PDF/Talk in the frozen app, engines installing themselves, the phone's new parts; the phone's screens for wave 8 are p1-phone Part B |
-| Wave 9 | Planned, with the owner's answers (`plans/parity.md` section 5, `plans/notes-for-owner.md`) |
+| Waves 4–8 → **1.0.0 to 1.4.0** | **On `main`; 1.3.0 and 1.4.0 are released from it** (1.4.0 merged as #25). 1.0.0 the new name and the Eclipse look; 1.1.0 the done list, stages, finishing, real builds, money limits; 1.2.0 every model at once (the checking dial, rivals, the router, named agents); 1.3.0 it learns (the allowance, the charter, plug-ins in a box, search by meaning); 1.4.0 the board, words as they are written, `/` commands, follow-ups, timers, what each job may do, the editor and previews, work from outside, CI, the stand-up. DEVLOG has every hook-up. If a release of 1.0.0 to 1.2.0 is missing on GitHub, check before cutting 1.5.0 |
+| Beta (1.1.0 to 1.4.0) | Untried on real machines: a real Godot play, real EXE/APK/mod builds, window pictures, the emulator, junctions, the editor/PDF/Talk in the frozen app, engines installing themselves, the frozen `--python` and `--plugin-box`, the real cost of the checking dial and of a learning cycle, the six starter faces (initials show) |
+| Phone Part B | **Merged** into the session branch before wave 9 (commit 4d0e2e6); its leftovers (Part A of w9-phone) are in `w9-integrate` |
+| Wave 9 → **1.5.0** | **Merged** on branch `w9-integrate` (all seven helpers and every hook-up line; version 1.5.0; not pushed, not released): sound (ElevenLabs, Stable Audio, $2 a project, made in code otherwise), the office (built; its pictures not made), eleven languages and right to left (built; the tables not made; the sweep done), to-dos as buttons and every hub project a seat with who runs it (`reach.readers`), the set-up a repository declares, the estimate's defaults from real runs, the critic looking again, local counts and run timelines, the iPhone page (built, off), a running app's frame on the phone, the proof run, a picture limit per project, the phone's Part A. **Not done:** the coordinator's paid runs, the phone's Part B (languages) |
+| The chat → **1.5.0** | **Merged** on branch `chat-integrate` (step 0, chat-server, chat-desktop, chat-phone and every hook-up; not pushed): a chat for each project and one for everything (Hall) on the PC and the phone, in place of Letters; DeepSeek V4 Flash, $1 a day (Settings → Spending, shared); cards for anything that spends; the phone answers by itself with its own DeepSeek key; old letters under "Earlier messages"; the Letters screens deleted. Untried on a real PC and phone; the ten-message real check and the owner's music-player test are still to do |
 | Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
 | Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
 
 ## 3. What to do next
 
-1. Release 1.0.0 (CLAUDE.md "Releasing"): pull request from the session branch to `main`, CI
-   green, merge, run `app.yml` with `release_tag: v1.0.0`; check the installer and both APK
-   names are on the release; tell the owner plainly (the README's "What's new in 1.0.0").
-2. On the owner's PC through Remote Control (once a folder is shared): the in-app update from
-   0.12.0, the one-time firewall question, an old taskbar pin, the new Start-menu entry. On the
-   phone by USB: the 1.0.0 test APK over 0.12.0, still paired.
-3. Release 1.1.0 after 1.0.0 (branch `d2-integrate`; README "What's new in 1.1.0"). Before or soon after:
-   on the owner's PC through Remote Control, play a real Godot game, build and start an EXE, build an APK and
-   a mod jar, walk a web app with real Playwright, open the App tab's frame; then the small real DeepSeek run
-   of a tiny browser game to watch the finishing loop with real models (estimate first, balance before and
-   after).
-4. Wave 6 / 1.2.0 (branch `d3-integrate`): make the six starter faces after the owner's yes (`agents.face_prompt`,
-   at most $3, costs in `docs/art.md`, files in `ui/static/agents/<id>.webp`); one small real run on DeepSeek plus
-   one other maker at Balanced (estimate first, balance before and after; write the real extra cost beside the
-   10 % figures in DEVLOG); then release after 1.1.0.
-5. At 1.2.0: remove the old-name starter (`packaging/old_name_starter.py`, the spec's second
-   EXE, the installer lines) and point `upgrade-test` at the last 1.x installer.
-6. Wave 7 / 1.3.0 (branch `d4-integrate`): release after 1.2.0. Before or soon after: on the owner's PC through
-   Remote Control, the frozen app's `--python -m pytest` and `--plugin-box`, the Job Object test
-   (`test_windows_job_object_allows_one_process`) and one boxed plug-in trying the internet; one small real
-   learning cycle on the $2 (balance before and after; write the real cost of one test in DEVLOG); the
-   LearnedCard and its Undo on the phone by USB.
-7. Wave 8 / 1.4.0 (branch `p1-integrate`): release after 1.3.0. Then p1-phone Part B (the phone's screens for
-   wave 8), and on the owner's PC and phone the table in DEVLOG's 1.4.0 entry ("Open"). Wave 9 next: sound and
-   music ($2 a project, Fable compares two services first), the animated office (art up to $10), languages.
-8. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending), Ask me first on the phone,
-   owner to-dos that leave the app, and wave 7's open items (real cost, frozen modes, embeddings and PDFs, the
-   phone's documents).
+1. Merge `w9-integrate` into the session branch (all tests green there: see DEVLOG's newest entry).
+2. The coordinator's paid runs, each priced first, the real figure in DEVLOG (the list and the estimates are in
+   DEVLOG's newest entry): the language tables (about $0.92), the sound adapters' real calls (about $0.30), the
+   office art (quote free, sample at most $1.50, the rest only after the owner's yes, at most $10 in all), the proof
+   run (at most $3), one real streamed call per provider.
+3. Ask Fable, and note in `plans/notes-for-owner.md`: the iPhone page and its certificate, the frame relay, the
+   loopback telemetry receiver and the outside-collector switch, sound licences for a game the owner might sell,
+   a subscription as a service's price, machine-translated words shipped and labelled.
+4. The phone's Part B (the language tables in the APK, plural forms, right to left), after the tables exist.
+5. The chat (merged on `chat-integrate`): the real check first, ten messages in a made-up project on DeepSeek V4
+   Flash with the balance read before and after (about one cent); then on the owner's PC and phone through Remote
+   Control: the installed build shows the chat and streams, `#/letters` lands on it, the hub's old letters show
+   under Earlier messages and `inbox/` is unchanged; the test APK installs over the last one and the Chat tab answers
+   in all three modes. Then the owner drives the music player's five accepted ideas through it (at most $2) before
+   the release. What it leaves: `plans/gaps.md` ("The chat, what 1.5.0 leaves", "A hub request can't be proven to
+   come from a tap").
+6. Release 1.5.0 (CLAUDE.md "Releasing").
+7. On the owner's PC and phone through Remote Control: the beta list above, wave 8's table in DEVLOG's 1.4.0
+   entry, and wave 9's (the office in the frozen window, a bought sound playing, Arabic on both, Part A's
+   screens on a real phone).
 
 ## 4. Where to read more
 

@@ -194,6 +194,16 @@ class ComposerSender(private val call: suspend (String, String, String?) -> Stri
         return reply(r)
     }
 
+    /** A new project from every card of the wizard ([flow]), the idea's words, photos and files from the box. */
+    suspend fun startWizard(draft: ComposerDraft, flow: WizardFlow, read: (DraftFile) -> ByteArray): String {
+        if (draft.text.isBlank()) throw ComposerProblem("Write your idea in a few words first.")
+        upload(draft, read)
+        return reply(post("/api/attach/start", buildJsonObject {
+            put("key", serverKey(draft.key))
+            put("wizard", flow.body(draft.text))
+        }))
+    }
+
     /** A note ("note", with Next task or Now), a question ("chat") or a new goal ("goal") for a project. */
     suspend fun send(draft: ComposerDraft, project: String, kind: String, read: (DraftFile) -> ByteArray): String {
         if (draft.text.isBlank()) throw ComposerProblem("Write something first.")

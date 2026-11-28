@@ -62,6 +62,15 @@ moves it on (Approve and start, Try again, Carry on, Raise the limit, Add to it)
 5. **Fix a key** – a model without a key is marked in Models with **Add the key**, which opens
    Settings → Keys at that maker → paste → **Save** → **Test** says in words whether it works.
 
+## The office (1.5.0)
+
+Home has a **Ring | Office** switch once the office has its pictures (`ui/static/office.js` `officeSwitch`); until
+then the Ring stays and no switch shows. The office is drawn from what the harness already knows
+(`office.py` `scene`: which agent works on what, who waits for the owner, who is resting): each agent walks to the
+desk, the shelf, the terminal or the mailbox, with a small bubble for a question, a tick, a warning, a letter or
+money. It only places pictures made by a picture model (`docs/art.md`), crisp at any scale, still for reduced
+motion. The office art's sample card (Make the rest, Try again, Stop here) shows in Needs you on the PC only.
+
 ## How it's built
 
 Vanilla JavaScript modules, no build step (`src/roundtable/ui/static/*.js`, all in one folder so the

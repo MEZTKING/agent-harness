@@ -20,10 +20,12 @@ import { tandemFor, tandemRow } from "./tandem.js";
 import { seenList } from "./usage.js";
 import { boardTab } from "./board.js";
 import { worktreesPanel } from "./worktrees.js";
-import { keepPlace } from "./stream.js";
-import { talkButton } from "./voice.js";
+import { chatIdOf, chatView } from "./chat.js";
 import { projectPermsBox } from "./perms.js";
 import { ciChip } from "./ci.js";
+import { soundsCard } from "./sounds.js";
+import { listeningLine } from "./hubseat.js";
+import { t as wt } from "./words.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
@@ -105,7 +107,6 @@ function moveOn(s) {
   if (s.hub_name && s.status === "waiting") return [
     h("button", { class: "primary", title: "Sends your approval to the computer that builds it; it starts there", onclick: (ev) => act(ev.currentTarget, () => hubCommand(s, "approve")) }, "Approve and start"),
     h("a", { class: "btn", href: projectHref(s.id, "plan") }, "Read the plan")];
-  if ((S.ov.agents || []).some((a) => a.id === s.id)) return [h("a", { class: "btn", href: `#/letters?to=${encodeURIComponent(s.id)}`, title: "Send a letter to the agent working on this project" }, "Write to it")];
   return [];
 }
 
@@ -115,15 +116,19 @@ async function overview(seat, now) {
   const history = h("div");  // what each task changed, Undo and Try another way (rewind.js)
   const doneBox = h("div"), stagesBox = h("div");  // the done list's one line, the stages' strip
   const grid = h("div", { class: "overview" },
-    h("div", { class: "ov-main" }, waits, doneBox, stagesBox, tasksBox, history, report, brief),
-    h("div", { class: "ov-side" }, money_, chat));
+    h("div", { class: "ov-main" }, waits, chat, doneBox, stagesBox, tasksBox, history, report, brief),
+    h("div", { class: "ov-side" }, money_, seat.path ? soundsCard(seat.path) : null));
+  // the project's chat (chat.js), its id by the one rule everywhere: chatstore.chat_id of its hub name
+  const chatOf = () => chatView(seat.chat || chatIdOf(seat.hub_name || seat.id), { project: seat.path || "", name: seat.name });
   if (!seat.path) {  // another computer's project, or a hub project: what the hub knows
     const items = (S.rt.needs_you || []).filter((n) => n.project === seat.id);
     const { gather } = await import("./needs.js");
     const its = (await gather({ ...S.rt, needs_you: items }, true)).filter((i) => i.project === seat.id);
     fill(waits, its.length ? [h("h2", { class: "section-title" }, "Waiting for you"), its.map((i) => needCard(i, () => refreshHall(), { showProject: false }))] : null);
     fill(brief, briefCard(seat));
-    fill(money_, seat.spent_usd || seat.detail ? card("Where it stands", seat.detail ? h("p", {}, seat.detail) : null, seat.spent_usd ? h("p", {}, `${money(seat.spent_usd)} spent so far`) : null) : null);
+    fill(chat, chatOf());
+    const heard = listeningLine(seat);  // whether the computer that builds it is listening (hubseat.js)
+    fill(money_, seat.spent_usd || seat.detail || heard ? card("Where it stands", seat.detail ? h("p", {}, seat.detail) : null, heard, seat.spent_usd ? h("p", {}, wt("{v1} spent so far", { v1: money(seat.spent_usd) })) : null) : null);
     return grid;
   }
   const path = seat.path, qp = q({ path });
@@ -146,7 +151,7 @@ async function overview(seat, now) {
       try { fill(history, await historyCard(seat)); } catch { /* the history is a help: the rest still shows */ }
     }
     fill(report, d.summary ? card("The final report", prose(d.summary)) : null);
-    if (!chat.firstChild) fill(chat, chatCard(seat));
+    if (!chat.firstChild) fill(chat, chatOf());
   }, () => (now().status === "running" ? 3000 : 15000));
   const lanes = await worktreesPanel(seat).catch(() => null);  // what each worktree lane is doing (worktrees.js)
   if (lanes) grid.querySelector(".ov-main").append(lanes);
@@ -159,7 +164,7 @@ function tasksCard(seat, d, tq = null) {
   const done = tasks.filter((t) => t.status === "done").length;
   const post_ = (body, ok) => (ev) => act(ev.currentTarget, () => post("/api/project", { path: seat.path, ...body }), ok, () => refreshHall());
   const busy = seat.status === "running";
-  return card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted" }, `${done} of ${tasks.length} done`),
+  return card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted" }, wt("{done} of {length} done", { done, length: tasks.length })),
     h("a", { class: "spacer-left", href: projectHref(seat.id, "watch") }, "Watch the steps")),
   h("ol", { class: "tasks" }, tasks.map((t) => {
     const last = t.attempts[t.attempts.length - 1];
@@ -168,7 +173,7 @@ function tasksCard(seat, d, tq = null) {
     return h("li", { class: "task " + t.status },
       h("div", { class: "task-top" }, h("b", {}, t.title), taskPill(t.status)),
       h("div", { class: "task-meta" }, jobName(t.role), model ? [" · ", h("span", { title: modelName(model) }, modelName(model, true))] : null,
-        t.attempts.length > 1 ? ` · ${t.attempts.length} tries` : "", t.depends_on.length ? h("span", { title: "It waits for these tasks to finish first" }, ` · after ${t.depends_on.map((x) => titleOf(tasks, x)).join(", ")}`) : null),
+        t.attempts.length > 1 ? wt(" · {length} tries", { length: t.attempts.length }) : "", t.depends_on.length ? h("span", { title: "It waits for these tasks to finish first" }, wt(" · after {v1}", { v1: t.depends_on.map((x) => titleOf(tasks, x)).join(", ") })) : null),
       tandemRow(tq && (tq.tasks || {})[t.id]),  // "Built by … · checked by … · they disagreed" (tandem.js)
       t.summary && t.status === "done" ? h("p", { class: "task-sum" }, t.summary.slice(0, 280)) : null,
       why ? h("p", { class: "task-why" }, "Why it stopped: ", why.slice(0, 300)) : null,
@@ -177,7 +182,7 @@ function tasksCard(seat, d, tq = null) {
           h("button", { class: "small", title: "Leave this task out", onclick: post_({ action: "skip", task: t.id }, "Left out") }, "Leave it out")] : null,
         t.status === "done" ? [h("button", { class: "small", title: "Tell the harness this was good work: it learns which models do well", onclick: post_({ action: "feedback", task: t.id, rating: "good" }, "Thanks: noted as good work") }, "Good work"),
           h("button", { class: "small", title: "Tell the harness what was wrong: it learns from it", onclick: async (ev) => {
-            const note = await dialog({ title: "What wasn't right?", text: `About “${t.title}”. The harness uses this to choose better models next time.`, yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
+            const note = await dialog({ title: "What wasn't right?", text: wt("About “{title}”. The harness uses this to choose better models next time.", { title: t.title }), yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
             if (note !== null) post_({ action: "feedback", task: t.id, rating: "bad", note })(ev);
           } }, "Not right"),
           h("button", { class: "small", title: "Do this task again from the start", onclick: post_({ action: "retry", task: t.id }, "It will be done again: press Carry on to start") }, "Do it again")] : null));
@@ -190,54 +195,14 @@ function moneyCard(d, plan) {
   const est = plan && plan.doc && plan.doc.estimate ? plan.doc.estimate.cost_usd || 0 : 0;
   const unpriced = d.meta.unpriced_calls || 0;
   const pct = est ? Math.min(100, (100 * spent) / est) : 0;
-  return card("Money", h("p", { class: "big" }, money(spent), spent > 0 ? poundsTag(spent) : null, h("span", { class: "muted" }, est ? ` of about ${money(est)}` : " spent")),
-    est ? h("div", { class: "bar wide" + (spent > est * 1.2 ? " over" : ""), title: `${Math.round((100 * spent) / est)}% of the estimate` }, h("i", { style: `width:${pct}%` })) : null,
+  return card("Money", h("p", { class: "big" }, money(spent), spent > 0 ? poundsTag(spent) : null, h("span", { class: "muted" }, est ? wt(" of about {v1}", { v1: money(est) }) : " spent")),
+    est ? h("div", { class: "bar wide" + (spent > est * 1.2 ? " over" : ""), title: wt("{v1}% of the estimate", { v1: Math.round((100 * spent) / est) }) }, h("i", { style: `width:${pct}%` })) : null,
     spent > est * 1.2 && est ? h("p", { class: "warn small" }, "It has gone past the estimate. It stops at the project's limit and asks you before spending more.") : null,
-    unpriced ? h("p", { class: "muted small", title: "Add their price in Settings → AI services so they count towards the limit" }, `${plural(unpriced, "call")} to models with no price yet aren't counted.`) : null,
+    unpriced ? h("p", { class: "muted small", title: "Add their price in Settings → AI services so they count towards the limit" }, wt("{v1} to models with no price yet aren't counted.", { v1: plural(unpriced, "call") })) : null,
     d.metrics.length ? h("details", {}, h("summary", {}, "Who did the work"), h("table", { class: "plain-table" },
       h("tr", {}, h("th", {}, "Job and model"), h("th", { class: "num" }, "Tries"), h("th", { class: "num" }, "Approved"), h("th", { class: "num" }, "Cost")),
       d.metrics.map((m) => { const [role, model] = m.key.split(" · "); return h("tr", {}, h("td", {}, jobName(role), h("div", { class: "muted small" }, modelName(model))),
         h("td", { class: "num" }, m.attempts), h("td", { class: "num" }, m.approved), h("td", { class: "num" }, money(m.cost))); }))) : null);
-}
-
-// talk to the planner: ask about the project, or give an instruction for the next tasks
-let steer = false;  // Ask or Instruct, kept between visits
-function chatCard(seat) {
-  const log = h("div", { class: "chat", role: "log", "aria-live": "polite" });
-  keepPlace(log);  // the place in the conversation stays when the window's width changes (stream.js)
-  let pending = null, history = [];
-  const draw = () => {
-    const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-    fill(log, [...history.map((m) => msg(m)), pending ? [msg({ who: "owner", text: pending.text, steer: pending.steer }), h("div", { class: "msgl orc pending" }, h("small", {}, "Planner"), h("div", { class: "body" }, h("i", { class: "pulse-dot" }), pending.steer ? "Noting it…" : "Thinking…"))] : null]);
-    if (!history.length && !pending) fill(log, h("p", { class: "muted small" }, "Ask about this project (“what's left?”, “why did the logo task stop?”), or give an instruction for the next tasks (“use bigger buttons from now on”)."));
-    if (atEnd) log.scrollTop = log.scrollHeight;
-  };
-  const msg = (m) => h("div", { class: "msgl " + (m.who === "owner" ? "you" : "orc") + (m.steer ? " steer" : "") },
-    h("small", {}, m.who === "owner" ? (m.steer ? "You · instruction" : "You") : "Planner", m.at ? ` · ${ago(m.at)}` : ""), h("div", { class: "body" }, m.text),
-    m.steer && m.who === "owner" ? h("div", { class: "steer-note" }, "The next tasks follow this") : null);
-  // the message box (compose.js): pictures, files, @, Speak; an instruction can reach the task working now
-  const box = composer({ key: `chat:${seat.path}`, project: seat.path, rows: 2, label: "Your message", modes: true,
-    onOpen: (p) => { location.hash = projectHref(seat.id, p); },
-    placeholder: "A question about this project, or an instruction for the next tasks",
-    onSend: async ({ text, key, mode }) => {
-      if (pending) return;
-      pending = { text, steer }; draw();
-      try {
-        const r = await post("/api/attach/send", { key, path: seat.path, as: steer ? "note" : "chat", mode, text });
-        if (steer) toast(r.reply || "Noted: the next tasks follow it");
-      } finally { pending = null; await load(); }
-    } });
-  const mode = h("div", { class: "seg", role: "group", "aria-label": "Kind of message" });
-  const setMode = (v) => { steer = v;
-    fill(mode, [[false, "Ask", "A question: the planner answers, nothing changes"], [true, "Instruct", "An instruction: the next tasks follow it (Now: the task working now too)"]].map(([k, t, tip]) =>
-      h("button", { type: "button", class: k === v ? "on" : "", "aria-pressed": String(k === v), title: tip, onclick: () => setMode(k) }, t))); };
-  setMode(steer);
-  const form = h("div", { class: "stack" }, mode, box);
-  const load = async () => { try { history = await get(`/api/chat?${q({ path: seat.path })}`); } catch { history = history || []; } draw(); };
-  load();
-  const talk = talkButton(seat.path, { onDone: load });  // talk instead of typing (voice.js; none where it can't)
-  if (talk) form.append(talk);
-  return card("Talk to the planner", log, form);
 }
 
 function briefCard(seat) {

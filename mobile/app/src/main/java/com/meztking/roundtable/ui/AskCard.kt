@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.meztking.roundtable.data.Ask
 import com.meztking.roundtable.data.Asks
 import com.meztking.roundtable.data.AskReply
+import com.meztking.roundtable.data.TimerHold
 import com.meztking.roundtable.ui.theme.Hall
 import com.meztking.roundtable.ui.theme.Parchment
 import com.meztking.roundtable.ui.theme.ParchmentButtons
@@ -50,7 +51,11 @@ import com.meztking.roundtable.ui.theme.Serif
  */
 @Composable
 fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifier, busy: Boolean = false, sent: String? = null,
-            hint: String = Asks.hint(ask), showProject: Boolean = true) {
+            hint: String = Asks.hint(ask), showProject: Boolean = true,
+            /** Called while the owner types an answer to a card with a timer: the caller sends a hold, throttled (TimerHold). */
+            onTyping: (() -> Unit)? = null,
+            /** The look's pictures for its options (label to data address), two a row; tap one to see it bigger. */
+            pictures: List<Pair<String, String>> = emptyList()) {
     var picked by rememberSaveable(ask.id, ask.stamp) { mutableStateOf(ask.answer?.chosen.orEmpty()) }
     var other by rememberSaveable(ask.id, ask.stamp) { mutableStateOf(ask.answer?.other.orEmpty()) }
     var otherOpen by rememberSaveable(ask.id, ask.stamp) { mutableStateOf(ask.options.isEmpty() || other.isNotBlank()) }
@@ -80,6 +85,11 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
         Text(ask.question, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 26.sp, color = Hall.ink)
         if (ask.detail.isNotBlank()) Text(ask.detail, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
         if (ask.kind == "command") CommandBlock(ask)
+        Asks.timerLine(ask).takeIf { it.isNotBlank() && sent == null }?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
+        }
+        if (sent == null) Countdown(ask)
+        if (pictures.isNotEmpty()) LookPictureGrid(pictures)
         if (sent == null && hint.isNotBlank()) Text(hint, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(8.dp))
         if (sent != null) {
@@ -98,7 +108,7 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
             OptionButton("Other…", ask.other_hint, enabled = !busy) { otherOpen = true }
         }
         if (ask.allow_other && otherOpen) {
-            OutlinedTextField(other, { other = it }, Modifier.fillMaxWidth().heightIn(min = 56.dp), placeholder = { Text(ask.other_hint) },
+            OutlinedTextField(other, { other = it; if (TimerHold.holdable(ask)) onTyping?.invoke() }, Modifier.fillMaxWidth().heightIn(min = 56.dp), placeholder = { Text(ask.other_hint) },
                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Hall.ink, unfocusedTextColor = Hall.ink, focusedBorderColor = Hall.ink,
                     unfocusedBorderColor = Hall.inkSoft, cursorColor = Hall.ink, focusedPlaceholderColor = Hall.inkSoft,
                     unfocusedPlaceholderColor = Hall.inkSoft))
@@ -155,4 +165,16 @@ private fun OptionButton(label: String, description: String, recommended: Boolea
                 color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
         }
     }
+}
+
+/** The time left on a card with a timer, ticking each second while it shows; nothing for a card without one. */
+@Composable
+private fun Countdown(ask: Ask) {
+    if (TimerHold.countdown(ask).isEmpty()) return
+    var now by androidx.compose.runtime.remember { mutableStateOf(System.currentTimeMillis()) }
+    androidx.compose.runtime.LaunchedEffect(ask.id, ask.expires_at) {
+        while (true) { kotlinx.coroutines.delay(1_000); now = System.currentTimeMillis() }
+    }
+    val words = TimerHold.countdown(ask, now)
+    if (words.isNotBlank()) Text(words, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = Hall.ink)
 }

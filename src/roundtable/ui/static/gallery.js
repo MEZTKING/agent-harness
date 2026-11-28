@@ -2,6 +2,7 @@
 // the Gallery has no delete at all. Model ids and the commit fold behind "More".
 import { h, fill, get, post, act, page, tabs, empty, picture, seatByPath, projectHref, money } from "./core.js";
 import { kindsTab, kindStyles, startWizard } from "./kinds.js";
+import { t } from "./words.js";
 
 const TABS = [["finished", "Finished", "Everything the harness has finished for you"],
   ["make", "What it can make", "The kinds of thing the harness knows how to build and check"]];
@@ -35,7 +36,7 @@ function tile(e) {
 async function entryView(project, goal) {
   let e;
   try { e = await get(`/api/gallery/one?project=${encodeURIComponent(project)}&goal=${encodeURIComponent(goal)}`); }
-  catch (err) { return empty(`Couldn't open it: ${err.message}`, h("a", { href: "#/gallery" }, "Back to the Gallery")); }
+  catch (err) { return empty(t("Couldn't open it: {message}", { message: err.message }), h("a", { href: "#/gallery" }, "Back to the Gallery")); }
   const seat = seatByPath(e.path);
   const seatId = seat ? seat.id : project;
   const box = h("article", { class: "card gl-one" });
@@ -61,7 +62,7 @@ async function entryView(project, goal) {
         h("li", {}, `${e.tasks} tasks · ${money(e.cost.counted_usd)} counted` + (e.cost.real_usd != null ? ` · ${money(e.cost.real_usd)} real` : "")),
         e.extras.length ? h("li", {}, "Also packed as: ", e.extras.map((x) => x.name).join(", ")) : null,
         e.outputs.length ? h("li", {}, "Made: ", e.outputs.map((o) => o.path).join(", ")) : null,
-        m.commit ? h("li", { class: "muted" }, `Version ${String(m.commit).slice(0, 10)}`) : null,
+        m.commit ? h("li", { class: "muted" }, t("Version {v1}", { v1: String(m.commit).slice(0, 10) })) : null,
         (m.models || []).length ? h("li", {}, "Who did each job: ", m.models.map((x) => `${x.task} ${x.role}: ${x.model}`).join(" · ")) : null)),
     h("p", {}, h("a", { href: "#/gallery" }, "Back to the Gallery")));
   return box;

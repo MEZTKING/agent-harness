@@ -4,6 +4,8 @@
 import { h, fill, get, post, q, act, toast, dialog, page, card, empty, seg, markdown, when, refreshHall, seatByPath,
   projectHref, S, has } from "./core.js";
 import { askBox, documentsPage, memoryPicture } from "./recall.js";
+import { t as wt } from "./words.js";
+import { chatHref, chatIdOf } from "./chat.js";
 
 // this page's few looks, kept here so style.css stays as it is
 const CSS = `
@@ -32,7 +34,7 @@ function addLooks() {
 
 const KINDS = [["", "Everything", "Look in every place"], ["plan,task", "Plans and tasks", "The plans and every task, with their reviews"],
   ["memory", "Memory", "What the harness remembers about each project and this computer"],
-  ["journal,letter,note", "Journal and letters", "The hub's journal, your letters and your saved notes"],
+  ["journal,letter,note", "Journal and earlier messages", "The hub's journal, your earlier messages and your saved notes"],
   ["file", "Files", "The projects' own files: names and text"]];
 
 // The box in the top bar. Enter (or a pause in typing) opens the Search page; Ctrl+K or "/" jumps to it.
@@ -40,7 +42,7 @@ export function mountSearch(host) {
   if (!host) return;
   addLooks();
   const box = h("input", { type: "search", placeholder: "Search everything", "aria-label": "Search everything",
-    title: "Look for any word in your plans, tasks, journal, letters, memory, notes and project files (Ctrl+K)", autocomplete: "off" });
+    title: "Look for any word in your plans, tasks, journal, earlier messages, memory, notes and project files (Ctrl+K)", autocomplete: "off" });
   box.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && box.value.trim()) { ev.preventDefault(); location.hash = `#/search/${encodeURIComponent(box.value.trim())}`; }
     if (ev.key === "Escape") { box.value = ""; box.blur(); }
@@ -87,7 +89,7 @@ export async function viewSearch(words = "") {
   setTimeout(() => field.focus(), 0);
   draw();
   const find = h("div", { class: "stack" }, h("div", { class: "row" }, field), where, status, list, more);
-  if (!(await has("/api/recall"))) return page("Search", "Find any word in your plans, tasks, journal, letters, memory, notes and files.", find);
+  if (!(await has("/api/recall"))) return page("Search", "Find any word in your plans, tasks, journal, earlier messages, memory, notes and files.", find);
   // wave 7: ask a question across everything (search by meaning, on this computer), your documents, who knows what
   const panel = h("div", { class: "stack" });
   const show = async (which) => {
@@ -99,7 +101,7 @@ export async function viewSearch(words = "") {
     ["documents", "Your documents", "Your own files the agents may look up instead of guessing"],
     ["who", "Who knows what", "Which agents built and checked what, and which documents each project used"]], "find", show, "What to show");
   await show("find");
-  return page("Search", "Ask a question or find any word in your plans, tasks, journal, letters, memory, notes, files and documents.",
+  return page("Search", "Ask a question or find any word in your plans, tasks, journal, earlier messages, memory, notes, files and documents.",
     h("div", { class: "stack" }, switcher, panel));
 }
 
@@ -131,7 +133,7 @@ function hitRow(x, words) {
 function openTip(x) {
   const room = (x.open || {}).room;
   return { project: "Opens the project's plan", file: "Shows the file around the words", memory: "Opens the memory, where you can edit it",
-    journal: "Opens the project's journal", letter: "Opens your letters", note: "Opens the saved note", hub_plan: "Opens the plan" }[room] || "Opens it";
+    journal: "Opens the project's journal", letter: "Opens the chat it belongs to, under Earlier messages", note: "Opens the saved note", hub_plan: "Opens the plan" }[room] || "Opens it";
 }
 
 export async function openHit(x) {
@@ -139,7 +141,7 @@ export async function openHit(x) {
   try {
     if (o.room === "project") return goProject(o.path, o.tab || "plan");
     if (o.room === "journal") { location.hash = projectHref(o.agent, "journal"); return; }
-    if (o.room === "letter") { location.hash = "#/letters"; return; }
+    if (o.room === "letter") { location.hash = chatHref(chatIdOf(o.agent)); return; }  // old letters: under Earlier messages
     if (o.room === "hub_plan") {
       await refreshHall();
       const seat = S.rt && S.rt.seats.find((s) => s.hub_name === o.name || s.id === o.name);
@@ -178,7 +180,7 @@ export async function openMemory(o) {
   const src = o.machine ? { machine: 1 } : { path: o.path };
   if (o.archive) {
     const a = await get(`/api/memory?${q({ ...src, archive: 1 })}`);
-    await dialog({ title: `${a.where}: older memory`, text: a.words, wide: true, yes: "Close", no: null,
+    await dialog({ title: wt("{where}: older memory", { where: a.where }), text: a.words, wide: true, yes: "Close", no: null,
       body: a.markdown ? h("pre", { class: "sr-peek", style: "white-space: pre-wrap" }, a.markdown) : null });
     return;
   }
@@ -192,7 +194,7 @@ export async function openMemory(o) {
   const body = h("div", { class: "stack" },
     h("p", { class: "muted small" }, "The harness reads this before planning and before each task. Rules never move; when it gets long, the oldest notes move word for word to the archive."),
     counts, area, extra);
-  const save = await dialog({ title: `${m.where}: memory`, body, yes: "Save", no: "Cancel", wide: true });
+  const save = await dialog({ title: wt("{where}: memory", { where: m.where }), body, yes: "Save", no: "Cancel", wide: true });
   if (!save) return;
   await act(null, () => post("/api/memory", { ...src, markdown: area.value }),
     (r) => (r.moved ? `Saved. ${r.moved} older line${r.moved === 1 ? "" : "s"} moved to the archive.` : "Saved"));

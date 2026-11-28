@@ -1,0 +1,16 @@
+/* The page for an iPhone (webphone.py): the desktop's own styles, narrow. Colours only from the tokens. */
+body.webphone { padding-block-start: env(safe-area-inset-top); padding-block-end: env(safe-area-inset-bottom); }
+.wp-top {
+  position: sticky; inset-block-start: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
+  padding: 0.6rem 1rem; background: var(--color-surface); border-block-end: 1px solid var(--color-line);
+}
+.wp-top .brand-name { font-family: var(--font-display, inherit); font-weight: 600; }
+.wp-rooms { display: flex; gap: 0.75rem; margin-inline-start: auto; }
+.wp-rooms a { color: var(--color-muted); text-decoration: none; padding-block: 0.4rem; }
+.wp-rooms a.on { color: var(--color-text); border-block-end: 2px solid var(--color-accent); }
+body.webphone main { padding: 0.75rem; max-inline-size: 40rem; margin-inline: auto; }
+.wp-pair { display: grid; gap: 0.75rem; }
+.wp-pair input[type="text"] { font-size: 1.4rem; letter-spacing: 0.2em; text-transform: uppercase; inline-size: 100%; }
+.wp-words { font-family: var(--font-mono, monospace); color: var(--color-text); }
+.app-frame { inline-size: 100%; block-size: 70vh; border: 1px solid var(--color-line); border-radius: var(--radius, 8px); background: var(--color-paper); }

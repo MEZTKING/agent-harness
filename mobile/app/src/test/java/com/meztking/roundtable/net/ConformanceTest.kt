@@ -17,6 +17,7 @@ import com.meztking.roundtable.data.Search
 import com.meztking.roundtable.data.SessionLog
 import com.meztking.roundtable.data.SharedSettings
 import com.meztking.roundtable.data.Sync
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -45,14 +46,16 @@ import java.net.InetAddress
  * the app's own decoders then read it. Every call in calls.json must be made here at least once.
  */
 class ConformanceTest {
-    private class Call(val name: String, val method: String, val path: Regex, val query: Set<String>, val body: Set<String>)
+    private class Call(val name: String, val method: String, val path: Regex, val query: Set<String>, val body: Set<String>,
+                       val values: JsonObject = JsonObject(emptyMap()))
 
     private val calls: List<Call> by lazy {
         val spec = ApiJson.parseToJsonElement(specFile().readText()).jsonObject
         (spec["calls"] as JsonArray).map { it.jsonObject }.filter { (it["local"] as? JsonPrimitive)?.content != "true" }.map { c ->
             fun str(k: String) = (c[k] as JsonPrimitive).content
             val pattern = Regex.escape(str("path")).replace(Regex("\\{\\w+\\}"), "\\\\E[^/]+\\\\Q")
-            Call(str("name"), str("method"), Regex(pattern), (c["query"] as? JsonObject)?.keys.orEmpty(), (c["body"] as? JsonObject)?.keys.orEmpty())
+            Call(str("name"), str("method"), Regex(pattern), (c["query"] as? JsonObject)?.keys.orEmpty(), (c["body"] as? JsonObject)?.keys.orEmpty(),
+                (c["body"] as? JsonObject) ?: JsonObject(emptyMap()))
         }
     }
 
@@ -72,10 +75,14 @@ class ConformanceTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val url = request.requestUrl!!
                 val keys = url.queryParameterNames
-                val body = if (request.method == "POST") runCatching {
-                    ApiJson.parseToJsonElement(request.body.readUtf8()).jsonObject.keys
-                }.getOrDefault(emptySet()) else emptySet()
-                val c = calls.firstOrNull { it.method == request.method && it.path.matches(url.encodedPath) && it.query == keys && body.containsAll(it.body) }
+                val sent = if (request.method == "POST") runCatching {
+                    ApiJson.parseToJsonElement(request.body.readUtf8()).jsonObject
+                }.getOrNull() else null
+                val body = sent?.keys.orEmpty()
+                val fits = calls.filter { it.method == request.method && it.path.matches(url.encodedPath) && it.query == keys && body.containsAll(it.body) }
+                // two calls of the same shape (two / commands): the one whose fixed words were sent
+                val c = fits.firstOrNull { f -> f.values.all { (k, v) -> (v as? JsonPrimitive)?.content?.contains('{') == true || sent?.get(k) == v } }
+                    ?: fits.firstOrNull()
                 if (c == null) {
                     synchronized(problems) { problems += "${request.method} ${url.encodedPath} ?$keys body $body isn't in calls.json" }
                     return MockResponse().setResponseCode(404).setBody("""{"error": "not in calls.json"}""")
@@ -221,6 +228,64 @@ class ConformanceTest {
                 "/api/integrations", "/api/listening", "/api/git/log?path=$project")) {
             assertTrue(path, ApiJson.parseToJsonElement(api.feature("GET", path)).jsonObject.isNotEmpty())
         }
+
+        // wave 8 on the phone: the screens' own decoders read the PC's real answers
+        val T = com.meztking.roundtable.data.Team
+        assertTrue(com.meztking.roundtable.data.Stream.parse(api.feature("GET", com.meztking.roundtable.data.Stream.url(project, "T1", 0))).done)
+        val cmds = com.meztking.roundtable.data.Slash.parse(api.feature("GET", com.meztking.roundtable.data.Slash.url(project)))
+        assertTrue(cmds.any { it.name == "run" && it.confirm } && cmds.none { it.pc_only })
+        val help = com.meztking.roundtable.data.Slash.parseReply(api.slowFeature("POST", com.meztking.roundtable.data.Slash.RUN,
+            com.meztking.roundtable.data.Slash.body(project, "/help", false)))
+        assertTrue(help.reply.contains("/run") && help.confirm.isBlank())
+        val sure = com.meztking.roundtable.data.Slash.parseReply(api.slowFeature("POST", com.meztking.roundtable.data.Slash.RUN,
+            com.meztking.roundtable.data.Slash.body(project, "/goal a made-up contact page", false)))
+        assertTrue(sure.confirm.isNotBlank() && sure.command.startsWith("/goal"))
+        assertTrue(com.meztking.roundtable.data.Queue.parse(api.feature("GET", com.meztking.roundtable.data.Queue.url(project))).items.isEmpty())
+        assertTrue(com.meztking.roundtable.data.Follow.parse(api.feature("GET", com.meztking.roundtable.data.Follow.url(project, "T1"))).isEmpty())
+        val price = com.meztking.roundtable.data.Follow.parseReply(api.slowFeature("POST", com.meztking.roundtable.data.Follow.POST,
+            com.meztking.roundtable.data.Follow.body(project, "T1", "why was it made this way?", "ask", false)))
+        assertTrue(price.confirm.startsWith("Asking") && price.estimate?.task == "T1")
+        val wizard = com.meztking.roundtable.data.WizardFlow.of(api.wizardAsks())
+        assertEquals("kind", wizard.current?.id)
+        assertTrue(wizard.asks.any { it.id == "idea" } && wizard.asks.any { it.id == "like" })
+        val board = T.board(api.feature("GET", T.boardUrl(project)))
+        assertTrue(board.shown.any { c -> c.cards.any { it.id == "T1" } })
+        assertFalse(T.ci(api.feature("GET", T.ciUrl(project))).shown)
+        assertTrue(T.listening(api.feature("GET", T.LISTENING)).words.isNotBlank())
+        assertTrue(T.usage(api.feature("GET", T.USAGE)).services.isNotEmpty())
+        val agents = T.agents(api.feature("GET", T.AGENTS))
+        assertEquals("Maelin", agents.hiredFor("planner")?.name)
+        val ask = com.meztking.roundtable.data.Recall.answer(api.slowFeature("POST", com.meztking.roundtable.data.Recall.ASK,
+            com.meztking.roundtable.data.Recall.askBody("what does the bakery sell?", false)))
+        assertTrue(ask.answer.isBlank() && com.meztking.roundtable.data.Recall.priceLine(ask).startsWith("About"))
+        val pv = com.meztking.roundtable.data.Preview.parse(api.feature("GET", com.meztking.roundtable.data.Preview.url(project, "README.md")))
+        assertEquals("", pv.preview)
+
+        // wave 9, step 0: the six routes Part B left, each narrowed by the PC; the screens' decoders come next
+        fun keys(text: String) = ApiJson.parseToJsonElement(text).jsonObject.keys
+        assertTrue("timer" in keys(api.holdTimer(project, "plan-q1")))
+        assertTrue(keys(api.answerSeveral(listOf(Triple(project, "no-such-card", "s")))).containsAll(listOf("answered", "left", "reply")))
+        assertTrue("pictures" in keys(api.planLooks(project)))
+        assertTrue("documents" in keys(api.documents()))
+        assertTrue("agent" in keys(api.hireAgent("maelin", "planner")))
+        assertTrue("reply" in keys(api.talk(project, "how is the bakery site going?")))
+        // wave 9: a project's sounds, in the PC's own shape (ui/soundapi.py)
+        val sounds = com.meztking.roundtable.data.Sounds.parse(api.feature("GET", com.meztking.roundtable.data.Sounds.url(project)))
+        assertEquals(listOf("Doorbell", "Oven hum"), sounds.sounds.map { it.heading })
+        assertTrue(sounds.sounds[1].madeInCode && !sounds.sounds[0].madeInCode && sounds.sounds[0].licence?.commercial == true)
+        assertEquals(2.0, sounds.cap)
+        // 1.5.0: the chat, through ApiBrain as PC mode and This phone use it (ui/chatsapi.py)
+        val brain = com.meztking.roundtable.data.ApiBrain({ m, p, b -> api.feature(m, p, b) })
+        val chats = brain.chats()
+        assertTrue(chats.any { it.id == "hall" } && chats.any { it.id == "proj" })
+        val read = brain.read("proj", "")
+        assertTrue(read.earlier.isNotEmpty() && read.earlier.all { it.earlier } && read.lines.none { it.earlier })
+        val folded = com.meztking.roundtable.ui.ChatThread.read(com.meztking.roundtable.ui.ChatUiState(), read)
+        assertTrue(folded.earlier.any { it.kind == "agent" && it.text.contains("hello") })  // frontend's letter to proj
+        assertTrue(folded.lines.none { it.id.startsWith("earlier-") })
+        val sent = brain.say("hall", "where does the bakery site stand?", null).first() as com.meztking.roundtable.data.Piece.Sent
+        assertEquals("owner", sent.line.who)
+        brain.stop("hall", sent.turn)
 
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }

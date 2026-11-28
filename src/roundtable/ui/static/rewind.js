@@ -2,6 +2,7 @@
 // rewindButton(seat, task): "Undo this task" on a finished task; historyCard(seat): what each task changed.
 // The files are always shown first; nothing is ever deleted (Put it back undoes it).
 import { h, fill, get, post, q, toast, dialog, card, plural, when, refreshHall } from "./core.js";
+import { t } from "./words.js";
 
 const MODES = [
   ["undo_task", "Undo just this task", "Takes back only what this task changed. Later work stays."],
@@ -13,10 +14,10 @@ rewindStyles();
 
 function fileList(files) {
   if (!files.length) return h("p", { class: "muted" }, "No files change.");
-  const row = (f) => h("li", { title: f.from ? `Was ${f.from}` : "" }, h("code", {}, f.path), " ", h("span", { class: "muted" }, f.words || f.change));
+  const row = (f) => h("li", { title: f.from ? t("Was {from}", { from: f.from }) : "" }, h("code", {}, f.path), " ", h("span", { class: "muted" }, f.words || f.change));
   const first = files.slice(0, MAX_FILES), rest = files.slice(MAX_FILES);
   return h("div", {}, h("ul", { class: "rw-files" }, first.map(row)),
-    rest.length ? h("details", {}, h("summary", { title: "Every file that changes" }, `More (${rest.length})`), h("ul", { class: "rw-files" }, rest.map(row))) : null);
+    rest.length ? h("details", {}, h("summary", { title: "Every file that changes" }, t("More ({length})", { length: rest.length })), h("ul", { class: "rw-files" }, rest.map(row))) : null);
 }
 
 function previewBody(pv) {
@@ -24,8 +25,8 @@ function previewBody(pv) {
   if (!pv.blocked) kids.push(fileList(pv.files));
   if (!pv.blocked && pv.hand_edits && pv.hand_edits.length) {
     kids.push(h("p", { class: "muted", title: "Files you changed yourself since the last task" },
-      pv.hand_edits_kept ? `Your own edits to ${plural(pv.hand_edits.length, "file")} stay as they are.`
-        : `Your own edits to ${plural(pv.hand_edits.length, "file")} are kept safe and come back with Put it back.`));
+      pv.hand_edits_kept ? t("Your own edits to {v1} stay as they are.", { v1: plural(pv.hand_edits.length, "file") })
+        : t("Your own edits to {v1} are kept safe and come back with Put it back.", { v1: plural(pv.hand_edits.length, "file") })));
   }
   return kids;
 }
@@ -53,7 +54,7 @@ async function undoDialog(seat, task, startMode = "undo_task", after) {
   const body = h("div", {}, pick, shown);
   setTimeout(draw, 0);
   draw();
-  const ok = await dialog({ title: `Undo “${task.title || task.id}”?`, body, yes: "Undo it", danger: true, wide: true });
+  const ok = await dialog({ title: t("Undo “{v1}”?", { v1: task.title || task.id }), body, yes: "Undo it", danger: true, wide: true });
   if (!ok || pv.blocked) return;
   try {
     const res = await post("/api/rewind", { path: seat.path, task: task.id, mode, stamp: pv.stamp });
@@ -71,7 +72,7 @@ export function rewindButton(seat, task, after) {
 
 async function tryAnotherWay(seat, row, after) {
   const name = await dialog({ title: "Try another way from here", yes: "Make the copy",
-    text: `Starts a separate copy of this project as it was after “${row.title}”, with the plan and the tasks after it to do again. It costs nothing until you run it.`,
+    text: t("Starts a separate copy of this project as it was after “{title}”, with the plan and the tasks after it to do again. It costs nothing until you run it.", { title: row.title }),
     input: { label: "Name of the copy", value: `${seat.name || seat.id}-another-way` } });
   if (!name) return;
   try {
@@ -83,7 +84,7 @@ async function tryAnotherWay(seat, row, after) {
 }
 
 async function putBack(seat, last, after) {
-  const ok = await dialog({ title: "Put it back?", text: `${last.words} This puts the project and its tasks back as they were before.`, yes: "Put it back" });
+  const ok = await dialog({ title: "Put it back?", text: t("{words} This puts the project and its tasks back as they were before.", { words: last.words }), yes: "Put it back" });
   if (!ok) return;
   try { toast((await post("/api/rewind/undo", { path: seat.path })).words); refreshHall(); if (after) after(); } catch (e) { toast(e.message, true); }
 }
@@ -129,7 +130,7 @@ function rewindStyles() {
 .rw-row:first-child { border-top: 0; }
 .rw-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; } .rw-line .spacer { flex: 1; }
 .rw-undone b { text-decoration: line-through; opacity: .7; }
-.rw-files { margin: 6px 0; padding-left: 18px; font-size: 13px; } .rw-files li { margin: 2px 0; }
+.rw-files { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; } .rw-files li { margin: 2px 0; }
 .rw-modes { gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .rw-blocked { color: var(--color-flare); }
 .rw-last { gap: 10px; align-items: center; padding: 8px 10px; margin-bottom: 8px; border-radius: var(--radius-small); background: var(--color-sunken); }

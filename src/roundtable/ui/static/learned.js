@@ -1,6 +1,7 @@
 // What the harness learned (ui/learnedapi.py, improve/ledger.py): one plain line per change with an Undo, before
 // and after behind More; what waits for the owner; what it can never change (folded). Short first.
 import { h, fill, get, post, card, empty, act, dialog, ago, has } from "./core.js";
+import { t } from "./words.js";
 
 learnedStyles();
 
@@ -32,7 +33,7 @@ function learnedPart(v, reload) {
   return card("What it learned", lines.length
     ? h("ul", { class: "ln-lines" }, lines.map((l) => lineRow(l, reload)))
     : h("p", { class: "muted" }, "Nothing yet: it works exactly as you set it."),
-    (v.not_here || []).length ? h("details", { class: "ln-more" }, h("summary", { title: "Changes from your other machines that need a model this one doesn't have" }, `Not usable here (${v.not_here.length})`),
+    (v.not_here || []).length ? h("details", { class: "ln-more" }, h("summary", { title: "Changes from your other machines that need a model this one doesn't have" }, t("Not usable here ({length})", { length: v.not_here.length })),
       h("ul", { class: "ln-plain" }, v.not_here.map((x) => h("li", {}, x.words, h("span", { class: "muted small" }, ` · ${x.why}`))))) : null);
 }
 
@@ -62,7 +63,7 @@ function beforeAfter(l) {
   } else if (ba.before || ba.after) {
     const words = (x) => Array.isArray(x) ? x.join(", then ") : Object.entries(x || {}).map(([k, val]) => `${k} ${val}`).join(", ");
     const out = l.state === "undone";  // an undone change is no longer in use: say what it was, not "Now"
-    body = h("p", { class: "small" }, ba.before && ba.before.length ? `Before: ${words(ba.before)}. ` : "",
+    body = h("p", { class: "small" }, ba.before && ba.before.length ? t("Before: {v1}. ", { v1: words(ba.before) }) : "",
       `${out ? "The change was" : "Now"}: ${words(ba.after)}.`);
   }
   return body ? h("details", { class: "ln-more" }, h("summary", { title: "What it was and what it is now" }, "More"), body) : null;
@@ -72,13 +73,13 @@ function waitingPart(v, reload, extra) {
   const items = v.waiting || [];
   const rows = items.map((w) => h("li", { class: "ln-line" },
     h("div", { class: "row" },
-      h("span", { class: "grow" }, w.words, w.from ? h("span", { class: "muted small" }, ` · from ${w.from}`) : null),
+      h("span", { class: "grow" }, w.words, w.from ? h("span", { class: "muted small" }, t(" · from {from}", { from: w.from })) : null),
       w.can_apply ? h("button", { class: "small primary", title: "Use this change", onclick: (ev) =>
         act(ev.currentTarget, () => post("/api/learned", { action: "apply", id: w.id }), "In use", reload) }, "Use it") : null,
       w.can_apply ? h("button", { class: "small", title: "Don't use this change", onclick: (ev) =>
         act(ev.currentTarget, () => post("/api/learned", { action: "turn_down", id: w.id }), "Turned down", reload) }, "Turn down") : null),
     h("p", { class: "muted small" }, w.why)));
-  return card(`Waiting for you${items.length ? ` (${items.length})` : ""}`,
+  return card(t("Waiting for you{v1}", { v1: items.length ? ` (${items.length})` : "" }),
     rows.length ? h("ul", { class: "ln-lines" }, rows) : (extra ? null : h("p", { class: "muted" }, "Nothing waits for you.")),
     extra);
 }
@@ -98,7 +99,7 @@ function learnedStyles() {
 .ln-out > .row > .grow { color: var(--color-muted); }
 .ln-more { margin-top: 6px; }
 .ln-more > summary { cursor: pointer; color: var(--color-muted); }
-.ln-plain { margin: 6px 0; padding-left: 18px; }
+.ln-plain { margin: 6px 0; padding-inline-start: 18px; }
 .ln-diff { font-family: var(--font-mono); font-size: 0.85em; max-height: 320px; overflow: auto; margin-top: 6px; }
 .ln-new { color: var(--color-good); }
 .ln-gone { color: var(--color-warn); }

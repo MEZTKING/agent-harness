@@ -127,6 +127,114 @@
    "words": "List these commands"
   },
   {
+   "args": "[at most $N]",
+   "confirm": true,
+   "kind": "command",
+   "name": "approve",
+   "pc_only": false,
+   "slow": false,
+   "words": "Approve the plan and build (say “at most $N” to set the limit)"
+  },
+  {
+   "args": "[accepted | what to build] [at most $N]",
+   "confirm": true,
+   "kind": "command",
+   "name": "build",
+   "pc_only": false,
+   "slow": false,
+   "words": "Build the accepted ideas, or something new (say “at most $N” to set the limit)"
+  },
+  {
+   "args": "<question id> <answer>",
+   "confirm": false,
+   "kind": "command",
+   "name": "answer",
+   "pc_only": false,
+   "slow": false,
+   "words": "Answer one of the plan's questions"
+  },
+  {
+   "args": "<decision id> <option id>",
+   "confirm": false,
+   "kind": "command",
+   "name": "choose",
+   "pc_only": false,
+   "slow": false,
+   "words": "Choose one of a decision's options"
+  },
+  {
+   "args": "[a starting point]",
+   "confirm": true,
+   "kind": "command",
+   "name": "looks",
+   "pc_only": false,
+   "slow": false,
+   "words": "Make new looks to choose from"
+  },
+  {
+   "args": "<task id> [note]",
+   "confirm": true,
+   "kind": "command",
+   "name": "accept",
+   "pc_only": false,
+   "slow": false,
+   "words": "Accept a stopped task as it is and carry on building"
+  },
+  {
+   "args": "on [until HH:MM] [at most $N] | off | status",
+   "confirm": true,
+   "kind": "command",
+   "name": "autopilot",
+   "pc_only": false,
+   "slow": false,
+   "words": "Autopilot for every project: on (until a time, at most $N), off, or how it is"
+  },
+  {
+   "args": "",
+   "confirm": false,
+   "kind": "command",
+   "name": "pictures",
+   "pc_only": false,
+   "slow": false,
+   "words": "Take pictures of the app as it is now"
+  },
+  {
+   "args": "<words>",
+   "confirm": false,
+   "kind": "command",
+   "name": "note",
+   "pc_only": false,
+   "slow": false,
+   "words": "Tell the planner something: the next tasks and plans read it"
+  },
+  {
+   "args": "done <to-do id>",
+   "confirm": false,
+   "kind": "command",
+   "name": "todo",
+   "pc_only": false,
+   "slow": false,
+   "words": "Tick off one of the project's to-dos"
+  },
+  {
+   "args": "<question>",
+   "confirm": true,
+   "kind": "command",
+   "name": "recall",
+   "pc_only": false,
+   "slow": false,
+   "words": "Look through every project for the answer to a question"
+  },
+  {
+   "args": "<what to build>",
+   "confirm": true,
+   "kind": "command",
+   "name": "new",
+   "pc_only": false,
+   "slow": false,
+   "words": "Start a new project: the planner writes its plan, building waits for your yes"
+  },
+  {
    "args": "[anything to add]",
    "confirm": false,
    "kind": "skill",

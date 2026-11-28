@@ -8,10 +8,28 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
-- **Wave 8's phone screens (p1-phone Part B) aren't built** (27 November, 1.4.0): words as they are written,
-  `/` commands, follow-ups, the queue, question timers, the board, git history, CI and "when the PC last
-  listened" all answer the phone (read only where it matters) and are in the phone's conformance test, but the
-  phone has no screens for them yet. → 1.4.x, p1-phone Part B.
+- **A PC told to carry on a project whose files it doesn't have says nothing** (28 November, wave 9, w9-letters):
+  cloning the project from its hub agent's `repo:` is not built. → 1.5.x.
+- **A hub request can't be proven to come from a tap** (28 November, Fable's security list for the phone's DeepSeek
+  key, item 9): a `roundtable:` request in the hub, the chat's ones included, is done by whichever machine runs the
+  project, and nothing proves the owner tapped for it: anyone who can write to the hub could forge one. The hub is
+  private, so only the owner's own devices write there today. What 1.5.0 does: a request the chat sent carries its
+  chat, line and card, a machine skips it once its card was cancelled (`chat.cancelled` in `remote.process`), and
+  the answer goes back into that chat; a card is honoured only in reply to a message typed on the same device (the
+  trust rule). What would close it: each device signs its requests with a key of its own and machines check the
+  signature. → 1.5.x.
+- **The chat, what 1.5.0 leaves** (28 November, the chat's integration): on the phone a picture in a chat shows as
+  its name and size only; the phone's spend for the $1 a day counts only the day files it has read; the phone pins
+  DeepSeek's host but not its certificate; when the PC stops mid-answer the phone's fallback keeps the words but not
+  the draft's files; the phone's background check (every 15 minutes) notices an answer only in a chat it has read
+  once before, and reading a chat on the PC marks it read there; the phone's project page shows the follow-up queue
+  above the chat but no longer the old planner chat with / commands (`ui/ChatTab.kt` kept, not shown); the day files
+  grow (folding months is 1.5.1); the phone answering by itself can't open a project's files, only what the hub
+  holds. → 1.5.1.
+- **The phone in other languages and right to left** (28 November, wave 9): the desktop's language tables and the
+  sweep are in; the phone's Part B (the tables copied into the APK, plural forms, right to left checked on a real
+  screen) was not started, and the tables themselves are made by the coordinator's paid translation run. → wave 9,
+  helper 4 Part B.
 - **Wave 8 untried on real machines** (27 November, 1.4.0): a real EXE's window picture (`winshot`), an
   emulator started, an APK opened and pictured; links into a task's copy on a real `node_modules` (Windows
   junctions); the editor, Open as PDF and Talk in the frozen app's window; engines installing themselves; the
@@ -41,7 +59,8 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   nothing; there is no embeddings call to price yet. The owner's answer (27 November): leave it off; offer it
   later as a switch with its price shown. (A PDF's text is read since 1.4.0: see Fixed.)
 - **Documents and the memory picture aren't on the phone** (27 November, wave 7): the phone has What it
-  learned (with Undo) only. → wave 8, p1-phone (part B).
+  learned (with Undo), and Find and Ask since Part B. The documents list (`GET /api/documents`, read only, open
+  to the phone since wave 9 step 0) → wave 9, helper 4 (w9-phone).
 
 
 - **"Ask me first" on the phone is wired but untried on a real phone** (26 November; re-checked 27 November):
@@ -52,30 +71,9 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   settings, carry-on and pairing are built and tested with made-up hubs; a real PC + phone run (through
   Remote Control and USB) is the next check.
 
-- **Owner to-dos that send them out of the app** (26 November, the owner: "I'm not supposed to ever
-  leave the app; you're meant to set up everything so all my agents do it"): Roundtable still writes
-  to-dos like "paste these lines into Settings > Environments", "pip install on each PC", "set the default
-  branch on GitHub". Each must become an action Roundtable does itself (GitHub tools, the cloud
-  environment tools, Remote Control on the PC) or a one-tap card in the app. Three such to-dos were
-  dropped by hand today. → with the rebuilt desktop app.
-
-- **A project run elsewhere is half-visible on the desktop** (26 November, the owner's screenshot): MSE
-  Studio's plan, made in a cloud session, shows only as a "harness" to-do "the plan is ready: approve it"
-  with a **done** button (which just ticks the to-do, it doesn't approve), no seat of its own, and Chat
-  says "no harness run". The desktop should show every hub project as its own seat with its plan and cards
-  (as the phone does in Hub mode), and an approval to-do should offer **Open the plan** / **Approve**
-  (sent through the hub to wherever the project lives). Approving through the hub needs a Roundtable
-  listening there (`roundtable remote --watch`); the desktop should say whether one is. → slice 2.
-
-- **The phone has no screen for a project's settings yet** (26 November): the desktop's project page has
-  it and the phone's routes serve `/api/project/settings`; the phone screen comes with slice 2.
 - **This phone: only x86_64 was built and smoke-tested** (26 November); arm64 (the owner's phone) is built
   by the runtime workflow and must be tried on the phone through the PC. The runtime workflow doesn't link `previous` releases yet; Docker Hub limits can
   stop a local build (use the `BASE_IMAGE` mirror).
-- **A repository's machine set-up is by hand** (26 November): MSE Studio's tests needed Qt's system
-  libraries (`libegl1` and others) and its add-on repositories cloned next to it, done by hand. A project's
-  `setup` can run commands, but cloning sibling repositories and system packages should be declared too.
-
 - **The phone and the PC as one Roundtable** (owner, 26 November: "This mobile roundtable should be
   able to connect with the PC, and all sessions should be synced, etc., and everything else that is
   necessary"). Slice 2 of "This phone", right after slice 1:
@@ -108,19 +106,12 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   by the PC's next sync (about a minute), and the phone shows the new state only after the PC has
   written `plans/autopilot.json`. → release 4.
 
-- **The phone app's release build fails** (26 November): `./gradlew assembleRelease` stops in R8
-  (code shrinking: "Compilation failed to complete"); test builds (debug) work. Fix the keep rules
-  before the phone release (release 4).
-
 - **Question cards: no "Are you sure?" for deleting** (26 November): no card deletes anything yet, so
   only spending asks twice. A card that removes something (a reference, a don't) should set
   `confirm` on its option the same way. → release 2.
 - **Question cards: the phone can't run the new-project wizard** (26 November): the wizard's cards
   are served by `/api/asks?wizard=1` and work on the PC; the phone still uses its plain form in PC
   mode and has no way to start a project in Hub mode. → wave 8, p1-phone (part B).
-- **Question cards: the look's pictures aren't on the phone's card** (26 November): the card names
-  each look and its mood; the pictures are in the hub (`plans/looks/...`) but the phone doesn't
-  load them into the card yet. → wave 8, p1-phone (part B).
 - **Question cards: a reworded question loses its typed answer only in Hub mode** (26 November):
   a card answered from the phone is refused when the question changed since (its `stamp`); the
   reply says so, but the phone doesn't fetch the new card until the next refresh. → release 4.
@@ -137,9 +128,6 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   adds a `git bundle`, which is compressed, so the key check can't read it. Only what's
   committed goes in (not `.env` files that git ignores). Unpacking the bundle to check it
   would close this.
-- **Backups: no folder picker in the app** (26 November): the folder is typed (or Google
-  Drive is found by itself). A Browse button needs the desktop window's file dialog.
-
 - **(Fixed 26 November: big files come back as an outline; see Fixed.) Big files make every step dear** (26 November): the player's `js/app.js` is 188 KB, read
   in full; GLM-5.3 through OpenRouter has almost no cache discount, so each step of the tests
   task cost about 2 cents. Workers should read files in parts, and the planner should keep
@@ -160,25 +148,75 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   site could answer a different address the second time it is looked up (and the
   session's proxy looks it up itself). Connecting to the checked address, or reading
   through the sandbox, closes that. → release 6 (the sandbox for commands).
-- **References: a repository's size is checked after it is copied.** git can't stop a
-  clone at a size, so a huge repository is downloaded (within 120 seconds) before it is
-  refused and deleted. A size check through the GitHub API first would avoid that. →
-  release 3.
-- **References: a reference that couldn't be read isn't tried again by itself.** Remove
-  it and add it again. No real run of the scout has been made yet (it costs credit). →
-  release 2.
-- **The estimate's defaults are guesses.** With no history it assumes 60,000 input and
-  8,000 output tokens per attempt. In real money the music player's estimate was about
-  right once the cost count was fixed (below), but the defaults should come from real
-  runs (steps × context) and be checked after each one. → release 2.
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
-  stops after two hours; with the desktop app closed, nothing answers. Since 1.4.0 the PC says when it last
-  listened (`reach.py` `beat`, `GET /api/listening`); the phone's line for it is p1-phone Part B.
-- **The critique can be about an older version.** It's now labelled with its version;
-  the critic should look again after a revision that changes many tasks. → release 2.
+  stops after two hours; with the desktop app closed, nothing answers. The PC says when it last listened
+  (`reach.py` `beat`), each project says who runs it (`reach.readers`, `plans/readers/<project>.json`), and
+  the desktop's seats and the phone show it (wave 9). Still open: a watcher that carries on after a cloud
+  session's two hours. → 1.5.x.
 
 ## Fixed
 
+- **The letters' replies were cut** (wave 9, w9-letters) → fixed in 1.5.0 by the chat: Letters is now a chat for
+  every project and one for everything (Hall), on the PC and the phone; a request the chat sends is answered in
+  that chat (`chat.command_done` in `remote.process`); old letters stay, read only, under "Earlier messages"
+  (`chatstore.earlier`); the Letters screens are gone (`static/letters.js`, the phone's `LettersScreen`).
+- **Owner to-dos that send them out of the app** → fixed in 1.5.0 (wave 9, w9-gaps): every kind of to-do the
+  harness writes has one button that does it in the app (`todoactions.action_for`: approve here or through the
+  hub, carry on, try again, open its page or settings, the key form, the recommended set-up, a tool's install
+  job, the GitHub default branch with the app's key, backups on, or handed as a letter to the session that does
+  it); the server does it from its own table (`ui/todoapi.py` `POST /api/todo/act`); a to-do with no action
+  keeps Done and is counted (`GET /api/todo/actions`). `tests/test_todoactions.py` fails if the harness's own
+  code writes a to-do saying "go to", "paste", "type" or "run" without an action.
+- **A project run elsewhere is half-visible on the desktop** → fixed in 1.5.0 (wave 9, w9-gaps; most of it since
+  the rebuild in `ui/roundtable.py`): every hub plan is a seat with its plan and cards, including ones the
+  Hall's rules skipped (`hubseats.seats`, `join`); each says who last listened there (`reach.readers`, `plans/readers/<project>.json`), and
+  Approve is sent once and says when nothing is listening (`hubseats.send_once`, `POST /api/hub/send-once`).
+- **A repository's machine set-up is by hand** → fixed in 1.5.0 (wave 9, w9-gaps): `siblings:` and `system:` in
+  `roundtable.yaml` or `.harness/project.yaml` (`harness/setupdecl.py`); before the first task on a new machine
+  one card shows what will be fetched and installed (autopilot can't answer it), then the run does it; each
+  sibling goes through the size check first; sudo is never run by itself (the exact lines are under More).
+- **The estimate's defaults are guesses** → fixed in 1.5.0 (wave 9, w9-gaps): the tokens per attempt come from
+  this computer's real attempts by job and planned size, the median with the spread kept, the fixed 60,000/8,000
+  below ten rows (`harness/estimatedefaults.py` `for_role`, `tokens`); after each run the estimate and the real
+  cost are written side by side and a drift past a quarter is one line in What it learned (`after_run`).
+- **The critique can be about an older version** → fixed in 1.5.0 (wave 9, w9-gaps): a revision that changes a
+  third of the tasks or more marks the critique "about an earlier version" and offers one new look, priced, as a
+  card autopilot answers by its own rules (`harness/lookagain.py` `mark`, `ask`, `apply`).
+- **References: a repository's size is checked after it is copied** → fixed in 1.5.0 (wave 9, w9-gaps): the
+  GitHub API is asked first, and a repository over the cap is refused before anything is downloaded
+  (`harness/scout.py` `repo_size`, `check_size`); the check after the copy stays for when GitHub can't say.
+- **References: a reference that couldn't be read isn't tried again by itself** → fixed in 1.5.0 (wave 9,
+  w9-gaps): tried once more at the next plan (`harness/scout.py` `retry_due`, called from `refstage._scout_pending`).
+- **Backups: no folder picker in the app** → fixed in 1.5.0 (wave 9, w9-gaps): **Browse** in Settings → Backups
+  opens the desktop window's own folder dialog (`backup.pick_folder`, `POST /api/backup/browse`,
+  `static/todo.js` `backupsBrowse`); in a browser it says to type the folder instead. Beta until tried in the
+  frozen app on the owner's PC.
+- **Commands from the phone need a running Roundtable** (the desktop half) → fixed in 1.5.0 (wave 9): a hub
+  project's seat on the desktop says who runs it, from one source (`reach.readers`, used by `hubseats`); the rest
+  (a watcher that stops after two hours in a cloud session) stays open.
+- **Google Drive for desktop isn't in the Tools page's catalogue** → fixed in 1.5.0 (wave 9): `prereq.CATALOG`
+  `gdrive` (winget `Google.GoogleDrive`), found by the backups' own folder search.
+- **Sound and music aren't made** → fixed in 1.5.0 (wave 9, w9-sound): ElevenLabs and Stable Audio adapters
+  (`providers/elevenlabs_sound.py`, `providers/stable_audio.py`), the $2 a project cap held under one lock
+  (`harness/soundprice.py`), the sound job with its check and the fallback to sound made in code
+  (`harness/soundstage.py`, `harness/soundcheck.py`), the Sounds card on the project page and the phone, the sound
+  service card in Settings → AI services. Real prices only after the coordinator's proof calls (`docs/sound.md`).
+- **The office, other languages, local counts and traces, the iPhone page, to-dos as actions and the proof run
+  are stubs** → filled in 1.5.0 (wave 9): `office.py`, `officeart.py`, `static/office.js` (the view, shown once
+  its pictures are made); `words.py`, `translate.py`, `static/words.js`, `static/language.js`, `static/rtl.css`;
+  `localcounts.py`, `otel.py`; `webphone.py` (built off until the owner's yes); `todoactions.py`; `proofrun.py`.
+- **What wave 8's phone Part B left** → fixed in 1.5.0 (wave 9, w9-phone Part A): the timer held while typing,
+  Answer these, the look's pictures on the card, the documents list, hiring, Talk through the PC, the Sounds card,
+  a project's settings with money and checking first, This phone checked against the PC's answers.
+- **The phone has no screen for a project's settings yet** → fixed in 1.5.0 (wave 9, w9-phone): money and
+  checking first, the rest behind More.
+- **The phone app's release build fails** → fixed in 1.5.0 (wave 9, w9-phone): R8's rules keep what the app
+  needs; `assembleRelease` runs in CI's `android-apk` job.
+- **Question cards: the look's pictures aren't on the phone's card** → fixed in 1.5.0 (wave 9, w9-phone): data
+  addresses from `GET /api/plan/looks`.
+- **Pictures have no cap of their own** (wave 9, w9-proof) → fixed in 1.5.0: `limits.max_image_usd` (also a
+  project setting): the next picture is never bought past it (`Orchestrator._image_cap_words`,
+  `tests/test_image_cap.py`); the proof run sets it to its picture allowance.
 - **Pictures: no editing of an earlier picture, no see-through output, spending not counted safely in
   parallel** → fixed in 1.4.0 (wave 8, p1-proof): `providers/chat_images.py` takes an earlier picture
   (`from_image`) and asks for transparency where the model can, cutting it out itself where it can't

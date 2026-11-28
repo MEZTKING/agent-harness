@@ -88,6 +88,8 @@ interface FilesSource {
     suspend fun runTests(): String
     /** A job's state: (still running, the words to show when it ended, it worked). */
     suspend fun job(id: String): Triple<Boolean, String, Boolean>
+    /** A richer look at a notebook, an archive, an office file or a video or song; null where the machine has none. */
+    suspend fun preview(file: String): FilePreview? = null
 }
 
 object Files {

@@ -1,0 +1,8 @@
+{
+ "confirm": "Asking the model that built T1 costs about $0.00. Ask it?",
+ "estimate": {
+  "cost_usd": 0.0018,
+  "model": "a/coder",
+  "task": "T1"
+ }
+}

@@ -1,6 +1,7 @@
 // Autopilot: the header switch, its card and what it did. While you're away it answers with the recommended
 // answers, within a spending limit; it never raises a limit or picks anything that asks "Are you sure?".
 import { h, fill, get, post, toast, ago, money, seatByPath, projectHref, projectName } from "./core.js";
+import { t } from "./words.js";
 
 let AP = null, open = false;
 const UNTIL = [
@@ -57,7 +58,7 @@ function offPart() {
     go.disabled = true;
     try {
       const r = await post("/api/autopilot", { action: "on", until: until === "custom" ? custom.value : until, cap: Number(cap.value) });
-      drawAutopilot(r); toast(`Autopilot is on, ${words(r)}`);
+      drawAutopilot(r); toast(t("Autopilot is on, {v1}", { v1: words(r) }));
     } catch (e) { toast(e.message, true); go.disabled = false; }
   } }, "Turn on");
   return [h("p", { class: "small muted" }, "While you're away, the harness answers what waits for you with the recommended answer and writes down every choice. It never raises a limit, never picks anything that asks “Are you sure?”, and never deletes, publishes or releases anything."),

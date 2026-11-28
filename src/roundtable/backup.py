@@ -216,7 +216,53 @@ def resolve_destination(settings: dict | None = None, explicit: str | None = Non
 
 NO_DRIVE = ("No Google Drive folder found on this computer. Install Google Drive for desktop "
             "(https://www.google.com/drive/download/) and sign in, or choose another folder "
-            "in Settings → Backups.")
+            "in Settings → Backups (Browse).")
+NO_PICKER = ("The folder picker only opens in the desktop app's own window. Type the folder in the box instead, "
+             "for example a USB stick or a OneDrive folder.")
+
+
+def pick_folder(start: str | None = None, window=None) -> str | None:
+    """The desktop window's own folder dialog (pywebview): the folder chosen, or None when it was cancelled.
+
+    ``window`` is a stand-in in the tests; otherwise the app's first pywebview window. Raises BackupError with
+    NO_PICKER when there is no such window (the app opened in a browser, or a copy run from the command line)."""
+    if window is None:
+        try:
+            import webview  # pywebview: only there in the desktop app
+
+            window = (getattr(webview, "windows", None) or [None])[0]
+        except Exception:  # noqa: BLE001
+            window = None
+        if window is None:
+            raise BackupError(NO_PICKER)
+        kind = getattr(getattr(webview, "FileDialog", None), "FOLDER", None) or getattr(webview, "FOLDER_DIALOG", 20)
+    else:
+        kind = "folder"
+    try:
+        got = window.create_file_dialog(kind, directory=str(start or ""), allow_multiple=False)
+    except Exception as e:  # noqa: BLE001 - the dialog failed: say what to do instead
+        raise BackupError(f"The folder picker didn't open ({type(e).__name__}). {NO_PICKER}") from None
+    if not got:
+        return None
+    first = got[0] if isinstance(got, (list, tuple)) else got
+    return str(first) or None
+
+
+def turn_on(home: Path | None = None, folder: str | None = None) -> dict:
+    """The to-do "turn on backups" in one tap: daily backups to ``folder``, else Google Drive's folder if found.
+
+    {"ok", "destination", "words"}; ok False (nothing changed) when there's no folder to use yet."""
+    if folder:
+        dest = Path(folder).expanduser()
+        save_settings(home, to=str(dest), daily=True)
+        return {"ok": True, "destination": str(dest), "words": f"Backups are on: every day, into {dest}."}
+    found = find_drive_folders()
+    if not found:
+        return {"ok": False, "destination": "", "words": NO_DRIVE}
+    save_settings(home, to="auto", daily=True)
+    dest = found[0] / FOLDER_NAME
+    return {"ok": True, "destination": str(dest),
+            "words": f"Backups are on: every day, into Google Drive ({dest})."}
 
 
 # -- what goes in --------------------------------------------------------------------------------

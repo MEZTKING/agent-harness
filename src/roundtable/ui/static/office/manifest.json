@@ -1,0 +1,918 @@
+{
+  "version": 1,
+  "about": "Every piece of the office, made by Retro Diffusion (never drawn in code). Styles and sizes: verify at implementation with styles(). officeart.py reads this; office.js places and moves the pieces.",
+  "room": {
+    "width": 384,
+    "height": 216,
+    "wall_height": 64,
+    "wall": "wall",
+    "floor": "floor",
+    "window": "window",
+    "windows_at": [
+      144,
+      208
+    ]
+  },
+  "props": [
+    {
+      "piece": "door",
+      "x": 8,
+      "y": 4
+    },
+    {
+      "piece": "whiteboard",
+      "x": 72,
+      "y": 10
+    },
+    {
+      "piece": "shelf",
+      "x": 316,
+      "y": 4
+    },
+    {
+      "piece": "terminal",
+      "x": 326,
+      "y": 116
+    },
+    {
+      "piece": "mailbox",
+      "x": 16,
+      "y": 150
+    },
+    {
+      "piece": "sofa",
+      "x": 148,
+      "y": 166
+    },
+    {
+      "piece": "plant",
+      "x": 352,
+      "y": 168
+    },
+    {
+      "piece": "desk",
+      "x": 96,
+      "y": 72
+    },
+    {
+      "piece": "desk",
+      "x": 168,
+      "y": 72
+    },
+    {
+      "piece": "desk",
+      "x": 240,
+      "y": 72
+    },
+    {
+      "piece": "desk",
+      "x": 96,
+      "y": 112
+    },
+    {
+      "piece": "desk",
+      "x": 168,
+      "y": 112
+    },
+    {
+      "piece": "desk",
+      "x": 240,
+      "y": 112
+    }
+  ],
+  "spots": {
+    "desk": [
+      [
+        120,
+        118
+      ],
+      [
+        192,
+        118
+      ],
+      [
+        264,
+        118
+      ],
+      [
+        120,
+        158
+      ],
+      [
+        192,
+        158
+      ],
+      [
+        264,
+        158
+      ]
+    ],
+    "shelf": [
+      [
+        322,
+        74
+      ],
+      [
+        346,
+        76
+      ]
+    ],
+    "terminal": [
+      [
+        310,
+        168
+      ]
+    ],
+    "mailbox": [
+      [
+        56,
+        196
+      ]
+    ],
+    "door": [
+      [
+        36,
+        78
+      ],
+      [
+        60,
+        80
+      ]
+    ],
+    "sofa": [
+      [
+        170,
+        206
+      ],
+      [
+        192,
+        206
+      ],
+      [
+        214,
+        206
+      ]
+    ],
+    "whiteboard": [
+      [
+        100,
+        66
+      ]
+    ],
+    "middle": [
+      [
+        192,
+        160
+      ]
+    ]
+  },
+  "actor": {
+    "draw": [
+      48,
+      48
+    ],
+    "feet": [
+      24,
+      44
+    ],
+    "bubble_above": 8
+  },
+  "agents": {
+    "maelin": {
+      "walk": "maelin-walk",
+      "work": "maelin-work"
+    },
+    "torvic": {
+      "walk": "torvic-walk",
+      "work": "torvic-work"
+    },
+    "ondra": {
+      "walk": "ondra-walk",
+      "work": "ondra-work"
+    },
+    "kestrel": {
+      "walk": "kestrel-walk",
+      "work": "kestrel-work"
+    },
+    "calla": {
+      "walk": "calla-walk",
+      "work": "calla-work"
+    },
+    "pell": {
+      "walk": "pell-walk",
+      "work": "pell-work"
+    },
+    "helper-a": {
+      "walk": "helper-a-walk",
+      "work": "helper-a-work"
+    },
+    "helper-b": {
+      "walk": "helper-b-walk",
+      "work": "helper-b-work"
+    }
+  },
+  "bubbles": {
+    "asleep": "bubble-asleep",
+    "question": "bubble-question",
+    "tick": "bubble-tick",
+    "warning": "bubble-warning",
+    "letter": "bubble-letter",
+    "coin": "bubble-coin"
+  },
+  "pieces": [
+    {
+      "id": "wall",
+      "file": "wall.png",
+      "kind": "backdrop",
+      "style": "rd_tile__single_tile",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. One seamless wall tile: dark indigo wall panels with a thin violet trim line along the bottom edge.",
+      "options": {
+        "tile_x": true
+      },
+      "stage": "sample"
+    },
+    {
+      "id": "floor",
+      "file": "floor.png",
+      "kind": "backdrop",
+      "style": "rd_tile__single_tile",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. One seamless floor tile: dark wooden floorboards, near-black with faint indigo sheen.",
+      "options": {
+        "tile_x": true,
+        "tile_y": true
+      },
+      "stage": "rest"
+    },
+    {
+      "id": "window",
+      "file": "window.png",
+      "kind": "backdrop",
+      "style": "rd_tile__single_tile",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. One wall tile with a tall window showing a night sky with a few dim stars and a faint violet glow; the frame matches dark indigo wall panels.",
+      "options": {
+        "tile_x": true
+      },
+      "stage": "rest",
+      "trim": 7
+    },
+    {
+      "id": "desk",
+      "file": "desk.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small office desk with a glowing violet computer screen and a keyboard, seen from the front and above, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "sample",
+      "draw": [
+        48,
+        40
+      ]
+    },
+    {
+      "id": "shelf",
+      "file": "shelf.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A tall bookshelf full of books and folders against a wall, a few spines glowing faintly, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "sample",
+      "draw": [
+        56,
+        60
+      ]
+    },
+    {
+      "id": "terminal",
+      "file": "terminal.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A chunky old computer terminal on a stand with a green-on-black glowing screen and a blinking ember light, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        48,
+        48
+      ]
+    },
+    {
+      "id": "mailbox",
+      "file": "mailbox.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small standing post box for letters with an ember-orange flag, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        32,
+        44
+      ]
+    },
+    {
+      "id": "door",
+      "file": "door.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A closed office door in a dark wooden frame with a small warm light above it, seen from the front, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        48,
+        60
+      ]
+    },
+    {
+      "id": "sofa",
+      "file": "sofa.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 96,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A soft low sofa in deep violet fabric with two cushions, seen from the front and above, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "trim": 5,
+      "draw": [
+        88,
+        44
+      ]
+    },
+    {
+      "id": "whiteboard",
+      "file": "whiteboard.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A whiteboard on a wall covered in simple boxes and arrows drawn in violet and ember marker, no readable words, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "trim": 8,
+      "draw": [
+        60,
+        44
+      ]
+    },
+    {
+      "id": "plant",
+      "file": "plant.png",
+      "kind": "prop",
+      "style": "rd_core__topdown",
+      "width": 64,
+      "height": 64,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A potted leafy office plant in a dark pot, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "trim": 9,
+      "draw": [
+        32,
+        44
+      ]
+    },
+    {
+      "id": "maelin-walk",
+      "file": "maelin-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The planner: a calm thoughtful planner with long silver hair and a softly glowing folded map. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "sample",
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "maelin"
+    },
+    {
+      "id": "maelin-work",
+      "file": "maelin-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The planner: a calm thoughtful planner with long silver hair and a softly glowing folded map, sitting at work, facing down: unrolls a glowing map on the desk and points at it, thinking. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "sample",
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "maelin"
+    },
+    {
+      "id": "torvic-walk",
+      "file": "torvic-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The builder: a steady practical builder with a short beard, rolled sleeves and a small glowing tool. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "torvic"
+    },
+    {
+      "id": "torvic-work",
+      "file": "torvic-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The builder: a steady practical builder with a short beard, rolled sleeves and a small glowing tool, sitting at work, facing down: types fast at a keyboard and taps with a small glowing tool. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "torvic"
+    },
+    {
+      "id": "ondra-walk",
+      "file": "ondra-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The checker: a sharp watchful checker with short dark hair, round glasses and a magnifying glass. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "ondra"
+    },
+    {
+      "id": "ondra-work",
+      "file": "ondra-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The checker: a sharp watchful checker with short dark hair, round glasses and a magnifying glass, sitting at work, facing down: looks closely through a magnifying glass and ticks a list. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "ondra"
+    },
+    {
+      "id": "kestrel-walk",
+      "file": "kestrel-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The second opinion: a curious frank reviewer with a feather in a cap and a long scarf. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "kestrel"
+    },
+    {
+      "id": "kestrel-work",
+      "file": "kestrel-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The second opinion: a curious frank reviewer with a feather in a cap and a long scarf, sitting at work, facing down: reads a page, tilts its head and writes a short note. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "kestrel"
+    },
+    {
+      "id": "calla-walk",
+      "file": "calla-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The designer: an elegant designer with a neat bun and a colour swatch fan. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "calla"
+    },
+    {
+      "id": "calla-work",
+      "file": "calla-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The designer: an elegant designer with a neat bun and a colour swatch fan, sitting at work, facing down: fans out colour swatches and holds one up to compare. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "calla"
+    },
+    {
+      "id": "pell-walk",
+      "file": "pell-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The artist: a dreamy gentle artist with a beret and a paintbrush. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "pell"
+    },
+    {
+      "id": "pell-work",
+      "file": "pell-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. The artist: a dreamy gentle artist with a beret and a paintbrush, sitting at work, facing down: paints small strokes on a little canvas on an easel. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "pell"
+    },
+    {
+      "id": "helper-a-walk",
+      "file": "helper-a-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. a plain helper in a hooded indigo jacket, no face details. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "trim": 6,
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "helper-a"
+    },
+    {
+      "id": "helper-a-work",
+      "file": "helper-a-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. a plain helper in a hooded indigo jacket, no face details, sitting at work facing down, typing at a keyboard. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "trim": 6,
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "helper-a"
+    },
+    {
+      "id": "helper-b-walk",
+      "file": "helper-b-walk.png",
+      "kind": "walk",
+      "style": "animation__four_angle_walking",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. a plain helper in a violet jumper with a small ember badge, no face details. A four-way walk cycle: down, left, right, up.",
+      "options": {
+        "return_spritesheet": true
+      },
+      "stage": "rest",
+      "trim": 4,
+      "sheet": {
+        "cols": 4,
+        "rows": 4,
+        "rows_are": [
+          "down",
+          "left",
+          "right",
+          "up"
+        ]
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "helper-b"
+    },
+    {
+      "id": "helper-b-work",
+      "file": "helper-b-work.png",
+      "kind": "work",
+      "style": "animation__any_animation",
+      "width": 48,
+      "height": 48,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. A small friendly invented office worker, chibi proportions, readable silhouette at 48 pixels, dark indigo clothes with one accent colour, plain see-through background. a plain helper in a violet jumper with a small ember badge, no face details, sitting at work facing down, typing at a keyboard. A short seamless loop.",
+      "options": {
+        "return_spritesheet": true,
+        "frames_duration": 4
+      },
+      "stage": "rest",
+      "trim": 4,
+      "sheet": {
+        "cols": 4,
+        "rows": 1
+      },
+      "draw": [
+        48,
+        48
+      ],
+      "agent": "helper-b"
+    },
+    {
+      "id": "bubble-asleep",
+      "file": "bubble-asleep.png",
+      "kind": "bubble",
+      "style": "rd_plus__ui_element",
+      "width": 32,
+      "height": 32,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. An icon: a small speech bubble with a sleepy 'z z' shape in soft violet, dark outline, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        20,
+        20
+      ]
+    },
+    {
+      "id": "bubble-question",
+      "file": "bubble-question.png",
+      "kind": "bubble",
+      "style": "rd_plus__ui_element",
+      "width": 32,
+      "height": 32,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. An icon: a small speech bubble with a big question mark in ember orange, dark outline, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "sample",
+      "draw": [
+        20,
+        20
+      ]
+    },
+    {
+      "id": "bubble-tick",
+      "file": "bubble-tick.png",
+      "kind": "bubble",
+      "style": "rd_plus__ui_element",
+      "width": 32,
+      "height": 32,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. An icon: a small speech bubble with a green tick mark, dark outline, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "sample",
+      "draw": [
+        20,
+        20
+      ]
+    },
+    {
+      "id": "bubble-warning",
+      "file": "bubble-warning.png",
+      "kind": "bubble",
+      "style": "rd_plus__ui_element",
+      "width": 32,
+      "height": 32,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. An icon: a small speech bubble with an exclamation mark in warm yellow, dark outline, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        20,
+        20
+      ]
+    },
+    {
+      "id": "bubble-letter",
+      "file": "bubble-letter.png",
+      "kind": "bubble",
+      "style": "rd_plus__ui_element",
+      "width": 32,
+      "height": 32,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. An icon: a small speech bubble with a sealed envelope, dark outline, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        20,
+        20
+      ]
+    },
+    {
+      "id": "bubble-coin",
+      "file": "bubble-coin.png",
+      "kind": "bubble",
+      "style": "rd_plus__ui_element",
+      "width": 32,
+      "height": 32,
+      "prompt": "Pixel art, three-quarter top-down view, crisp hard pixels, no anti-aliasing. A calm late-night office in a dark palette: near-black (#0a0a0f), deep indigo and soft violet (#a78bfa), with small warm ember-orange (#ff9d4d) lights. No text, no letters, no logos. An icon: a small speech bubble with one gold coin, dark outline, see-through background.",
+      "options": {
+        "remove_bg": true
+      },
+      "stage": "rest",
+      "draw": [
+        20,
+        20
+      ]
+    }
+  ]
+}

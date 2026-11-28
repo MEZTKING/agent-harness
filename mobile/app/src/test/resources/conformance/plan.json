@@ -49,7 +49,7 @@
   ],
   "dont": [],
   "estimate": {
-   "at": "2026-11-27T23:33:03Z",
+   "at": "2026-11-28T11:14:20Z",
    "by_role": {
     "coder": {
      "basis": "default",
@@ -94,7 +94,7 @@
   "has_ui": null,
   "history": [
    {
-    "at": "2026-11-27T23:33:03Z",
+    "at": "2026-11-28T11:14:20Z",
     "change": "first plan",
     "version": 1
    }
@@ -163,6 +163,7 @@
    "id": "T1",
    "image_options": {},
    "merge_of": "",
+   "needs_net": null,
    "output_path": "",
    "parked": "",
    "part": "",
@@ -170,6 +171,7 @@
    "risky": false,
    "role": "coder",
    "section": "",
+   "sound_options": {},
    "stage": "",
    "status": "pending",
    "stronger": false,
@@ -193,6 +195,7 @@
    "id": "T2",
    "image_options": {},
    "merge_of": "",
+   "needs_net": null,
    "output_path": "assets/logo.png",
    "parked": "",
    "part": "",
@@ -200,6 +203,7 @@
    "risky": false,
    "role": "designer",
    "section": "",
+   "sound_options": {},
    "stage": "",
    "status": "pending",
    "stronger": false,
@@ -225,6 +229,7 @@
    "id": "T3",
    "image_options": {},
    "merge_of": "",
+   "needs_net": null,
    "output_path": "",
    "parked": "",
    "part": "",
@@ -232,6 +237,7 @@
    "risky": false,
    "role": "coder",
    "section": "",
+   "sound_options": {},
    "stage": "",
    "status": "pending",
    "stronger": false,

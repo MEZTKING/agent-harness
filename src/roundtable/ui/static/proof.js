@@ -1,6 +1,7 @@
 // Proof for one finished task: the app before and after it (a slider), what a model that can see said, and the
 // tests. Folded by default: the one line shows; the pictures load when it is opened. (harness/proof.py, ui/proofapi.py)
 import { h, fill, get, q, has, enlarge } from "./core.js";
+import { t as wt } from "./words.js";
 
 const NAMES = { desktop: "Computer", phone: "Phone", dark: "Dark mode", start: "Start", middle: "Playing" };
 const MARK = { shows_it: "✓", does_not: "✗", cant_tell: "?" };
@@ -63,14 +64,14 @@ export function proofBody(p) {
   const more = [];
   if (j.model) more.push(h("li", {}, `Looked at by ${j.model}` + (j.cost_usd ? ` · $${Number(j.cost_usd).toFixed(4)}` : "")));
   if (p.before && p.before.commit) more.push(h("li", {}, `Before: version ${String(p.before.commit).slice(0, 8)}` + (p.before.reused ? " (pictures kept from earlier)" : "")));
-  if (p.after && p.after.commit) more.push(h("li", {}, `After: version ${String(p.after.commit).slice(0, 8)}`));
+  if (p.after && p.after.commit) more.push(h("li", {}, wt("After: version {v1}", { v1: String(p.after.commit).slice(0, 8) })));
   if (more.length) out.push(h("details", { class: "pf-more" }, h("summary", { title: "Who looked, what it cost, which versions" }, "More"), h("ul", {}, more)));
   return out;
 }
 
 function testsPart(t) {
   const tails = [t.before && t.before.tail ? ["Before the run", t.before.tail] : null, t.after && t.after.tail ? ["After this task", t.after.tail] : null].filter(Boolean);
-  return h("div", { class: "pf-tests" }, h("p", { title: t.command ? `The project's test command: ${t.command}` : "The project's own tests" }, t.words),
+  return h("div", { class: "pf-tests" }, h("p", { title: t.command ? wt("The project's test command: {command}", { command: t.command }) : "The project's own tests" }, t.words),
     (t.broke || []).length ? h("p", { class: "small pf-bad" }, "Broke: " + t.broke.slice(0, 6).join(", ")) : null,
     tails.length ? h("details", {}, h("summary", { title: "The last lines the tests wrote" }, "The tests' last lines"),
       tails.map(([label, text]) => h("div", {}, h("b", { class: "small" }, label), h("pre", { class: "log short" }, text)))) : null);
@@ -82,16 +83,16 @@ function compare(pr, before, after) {
   const cap = h("figcaption", {}, h("b", {}, name), h("span", { class: "muted" }, " · " + pr.words));
   if (!after) return h("figure", { class: "pf-pair" }, h("p", { class: "muted small" }, "The picture is too big to show here."), cap);
   if (!before) {
-    return h("figure", { class: "pf-pair" }, h("button", { type: "button", class: "pf-frame", title: `${name}, after the task: click to see it full size`, onclick: () => enlarge(after, `${name}, after`) },
-      h("img", { src: after, alt: `${name}, after the task` }), h("span", { class: "pf-tag pf-tag-r" }, "New")), cap);
+    return h("figure", { class: "pf-pair" }, h("button", { type: "button", class: "pf-frame", title: wt("{name}, after the task: click to see it full size", { name }), onclick: () => enlarge(after, `${name}, after`) },
+      h("img", { src: after, alt: wt("{name}, after the task", { name }) }), h("span", { class: "pf-tag pf-tag-r" }, "New")), cap);
   }
-  const top = h("div", { class: "pf-top" }, h("img", { src: before, alt: `${name}, before the task` }));
-  const slider = h("input", { type: "range", min: "0", max: "100", value: "50", class: "pf-slide", "aria-label": `${name}: slide between before and after`,
+  const top = h("div", { class: "pf-top" }, h("img", { src: before, alt: wt("{name}, before the task", { name }) }));
+  const slider = h("input", { type: "range", min: "0", max: "100", value: "50", class: "pf-slide", "aria-label": wt("{name}: slide between before and after", { name }),
     title: "Slide left to see more of after, right to see more of before" });
   const set = () => { top.style.clipPath = `inset(0 ${100 - Number(slider.value)}% 0 0)`; };
   slider.addEventListener("input", set);
   set();
-  const frame = h("div", { class: "pf-frame" }, h("img", { src: after, alt: `${name}, after the task`, onclick: () => enlarge(after, `${name}, after`) }), top,
+  const frame = h("div", { class: "pf-frame" }, h("img", { src: after, alt: wt("{name}, after the task", { name }), onclick: () => enlarge(after, `${name}, after`) }), top,
     h("span", { class: "pf-tag" }, "Before"), h("span", { class: "pf-tag pf-tag-r" }, "After"));
   return h("figure", { class: "pf-pair" }, frame, slider, cap);
 }
@@ -113,8 +114,8 @@ function proofStyles() {
 .pf-frame { position: relative; display: block; padding: 0; border: 1px solid var(--color-line); border-radius: 6px; overflow: hidden; background: var(--color-surface); width: 100%; }
 .pf-frame img { display: block; width: 100%; height: auto; cursor: zoom-in; }
 .pf-top { position: absolute; inset: 0; pointer-events: none; } .pf-top img { width: 100%; }
-.pf-tag { position: absolute; top: 6px; left: 6px; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--color-text) 70%, transparent); color: var(--color-surface); pointer-events: none; }
-.pf-tag-r { left: auto; right: 6px; }
+.pf-tag { position: absolute; top: 6px; inset-inline-start: 6px; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--color-text) 70%, transparent); color: var(--color-surface); pointer-events: none; }
+.pf-tag-r { inset-inline-start: auto; inset-inline-end: 6px; }
 .pf-slide { width: 100%; margin: 4px 0 0; accent-color: var(--color-accent); }
 .pf-pair figcaption { font-size: 12px; }
 .pf-probs ul, .pf-more ul { margin: 4px 0 0 18px; padding: 0; }

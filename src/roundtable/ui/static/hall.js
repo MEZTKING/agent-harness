@@ -7,6 +7,8 @@ import { gather, needCard } from "./needs.js";
 import { whereWords, builtBy, machinesStrip, loadMachines } from "./machines.js";
 import { feedLine } from "./activity.js";
 import { loadStates, stateWord, orderSeats, orderButtons } from "./board.js";
+import { t } from "./words.js";
+import { chatView } from "./chat.js";
 
 const RING_MAX = 10;   // lights on the ring; more and the ring becomes a heading over a grid
 
@@ -30,11 +32,11 @@ function ringCard(s, shown = [], redraw = null) {
     s.shot ? h("img", { class: "ring-card-shot", src: s.shot.url, alt: "", loading: "lazy" }) : null,
     h("span", { class: "ring-card-name" }, dot(s.id), h("b", {}, s.name)),
     h("span", { class: "ring-card-state" }, h("i", { class: "sdot", "aria-hidden": "true" }), state, " ", stateWord(s)),
-    p.total ? h("span", { class: "bar", title: `${p.done} of ${p.total} tasks done` },
+    p.total ? h("span", { class: "bar", title: t("{done} of {total} tasks done", { done: p.done, total: p.total }) },
       h("i", { style: `width:${(100 * p.done) / p.total}%` }), s.status === "running" && p.done < p.total ? h("i", { class: "run", style: `width:${100 / p.total}%` }) : null,
       s.failed_task ? h("i", { class: "fail", style: `width:${100 / p.total}%` }) : null) : null,
     h("span", { class: "ring-card-foot" },
-      waiting ? h("span", { class: "waits" }, `${waiting} for you`) : h("span", { class: "muted" }, p.total ? `${Math.round((100 * p.done) / p.total)}% done` : s.where === "here" ? "This computer" : ""),
+      waiting ? h("span", { class: "waits" }, t("{waiting} for you", { waiting })) : h("span", { class: "muted" }, p.total ? t("{v1}% done", { v1: Math.round((100 * p.done) / p.total) }) : s.where === "here" ? "This computer" : ""),
       s.spent_usd ? h("b", { title: "Spent on this project so far" }, money(s.spent_usd)) : null,
       shown.length > 1 ? orderButtons(s, shown, redraw) : null));
 }
@@ -54,10 +56,10 @@ function placeRing(ring) {  // lights on the ring, cards outside it at the same 
   cards.forEach((el, i) => {
     const a = (2 * Math.PI * i) / cards.length - Math.PI / 2;
     const [c, s] = [Math.cos(a).toFixed(4), Math.sin(a).toFixed(4)];
-    el.style.left = `calc(50% + (50% - 118px) * ${c})`;  // cards stay inside the stage: half a card plus a margin from each edge
+    el.style.insetInlineStart = `calc(50% + (50% - 118px) * ${c})`;  // cards stay inside the stage: half a card plus a margin from each edge
     el.style.top = `calc(50% + (50% - 74px) * ${s})`;
     const l = lights[i];
-    if (l) { l.style.left = `calc(50% + min(22cqw, ${half}px) * ${c})`; l.style.top = `calc(50% + min(22cqw, ${half}px) * ${s})`; }
+    if (l) { l.style.insetInlineStart = `calc(50% + min(22cqw, ${half}px) * ${c})`; l.style.top = `calc(50% + min(22cqw, ${half}px) * ${s})`; }
   });
 }
 
@@ -75,8 +77,11 @@ export async function viewHall() {
   const side = h("aside", { class: "home-side", "aria-label": "Needs you" });
   const notes = h("div", { class: "home-under" });
   const now = h("section", { class: "card home-now" });
+  // Ring or Office: the switch shows only once the office has its pictures (office.js); otherwise the Ring stays
+  const office = await import("./office.js");
+  const sw = await office.officeSwitch(() => { table._sig = undefined; table._office = false; draw(S.rt); }).catch(() => null);
   const root = h("div", { class: "page home" },
-    h("div", { class: "home-main" }, table, notes, now), side);
+    h("div", { class: "home-main" }, sw, table, notes, now, chatView("hall", { short: true, name: BRAND.short })), side);
   const newIdea = () => h("a", { class: "ring-card new-idea", href: "#/new", title: "A few taps, then the planner makes a plan for you to check. Nothing is built until you approve it." },
     h("i", { class: "unlit", "aria-hidden": "true" }), h("b", {}, "+ New idea"), h("span", {}, "Start a project"));
 
@@ -93,7 +98,9 @@ export async function viewHall() {
     const card_ = (s) => ringCard(s, seats, redraw);
     const waiting = seats.filter(needsYou).length;
     const ring = seats.length <= RING_MAX && wide;
-    patch(table, JSON.stringify([ring, ART, seats.map((s) => [s.id, s.name, s.state, s.status, s.progress, s.waiting_for_you, s.spent_usd, s.shot && s.shot.url, builtBy(s), s.where]), states]), () => {
+    if (sw && office.homeView() === "office") {  // the office follows the Hall by itself once drawn
+      if (!table._office) { table._office = true; table._sig = undefined; await office.officeView(table); }
+    } else patch(table, JSON.stringify([ring, ART, seats.map((s) => [s.id, s.name, s.state, s.status, s.progress, s.waiting_for_you, s.spent_usd, s.shot && s.shot.url, builtBy(s), s.where]), states]), () => {
       const disc = (small) => h("div", { class: "ring-disc" }, ringWords(seats, waiting, small));
       const art = ART.ring ? " art" : "";
       if (!seats.length) return [h("div", { class: `ring empty-ring${art}` }, disc(false)), empty("No projects yet. Write your first idea and the planner makes a plan for you to check.",
@@ -115,13 +122,13 @@ export async function viewHall() {
         h("p", { class: "muted" }, "Every project is either working or waiting for a new idea. Questions, plans to approve and your to-dos show up here."),
         h("a", { class: "btn primary", href: "#/new" }, "+ Start a new project"));
       const [first, ...rest] = items;
-      return [h("div", { class: "side-head" }, h("h2", {}, "Needs you"), h("span", { class: "count", title: "Every card waiting, letters not counted" }, needsCount(rt) || items.length),
+      return [h("div", { class: "side-head" }, h("h2", {}, "Needs you"), h("span", { class: "count", title: "Every card waiting, chat messages not counted" }, needsCount(rt) || items.length),
         h("a", { class: "spacer-left", href: "#/needs" }, "See all")),
       needCard(first, null, { compact: true }),
       rest.length ? h("section", { class: "card next-up" }, h("h3", { class: "label" }, "Also waiting"),
         h("ul", { class: "plain" }, rest.slice(0, 8).map((i) => h("li", {}, h("a", { href: `#/needs` }, dot(i.project), h("b", {}, i.name || i.need?.name || S.rt.seats.find((s) => s.id === i.project)?.name || i.project),
           " · ", i.ask ? i.ask.question : i.need ? i.need.text : "")))),
-        rest.length > 8 ? h("a", { href: "#/needs" }, `and ${rest.length - 8} more`) : null) : null];
+        rest.length > 8 ? h("a", { href: "#/needs" }, t("and {v1} more", { v1: rest.length - 8 })) : null) : null];
     });
 
     // under the ring: my notes, the computers, the models' health, the hub's sync
@@ -130,13 +137,13 @@ export async function viewHall() {
       const bad = (rt.health || []).filter((x) => x.state === "bad").length, off = (rt.health || []).filter((x) => x.state === "warn").length;
       return [
         n ? h("a", { class: "chip-link", href: projectHref(n.id), title: "Your own notes, to-dos and plans that don't belong to one project" },
-          "My notes", n.open_todos ? h("small", {}, `${n.open_todos} to do`) : null, n.unread ? h("small", {}, `${n.unread} unread`) : null) : null,
+          "My notes", n.open_todos ? h("small", {}, t("{open_todos} to do", { open_todos: n.open_todos })) : null, n.unread ? h("small", {}, t("{unread} unread", { unread: n.unread })) : null) : null,
         h("a", { class: "chip-link", href: "#/models/health", title: (rt.health || []).map((x) => `${x.model}: ${x.passed} of ${x.total} checks`).join("\n") || "The models haven't been checked yet" },
           h("i", { class: "hdot " + (bad ? "bad" : off ? "warn" : rt.health && rt.health.length ? "ok" : "") }),
-          !(rt.health || []).length ? "Models not checked yet" : bad ? `${plural(bad, "model")} not answering` : off ? `${plural(off, "model")} a little off` : "Models healthy"),
+          !(rt.health || []).length ? "Models not checked yet" : bad ? t("{v1} not answering", { v1: plural(bad, "model") }) : off ? t("{v1} a little off", { v1: plural(off, "model") }) : "Models healthy"),
         h("span", { class: "chip-link quiet", title: rt.sync_error || "Projects on other computers report through the hub" },
           h("i", { class: "hdot " + (S.offline ? "bad" : rt.sync_error ? "warn" : "ok") }),
-          S.offline ? "The app isn't answering" : rt.sync_error ? "Hub sync has a problem" : rt.synced_at ? `Hub synced ${ago(rt.synced_at)}` : "Up to date"),
+          S.offline ? "The app isn't answering" : rt.sync_error ? "Hub sync has a problem" : rt.synced_at ? t("Hub synced {v1}", { v1: ago(rt.synced_at) }) : "Up to date"),
         machinesStrip()];
     });
   }

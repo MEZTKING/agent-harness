@@ -2,6 +2,7 @@
 // they differed on when it is opened, who planned behind More. Nothing for a plan made by one planner.
 // (harness/council.py; the record is the plan's doc.council)
 import { h, money, modelName } from "./core.js";
+import { t } from "./words.js";
 
 const NUMBERS = { 2: "Two", 3: "Three" };
 
@@ -23,16 +24,16 @@ export function councilFold(doc) {
   if (!c || !(c.planners || []).length) return null;
   const points = (c.disagreements || []).map((d) => h("li", { class: "cn-point" },
     h("b", {}, d.topic),
-    h("ul", { class: "cn-opts" }, (d.options || []).map((o) => h("li", {}, h("span", { class: "cn-who", title: "Which planner's plan said this" }, `Plan ${o.who}`), " ", o.says))),
+    h("ul", { class: "cn-opts" }, (d.options || []).map((o) => h("li", {}, h("span", { class: "cn-who", title: "Which planner's plan said this" }, t("Plan {who}", { who: o.who })), " ", o.says))),
     d.chosen ? h("div", { class: "small" }, "Chosen: ", d.chosen, d.why ? h("span", { class: "muted" }, ` – ${d.why}`) : null) : null));
   const more = h("details", { class: "cn-more" }, h("summary", { title: "Which models planned, what each one's plan was, and what the planners cost" }, "More"),
     h("ul", {}, (c.planners || []).map((p) => h("li", {},
-      h("b", {}, `Plan ${p.label}`), ` · ${modelName(p.model)} · ${p.tasks} task${p.tasks === 1 ? "" : "s"}`,
-      p.votes ? h("span", { class: "muted" }, ` · ${p.votes} of the planners liked it best`) : null,
+      h("b", {}, t("Plan {label}", { label: p.label })), t(" · {v1} · {tasks} task{v2}", { v1: modelName(p.model), tasks: p.tasks, v2: p.tasks === 1 ? "" : "s" }),
+      p.votes ? h("span", { class: "muted" }, t(" · {votes} of the planners liked it best", { votes: p.votes })) : null,
       p.summary ? h("div", { class: "muted small" }, p.summary) : null))),
-    c.chair ? h("p", { class: "small" }, `Merged by ${modelName(c.chair)}, your own planner.`) : null,
-    c.stopped ? h("p", { class: "small muted" }, c.stopped === "cap" ? "The planners reached their spending cap, so the best plan so far was used." : `Not merged: ${c.stopped}.`) : null,
-    c.cost_usd != null ? h("p", { class: "small muted" }, `The planners cost ${money(c.cost_usd)}.`) : null);
+    c.chair ? h("p", { class: "small" }, t("Merged by {v1}, your own planner.", { v1: modelName(c.chair) })) : null,
+    c.stopped ? h("p", { class: "small muted" }, c.stopped === "cap" ? "The planners reached their spending cap, so the best plan so far was used." : t("Not merged: {stopped}.", { stopped: c.stopped })) : null,
+    c.cost_usd != null ? h("p", { class: "small muted" }, t("The planners cost {v1}.", { v1: money(c.cost_usd) })) : null);
   return h("details", { class: "cn fold-part" },
     h("summary", { title: "Rival planners from different companies each planned this; your planner merged their plans into this one" }, councilWords(c)),
     h("div", { class: "cn-body" },

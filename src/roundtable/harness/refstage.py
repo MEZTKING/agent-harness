@@ -107,7 +107,7 @@ class ReferenceStage:
         """Read every reference not read yet, saving after each; a failure is recorded, never raised."""
         refs = self.references()
         for ref in refs:
-            if ref.get("status") == "new":
+            if ref.get("status") == "new" or scoutlib.retry_due(ref):  # a failed one is tried once more
                 self.scout(ref)
                 self._save_references(refs)
         return refs

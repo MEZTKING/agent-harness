@@ -321,6 +321,56 @@ class GitHubHub(
     /** The settings every machine shares (settings/shared.yaml); null when there's none yet. */
     suspend fun sharedSettings(): String? = getOrNull("settings/shared.yaml")
 
+    // -- the chat (1.5.0): chats/<chat>/… in the hub, written only through these ----------------------------------
+
+    /** The names of the files directly in [dir] (none when it isn't there). */
+    suspend fun names(dir: String): List<String> = listDir(dir).filter { it.type == "file" }.map { it.name }
+
+    /** A file's text, or null when it isn't there. */
+    suspend fun text(path: String): String? = getOrNull(path)
+
+    /** A file's bytes, or null when it isn't there. */
+    suspend fun bytes(path: String): ByteArray? = withContext(Dispatchers.IO) {
+        try {
+            client.newCall(request("contents/$path", "application/vnd.github.raw+json").build()).execute().use {
+                if (it.code == 404) return@withContext null
+                if (!it.isSuccessful) throw ApiException(errorText(it.code, it.body?.string().orEmpty()), it.code)
+                it.body?.bytes()
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: IOException) {
+            throw ApiException(networkText(e), 0)
+        }
+    }
+
+    /** Writes [data] to [path], over what is there (one device owns each chat file, so no one else writes it). */
+    suspend fun writeBytes(path: String, data: ByteArray, message: String, attempt: Int = 0) {
+        val sha = getOrNull(path, raw = false)?.let { runCatching { ApiJson.decodeFromString<FileJson>(it).sha }.getOrNull() }
+        try {
+            putBytes(path, data, message, sha)
+        } catch (e: ApiException) {
+            if ((e.status == 409 || e.status == 422) && attempt == 0) writeBytes(path, data, message, 1) else throw e
+        }
+    }
+
+    /** Makes [path] only when it isn't there yet (a claim: the first to reach the hub wins). True when this made it. */
+    suspend fun createOnly(path: String, data: ByteArray, message: String): Boolean = try {
+        putBytes(path, data, message, null); true
+    } catch (e: ApiException) {
+        if (e.status == 409 || e.status == 422) false else throw e
+    }
+
+    private suspend fun putBytes(path: String, data: ByteArray, message: String, sha: String?) {
+        val payload = buildJsonObject {
+            put("message", message)
+            put("content", Base64.getEncoder().encodeToString(data))
+            if (sha != null) put("sha", sha)
+        }.toString()
+        execute(request("contents/$path", "application/vnd.github+json")
+            .put(payload.toRequestBody("application/json".toMediaType())).build(), path)
+    }
+
     @Serializable
     private data class ReadState(val read: List<String> = emptyList())
 

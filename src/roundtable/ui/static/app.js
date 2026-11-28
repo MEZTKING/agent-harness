@@ -6,7 +6,7 @@ import { viewHall } from "./hall.js";
 import { viewNeeds } from "./needs.js";
 import { viewProjects, viewNew } from "./projects.js";
 import { viewProject } from "./project.js";
-import { viewLetters } from "./letters.js";
+import { chatIdOf, newChats, viewChat } from "./chat.js";
 import { viewActivity } from "./activity.js";
 import { viewModels } from "./models.js";
 import { viewSettings, viewSetup } from "./settings.js";
@@ -17,8 +17,9 @@ import { viewSearch, mountSearch } from "./search.js";
 import { viewAutomations } from "./automation.js";
 import { viewGallery } from "./gallery.js";
 import { pounds } from "./pounds.js";
+import * as words from "./words.js";
 
-const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
+const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, chat: viewChat,
   activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup, search: viewSearch,
   gallery: viewGallery };
 const ROOM_OF = { new: "projects", p: "projects", setup: "settings", automations: "settings" };
@@ -33,7 +34,10 @@ function translate(parts) {
     case "run": return byPath(rest[0], new URLSearchParams(location.hash.split("?")[1] || "").get("tab") === "session" ? "watch" : "");
     case "plan": return byPath(rest[0], "plan");
     case "project": return ["p", rest[0]];
-    case "messages": return ["letters", ...rest];
+    case "letters": case "messages": {  // Letters became the chat in 1.5.0: the project's chat, else the Hall's
+      const to = rest[0] || new URLSearchParams(location.hash.split("?")[1] || "").get("to") || "";
+      return ["chat", chatIdOf(to)];
+    }
     case "jobs": return ["activity", "work"];
     case "job": return ["activity", "work", rest[0]];
     case "improve": return ["models", "learning"];
@@ -45,7 +49,7 @@ function route() {
   return translate(raw);
 }
 
-let generation = 0, setupChecked = false;
+let generation = 0, setupChecked = false, wordsLoaded = null;
 async function render() {
   const gen = ++generation;
   const [room, ...args] = route();
@@ -57,6 +61,8 @@ async function render() {
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
   try {
+    if (!wordsLoaded) wordsLoaded = words.load().catch(() => null);  // lang and dir on <html> before the first draw
+    await wordsLoaded;
     if (!S.ov) S.ov = await get("/api/overview");
     if (!setupChecked) {
       setupChecked = true;
@@ -78,13 +84,12 @@ async function render() {
 }
 window.addEventListener("hashchange", () => render());
 
-// ---------- the header: what waits, letters, work running, today's spend, autopilot ----------
+// ---------- the header: what waits, chats with something new, work running, today's spend, autopilot ----------
 function header(rt) {
   const needs = needsCount(rt);
-  const letters = rt.notes ? rt.notes.unread || 0 : 0;
   const nb = document.getElementById("needs-badge"), lb = document.getElementById("letters-badge");
   nb.hidden = !needs; nb.textContent = needs; nb.title = `${needs} thing${needs === 1 ? "" : "s"} waiting for you`;
-  lb.hidden = !letters; lb.textContent = letters; lb.title = `${letters} unread letter${letters === 1 ? "" : "s"}`;
+  newChats().then((n) => { lb.hidden = !n; lb.textContent = n; lb.title = words.t("{n} chats with something new", { n }); });
   const w = document.getElementById("working");
   w.hidden = !rt.running_jobs;
   w.querySelector("span").textContent = rt.running_jobs === 1 ? "1 job running" : `${rt.running_jobs} jobs running`;
@@ -110,7 +115,7 @@ async function checkUpdate() {
   try {
     const st = await get("/api/update");
     if (!st.available) return;
-    fill(el, h("b", {}, `A new ${BRAND.name} is ready`), h("span", { class: "muted" }, st.latest && /^\d+\.\d+/.test(st.latest) ? `Version ${st.latest}` : ""),
+    fill(el, h("b", {}, words.t("A new {name} is ready", { name: BRAND.name })), h("span", { class: "muted" }, st.latest && /^\d+\.\d+/.test(st.latest) ? words.t("Version {latest}", { latest: st.latest }) : ""),
       h("span", { class: "spacer" }),
       h("button", { class: "primary", title: "Backs up your settings first, then updates", onclick: (ev) => act(ev.currentTarget, () => post("/api/update", {}), "Updating…",
         (j) => { el.hidden = true; if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, "Update now"),
@@ -119,14 +124,14 @@ async function checkUpdate() {
   } catch { /* offline: no banner */ }
 }
 
-// keyboard: g then a letter moves between rooms (g h Hall, g n Needs you, g p Projects, g l Letters, g a Activity, g m Models, g s Settings)
+// keyboard: g then a letter moves between rooms (g h Hall, g n Needs you, g p Projects, g l Chat, g a Activity, g m Models, g s Settings)
 let gKey = 0;
 document.addEventListener("keydown", (ev) => {
   const t = ev.target;
   if (ev.ctrlKey || ev.metaKey || ev.altKey || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))) return;
   if (ev.key === "g") { gKey = Date.now(); return; }
   if (Date.now() - gKey < 1200) {
-    const to = { h: "#/", n: "#/needs", p: "#/projects", l: "#/letters", a: "#/activity", m: "#/models", s: "#/settings" }[ev.key];
+    const to = { h: "#/", n: "#/needs", p: "#/projects", l: "#/chat/hall", a: "#/activity", m: "#/models", s: "#/settings" }[ev.key];
     if (to) { ev.preventDefault(); location.hash = to; }
     gKey = 0;
   }

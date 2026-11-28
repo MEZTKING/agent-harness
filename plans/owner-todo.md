@@ -1,57 +1,53 @@
 # Waiting for the owner
 
-Newest first. Each item says what to do and where.
+Newest first. Each item is a card in the app, or something an agent does for you; nothing here asks you to
+leave the app.
 
 ## Now
 
-- **Later, for the official phone release: a signing key for the phone's harness download.**
-  Test builds use a labelled test key. When the phone version is ready to release, I'll make the
-  key and ask you to save it as a repository secret through the secure form (you won't type it).
+- **The music player** (the yardstick): your answer to its question and the five ideas you accepted (I1 to I5)
+  wait as changes to the plan (from six of your letters, read on 28 November; you chose to keep them). You'll
+  drive them through the new chat, at most $2, before 1.5.0 is released. Nothing was built or spent for them yet.
+- **If you want the phone to answer the chat when no computer is on: add a DeepSeek key, once**, in the chat's
+  own key form on the phone (the chat offers it: **Add a DeepSeek key**). Use a DeepSeek account with a small balance
+  kept just for this; the phone spends at most $1 a day. Without it the phone's messages wait for your PC.
+- **Try the phone app (Darkness) on your phone** (`RoundtableMobile-test.apk`, sent 25 November): say what's
+  unclear or missing. It works in Hub mode with a fine-grained GitHub key.
+- **Money only you can add: Openference.** Its balance is below $1, so Claude can't work through it. Settings →
+  Services shows each balance with a button to its own page; adding money is yours (it's your card).
 
-- **The music player build** (the yardstick): tasks 1 and 2 are done. A task really
-  costs about 3 cents of DeepSeek credit; the other 12 should come to well under $1.
-  Say whether to carry on.
-- **Try the phone app (now called Darkness) on your phone** (`RoundtableMobile-test.apk`, sent 25
-  November): say what's unclear or missing. It works in Hub mode with a fine-grained
-  GitHub token (only `agent-hub-data`, Contents read and write).
+## Done for you by the harness or an agent (wave 9)
 
-## When you're at your PC
-
-- **Backups:** install [Google Drive for desktop](https://www.google.com/drive/download/) if
-  it isn't on your PC, and sign in. Then in Darkness Harness, **Settings → Backups**: check it
-  shows your Google Drive folder, tick **Back up every day**, and (if you like) **Lock with a
-  passphrase**, then **Back up now** once. Keep the passphrase somewhere safe: a locked backup
-  can't be opened without it.
-- **Openference:** top the balance up to over $1 (Billing), so Claude works through it; turn
-  on **ZDR mode** for the key (its Configuration) so makers don't keep your prompts. On your
-  PC, the split goes in with the five `roundtable assign` lines in the README ("The
-  recommended split").
-- **Two cloud environments** need the setup lines pasted by hand (Settings → the
-  environment → Setup script): "Magnum" and "mse studio". `roundtable connect --cloud-script`
-  prints them (README, "Connect Claude Code sessions"). Far Worlds is left out for now.
-- **Add a `critic` role** in the desktop app (Settings → Roles), for example DeepSeek V4
-  Pro with Opus as the fallback, so every plan gets a second opinion.
-- **DeepSeek prices**: check the current prices (including the cache-hit price) on
-  DeepSeek's site, so Roundtable's counts match your bill.
-- **GitHub:** set `main` as the default branch of `agent-harness`.
+- **Backups**: the to-do's **Turn on backups** button switches on daily backups into the Google Drive folder
+  found on the PC (or the folder chosen with **Browse** in Settings → Backups). If Google Drive for desktop
+  isn't installed yet, an agent installs it on the PC through Remote Control (Tools page install).
+- **The recommended split** (who plans, who codes, who checks, with a critic for every plan): the to-do's
+  **Use the recommended set-up** button.
+- **The two cloud environments' set-up scripts** ("Magnum", "mse studio"): handed as letters to the sessions that
+  manage them; they set the scripts with their own environment tools.
+- **DeepSeek's prices**: handed to an agent, which reads the price list and corrects the pricing.
+- **GitHub's default branch of agent-harness**: the to-do's **Set it on GitHub** button, with the GitHub key the
+  app holds (it needs Administration: read and write; otherwise the coordinating session sets it with its GitHub
+  tools).
+- **Openference's ZDR mode**: an agent turns it on with the key's own settings where the service allows it;
+  if it can't, it comes back as a one-tap card.
 
 ## Before the phone app is released
 
-- **A release signing key** for the Android app, kept as a repository secret (not in
-  git). Without it the app can't be updated over the installed test version.
-- **Try PC mode** with the desktop app on the same Wi-Fi (pairing by QR code).
+- **A release signing key** for the Android app, kept as a repository secret (not in git). I'll make the key
+  and ask you to save it through the secure form in the app.
+- **A signing key for the phone's harness download** ("This phone"): test builds use a labelled test key; I'll
+  make the real one and ask you to save it through the secure form when the phone version is ready.
+- **PC mode** with the desktop app on the same Wi-Fi (pairing by QR code): tried on your PC and phone through
+  Remote Control.
 
 ## Decided for you
 
-- **No DeepSeek V4 Pro for now** (owner, 26 November): after the music player's last three
-  tasks (which use it, as Roundtable suggested), Roundtable's settings stop using V4 Pro
-  until you say otherwise.
-
-- Code from your forks of Munder Difflin and DeepSeek Harness Mobile may be used in
-  Roundtable (both MIT), credited in `THIRD_PARTY_NOTICES.md`; the forks stay as they are.
-
-- Answers to a plan's questions can be sent from chat or the phone; nothing is built
-  until you approve.
-- The music player: under 1 GB of music, all up-to-date browsers, the planner's
-  recommendations, the storage meter, the up-next queue, crossfade and sortable
-  columns; Next and Back work like a real player; the queue starts fresh each visit.
+- **No DeepSeek V4 Pro for now** (owner, 26 November): Roundtable's settings stop using V4 Pro until you say
+  otherwise.
+- Code from your forks of Munder Difflin and DeepSeek Harness Mobile may be used (both MIT), credited in
+  `THIRD_PARTY_NOTICES.md`; the forks stay as they are.
+- Answers to a plan's questions can be sent from chat or the phone; nothing is built until you approve.
+- The music player: under 1 GB of music, all up-to-date browsers, the planner's recommendations, the storage
+  meter, the up-next queue, crossfade and sortable columns; Next and Back work like a real player; the queue
+  starts fresh each visit.

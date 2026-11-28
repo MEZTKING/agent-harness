@@ -59,6 +59,7 @@ DEFAULTS: dict[str, Any] = {
     "shots_keep": 30,  # picture folders per project: enough to compare a month of tasks
     "hub_sessions_keep": 20,  # runs per project in the hub: the phone's list shows the last few
     "worktrees_merged": True,  # a merged task's copy of the project is no longer needed
+    "traces_days": 14,  # run timelines (otel.py): two weeks to see how a run went
     "drafts_days": 14,  # a plug-in draft not added in a fortnight is never going to be: make it again if wanted
     "min_age_minutes": 60,  # a safety floor: never touch what was written in the last hour
 }
@@ -550,7 +551,8 @@ def tidy(cfg: Any = None, home: Path | None = None, hub: Any = None, hub_lock: A
         sweep.result.skipped.append("retention is off (retention.enabled: false)")
         return sweep.result
     steps: list[tuple[str, Callable[[], None]]] = [("the app's logs", lambda: sweep.app_logs(home)),
-                                                   ("plug-in drafts", lambda: sweep.plugin_drafts(home, cfg))]
+                                                   ("plug-in drafts", lambda: sweep.plugin_drafts(home, cfg)),
+                                                   ("run timelines", lambda: __import__("roundtable.otel", fromlist=["x"]).tidy_traces(sweep, home))]
     for root in (projects if projects is not None else _projects(cfg)):
         steps.append((str(root), lambda root=root: sweep.project(Path(root), cfg)))
     if hub is not None:

@@ -114,3 +114,30 @@ class ImageProvider:
     def generate(self, model: str, prompt: str, options: dict[str, Any] | None = None) -> tuple[bytes, str, Usage]:
         """Return (image bytes, file extension, usage)."""
         raise NotImplementedError
+
+
+class SoundProvider:
+    """Sound-generation provider: short effects and music (wave 9).
+
+    Options every adapter understands: ``kind`` ("effect" | "music"), ``seconds``, ``loop``, ``format``
+    ("mp3" | "wav") and ``seed``; anything else is the adapter's own. The money is decided in one place,
+    ``harness/soundprice.py`` (the cap, reserved before a call and settled after)."""
+
+    name: str = "sounds"
+    kinds: tuple[str, ...] = ("effect", "music")
+
+    def quote(self, model: str, prompt: str, options: dict[str, Any] | None = None) -> float | None:
+        """What one sound would cost, in dollars, without spending anything; None when it can't be told."""
+        return None
+
+    def generate(self, model: str, prompt: str, options: dict[str, Any] | None = None) -> tuple[bytes, str, Usage]:
+        """Return (audio bytes, file extension, usage with ``cost_usd``)."""
+        raise NotImplementedError
+
+    def licence(self) -> dict[str, Any]:
+        """What may be done with what it makes: {"commercial": bool | None, "words", "link", "read_on"}."""
+        return {"commercial": None, "words": "", "link": "", "read_on": ""}
+
+    def balance(self) -> float | None:
+        """Dollars left on the account where the service says; else None."""
+        return None

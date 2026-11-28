@@ -2,6 +2,7 @@
 // The API is ui/marketapi.py (GET /api/market, POST /api/market {action}); read loosely so a missing field never breaks it.
 // Every install shows what it asks for, in plain words, before anything changes; nothing here deletes.
 import { h, fill, get, post, act, toast, dialog, card, empty, money, seg } from "./core.js";
+import { t } from "./words.js";
 
 const TABS = [["plugins", "Plug-ins", "Extra tools for the builders"], ["skills", "Skills", "Short know-how a builder reads when its task needs it"],
   ["make", "Make one", "Say what a tool should do; a builder writes it and its tests"]];
@@ -14,7 +15,7 @@ export async function marketPage() {
   let data = null;
   const draw = async (fresh = true) => {
     if (fresh || !data) {
-      try { data = await get("/api/market"); } catch (e) { fill(body, empty(`Couldn't read the list: ${e.message}`)); return; }
+      try { data = await get("/api/market"); } catch (e) { fill(body, empty(t("Couldn't read the list: {message}", { message: e.message }))); return; }
     }
     fill(body, tab === "plugins" ? pluginsTab(data, draw) : tab === "skills" ? skillsTab(data, draw) : makeTab(draw));
   };
@@ -40,7 +41,7 @@ function pluginsTab(d, draw) {
     h("div", { class: "mk-line" }, h("p", { class: "grow" }, d.words || ""),
       h("button", { class: "small", title: "Reads a newer list from the harness's own repository. Nothing is added or updated by it.",
         onclick: (ev) => act(ev.currentTarget, () => post("/api/market", { action: "refresh" }), (r) => r.words, () => draw()) }, "Look for a newer list")),
-    (d.updates || []).length ? card("Newer versions", (d.updates || []).map((u) => h("p", { class: "small" }, `${u.name}: you have ${u.have}, the list has ${u.newer}.`))) : null,
+    (d.updates || []).length ? card("Newer versions", (d.updates || []).map((u) => h("p", { class: "small" }, t("{name}: you have {have}, the list has {newer}.", { name: u.name, have: u.have, newer: u.newer })))) : null,
     list.length ? card("Plug-ins to add", list.map((x) => row(x, [
       x.installed ? h("button", { class: "small", title: "Takes it away. Its files are kept aside, not deleted.", onclick: (ev) => remove(ev.currentTarget, x, draw) }, "Take away")
         : h("button", { class: "small primary", title: "Shows what it may do, then adds it once you say yes", onclick: (ev) => install(ev.currentTarget, x, draw) }, "Add"),
@@ -57,16 +58,16 @@ async function install(btn, x, draw) {
   if (r.ok === false && r.needs_ok) {
     const m = r.needs_ok;
     const said = (m.permissions || []).map((p) => p.words);
-    if (!(await dialog({ title: `Add ${m.name || x.name}?`, text: `It may: ${said.join(", ") || "nothing special"}.\n\nIt runs in its own box unless you mark it Trusted.`, yes: "Add it" }))) return;
+    if (!(await dialog({ title: t("Add {v1}?", { v1: m.name || x.name }), text: t("It may: {v1}.\n\nIt runs in its own box unless you mark it Trusted.", { v1: said.join(", ") || "nothing special" }), yes: "Add it" }))) return;
     r = await act(btn, () => post("/api/market", { action: "install", id: x.id, confirmed: (m.permissions || []).map((p) => p.id) }));
     if (!r) return;
   }
-  if (r.ok) { toast(`${x.name} added`); draw(); }
+  if (r.ok) { toast(t("{name} added", { name: x.name })); draw(); }
 }
 
 async function remove(btn, x, draw) {
-  if (!(await dialog({ title: `Take ${x.name} away?`, text: "Its files are kept aside, not deleted.", yes: "Take it away" }))) return;
-  act(btn, () => post("/api/market", { action: x.kind === "skill" ? "skill_remove" : "remove", id: x.id }), `${x.name} taken away`, () => draw());
+  if (!(await dialog({ title: t("Take {name} away?", { name: x.name }), text: "Its files are kept aside, not deleted.", yes: "Take it away" }))) return;
+  act(btn, () => post("/api/market", { action: x.kind === "skill" ? "skill_remove" : "remove", id: x.id }), t("{name} taken away", { name: x.name }), () => draw());
 }
 
 // ---------- skills ----------
@@ -95,11 +96,11 @@ async function addSkill(input, draw) {
   try { r = await post("/api/market", { action: "skill_add", text, name: f.name }); } catch (e) { toast(e.message, true); return; }
   if (r.ok === false && r.needs_ok && r.needs_ok.skill) {
     const s = r.needs_ok.skill;
-    const body = h("div", {}, h("p", { class: "small" }, `For tasks about: ${(s.tags || []).join(", ")}`), h("pre", { class: "mk-text" }, s.text));
-    if (!(await dialog({ title: `Add ${s.name}?`, text: "This is everything it adds. Builders read it when their task fits.", body, yes: "Add it", wide: true }))) return;
+    const body = h("div", {}, h("p", { class: "small" }, t("For tasks about: {v1}", { v1: (s.tags || []).join(", ") })), h("pre", { class: "mk-text" }, s.text));
+    if (!(await dialog({ title: t("Add {name}?", { name: s.name }), text: "This is everything it adds. Builders read it when their task fits.", body, yes: "Add it", wide: true }))) return;
     try { r = await post("/api/market", { action: "skill_add", text, name: f.name, digest: r.needs_ok.digest }); } catch (e) { toast(e.message, true); return; }
   }
-  if (r.ok) { toast(`${r.added.name} added`); draw(); }
+  if (r.ok) { toast(t("{name} added", { name: r.added.name })); draw(); }
 }
 
 // ---------- make one ----------
@@ -114,7 +115,7 @@ function makeTab(draw) {
 async function make(btn, idea, out, draw) {
   const p = await act(btn, () => post("/api/market", { action: "make", idea }));
   if (!p || !p.price) return;
-  if (!(await dialog({ title: "Make this plug-in?", text: p.price.words, yes: p.price.usd ? `Make it (${money(p.price.usd)})` : "Make it" }))) return;
+  if (!(await dialog({ title: "Make this plug-in?", text: p.price.words, yes: p.price.usd ? t("Make it ({v1})", { v1: money(p.price.usd) }) : "Make it" }))) return;
   const r = await act(btn, () => post("/api/market", { action: "make", idea, go: true }));
   if (!r || !r.job) return;
   btn.disabled = true;
@@ -137,19 +138,19 @@ function made(d, draw) {
     const b = ev.currentTarget;
     let r = await act(b, () => post("/api/market", { action: "add_made", folder: d.folder }));
     if (r && r.ok === false && r.needs_ok) {
-      if (!(await dialog({ title: `Add ${d.name}?`, text: "It may do nothing special: no internet, no programs, no files outside its folder.", yes: "Add it" }))) return;
+      if (!(await dialog({ title: t("Add {name}?", { name: d.name }), text: "It may do nothing special: no internet, no programs, no files outside its folder.", yes: "Add it" }))) return;
       r = await act(b, () => post("/api/market", { action: "add_made", folder: d.folder, confirmed: [] }));
     }
-    if (r && r.ok) { toast(`${d.name} added`); draw(); }
+    if (r && r.ok) { toast(t("{name} added", { name: d.name })); draw(); }
   } }, "Add it") : null;
   return h("div", { class: "mk-made" },
     h("p", { class: d.offered ? "" : "mk-bad" }, d.words || ""),
-    h("p", { class: "small muted" }, `Cost ${money(d.cost_usd)}`),
+    h("p", { class: "small muted" }, t("Cost {v1}", { v1: money(d.cost_usd) })),
     add,
     h("details", {}, h("summary", { class: "small muted" }, "More"),
       (d.tools || []).length ? h("p", { class: "small" }, "Tools: ", d.tools.join(", ")) : null,
       (d.problems || []).length ? h("ul", { class: "small" }, d.problems.map((x) => h("li", {}, x))) : null,
-      h("p", { class: "small muted" }, d.model ? `Written by ${d.model}` : ""),
+      h("p", { class: "small muted" }, d.model ? t("Written by {model}", { model: d.model }) : ""),
       files, d.test_output ? h("details", {}, h("summary", { class: "small" }, "Test output"), h("pre", { class: "mk-text" }, d.test_output)) : null));
 }
 

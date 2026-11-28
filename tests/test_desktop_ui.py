@@ -34,7 +34,7 @@ def test_every_module_the_page_imports_is_shipped_flat():
             assert "/" not in dep and STATIC.joinpath(dep).is_file(), f"{name} imports {dep}"
             todo.append(dep)
     assert {"core.js", "asks.js", "hall.js", "needs.js", "project.js", "plan.js", "watch.js", "models.js", "settings.js",
-            "letters.js", "activity.js", "journal.js", "machines.js", "autopilot.js"} <= seen
+            "chat.js", "chatcard.js", "activity.js", "journal.js", "machines.js", "autopilot.js"} <= seen
     assert "ui/static/*" in Path(__file__).parents[1].joinpath("pyproject.toml").read_text(encoding="utf-8")
 
 

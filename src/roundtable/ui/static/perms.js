@@ -3,6 +3,7 @@
 // permsDefaultBox(): this computer's default, for Settings. projectPermsBox(path): a project's own choices.
 // Free asks "Are you sure?" first; Read only cuts the job's tools to reading.
 import { h, get, post, has, toast, dialog, q } from "./core.js";
+import { t } from "./words.js";
 
 let shared = null; // one GET per page for every row
 function load(path) {
@@ -45,7 +46,7 @@ export async function permsCell(job) {
   try { st = await load(); } catch { return null; }
   const row = (st.jobs || []).find((j) => j.job === job);
   if (!row) return null;
-  const words = h("span", { class: "muted small perms-now", title: `Comes from ${row.source}` }, row.title);
+  const words = h("span", { class: "muted small perms-now", title: t("Comes from {source}", { source: row.source }) }, row.title);
   const sel = picker(st, row.computer, `What the ${job} job may do on this computer`, "As this computer's default",
     (v) => choose({ job, preset: v }, (out) => {
       const r = (out.jobs || []).find((j) => j.job === job);
@@ -87,7 +88,7 @@ export async function projectPermsBox(path) {
       h("span", { class: "perms-job" }, j.job),
       picker(s, j.project, `What the ${j.job} job may do on this project`, "As this computer says",
         (v) => choose({ job: j.job, preset: v, path }, draw)),
-      h("span", { class: "muted small", title: `Comes from ${j.source}` }, j.title)));
+      h("span", { class: "muted small", title: t("Comes from {source}", { source: j.source }) }, j.title)));
     const kept = s.allowed || {};
     const always = [["hosts", "Websites"], ["mcp", "Tools"], ["paths", "Files"], ["tools", "Deleting with"]]
       .flatMap(([k, label]) => (kept[k] || []).map((v) => h("li", {}, `${label}: ${v} `,

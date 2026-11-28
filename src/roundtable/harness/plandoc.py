@@ -30,7 +30,7 @@ from ..core.models import utcnow
 # defaults for the estimate when there's no history yet (tokens per attempt, minutes per attempt)
 DEFAULT_TOKENS = {"chat": (60_000, 8_000)}
 DEFAULT_REVIEW_TOKENS = (25_000, 2_500)
-DEFAULT_MINUTES = {"chat": 4.0, "image": 0.5}
+DEFAULT_MINUTES = {"chat": 4.0, "image": 0.5, "sound": 0.5}
 REVIEW_MINUTES = 1.5
 
 
@@ -404,12 +404,28 @@ def _reprice(cfg, cost, h: dict[str, Any], model) -> float | None:
     return cost * now / then
 
 
+def _sound_price(cfg, role, task, history) -> float | None:
+    """One sound task's price (wave 9): soundprice.per_sound for its kind and length, None when unknown."""
+    from .imageprice import charges_from_history
+    from .soundprice import per_sound
+
+    opts = getattr(task, "sound_options", None) or {}
+    try:
+        seconds = float(opts.get("seconds") or 0)
+    except (TypeError, ValueError):
+        seconds = 0.0
+    return per_sound(cfg, role.models[0], str(opts.get("kind") or "effect"), seconds,
+                     charges=charges_from_history(history))
+
+
 def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, screens: bool = False,
-             extras: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+             extras: list[dict[str, Any]] | None = None, token_rows: list[dict[str, Any]] | None = None,
+             sizes: dict[str, str] | None = None) -> dict[str, Any]:
     """Rough cost and time for the given pending tasks, before anything runs. ``screens``: the app has screens,
     so each reviewed task may also have its pictures checked by a model that can see (proof.py, capped).
     ``extras``: the stages' own work (starting it, playing it, shipping it), each {id, usd, minutes, words},
-    added to the totals and returned as ``extras``."""
+    added to the totals and returned as ``extras``. ``token_rows``: real attempts' tokens (estimatedefaults.rows),
+    used in place of the fixed guess for a job with too little history; ``sizes``: each task's size (stages)."""
     from .config import ModelRef  # noqa: F401  (type only)
     from ..providers.base import Usage
 
@@ -429,10 +445,14 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, scr
                 from .imageprice import per_image
 
                 cost = per_image(cfg, role.models[0], charges={})
+            if cost is None and role.kind == "sound":  # wave 9: the sound's own price (soundprice.py), else unpriced
+                cost = _sound_price(cfg, role, t, history)
         else:
             basis = "default"
             mins = DEFAULT_MINUTES.get(role.kind, 4.0)
-            if role.kind == "image":  # one picture a task: what it really cost before, or per_image, else unknown
+            if role.kind == "sound":  # wave 9: one sound a task, priced by soundprice.per_sound, else unknown
+                cost = _sound_price(cfg, role, t, history)
+            elif role.kind == "image":  # one picture a task: what it really cost before, or per_image, else unknown
                 from .imageprice import charges_from_history, per_image
 
                 cost = per_image(cfg, role.models[0], charges=charges_from_history(history))
@@ -440,13 +460,18 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, scr
                     listed = cfg.cost(role.models[0], Usage(0, 0))
                     cost = listed or None
             else:
-                i, o = DEFAULT_TOKENS["chat"]
+                if token_rows is not None:  # wave 9: the defaults learned from real runs (estimatedefaults.py)
+                    from . import estimatedefaults
+
+                    i, o = estimatedefaults.tokens(None, t.role, (sizes or {}).get(t.id, ""), found=token_rows)
+                else:
+                    i, o = DEFAULT_TOKENS["chat"]
                 cost = cfg.cost(role.models[0], Usage(i, o))
             if role.review and reviewer and role.kind == "chat":
                 rc = cfg.cost(reviewer.models[0], Usage(*DEFAULT_REVIEW_TOKENS))
                 cost = None if cost is None or rc is None else cost + rc
                 mins += REVIEW_MINUTES
-            if role.kind != "image":
+            if role.kind == "chat":
                 cost = None if cost is None else cost * 1.4  # retries and longer tasks
         r = by_role.setdefault(t.role, {"tasks": 0, "cost_usd": 0.0, "minutes": 0.0, "basis": basis,
                                         "model": str(role.models[0])})

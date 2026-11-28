@@ -38,7 +38,7 @@ SKIP_DIRS = {".git", ".harness", "node_modules", ".venv", "venv", "env", "__pyca
 SECRET_NAME = re.compile(r"^(\.env(\..*)?|.*\.(pem|key|p12|pfx|jks|keystore)|id_(rsa|ed25519|ecdsa)(\.pub)?|"
                          r"\.npmrc|\.pypirc|\.netrc|credentials(\.json)?)$", re.IGNORECASE)
 KIND_WEIGHT = {"memory": 3, "plan": 3, "task": 2, "journal": 2, "letter": 2, "note": 2, "hub_plan": 2, "file": 0}
-KIND_WORDS = {"memory": "Memory", "plan": "Plan", "task": "Task", "journal": "Journal", "letter": "Letter",
+KIND_WORDS = {"memory": "Memory", "plan": "Plan", "task": "Task", "journal": "Journal", "letter": "Earlier message",
               "note": "My notes", "hub_plan": "Plan", "file": "File"}
 SNIPPET = 180
 
@@ -290,9 +290,9 @@ def _hub_hits(hub, me: str | None, words: list[str], phrase: str, names: dict[st
             s = score(words, subject, body, phrase)
             if s:
                 sender = names.get(str(m.get("sender") or "")) or str(m.get("sender") or "someone")
-                out.append(Hit("letter", subject or "A letter", f"Letters · from {sender}", snippet(body or subject, words),
+                out.append(Hit("letter", subject or "A letter", f"Earlier messages · from {sender}", snippet(body or subject, words),
                                s, at=str(m.get("created_at") or ""),
-                               open={"room": "letter", "id": str(m.get("id") or ""),
+                               open={"room": "letter", "id": str(m.get("id") or ""), "agent": str(m.get("sender") or ""),
                                      "thread": str(m.get("thread_id") or m.get("id") or "")}))
     try:
         notes = hall.hub_notes(hub)

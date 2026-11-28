@@ -285,4 +285,5 @@ def test_an_app_nobody_looks_at_is_stopped_and_all_stop_at_exit(tmp_path):
 def test_the_phone_never_starts_an_app():
     from roundtable import phone
 
-    assert not [r for r in phone.PHONE_ROUTES if r[1].startswith("/api/app")]
+    # only the running app's frame, view only (wave 9, ui/appframeapi.py): never a start, stop or anything posted
+    assert [r for r in phone.PHONE_ROUTES if r[1].startswith("/api/app")] == [("GET", "/api/app/frame")]

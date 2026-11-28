@@ -2,6 +2,7 @@
 // then switched; the old copy is kept and never deleted, and Switch back undoes it.
 // The API: ui/reachapi.py (/api/datamove).
 import { h, fill, get, post, act, card, dialog, ago, fileSize } from "./core.js";
+import { t } from "./words.js";
 
 export function dataMoveCard() {
   const box = h("div", {}, h("p", { class: "muted small" }, "Looking…"));
@@ -14,9 +15,9 @@ export function dataMoveCard() {
       d.busy ? h("p", { class: "banner" }, "Something is building. Moving waits until it has finished.") : null,
       place("hub", "Your hub", d.hub.folder, d.busy, load),
       place("projects", "Your projects", d.projects.folder, d.busy, load),
-      last ? h("div", { class: "row" }, h("span", { class: "grow small" }, `Last move ${ago(last.at)}: ${last.files} files (${fileSize(last.bytes)}) to ${last.to}. The old copy is still in ${last.from}.`),
+      last ? h("div", { class: "row" }, h("span", { class: "grow small" }, t("Last move {v1}: {files} files ({v2}) to {to}. The old copy is still in {from}.", { v1: ago(last.at), files: last.files, v2: fileSize(last.bytes), to: last.to, from: last.from })),
         h("button", { type: "button", title: "Point everything at the old place again. Both copies stay.", onclick: async (ev) => {
-          if (await dialog({ title: "Switch back?", text: `Everything points at ${last.from} again. The copy in ${last.to} is kept.`, yes: "Switch back" }))
+          if (await dialog({ title: "Switch back?", text: t("Everything points at {from} again. The copy in {to} is kept.", { from: last.from, to: last.to }), yes: "Switch back" }))
             act(ev.currentTarget, () => post("/api/datamove", { action: "back", id: last.id }), (r) => r.words, load);
         } }, "Switch back")) : null);
   };
@@ -25,11 +26,11 @@ export function dataMoveCard() {
 }
 
 function place(what, label, folder, busy, load) {
-  const to = h("input", { class: "grow", placeholder: "The new folder, for example D:\\Darkness", "aria-label": `New folder for ${label.toLowerCase()}` });
+  const to = h("input", { class: "grow", placeholder: "The new folder, for example D:\\Darkness", "aria-label": t("New folder for {v1}", { v1: label.toLowerCase() }) });
   return h("div", { class: "stack" }, h("span", { class: "label" }, label), h("span", { class: "small muted" }, folder || "Not set up yet"),
     folder ? h("div", { class: "row" }, to, h("button", { type: "button", disabled: busy, onclick: async (ev) => {
       if (!to.value.trim()) return;
-      if (!(await dialog({ title: `Move ${label.toLowerCase()}?`, text: `Copied to ${to.value}, checked file by file, then used from there. The old copy stays in ${folder}.`, yes: "Move" }))) return;
+      if (!(await dialog({ title: t("Move {v1}?", { v1: label.toLowerCase() }), text: t("Copied to {value}, checked file by file, then used from there. The old copy stays in {folder}.", { value: to.value, folder }), yes: "Move" }))) return;
       act(ev.currentTarget, () => post("/api/datamove", { action: "move", what, to: to.value.trim() }), "Moving: it shows in Activity → Background work.", () => setTimeout(load, 3000));
     } }, "Move")) : null);
 }

@@ -62,6 +62,13 @@ PRESETS: dict[str, dict] = {
     "retrodiffusion": {"name": "Retro Diffusion (pixel art)", "type": "retrodiffusion",
                        "api_key_env": "RETRODIFFUSION_API_KEY", "category": "image",
                        "docs": "https://www.retrodiffusion.ai/app/devtools"},
+    # -- sound effects and music (wave 9; docs/sound.md has the prices and terms as read) ----------------
+    "elevenlabs_sound": {"name": "ElevenLabs (sound effects and music)", "type": "elevenlabs_sound",
+                         "api_key_env": "ELEVENLABS_API_KEY", "category": "sound",
+                         "docs": "https://elevenlabs.io/app/settings/api-keys"},
+    "stable_audio": {"name": "Stable Audio (sound and music, pay as you go)", "type": "stable_audio",
+                     "api_key_env": "STABILITY_API_KEY", "category": "sound",
+                     "docs": "https://platform.stability.ai/account/keys"},
     # -- coding helpers on this computer, signed in with the owner's own subscriptions (cli_engine.py) --
     "cli": {"name": "Coding helpers on this computer (Claude Code, Codex: your own subscriptions)",
             "type": "cli", "api_key_env": "", "category": "cli", "local": True,

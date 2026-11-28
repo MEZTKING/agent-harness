@@ -352,9 +352,37 @@ def test_parse_reference_and_clone_safety(tmp_path):
             returncode, stderr = 0, ""
         return R()
 
-    out = REAL_CLONE("owner/repo", tmp_path / "copy", run=run)
+    out = REAL_CLONE("owner/repo", tmp_path / "copy", run=run, size_of=lambda n: 5_000)
     cmd = calls[0]
     assert "--depth" in cmd and "--no-recurse-submodules" in cmd and cmd[-2] == "https://github.com/owner/repo.git"
     assert not (out / ".git").exists() and not (out / "secret").exists() and (out / "a.txt").exists()
     with pytest.raises(fresh.FetchError, match="only GitHub"):
-        REAL_CLONE("https://gitlab.example/x/y", tmp_path / "other", run=run)
+        REAL_CLONE("https://gitlab.example/x/y", tmp_path / "other", run=run, size_of=lambda n: None)
+
+
+def test_a_repository_too_big_is_refused_before_it_is_copied(tmp_path):
+    """wave 9: GitHub is asked for the size first, so nothing is downloaded."""
+    ran = []
+    with pytest.raises(scoutlib.FetchError, match="nothing was downloaded"):
+        REAL_CLONE("owner/huge", tmp_path / "copy", run=lambda *a, **k: ran.append(a),
+                   size_of=lambda n: scoutlib.MAX_CLONE_BYTES + 1)
+    assert ran == [] and not (tmp_path / "copy").exists()
+    # the GitHub API's answer is in kilobytes; a 404 says it isn't there; anything else leaves the check for later
+    import json as _json
+    assert scoutlib.repo_size("owner/x", opener=lambda url: (200, _json.dumps({"size": 10}).encode())) == 10 * 1024
+    assert scoutlib.repo_size("owner/x", opener=lambda url: (403, b"")) is None
+    with pytest.raises(scoutlib.FetchError, match="isn't on GitHub"):
+        scoutlib.repo_size("owner/x", opener=lambda url: (404, b""))
+
+    def offline(url):
+        raise OSError("no network")
+    assert scoutlib.repo_size("owner/x", opener=offline) is None
+    assert scoutlib.repo_size("not a repo") is None
+
+
+def test_a_reference_that_failed_is_tried_once_more():
+    ref = {"id": "R1", "status": "failed", "error": "Couldn't read it"}
+    assert scoutlib.retry_due(ref) is True
+    assert scoutlib.retry_due(ref) is False  # once only
+    assert scoutlib.retry_due({"status": "read"}) is False
+    assert scoutlib.retry_due({"status": "new"}) is False

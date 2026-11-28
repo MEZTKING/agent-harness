@@ -89,6 +89,23 @@ class Store(context: Context) : SeenStore {
         get() = prefs.getString("last_version", "")!!
         set(v) = prefs.edit().putString("last_version", v).apply()
 
+    /**
+     * The DeepSeek key the phone answers the chat with in Hub mode (1.5.0). Only here, in the encrypted
+     * preferences: never in the hub, a log, a draft, a crash report or the clipboard; shown as [chatKeyEnd] only.
+     * Null or blank removes it.
+     */
+    var chatKey: String?
+        get() = prefs.getString("chat_key", null)
+        set(v) = prefs.edit().apply { if (v.isNullOrBlank()) remove("chat_key") else putString("chat_key", v.trim()) }.apply()
+
+    /** The key's last four characters, the only part ever shown. */
+    val chatKeyEnd: String? get() = chatKey?.takeLast(4)
+
+    /** This phone's seat in the chat's day files (chats/<chat>/<day>.<seat>.jsonl), made once. Not a secret. */
+    val chatSeat: String
+        get() = prefs.getString("chat_seat", null) ?: ("phone-" + java.util.UUID.randomUUID().toString().take(8))
+            .also { prefs.edit().putString("chat_seat", it).apply() }
+
     /** Ids of Needs-you items already notified, so each is announced once. */
     var notified: Set<String>
         get() = prefs.getStringSet("notified", emptySet())!!

@@ -99,6 +99,14 @@ def test_every_phone_call_answers(paired, monkeypatch):
     orch.run()
     project = str(orch.project.root) if hasattr(orch, "project") else str(tmp / "proj")
     (Path(project) / "README.md").write_text("# A made-up bakery\n", encoding="utf-8")
+    # two made-up sounds (wave 9): one bought, one made in code, as harness/soundstage.py writes them
+    (Path(project) / ".harness" / "sounds.json").write_text(json.dumps([
+        {"task": "S1", "title": "Doorbell", "file": "assets/sounds/doorbell.mp3", "kind": "effect", "seconds": 1,
+         "loop": False, "made": "bought", "service": "elevenlabs_sound", "model": "el/effects", "usd": 0.002,
+         "prompt": "a made-up shop doorbell", "licence": {"commercial": True, "words": "Made-up licence.",
+                                                         "link": "", "read_on": "2026-11-28"}},
+        {"task": "S2", "title": "Oven hum", "file": "", "kind": "music", "seconds": 10, "made": "code",
+         "why": "no sound service is picked", "usd": 0.0, "prompt": "a made-up oven hum"}]), encoding="utf-8")
     app.hub.journal.add("proj", "todo", "check the logo colours", priority="high")
     msg = app.hub.send("frontend", "proj", "hello", "a made-up note")
     notes_dir = Path(app.hub.store.root) / "notes"

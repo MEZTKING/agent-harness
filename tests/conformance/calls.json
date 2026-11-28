@@ -8,7 +8,8 @@
   "/api/keys",
   "/api/projects/clone",
   "/api/projects/import",
-  "/api/projects/share"
+  "/api/projects/share",
+  "/api/chats/tap"
  ],
  "calls": [
   {
@@ -962,6 +963,232 @@
    "path": "/api/git/log",
    "query": {
     "path": "{project}"
+   }
+  },
+  {
+   "name": "wizard_asks",
+   "method": "GET",
+   "path": "/api/asks",
+   "query": {
+    "wizard": "1"
+   },
+   "needs": [
+    "asks"
+   ]
+  },
+  {
+   "name": "command_help",
+   "method": "POST",
+   "path": "/api/commands",
+   "body": {
+    "path": "{project}",
+    "line": "/help",
+    "confirmed": false
+   },
+   "needs": [
+    "reply"
+   ]
+  },
+  {
+   "name": "command_confirm",
+   "method": "POST",
+   "path": "/api/commands",
+   "body": {
+    "path": "{project}",
+    "line": "/goal a made-up contact page",
+    "confirmed": false
+   },
+   "needs": [
+    "reply",
+    "confirm"
+   ]
+  },
+  {
+   "name": "follow_ask",
+   "method": "POST",
+   "path": "/api/follow",
+   "body": {
+    "path": "{project}",
+    "task": "T1",
+    "text": "why was it made this way?",
+    "mode": "ask",
+    "confirmed": false
+   },
+   "needs": [
+    "confirm"
+   ]
+  },
+  {
+   "name": "usage",
+   "method": "GET",
+   "path": "/api/usage"
+  },
+  {
+   "name": "agents",
+   "method": "GET",
+   "path": "/api/agents",
+   "needs": [
+    "agents",
+    "jobs"
+   ]
+  },
+  {
+   "name": "recall_ask",
+   "method": "POST",
+   "path": "/api/recall/ask",
+   "body": {
+    "question": "what does the bakery sell?",
+    "confirm": false
+   }
+  },
+  {
+   "name": "file_preview",
+   "method": "GET",
+   "path": "/api/files/preview",
+   "query": {
+    "path": "{project}",
+    "file": "{file}"
+   },
+   "needs": [
+    "preview",
+    "name"
+   ]
+  },
+  {
+   "name": "timer_hold",
+   "method": "POST",
+   "path": "/api/asktimer",
+   "body": {
+    "path": "{project}",
+    "id": "plan-q1",
+    "hold": true
+   },
+   "needs": [
+    "timer"
+   ]
+  },
+  {
+   "name": "answer_several",
+   "method": "POST",
+   "path": "/api/board/answer-several",
+   "body": {
+    "items": [
+     {
+      "path": "{project}",
+      "id": "no-such-card",
+      "stamp": "s"
+     }
+    ]
+   },
+   "needs": [
+    "answered",
+    "left",
+    "reply"
+   ]
+  },
+  {
+   "name": "plan_looks",
+   "method": "GET",
+   "path": "/api/plan/looks",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "pictures"
+   ]
+  },
+  {
+   "name": "documents",
+   "method": "GET",
+   "path": "/api/documents"
+  },
+  {
+   "name": "agent_hire",
+   "method": "POST",
+   "path": "/api/agents",
+   "body": {
+    "id": "maelin",
+    "job": "planner",
+    "hire": true
+   },
+   "needs": [
+    "agent",
+    "reply"
+   ]
+  },
+  {
+   "name": "talk",
+   "method": "POST",
+   "path": "/api/chat/talk",
+   "body": {
+    "path": "{project}",
+    "text": "how is the bakery site going?"
+   },
+   "needs": [
+    "reply"
+   ]
+  },
+  {
+   "name": "sounds",
+   "method": "GET",
+   "path": "/api/sounds",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "sounds",
+    "spent",
+    "cap",
+    "words"
+   ]
+  },
+  {
+   "name": "chats",
+   "method": "GET",
+   "path": "/api/chats",
+   "needs": [
+    "chats"
+   ]
+  },
+  {
+   "name": "chats_read",
+   "method": "GET",
+   "path": "/api/chats/read",
+   "query": {
+    "chat": "proj",
+    "since": ""
+   },
+   "needs": [
+    "lines",
+    "at",
+    "answering",
+    "can",
+    "earlier"
+   ]
+  },
+  {
+   "name": "chats_say",
+   "method": "POST",
+   "path": "/api/chats/say",
+   "body": {
+    "chat": "hall",
+    "text": "where does the bakery site stand?"
+   },
+   "needs": [
+    "line",
+    "turn"
+   ],
+   "save": {
+    "turn": "turn"
+   }
+  },
+  {
+   "name": "chats_stop",
+   "method": "POST",
+   "path": "/api/chats/stop",
+   "body": {
+    "chat": "hall",
+    "turn": "{turn}"
    }
   }
  ]

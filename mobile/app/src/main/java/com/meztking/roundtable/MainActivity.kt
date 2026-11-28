@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TripOrigin
 import androidx.compose.material3.Badge
@@ -52,7 +52,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meztking.roundtable.data.Mode
 import com.meztking.roundtable.ui.GalleryScreen
-import com.meztking.roundtable.ui.LettersScreen
 import com.meztking.roundtable.ui.NotesScreen
 import com.meztking.roundtable.ui.MainViewModel
 import com.meztking.roundtable.ui.ProjectActions
@@ -69,7 +68,9 @@ import com.meztking.roundtable.ui.SettingsScreen
 import com.meztking.roundtable.ui.ThisPhoneSetupScreen
 import com.meztking.roundtable.ui.SetupScreen
 import com.meztking.roundtable.ui.TableScreen
-import com.meztking.roundtable.ui.NewIdeaScreen
+import com.meztking.roundtable.ui.WizardScreen
+import com.meztking.roundtable.ui.TeamScreen
+import com.meztking.roundtable.ui.composerApi
 import com.meztking.roundtable.ui.FilesScreen
 import com.meztking.roundtable.ui.ApiFiles
 import com.meztking.roundtable.ui.SearchScreen
@@ -89,6 +90,9 @@ import com.meztking.roundtable.work.Watch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import com.meztking.roundtable.data.Words
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.meztking.roundtable.data.FailureAction
@@ -121,7 +125,11 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             RoundtableTheme {
-                CompositionLocalProvider(LocalHingeSource provides hinges) { Root(openProject) }
+                // wave 9: right to left for Arabic, Hebrew, Persian and Urdu (data/Words.kt)
+                CompositionLocalProvider(
+                    LocalHingeSource provides hinges,
+                    LocalLayoutDirection provides if (Words.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+                ) { Root(openProject) }
             }
         }
     }
@@ -219,6 +227,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable("notes") { NotesScreen(onBack = { nav.popBackStack() }) }
+            composable("team") { TeamScreen(remember { composerApi(app) }, onBack = { nav.popBackStack() }) }
             composable("gallery") {
                 // everything finished, and what Roundtable can make; read from the PC (or this phone's Roundtable)
                 GalleryScreen(onBack = { nav.popBackStack() }, onOpenProject = { path ->
@@ -227,7 +236,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 }, onStart = { _, _ -> nav.navigate("newidea") })
             }
             composable("newidea") {
-                NewIdeaScreen(onBack = { nav.popBackStack() }, onStarted = { _ -> nav.popBackStack(); main.reset() })
+                WizardScreen(onBack = { nav.popBackStack() }, onStarted = { _ -> nav.popBackStack(); main.reset() })
             }
             composable("files/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()
@@ -268,6 +277,8 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                                 composer = remember(seat) { machineApi(app, seat)?.let { composerSender(it) } },
                                 path = seat?.path,
                                 machine = remember(seat) { machineApi(app, seat) },
+                                page = { u -> nav.navigate("browser?url=" + android.net.Uri.encode(u)) },
+                                setupPhone = { nav.navigate("thisphone") },
                             ),
                             initialTab = entry.arguments?.getInt("tab") ?: 0,
                         )
@@ -295,7 +306,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     var showNeeds by rememberSaveable { mutableStateOf(false) }
     var searching by rememberSaveable { mutableStateOf(false) }
     val hall by main.hall.collectAsState()
-    val letters by main.letters.collectAsState()
+    var openChat by rememberSaveable { mutableStateOf<String?>(null) }  // the chat Needs you's "wrote to you" opens
     val busy by main.busy.collectAsState()
     val notice by main.notice.collectAsState()
     val crash by main.crash.collectAsState()
@@ -315,7 +326,6 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
         }
     }
     LaunchedEffect(backend, crash) { if (backend != null && crash == null) main.refresh() }
-    LaunchedEffect(tab, backend) { if (tab == 1 && backend != null && letters.data == null) main.loadLetters() }
 
     // ask once for notifications (Android 13+)
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -335,7 +345,11 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val openNeed: (com.meztking.roundtable.data.NeedView) -> Unit = { n ->
         showNeeds = false
         when {
-            n.kind == "message" -> { tab = 1; main.loadLetters() }
+            n.kind == "message" -> {
+                val seat = hall.data?.seats?.firstOrNull { it.id == n.project || it.hubName == n.project }
+                openChat = if (seat != null) com.meztking.roundtable.data.HubChat.chatOf(seat) else com.meztking.roundtable.data.HubChat.chatOf(n.project)
+                tab = 1
+            }
             n.ask != null -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
             n.actions.contains("approve") -> nav.navigate("project/${android.net.Uri.encode(n.project)}?tab=1")
             else -> nav.navigate("project/${android.net.Uri.encode(n.project)}")
@@ -347,7 +361,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
             onAnswer = main::answer, onMarkAllRead = { ns -> main.markAllRead(ns.mapNotNull { it.message }) })
     }) else null
     AdaptiveShell(
-        places = listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needCount), ShellPlace("Letters", Icons.AutoMirrored.Filled.MenuBook, myUnread),
+        places = listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needCount), ShellPlace("Chat", Icons.AutoMirrored.Filled.Chat, myUnread),
             ShellPlace("Settings", Icons.Filled.Settings)),
         selected = tab, onSelect = { tab = it },
         snackbarHost = { SnackbarHost(snack) },
@@ -373,7 +387,10 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                         else -> null
                     }
                     when {
-                        o.room == "letter" -> { searching = false; tab = 1; main.loadLetters(); true }
+                        o.room == "letter" -> {  // an old letter: under Earlier messages in its chat
+                            searching = false
+                            openChat = com.meztking.roundtable.data.HubChat.chatOf(o.agent.ifBlank { null }); tab = 1; true
+                        }
                         seat != null -> {
                             searching = false
                             nav.navigate("project/${android.net.Uri.encode(seat.id)}" + if (o.room == "journal") "" else "?tab=1"); true
@@ -399,13 +416,14 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onGallery = if (backend != null) ({ nav.navigate("gallery") }) else null,
                     pins = pins, needsBeside = twoPanes,
                 )
-                1 -> LettersScreen(
-                    letters, identity, hall.data?.seats?.map { it.id }.orEmpty(),
-                    onRefresh = main::loadLetters, onOpened = main::opened, onSend = main::send, onReply = main::reply,
-                    onMarkAllRead = main::markAllRead,
-                )
+                1 -> androidx.compose.runtime.key(openChat) {
+                    com.meztking.roundtable.ui.ChatsScreen(backend, hall.data?.seats.orEmpty(), open = openChat,
+                        onPage = { u -> nav.navigate("browser?url=" + android.net.Uri.encode(u)) },
+                        onSetUpPhone = { nav.navigate("thisphone") })
+                }
                 else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onHarness = { nav.navigate("harness") },
-                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onComfort = { nav.navigate("comfort") }, onChanged = {
+                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onComfort = { nav.navigate("comfort") },
+                    onTeam = if (app.store.thisPhone || app.store.link != null) ({ nav.navigate("team") }) else null, onChanged = {
                     settingsTick++
                     if (!app.store.configured) nav.navigate("setup") { popUpTo(0) { inclusive = true } } else main.reset()
                 })

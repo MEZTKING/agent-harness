@@ -1,6 +1,7 @@
 // A project's journal (the hub's shared notebook): notes, to-dos, plans, decisions and sessions, newest first; add
 // one; what other agents read about the project. Also "My notes", the owner's own page.
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, refreshHall, projectName, when, q, markdown, has } from "./core.js";
+import { t as wt } from "./words.js";
 
 const KINDS = [["all", "Everything"], ["todo", "To-dos"], ["plan", "Plans"], ["decision", "Decisions"], ["done", "Done"], ["note", "Notes"], ["session", "Sessions"]];
 const KIND_WORD = { todo: "To-do", plan: "Plan", decision: "Decided", done: "Done", note: "Note", session: "Session" };
@@ -108,7 +109,7 @@ async function aboutCard(agent) {
   f("interfaces", "What others can use", "Parts other projects rely on: how to talk to it, what it offers", 3), f("notes", "Notes", "Anything else other agents should know", 3),
   f("change_note", "What changed (optional)", "A short note: the projects that depend on this one are told"),
   h("div", { class: "row" }, h("button", { class: "primary" }, "Save")));
-  return h("details", { class: "card fold" }, h("summary", { title: "What other agents and sessions read about this project" }, `About ${projectName(agent)} (what other agents read)`), form);
+  return h("details", { class: "card fold" }, h("summary", { title: "What other agents and sessions read about this project" }, wt("About {v1} (what other agents read)", { v1: projectName(agent) })), form);
 }
 
 function briefOnly(seat) {

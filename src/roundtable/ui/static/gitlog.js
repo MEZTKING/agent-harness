@@ -4,6 +4,7 @@
 // will change is shown first and where it was is kept). Reading only, apart from that switch. API: ui/editapi.py.
 import { h, fill, get, post, q, act, ago, dialog, plural } from "./core.js";
 import { highlight, highlightStyles, langName } from "./highlight.js";
+import { t } from "./words.js";
 
 const KIND = { task: "A task", hand: "Your edit", put_back: "Put back", undo: "Undone", merge: "Joined in", other: "" };
 const CHANGE = { added: "new", changed: "changed", removed: "removed", renamed: "renamed", copied: "copied" };
@@ -43,7 +44,7 @@ export function historyView(path) {
       h("h3", {}, c.subject),
       h("p", { class: "muted small" }, `${c.author} · ${new Date(c.at).toLocaleString()} · ${c.short}`),
       c.body ? h("details", {}, h("summary", { class: "small" }, "More"), h("pre", { class: "log short" }, c.body)) : null,
-      h("p", {}, `${plural(c.files.length, "file")} changed`, h("span", { class: "gl-add" }, ` +${c.added}`), h("span", { class: "gl-del" }, ` −${c.removed}`)),
+      h("p", {}, t("{v1} changed", { v1: plural(c.files.length, "file") }), h("span", { class: "gl-add" }, ` +${c.added}`), h("span", { class: "gl-del" }, ` −${c.removed}`)),
       h("ul", { class: "gl-files" }, c.files.map((f) => h("li", {},
         f.private ? h("span", { class: "muted", title: "Kept private: keys, passwords and the harness's own records are never shown" }, f.path, " (private)")
           : h("button", { type: "button", class: "gl-file", onclick: () => openDiff(c.sha, f.path, diffBox) },
@@ -81,7 +82,7 @@ export function historyView(path) {
     const go = async () => {
       try {
         const d = await get(`/api/git/compare?${q({ path, a: a.value, b: bsel.value })}`);
-        fill(out, h("p", {}, `${d.b} has ${plural(d.only_b, "change")} that ${d.a} hasn't; ${d.a} has ${plural(d.only_a, "change")} that ${d.b} hasn't. ${plural(d.files.length, "file")} differ.`),
+        fill(out, h("p", {}, t("{b} has {v1} that {a} hasn't; {a} has {v2} that {b} hasn't. {v3} differ.", { b: d.b, v1: plural(d.only_b, "change"), a: d.a, v2: plural(d.only_a, "change"), v3: plural(d.files.length, "file") })),
           h("ul", { class: "gl-files" }, d.files.map((f) => h("li", { class: "small" }, h("span", { class: "mono" }, f.path), " ", h("span", { class: "muted" }, CHANGE[f.change] || f.change),
             f.private ? h("span", { class: "muted" }, " (private)") : [h("span", { class: "gl-add" }, ` +${f.added}`), h("span", { class: "gl-del" }, ` −${f.removed}`)]))));
       } catch (e) { fill(out, h("p", { class: "bad" }, e.message)); }
@@ -102,7 +103,7 @@ export function historyView(path) {
         pv.files.length ? h("ul", { class: "gl-files" }, pv.files.slice(0, 200).map((f) => h("li", { class: "small mono" }, f.path, " ", h("span", { class: "muted" }, CHANGE[f.change] || f.change)))) : null,
         h("button", { type: "button", class: "primary", disabled: pv.blocked || !pv.stamp || null, title: pv.blocked || "Switch the project's files to this branch",
           onclick: (ev) => act(ev.currentTarget, async () => {
-            if (!(await dialog({ title: `Switch to ${pv.branch}?`, text: pv.words, yes: "Switch" }))) return null;
+            if (!(await dialog({ title: t("Switch to {branch}?", { branch: pv.branch }), text: pv.words, yes: "Switch" }))) return null;
             return post("/api/git/checkout", { path, branch: pv.branch, stamp: pv.stamp });
           }, (r) => (r ? r.words : ""), async (r) => { if (r) { branch = ""; await branches(); load(false); fill(detail); } }) }, "Switch"));
     };
@@ -123,7 +124,7 @@ export function diffView(d) {
   return h("div", {},
     h("h4", { class: "mono" }, d.file),
     d.too_big ? h("p", { class: "muted small" }, "This change is very long: only the start is shown.") : null,
-    h("div", { class: "gl-lines mono", role: "table", "aria-label": `What changed in ${d.file}` },
+    h("div", { class: "gl-lines mono", role: "table", "aria-label": t("What changed in {file}", { file: d.file }) },
       d.lines.map((l) => l.kind === "hunk"
         ? h("div", { class: "gl-hunk", role: "row" }, h("span", { class: "muted" }, l.text))
         : h("div", { class: "gl-line gl-" + l.kind, role: "row" },
@@ -140,21 +141,21 @@ export function gitStyles() {
 .gl-head { gap: 8px; align-items: center; flex-wrap: wrap; }
 .gl-list { min-width: 0; }
 .gl-commits { list-style: none; margin: 0; padding: 0; max-height: 62vh; overflow: auto; }
-.gl-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-small); padding: 6px 8px; color: var(--color-text); }
+.gl-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: start; background: none; border: 0; border-radius: var(--radius-small); padding: 6px 8px; color: var(--color-text); }
 .gl-row:hover, .gl-row[aria-current="true"] { background: var(--color-raised); }
 .gl-subject { overflow-wrap: anywhere; }
 .gl-detail { min-width: 0; }
 .gl-files { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 30vh; overflow: auto; }
-.gl-file { display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 6px; border-radius: var(--radius-small); color: var(--color-text); }
+.gl-file { display: flex; gap: 8px; width: 100%; text-align: start; background: none; border: 0; padding: 4px 6px; border-radius: var(--radius-small); color: var(--color-text); }
 .gl-file:hover { background: var(--color-raised); }
 .gl-add { color: var(--color-good); }
 .gl-del { color: var(--color-bad); }
 .gl-lines { font-size: 12px; max-height: 60vh; overflow: auto; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); }
 .gl-line { display: grid; grid-template-columns: 3.5em 3.5em 1.5em 1fr; white-space: pre; }
-.gl-no { color: var(--color-muted); text-align: right; padding-right: 6px; user-select: none; }
+.gl-no { color: var(--color-muted); text-align: end; padding-inline-end: 6px; user-select: none; }
 .gl-add.gl-line, .gl-line.gl-add { background: var(--color-good-soft); color: var(--color-text); }
 .gl-line.gl-del { background: var(--color-bad-soft); color: var(--color-text); }
 .gl-hunk { background: var(--color-accent-soft); padding: 2px 8px; }
-.gl-text { padding-right: 8px; }
+.gl-text { padding-inline-end: 8px; }
 `));
 }

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .. import hubseats, todoactions
 from .hall import PLAN_READY as PLAN_READY_RE
 from .server import harness_event_line
 
@@ -285,15 +286,23 @@ def build(app) -> dict[str, Any]:
                     continue
                 if hall.PLAN_READY.search(e.get("text", "")) and (seat.get("hub_name") or sid in lab_names):
                     continue  # the plan's own card (or Approve) stands for it
-                needs.append({"kind": "todo", "project": sid, "name": seat["name"], "text": e["text"], "id": e["id"],
-                              "agent": b.get("agent") or sid, "actions": ["done"], "at": e["created_at"]})
-        if notes and notes["unread"]:
-            needs.append({"kind": "messages", "project": notes["id"], "name": hall.NOTES_NAME,
-                          "text": f"{notes['unread']} unread letter{'s' if notes['unread'] > 1 else ''}",
-                          "actions": ["read"], "at": ""})
-        elif app.agent in unread and unread[app.agent] and app.agent in seats:
-            needs.append({"kind": "messages", "project": app.agent, "name": seats[app.agent]["name"],
-                          "text": f"{unread[app.agent]} unread letter{'s' if unread[app.agent] > 1 else ''}", "actions": ["read"], "at": ""})
+                need = {"kind": "todo", "project": sid, "name": seat["name"], "text": e["text"], "id": e["id"],
+                        "agent": b.get("agent") or sid, "actions": ["done"], "at": e["created_at"]}
+                try:  # the to-do's own button: the owner never leaves the app (todoactions.py)
+                    need["action"] = todoactions.action_for({**e, **need, "hub_agent": seat.get("hub_agent") or "",
+                                                             "path": seat.get("path") or ""}, app)
+                except Exception:  # noqa: BLE001 - Done still works
+                    need["action"] = None
+                needs.append(need)
+        from .. import chat as chatmod
+
+        try:  # a project that wrote to the owner in its chat (the Letters' unread counts before 1.5.0)
+            wrote = chatmod.wrote_to_you(app)
+        except Exception:  # noqa: BLE001 - Needs you still shows the rest
+            wrote = []
+        for r in wrote:
+            needs.append({"kind": "messages", "project": r["chat"], "chat": r["chat"], "name": r["name"],
+                          "text": r["text"], "actions": ["read"], "at": ""})
 
     # harness runs on this computer: merged into the seat with the same name, else a seat of their own
     spend_today = 0.0
@@ -343,6 +352,16 @@ def build(app) -> dict[str, Any]:
             h["state"] = "ok" if h["passed"] == h["total"] else ("warn" if h["passed"] >= h["total"] - 1 else "bad")
             health.append(h)
 
+    try:  # the office art's sample card, answered on its own route (PC only; officeart.py)
+        from .. import officeart
+
+        oa = officeart.sample_ask(app)
+    except Exception:  # noqa: BLE001 - never breaks the table
+        oa = None
+    if oa:
+        needs.append({"kind": "ask", "project": "", "name": "The office", "text": oa["question"], "actions": [],
+                      "at": (oa.get("source") or {}).get("sample_at", ""), "ask": oa, "asks": 1, "via": "here"})
+
     from .hall import for_owner
 
     for b in [s.get("brief") for s in seats.values()] + [(notes or {}).get("brief"),
@@ -363,10 +382,18 @@ def build(app) -> dict[str, Any]:
     order = {"running": 0, "waiting": 1, "idle": 2, "done": 3}
     # running first, then waiting, idle, done; most recently active first within each group
     seat_list = sorted(seats.values(), key=lambda s: (order.get(s["status"], 9), _age_s(s.get("last_activity") or "")))
+    try:  # every hub project a seat, each saying who runs it (hubseats.py, reach.readers)
+        seat_list = hubseats.join(seat_list, hubseats.seats(app))
+    except Exception:  # noqa: BLE001 - the table still shows
+        pass
     machines, claims = _machines(app)
     from ..sync import claim_fresh, this_machine
 
     me = this_machine()
+    from .. import chat as chatmod
+
+    for s in seat_list:  # each seat's chat: chatstore.chat_id of its hub name, as on the phone
+        s["chat"] = chatmod.chat_of_seat(app, s)
     for s in seat_list:  # which machine has it, and which builds it now (one at a time)
         mine = [c for c in claims.values() if (s.get("hub_name") and c.get("hub_name") == s["hub_name"])
                 or c.get("folder") == s["id"]]
@@ -593,6 +620,9 @@ class AutoSync:
                 from ..remote import process
 
                 process(cfg, self.app.hub, background=True, log=lambda s: None)  # commands from the phone
+                from .. import chat as chatmod
+
+                chatmod.drain(self.app)  # waiting chat messages this machine can answer
             from ..reach import on_sync
 
             on_sync(self.app)  # the stand-up, the hourly look and who is listening (reach.py)

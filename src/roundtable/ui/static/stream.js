@@ -4,6 +4,7 @@
 // place kept when the window's width changes, and the newest message never hidden under the message box.
 import { h, fill, get, post, q, dialog, toast, ago } from "./core.js";
 import { waitJob } from "./slash.js";
+import { t } from "./words.js";
 
 const MAX = 60000;  // characters kept on the page
 
@@ -12,7 +13,7 @@ function style() {
   if (styled || typeof document === "undefined") return;
   styled = true;
   document.head.append(h("style", { "data-for": "stream" }, `
-.st-words { margin: 4px 0 8px 18px; padding: 8px 10px; border-left: 3px solid var(--color-accent); background: var(--color-sunken);
+.st-words { margin: 4px 0 8px 18px; padding: 8px 10px; border-inline-start: 3px solid var(--color-accent); background: var(--color-sunken);
   border-radius: 0 var(--radius-small) var(--radius-small) 0; font-size: 13.5px; }
 .st-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; margin: 0; }
 .st-head { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--color-muted); margin-bottom: 4px; }
@@ -74,7 +75,7 @@ export function streamUnder(path, task) {
 export function followBox(path, task, title = "") {
   style();
   const list = h("div", {});
-  const field = h("textarea", { rows: 2, placeholder: "Why did it do it this way? Or: what should change?", "aria-label": `Your question about ${task}` });
+  const field = h("textarea", { rows: 2, placeholder: "Why did it do it this way? Or: what should change?", "aria-label": t("Your question about {task}", { task }) });
   let mode = "ask";
   const seg = h("span", { class: "seg", role: "group", "aria-label": "Question or change" });
   const drawSeg = () => fill(seg, [["ask", "Ask", "A question to the model that built it. Nothing changes. It costs a little and asks you first."],
@@ -88,7 +89,7 @@ export function followBox(path, task, title = "") {
     let items = [];
     try { items = (await get("/api/follow?" + q({ path, task }))).items || []; } catch { /* an older app */ }
     fill(list, items.map((x) => h("div", { class: "st-qa" }, h("div", {}, h("b", {}, "You: "), x.question, x.at ? h("span", { class: "muted small" }, ` · ${ago(x.at)}`) : null),
-      x.change ? h("div", { class: "a muted" }, `Became task ${x.change}.`) : h("div", { class: "a" }, x.answer || ""))));
+      x.change ? h("div", { class: "a muted" }, t("Became task {change}.", { change: x.change })) : h("div", { class: "a" }, x.answer || ""))));
   };
   node.addEventListener("toggle", () => { if (node.open) load(); });
   send.addEventListener("click", async () => {
@@ -98,7 +99,7 @@ export function followBox(path, task, title = "") {
     try {
       let r = await post("/api/follow", { path, task, text, mode });
       if (r.confirm) {
-        if (!(await dialog({ title: `Ask about ${title || task}?`, text: r.confirm, yes: "Ask it", no: "Not now" }))) return;
+        if (!(await dialog({ title: t("Ask about {v1}?", { v1: title || task }), text: r.confirm, yes: "Ask it", no: "Not now" }))) return;
         r = await post("/api/follow", { path, task, text, mode, confirmed: true });
       }
       field.value = "";

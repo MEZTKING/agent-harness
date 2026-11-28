@@ -8,7 +8,9 @@ outside content, to describe and never to obey.
 * ``check_url`` / ``fetch_url``: http and https only, never a private, loopback or link-local
   address (checked after resolving, again on every redirect), at most 5 redirects, 2 MB, 20 s.
 * ``clone_repo``: ``git clone --depth 1`` of a GitHub repository, no submodules, size-capped,
-  symlinks removed, nothing inside it ever run.
+  symlinks removed, nothing inside it ever run. Its size is asked of the GitHub API first (``repo_size``), so a
+  repository over the cap is refused before anything is downloaded (wave 9); the check after the copy stays.
+* ``retry_due``: a reference that couldn't be read is tried once more at the next plan (wave 9).
 * ``ScoutTools``: the scout's toolbox; raw pages and clones live in ``.harness/references/<id>/``.
 * ``normalise_report``: the report as stored; ``code_reuse`` is decided here from the licence,
   whatever the model said.
@@ -233,11 +235,72 @@ def html_to_text(html: str) -> str:
 
 
 # -- cloning -----------------------------------------------------------------------------------
-def clone_repo(repo: str, dest: Path, run: Callable[..., Any] = subprocess.run) -> Path:
-    """A shallow clone of a public GitHub repository into ``dest``; nothing in it is ever run."""
+GITHUB_API = "https://api.github.com/repos/"
+SizeOf = Callable[[str], "int | None"]
+
+
+def repo_size(name: str, opener: Callable[[str], Any] | None = None) -> int | None:
+    """A GitHub repository's size in bytes from the GitHub API (``size`` is in kilobytes), before any copy.
+
+    None when GitHub can't say (offline, a limit on unsigned requests, a private repository): the size is then
+    checked after the copy, as before. Raises FetchError only when GitHub says the repository isn't there."""
+    full = _github_repo((name or "").strip())
+    if not full:
+        return None
+    url = GITHUB_API + full
+    try:
+        if opener is not None:
+            status, body = opener(url)
+        else:
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
+                                                       "Accept": "application/vnd.github+json"})
+            try:
+                with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                    status, body = r.status, r.read(200_000)
+            except urllib.error.HTTPError as e:
+                status, body = e.code, b""
+    except Exception:  # noqa: BLE001 - offline or refused: the copy's own check still holds
+        return None
+    if status == 404:
+        raise FetchError(f"{full} isn't on GitHub (or it's private)")
+    if status != 200:
+        return None
+    try:
+        import json
+
+        kb = json.loads(body.decode("utf-8") if isinstance(body, bytes) else body).get("size")
+        return int(kb) * 1024 if kb is not None else None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def check_size(name: str, limit: int = MAX_CLONE_BYTES, size_of: SizeOf | None = None) -> int | None:
+    """Refuse a repository over ``limit`` before it is copied; returns the size GitHub gave (or None)."""
+    size = (size_of or repo_size)(name)
+    if size is not None and size > limit:
+        raise FetchError(f"{name} is too big to read ({size // 1_000_000} MB, the limit is "
+                         f"{limit // 1_000_000} MB); nothing was downloaded")
+    return size
+
+
+def retry_due(ref: dict[str, Any]) -> bool:
+    """True once for a reference that couldn't be read: it is tried again at the next plan, then left."""
+    if ref.get("status") != "failed" or ref.get("retried"):
+        return False
+    ref["retried"] = True
+    return True
+
+
+def clone_repo(repo: str, dest: Path, run: Callable[..., Any] = subprocess.run,
+               size_of: SizeOf | None = None, limit: int = MAX_CLONE_BYTES) -> Path:
+    """A shallow clone of a public GitHub repository into ``dest``; nothing in it is ever run.
+
+    Its size is asked of GitHub first (``size_of``, default ``repo_size``): over ``limit`` it is refused and
+    nothing is downloaded."""
     name = _github_repo(repo.strip())
     if not name:
         raise FetchError("only GitHub repositories (owner/name) can be read")
+    check_size(name, limit, size_of)
     if dest.exists():
         remove_tree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -256,10 +319,10 @@ def clone_repo(repo: str, dest: Path, run: Callable[..., Any] = subprocess.run) 
     remove_tree(dest / ".git")
     _remove_links(dest)
     size = _size(dest)
-    if size > MAX_CLONE_BYTES:
+    if size > limit:
         remove_tree(dest)
         raise FetchError(f"{name} is too big to read ({size // 1_000_000} MB, the limit is "
-                         f"{MAX_CLONE_BYTES // 1_000_000} MB)")
+                         f"{limit // 1_000_000} MB)")
     return dest
 
 

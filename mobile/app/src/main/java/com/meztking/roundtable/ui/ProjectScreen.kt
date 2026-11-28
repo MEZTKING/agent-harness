@@ -46,6 +46,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -115,6 +117,10 @@ class ProjectActions(
     /** The machine that has the project (the PC, or this phone's Roundtable): Undo…, proof, kinds and pounds.
      *  Null in Hub mode, where those wait for the PC. */
     val machine: com.meztking.roundtable.net.Api? = null,
+    /** A page in the app's own browser (the chat's key form and top-up links). */
+    val page: (String) -> Unit = {},
+    /** This phone's set-up (the chat's "Set up This phone first"). */
+    val setupPhone: () -> Unit = {},
 )
 
 @Composable
@@ -155,14 +161,15 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
         val desc = ui.seat?.description?.ifBlank { null } ?: doc?.description
         if (!desc.isNullOrBlank()) Text(desc, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = Hall.muted,
             maxLines = 3, overflow = TextOverflow.Ellipsis)
+        if (machine != null && folder != null) ChecksChip(folder, { machine.feature("GET", com.meztking.roundtable.data.Team.ciUrl(folder)) },
+            Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         Spacer(Modifier.height(6.dp))
-        val unread = ui.inbox.data?.count { !it.read } ?: 0
         PrimaryTabRow(selectedTabIndex = tab, containerColor = Hall.bg) {
-            // one line each, even on a narrow phone ("Letters", as in the bottom bar)
+            // one line each, even on a narrow phone
             val one = @Composable { t: String -> Text(t, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip) }
             Tab(tab == 0, { tab = 0 }, text = { one("Status") })
             Tab(tab == 1, { tab = 1 }, text = { one(if (ui.plan.data?.doc?.waitingForOwner == true || !ui.asks.data.isNullOrEmpty()) "Plan •" else "Plan") })
-            Tab(tab == 2, { tab = 2 }, text = { one(if (unread > 0) "Letters •" else "Letters") })
+            Tab(tab == 2, { tab = 2 }, text = { one("Chat") })
             Tab(tab == 3, { tab = 3 }, text = { one("Live") })
         }
         Box(Modifier.weight(1f)) {
@@ -171,8 +178,15 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
                 1 -> PlanTab(ui, a, rate, if (canUndo) ({ t: String -> undo = t }) else null)
                 3 -> LiveTab(ui.live, ui.mode, a.refresh, finished = ui.seat?.status == "done" || ui.plan.data?.let { PlanTop.of(it, ui.id).finished } == true,
                     onTakePictures = { a.command("show_it", "show_it", emptyMap()) }, sent = ui.sent["show_it"],
-                    proof = if (machine != null && folder != null) proofLoader(machine, folder) else null)
-                else -> MessagesTab(ui, a)
+                    proof = if (machine != null && folder != null) proofLoader(machine, folder) else null,
+                    stream = if (machine != null && folder != null) ({ t, since ->
+                        com.meztking.roundtable.data.Stream.parse(machine.feature("GET", com.meztking.roundtable.data.Stream.url(folder, t, since)))
+                    }) else null)
+                else -> Column(Modifier.fillMaxSize()) {
+                    // what waits for the next task (the PC's queue), above the project's chat
+                    if (machine != null && folder != null) WaitingQueue(remember(machine, folder) { ApiChat(machine, folder) })
+                    Box(Modifier.weight(1f)) { ProjectChat(ui.seat, ui.id, onPage = a.page, onSetUpPhone = a.setupPhone) }
+                }
             }
         }
     }
@@ -295,8 +309,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     }
     if (cards.isNotEmpty() && !top.finished) {
         val agreed = d?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
-        items(cards, key = { "ask:" + it.id }) { c ->
-            AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false)
+        val placed = cards.map { it.copy(path = it.path ?: path) }
+        // Answer these: three or more waiting, the recommended answer for the ticked ones in one go (the PC only)
+        if (machine != null && com.meztking.roundtable.data.AnswerThese.shown(placed)) item(key = "answer-these") {
+            AnswerTheseBar(placed, send = { machine.answerSeveral(it) }, onDone = a.refresh)
+        }
+        items(placed, key = { "ask:" + it.id }) { c ->
+            val help = remember(machine) { machine?.let { ApiCardHelp(it) } }
+            val looks = rememberLooks(help, path, placed)
+            AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false,
+                onTyping = rememberHold(help)?.let { h -> { h(c) } },
+                pictures = if (c.kind == "look") com.meztking.roundtable.data.Looks.forCard(c, looks) else emptyList())
         }
     }
     if (hub && top.waiting) item(key = "actions") {
@@ -310,6 +333,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     if (machine != null && !path.isNullOrBlank()) item(key = "stages") {
         StageStrip(path) { machine.feature("GET", com.meztking.roundtable.data.Stages.url(path)) }  // nothing without stages
     }
+    if (machine != null && !path.isNullOrBlank() && top.tasks.isNotEmpty()) item(key = "board") {
+        BoardFold(path) { machine.feature("GET", com.meztking.roundtable.data.Team.boardUrl(path)) }
+    }
+    // the sounds bought or made for it, Play and what they cost (nothing for a project without sounds)
+    if (machine != null && !path.isNullOrBlank()) item(key = "sounds") { SoundsCard(machine, path) }
     if (top.tasks.isNotEmpty()) {
         item(key = "tasks-head") {
             SectionTitle("Tasks · ${top.tasks.count { it.status == "done" }} of ${top.tasks.size} done")
@@ -331,10 +359,16 @@ private fun TaskLines(tasks: List<PlanDoc.PlanTask>, machine: com.meztking.round
             com.meztking.roundtable.data.Tandem.parse(machine.feature("GET", com.meztking.roundtable.data.Tandem.url(path)))
         }.getOrNull()
     }
+    var following by rememberSaveable(path) { mutableStateOf<String?>(null) }
     Column {
         tasks.forEach {
-            TaskLine(it, if (it.status == "done") onUndo else null)
+            val canFollow = machine != null && !path.isNullOrBlank() && (it.status == "done" || it.status == "failed")
+            TaskLine(it, if (it.status == "done") onUndo else null, onFollow = if (canFollow) ({ id: String -> following = if (following == id) null else id }) else null)
             tandem?.tasks?.get(it.id)?.let { t -> Box(Modifier.padding(start = 22.dp)) { TandemLine(t) } }
+            if (following == it.id && machine != null && path != null) {
+                val src = remember(it.id) { ApiFollow(machine, path, it.id) }
+                FollowBox(it.id, src) { following = null }
+            }
         }
     }
 }
@@ -382,7 +416,7 @@ private fun CheckingChoice(machine: com.meztking.roundtable.net.Api, path: Strin
 }
 
 @Composable
-private fun TaskLine(t: PlanDoc.PlanTask, onUndo: ((String) -> Unit)? = null) {
+private fun TaskLine(t: PlanDoc.PlanTask, onUndo: ((String) -> Unit)? = null, onFollow: ((String) -> Unit)? = null) {
     val (mark, color) = when (t.status) {
         "done" -> "✓" to Hall.good
         "running" -> "●" to Hall.amber
@@ -395,6 +429,8 @@ private fun TaskLine(t: PlanDoc.PlanTask, onUndo: ((String) -> Unit)? = null) {
         Text(Markdown.plain(t.title), Modifier.weight(1f), color = if (t.status == "done") Hall.text else Hall.muted, maxLines = 1,
             overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
         // see which files would change back, then choose; it can be put back afterwards (the PC's rewind)
+        // ask the model that built it, or change it with a new task (the price comes first)
+        if (onFollow != null) TextButton(onClick = { onFollow(t.id) }) { Text("Ask…", color = Hall.gold, maxLines = 1) }
         if (onUndo != null) TextButton(onClick = { onUndo(t.id) }) { Text("Undo…", color = Hall.gold, maxLines = 1) }
     }
 }
@@ -485,49 +521,17 @@ private fun PlanButtons(project: String, sent: Map<String, String>, a: ProjectAc
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** The messages waiting for the next task, when there are any: change, remove or send now (the PC's queue). */
 @Composable
-private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
-    var open by rememberSaveable { mutableStateOf<String?>(null) }
-    var writing by rememberSaveable { mutableStateOf(false) }
-    val inbox = ui.inbox
-    val unread = inbox.data?.count { !it.read } ?: 0
-    val comfort = LocalComfort.current
-    val history = comfort?.let { c -> c.sentVersion.let { c.sent(ui.id) } }.orEmpty()
-    fun letter(subject: String, body: String, done: Done) = a.send(subject, body) { ok ->
-        if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), subject.trim()))
-        done(ok)
+private fun WaitingQueue(source: ChatSource) {
+    val scope = rememberCoroutineScope()
+    var queue by remember { mutableStateOf(com.meztking.roundtable.data.QueueView()) }
+    LaunchedEffect(source) {
+        while (true) { queue = runCatching { source.queue() }.getOrDefault(queue); kotlinx.coroutines.delay(15_000) }
     }
-    PullToRefreshBox(inbox.loading && inbox.data != null, a.refresh, Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${ui.id}'s inbox" + if (unread > 0) " · $unread new" else "", style = MaterialTheme.typography.bodySmall, color = Hall.muted, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { writing = true }) { Text("Write to ${ui.id}") }
-                }
-            }
-            if (inbox.error != null) item { ErrorLine(inbox.error, a.refresh) }
-            if (inbox.data == null && inbox.loading) item { Loading("Fetching the inbox…") }
-            if (inbox.data?.isEmpty() == true) item { Text("No messages.", color = Hall.muted, modifier = Modifier.padding(vertical = 24.dp)) }
-            items(inbox.data.orEmpty(), key = { it.id }) { m -> LetterRow(m, showTo = false, plan = ui.plan.data?.doc) { open = m.id; a.opened(m) } }
-            if (history.isNotEmpty()) item(key = "sent-history") {
-                SentHistory(history, onResend = { item ->
-                    if (item.kind == SentItem.NOTE) {
-                        a.command("note:${item.text.hashCode()}", "note", mapOf("text" to item.text))
-                        comfort?.remember(ui.id, item)
-                    } else letter(item.subject, item.text) { }
-                }, modifier = Modifier.padding(top = 8.dp))
-            }
-        }
-    }
-    inbox.data?.firstOrNull { it.id == open }?.let { m ->
-        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok ->
-            if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), "Re: " + m.subject.removePrefix("Re: ")))
-            done(ok); if (ok) open = null
-        } })
-    }
-    if (writing) ComposeSheet(listOf(ui.id), ui.identity, ui.id, onDismiss = { writing = false }) { _, s, b, done ->
-        letter(s, b) { ok -> done(ok); if (ok) writing = false }
+    if (queue.items.isEmpty()) return
+    Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        QueueCard(queue) { action, item, words -> scope.launch { runCatching { source.changeQueue(action, item.id, words) }.onSuccess { queue = it } } }
     }
 }
 

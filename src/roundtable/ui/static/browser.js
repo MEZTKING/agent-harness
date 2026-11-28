@@ -5,6 +5,7 @@
 // open; localhost is shown through 127.0.0.1. Address bar, back, forward, reload, open in your own browser and
 // copy link. API: GET /api/browser (ui/editapi.py).
 import { h, fill, get, q, toast, ago } from "./core.js";
+import { t as wt } from "./words.js";
 
 const LOCAL = /^(https?):\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d{2,5})?(\/.*)?$/i;
 
@@ -72,7 +73,7 @@ export function browserView(path, { start = "" } = {}) {
     if (!d.local) { field.disabled = true; fill(stage, h("div", { class: "br-empty" }, h("p", {}, d.words))); }
     fill(list, d.addresses.length
       ? h("ul", { class: "br-addresses" }, d.addresses.map((a) => h("li", {},
-        h("button", { type: "button", class: "br-addr", disabled: !d.local || null, title: `Open ${a.url} here`, onclick: () => show(a.url) },
+        h("button", { type: "button", class: "br-addr", disabled: !d.local || null, title: wt("Open {url} here", { url: a.url }), onclick: () => show(a.url) },
           h("span", { class: "mono grow" }, a.url), h("span", { class: "muted small" }, [a.from, a.at ? ago(a.at) : ""].filter(Boolean).join(" · "))))))
       : h("p", { class: "muted small" }, "No local pages yet: when a task starts a web server, its address shows here."));
     if (start && d.local) show(start);
@@ -98,7 +99,7 @@ export function browserStyles() {
 .br-empty { padding: 32px 16px; text-align: center; background: var(--color-surface); }
 .br-h { font-size: 15px; margin-top: 6px; }
 .br-addresses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.br-addr { display: flex; gap: 10px; width: 100%; text-align: left; background: none; border: 0; padding: 6px 8px; border-radius: var(--radius-small); color: var(--color-text); }
+.br-addr { display: flex; gap: 10px; width: 100%; text-align: start; background: none; border: 0; padding: 6px 8px; border-radius: var(--radius-small); color: var(--color-text); }
 .br-addr:hover { background: var(--color-raised); }
 `));
 }

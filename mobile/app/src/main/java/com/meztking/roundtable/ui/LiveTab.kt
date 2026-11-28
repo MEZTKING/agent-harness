@@ -79,17 +79,20 @@ private fun bitmap(bytes: ByteArray): ImageBitmap? =
 fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit, finished: Boolean = false,
             onTakePictures: (() -> Unit)? = null, sent: String? = null, detail: Detail? = null,
             /** The PC's proof of one finished task (GET /api/proof); null where there is none (Hub mode). */
-            proof: (suspend (String) -> String?)? = null) {
+            proof: (suspend (String) -> String?)? = null,
+            /** A running task's words as they are written (GET /api/stream); null where there are none (Hub mode). */
+            stream: (suspend (task: String, since: Long) -> com.meztking.roundtable.data.StreamRead)? = null) {
     // how much it shows: the owner's choice in Comfort (Standard when nothing is chosen)
     val level = detail ?: LocalComfort.current?.detail ?: Detail.STANDARD
     var big by remember { mutableStateOf<Pair<String, ImageBitmap>?>(null) }
     PullToRefreshBox(live.loading && live.data != null, onRefresh, Modifier.fillMaxSize()) {
         val v = live.data
         val shotTask = v?.shots?.task.orEmpty()
+        val writing = if (stream == null) emptyList() else v?.session?.shown.orEmpty().filter { it.status == "running" }.map { it.id }
         val keys = buildList<Any> {
             if (live.error != null) add("error")
             if (v == null && live.loading) add("loading")
-            if (v != null) { add("pictures"); if (proof != null && shotTask.isNotBlank()) add("proof:$shotTask"); add("session") }
+            if (v != null) { add("pictures"); if (proof != null && shotTask.isNotBlank()) add("proof:$shotTask"); add("session"); writing.forEach { add("stream:$it") } }
         }
         // the reader keeps their place in the steps when the phone turns or unfolds (DS-82)
         Transcript(keys, followEnd = false) {
@@ -101,6 +104,7 @@ fun LiveTab(live: Load<LiveView>, mode: Mode?, onRefresh: () -> Unit, finished: 
                     item(key = "pictures") { Pictures(v, finished, onTakePictures, sent) { label, img -> big = label to img } }
                     if (proof != null && shotTask.isNotBlank()) item(key = "proof:$shotTask") { ProofCard(shotTask) { proof(shotTask) } }
                     item(key = "session") { Session(v, mode, finished, LiveDetail.of(level, finished, v.running)) }
+                    for (t in writing) item(key = "stream:$t") { StreamWords(t, { since -> stream!!(t, since) }) }
                 }
             }
         }

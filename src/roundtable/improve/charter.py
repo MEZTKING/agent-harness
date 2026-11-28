@@ -70,6 +70,9 @@ NEVER: tuple[dict[str, str], ...] = (
      "words": "Only you change how agents write for you."},
     {"id": "rules", "title": "What it may apply by itself, and this list",
      "words": "What it may apply without you, and these rules, change only when you change them."},
+    {"id": "wave9", "title": "Sound, the office, languages, the iPhone page and the proof run",
+     "words": "The sound cap and which sound service you use, the office art's cap, the app's language, the "
+              "page for an iPhone and the proof run's limits are yours alone."},
     {"id": "fixed", "title": "The fixed rules every agent gets",
      "words": "A few lines are added to every instruction when it is sent and are never stored in a learned "
               "one, so no learned instruction can drop them. Key sentences in the built-in instructions must "
@@ -146,7 +149,10 @@ OPTION_KEYS = ("effort", "reasoning_effort", "temperature", "top_p", "thinking",
 PROTECTED_KEYS = frozenset({"limits", "gate", "usage", "money", "tandem", "providers", "providers_allowed",
                             "makers_allowed", "improve", "auto_apply", "style", "charter", "trusted", "api_key",
                             "api_key_env", "base_url", "headers", "secrets", "plugins", "mcp_servers", "dial",
-                            "autopilot", "allowance_usd_per_week", "safeenv", "env", "perms", "builders"})
+                            "autopilot", "allowance_usd_per_week", "safeenv", "env", "perms", "builders",
+                            # wave 9: sound (its cap and its service), the office art, languages, the iPhone page,
+                            # the proof run
+                            "sound", "office", "language", "webphone", "proofrun"})
 COMMAND_KEYS = frozenset({"command", "commands", "build", "smoke", "start", "ship", "run", "script", "scripts",
                           "shell", "exec", "check_command", "test_command", "setup", "install", "hooks", "tools",
                           "mcp", "needs"})
@@ -155,7 +161,8 @@ COMMAND_KEYS = frozenset({"command", "commands", "build", "smoke", "start", "shi
 NO_TOUCH_FILES = ("harness/gate.py", "harness/safeenv.py", "core/secrets.py", "harness/makers.py",
                   "harness/moneystage.py", "harness/usage.py", "harness/dial.py", "harness/charterstage.py",
                   "harness/housestyle.py", "improve/charter.py", "improve/wallet.py", "plugins/sandbox.py",
-                  "plugins/guard.py", "harness/perms.py", "pyproject.toml", "tests/test_charter.py", "tests/test_housestyle.py")
+                  "plugins/guard.py", "harness/perms.py", "pyproject.toml", "tests/test_charter.py", "tests/test_housestyle.py",
+                  "harness/soundprice.py", "officeart.py")  # wave 9: the sound cap and the office art's cap
 NO_TOUCH_DIRS = (".github", "packaging", ".git", "mobile/signing")
 
 # -- text that marks something private -------------------------------------------------------------------

@@ -4,6 +4,7 @@
 // servers we have read, each pinned to a version, added with one tick (then tested).
 // The API: ui/reachapi.py (/api/integrations, /api/integrations/test, /api/mcp/catalogue, /api/mcp/catalogue/add).
 import { h, fill, get, post, act, card, empty, plural } from "./core.js";
+import { t as wt } from "./words.js";
 
 const STYLE = `
 .svc-list { display: grid; gap: 6px; }
@@ -38,7 +39,7 @@ function row(r, load) {
     h("span", { class: `pill ${PILL[r.state] || ""}` }, r.state_words),
     h("div", { class: "grow" }, h("div", { class: "svc-name" }, r.name), words,
       r.who && r.who.length ? h("div", { class: "svc-who", title: "Who uses it" }, "Used by " + r.who.join(", ")) : null),
-    r.needs && !r.needs.saved ? h("a", { class: "btn small", href: "#/settings", title: `Add the ${r.needs.label} key in Settings → Keys` }, "Add the key") : null,
+    r.needs && !r.needs.saved ? h("a", { class: "btn small", href: "#/settings", title: wt("Add the {label} key in Settings → Keys", { label: r.needs.label }) }, "Add the key") : null,
     r.can_test ? h("button", { type: "button", class: "small", title: "Ask it something that costs nothing",
       onclick: (ev) => act(ev.currentTarget, () => post("/api/integrations/test", { id: r.id }), (t) => t.words, load) }, "Test") : null);
 }
@@ -49,7 +50,7 @@ export function mcpCatalogue(after) {
   const load = async () => {
     try {
       const d = await get("/api/mcp/catalogue");
-      fill(box, h("p", { class: "small muted" }, `Tool servers we have read, each pinned to the version that was read (${d.checked}). Tick one to add it; it is tested straight away.`),
+      fill(box, h("p", { class: "small muted" }, wt("Tool servers we have read, each pinned to the version that was read ({checked}). Tick one to add it; it is tested straight away.", { checked: d.checked })),
         d.servers.map((s) => catRow(s, load, after)));
     } catch (e) { fill(box, h("p", { class: "err" }, e.message)); }
   };
@@ -58,10 +59,10 @@ export function mcpCatalogue(after) {
 }
 
 function catRow(s, load, after) {
-  const tick = h("input", { type: "checkbox", checked: s.added, disabled: s.added, "aria-label": `Add ${s.name}`,
+  const tick = h("input", { type: "checkbox", checked: s.added, disabled: s.added, "aria-label": wt("Add {name}", { name: s.name }),
     title: s.added ? "Added: see it in Tool servers above" : "Add it, then test it",
     onchange: (ev) => act(ev.target, () => post("/api/mcp/catalogue/add", { id: s.id }),
-      (r) => `Added ${s.name}. ${r.test && r.test.words ? r.test.words : ""}`, () => { load(); if (after) after(); }) });
+      (r) => wt("Added {name}. {v1}", { name: s.name, v1: r.test && r.test.words ? r.test.words : "" }), () => { load(); if (after) after(); }) });
   return h("div", { class: "cat-row" }, tick,
     h("div", { class: "grow" }, h("div", { class: "svc-name" }, s.name, s.writes ? h("span", { class: "pill warn", title: "It can change things" }, "Can change things") : null),
       h("div", { class: "small" }, s.about), s.can ? h("div", { class: "small muted" }, "It can: " + s.can) : null,

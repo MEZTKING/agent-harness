@@ -14,13 +14,13 @@
    "by": "you",
    "can_put_back": false,
    "can_undo": true,
-   "id": "Pa20557",
+   "id": "Pb15851",
    "kind": "options",
    "numbers": {},
    "role": "orchestrator",
    "state": "watching",
    "what": "Planner now temperature 0.3",
-   "when": "2026-11-27T23:33:03Z",
+   "when": "2026-11-28T11:14:20Z",
    "why": "",
    "words": "Planner now temperature 0.3."
   }
@@ -35,6 +35,7 @@
   "What each job may do",
   "Your house style",
   "What it may apply by itself, and this list",
+  "Sound, the office, languages, the iPhone page and the proof run",
   "The fixed rules every agent gets"
  ],
  "not_here": [],

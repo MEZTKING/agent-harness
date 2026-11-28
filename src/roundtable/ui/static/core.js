@@ -1,30 +1,38 @@
 // Shared helpers: elements, the API, polling, dialogs and the words the owner reads.
 // Every node is built with h() (text, never HTML): journal entries, letters and logs hold model output.
+import * as words from "./words.js";
 
 /** The name the owner reads (brand.py's twin). Names machines read stay "roundtable". */
 export const BRAND = Object.freeze({ name: "Darkness Harness", short: "Darkness", legacy: "Roundtable Hold" });
 
+// Words the owner reads pass through words.auto (wave 9: their language); { raw: true } keeps a node's own text
+// and attributes as they are (a project's name, a plan, a model's words, code).
+const WORDY = new Set(["title", "placeholder", "aria-label", "alt"]);
+const say = (raw, v) => (raw || typeof v !== "string" ? v : words.auto(v));
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
+  const raw = !!(attrs && attrs.raw === true);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
+    if (k === "raw") continue;
     if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
-    else if (k === "tip") el.title = v;
+    else if (k === "tip") el.title = say(raw, v);
     else if (v === true) el.setAttribute(k, "");
-    else el.setAttribute(k, v);
+    else el.setAttribute(k, WORDY.has(k) ? say(raw, v) : v);
   }
-  add(el, kids);
+  add(el, kids, raw);
   return el;
 }
-function add(el, kids) {
+function add(el, kids, raw = false) {
   for (const kid of kids.flat(Infinity)) {
     if (kid === null || kid === undefined || kid === false || kid === "") continue;
-    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    el.append(kid instanceof Node ? kid : document.createTextNode(raw ? String(kid) : textOf(kid)));
   }
 }
+const textOf = (kid) => (typeof kid === "string" ? words.auto(kid) : String(kid));
 export const clean = (list) => [list].flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false && x !== "");
-export function fill(el, ...kids) { el.replaceChildren(...clean(kids).map((k) => (k instanceof Node ? k : document.createTextNode(String(k))))); return el; }
+export function fill(el, ...kids) { el.replaceChildren(...clean(kids).map((k) => (k instanceof Node ? k : document.createTextNode(textOf(k))))); return el; }
 
 // ---------- the API ----------
 export async function api(method, path, body) {
@@ -35,10 +43,10 @@ export async function api(method, path, body) {
     opts.body = JSON.stringify(body || {});
   }
   let res;
-  try { res = await fetch(path, opts); } catch { throw new Error(`${BRAND.name} isn't answering. If the window was left open a long time, close and open the app again.`); }
+  try { res = await fetch(path, opts); } catch { throw new Error(words.t("{name} isn't answering. If the window was left open a long time, close and open the app again.", { name: BRAND.name })); }
   let data = null;
   try { data = await res.json(); } catch { /* not JSON */ }
-  if (!res.ok) throw new Error(String((data && data.error) || `Something went wrong (${res.status}). Try again in a moment.`).replace(/\s*\(https?:[^)]*\)/g, ""));
+  if (!res.ok) throw new Error(String((data && data.error) || words.t("Something went wrong ({status}). Try again in a moment.", { status: res.status })).replace(/\s*\(https?:[^)]*\)/g, ""));
   return data;
 }
 export const get = (path) => api("GET", path);
@@ -143,6 +151,10 @@ export function seatByPath(path) {
   return S.rt.seats.find((s) => s.path === path) || S.rt.seats.find((s) => s.id === String(path).split(/[\\/]/).pop());
 }
 export function projectName(id) {
+  const name = nameOf(id);
+  return words.lang() === "en-GB" ? name : words.keep(name);  // a project's name is never translated
+}
+function nameOf(id) {
   const s = seatOf(id);
   if (s) return s.name;
   if (S.rt && S.rt.notes && S.rt.notes.id === id) return S.rt.notes.name;
@@ -153,19 +165,25 @@ export const readable = (id) => String(id || "").split(/[-_.\s]+/).filter(Boolea
 export const projectHref = (id, tab) => `#/p/${encodeURIComponent(id)}${tab ? "/" + tab : ""}`;
 
 // ---------- words ----------
-export const money = (x) => { const n = Number(x) || 0; return "$" + (n > 0 && n < 0.01 ? n.toFixed(4) : n.toFixed(2)); };
+export const money = (x) => {
+  const n = Number(x) || 0, d = n > 0 && n < 0.01 ? 4 : 2, loc = words.locale();
+  return "$" + (loc === "en-GB" ? n.toFixed(d) : n.toLocaleString(loc, { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: false }));
+};
+// the browser's own way for British English (as before wave 9), the chosen language's otherwise
+const dateLocale = () => (words.lang() === "en-GB" ? undefined : words.locale());
 export function ago(ts) {
   if (!ts) return "";
   const s = Math.floor((Date.now() - Date.parse(ts)) / 1000);
   if (isNaN(s)) return "";
+  if (words.lang() !== "en-GB" && s < 30 * 86400) return words.ago(s);  // the chosen language's own words
   if (s < 60) return "just now";
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   if (s < 86400) { const n = Math.floor(s / 3600); return `${n} hour${n > 1 ? "s" : ""} ago`; }
   const d = Math.floor(s / 86400);
-  return d === 1 ? "yesterday" : d < 30 ? `${d} days ago` : new Date(ts).toLocaleDateString();
+  return d === 1 ? "yesterday" : d < 30 ? `${d} days ago` : new Date(ts).toLocaleDateString(dateLocale());
 }
-export function clock(ts) { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }); }
-export const when = (ts) => h("time", { datetime: ts, title: ts ? new Date(ts).toLocaleString() : "" }, ago(ts));
+export function clock(ts) { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString(words.locale(), { hour: "2-digit", minute: "2-digit" }); }
+export const when = (ts) => h("time", { datetime: ts, title: ts ? new Date(ts).toLocaleString(dateLocale()) : "" }, ago(ts));
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
 export function fileSize(n) { const u = ["bytes", "KB", "MB", "GB"]; let i = 0; n = Number(n) || 0; while (n >= 1024 && i < 3) { n /= 1024; i++; } return i ? `${n.toFixed(1)} ${u[i]}` : `${n} bytes`; }
 
@@ -250,12 +268,12 @@ export function prose(text) {
   for (const raw of String(text || "").split("\n")) {
     const line = raw.trimEnd();
     const m = line.match(/^(#{1,4})\s+(.*)$/), li = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)$/);
-    if (li) { if (!list) { list = h("ul"); box.append(list); } list.append(h("li", {}, strip(li[1]))); continue; }
+    if (li) { if (!list) { list = h("ul"); box.append(list); } list.append(h("li", { raw: true }, strip(li[1]))); continue; }
     list = null;
     if (!line.trim()) continue;
-    if (m) box.append(h(m[1].length <= 2 ? "h3" : "h4", {}, strip(m[2])));
+    if (m) box.append(h(m[1].length <= 2 ? "h3" : "h4", { raw: true }, strip(m[2])));
     else if (/^\s*```/.test(line)) continue;
-    else box.append(h("p", {}, strip(line)));
+    else box.append(h("p", { raw: true }, strip(line)));
   }
   return box;
 }
@@ -267,19 +285,19 @@ export function markdown(text) {
   const box = h("div", { class: "prose md" });
   const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
   let list = null, para = [];
-  const flush = () => { if (para.length) { box.append(h("p", {}, inlineMd(para.join(" ")))); para = []; } };
+  const flush = () => { if (para.length) { box.append(h("p", { raw: true }, inlineMd(para.join(" ")))); para = []; } };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trimEnd(), t = line.trim();
     if (/^```/.test(t)) {
       flush(); list = null;
       const code = [];
       for (i++; i < lines.length && !/^```/.test(lines[i].trim()); i++) code.push(lines[i]);
-      box.append(h("pre", { class: "log short" }, code.join("\n")));
+      box.append(h("pre", { raw: true, class: "log short" }, code.join("\n")));
       continue;
     }
     if (!t) { flush(); list = null; continue; }
     const hd = t.match(/^(#{1,6})\s+(.*)$/);
-    if (hd) { flush(); list = null; box.append(h(hd[1].length <= 1 ? "h2" : hd[1].length === 2 ? "h3" : "h4", {}, inlineMd(hd[2]))); continue; }
+    if (hd) { flush(); list = null; box.append(h(hd[1].length <= 1 ? "h2" : hd[1].length === 2 ? "h3" : "h4", { raw: true }, inlineMd(hd[2]))); continue; }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { flush(); list = null; box.append(h("hr")); continue; }
     if (t.startsWith("|") && t.endsWith("|")) {
       flush(); list = null;
@@ -291,17 +309,17 @@ export function markdown(text) {
       i--;
       const [head, ...body] = rows;
       box.append(h("div", { class: "md-table" }, h("table", { class: "plain-table" },
-        head ? h("thead", {}, h("tr", {}, head.map((c) => h("th", {}, inlineMd(c))))) : null,
-        h("tbody", {}, body.map((r) => h("tr", {}, r.map((c) => h("td", {}, inlineMd(c)))))))));
+        head ? h("thead", {}, h("tr", {}, head.map((c) => h("th", { raw: true }, inlineMd(c))))) : null,
+        h("tbody", {}, body.map((r) => h("tr", {}, r.map((c) => h("td", { raw: true }, inlineMd(c)))))))));
       continue;
     }
-    if (t.startsWith(">")) { flush(); list = null; box.append(h("blockquote", {}, inlineMd(t.replace(/^>\s?/, "")))); continue; }
+    if (t.startsWith(">")) { flush(); list = null; box.append(h("blockquote", { raw: true }, inlineMd(t.replace(/^>\s?/, "")))); continue; }
     const li = line.match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/);
     if (li) {
       flush();
       const tag = li[2] ? "ol" : "ul";
       if (!list || list.tagName.toLowerCase() !== tag) { list = h(tag); box.append(list); }
-      list.append(h("li", {}, inlineMd(li[3].replace(/^\[[ xX]\]\s+/, ""))));
+      list.append(h("li", { raw: true }, inlineMd(li[3].replace(/^\[[ xX]\]\s+/, ""))));
       continue;
     }
     list = null;
@@ -317,14 +335,14 @@ export function inlineMd(s) {
   const re = /\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?])|(?<![\w*])\*([^*\s][^*]*?)\*(?![\w*])|(?<![\w_])_([^_\s][^_]*?)_(?![\w_])/g;
   let last = 0, m;
   while ((m = re.exec(s))) {
-    if (m.index > last) out.push(s.slice(last, m.index));
-    if (m[1] || m[2]) out.push(h("b", {}, m[1] || m[2]));
-    else if (m[3]) out.push(h("code", {}, m[3]));
-    else if (m[4]) out.push(SAFE_LINK.test(m[5]) ? h("a", { href: m[5], target: "_blank", rel: "noopener noreferrer", title: m[5] }, m[4]) : m[4]);
+    if (m.index > last) out.push(words.keep(s.slice(last, m.index)));
+    if (m[1] || m[2]) out.push(h("b", { raw: true }, m[1] || m[2]));
+    else if (m[3]) out.push(h("code", { raw: true }, m[3]));
+    else if (m[4]) out.push(SAFE_LINK.test(m[5]) ? h("a", { href: m[5], target: "_blank", rel: "noopener noreferrer", title: m[5], raw: true }, m[4]) : m[4]);
     else if (m[6]) out.push(h("a", { href: m[6], target: "_blank", rel: "noopener noreferrer" }, m[6]));
-    else if (m[7] || m[8]) out.push(h("i", {}, m[7] || m[8]));
+    else if (m[7] || m[8]) out.push(h("i", { raw: true }, m[7] || m[8]));
     last = re.lastIndex;
   }
-  if (last < s.length) out.push(s.slice(last));
+  if (last < s.length) out.push(words.keep(s.slice(last)));
   return out;
 }

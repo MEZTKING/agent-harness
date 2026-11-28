@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TripOrigin
 import androidx.compose.runtime.Composable
@@ -134,7 +134,7 @@ class EclipseScreensTest {
 
     @Composable
     private fun shell() {
-        AdaptiveShell(listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needs.size), ShellPlace("Letters", Icons.AutoMirrored.Filled.MenuBook, 2),
+        AdaptiveShell(listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needs.size), ShellPlace("Chat", Icons.AutoMirrored.Filled.Chat, 2),
             ShellPlace("Settings", Icons.Filled.Settings)), selected = 0, onSelect = {},
             beside = { NeedsList(needs, Mode.HUB, emptySet(), { _, _ -> }, {}, Modifier.padding(16.dp)) }) {
             table(beside = LocalShellPlan.current.twoPanes)
