@@ -165,6 +165,8 @@ def _post(port, path, body: bytes, kind="application/json"):
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
+    except OSError:  # refused before the body was read: the connection is cut while it is still being sent
+        return "cut"
 
 
 @pytest.fixture
@@ -182,7 +184,7 @@ def test_the_receiver_takes_json_on_loopback_and_refuses_too_much(receiver, tmp_
     assert _post(receiver.port, "/v1/logs", b"\x0a\x01", "application/x-protobuf") == 415
     assert _post(receiver.port, "/v1/logs", b"not json") == 400
     assert _post(receiver.port, "/v1/other", b"{}") == 404
-    assert _post(receiver.port, "/v1/logs", b"{" + b" " * (otel.MAX_BODY + 1) + b"}") in (413, 400)
+    assert _post(receiver.port, "/v1/logs", b"{" + b" " * (otel.MAX_BODY + 1) + b"}") in (413, "cut")
     assert usage.service_used("cli", tmp_path)["month_tokens"] == 150
 
 
