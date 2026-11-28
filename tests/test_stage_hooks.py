@@ -55,11 +55,13 @@ from roundtable.harness.skillstage import SkillStage  # noqa: E402
 from roundtable.improve.canary import WatchStage  # noqa: E402
 from roundtable.harness.boardstage import BoardStage  # noqa: E402
 from roundtable.harness.followstage import FollowStage  # noqa: E402
+from roundtable.harness.soundstage import SoundStage  # noqa: E402
 # wave 6's stages (models in tandem) first, then wave 5's
 STAGES = (UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
           MoneyStage, DoneStage, PrepStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
           WatchStage, CharterStage, SkillStage, RecallStage,  # wave 7's
-          BoardStage, FollowStage)  # wave 8's: the board, follow-ups on a finished task
+          BoardStage, FollowStage,  # wave 8's: the board, follow-ups on a finished task
+          SoundStage)  # wave 9's: sounds bought or made in code
 # the Orchestrator's own methods over the stages that were there before wave 5 (it uses no zero-argument super)
 Seam = type("Seam", tuple(b for b in Orchestrator.__bases__ if b not in STAGES),
             {k: v for k, v in vars(Orchestrator).items() if k not in ("__dict__", "__weakref__")})

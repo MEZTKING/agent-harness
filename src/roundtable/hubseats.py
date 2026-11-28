@@ -3,9 +3,11 @@
 Most of this has been in the Hall since the rebuild (``ui/roundtable.py`` ``build``: a plan in the hub gets a
 seat of its own with its state, its cards and Approve through the hub). What was left, and is here:
 
-* **Is anything listening there?** ``seats`` and ``join`` give every seat that runs elsewhere the hub's
-  ``listening`` beat (``reach.listening``): "Your PC last listened 4 minutes ago", or that nothing will start
-  until the app is open there again. A tap is never silently lost.
+* **Is anything listening there?** ``seats`` and ``join`` give every seat that runs elsewhere who runs it, from
+  one source of truth: ``reach.readers`` (``plans/readers/<project>.json``, also ``GET /api/listening``'s
+  ``projects``). A project nobody has read lately says so ("Nobody is running this project right now…"); a project
+  with no reader file yet falls back to the hub's machine beat ("Your PC last listened 4 minutes ago"). A tap is
+  never silently lost.
 * **A hub project the table didn't seat**: a plan published under a name the Hall's rules skipped (an agent that
   isn't the harness's runner and isn't the folder) still gets a seat, with its plan and cards.
 * **Sent once**: ``send_once`` sends Open the plan / Approve (or any hub action) through the hub (``remote``'s
@@ -20,17 +22,30 @@ from __future__ import annotations
 import json
 from typing import Any
 
-STALE_MINUTES = 15  # reach.listening says "Nothing will start…" from here
+STALE_MINUTES = 15  # reach.listening says "Nothing will start…" from here (reach.NO_READER_MIN for readers)
 
 
-def listening(app) -> dict[str, Any]:
-    """{machine, at, minutes, words, stale}: which harness last listened to the hub, and how long ago."""
+def listening(app, project: str = "", agent: str = "") -> dict[str, Any]:
+    """{machine, at, minutes, words, stale, reading, offers, projects}: who runs ``project`` (reach.readers), else
+    which harness last listened to the hub, and how long ago."""
     from . import reach
 
-    hub = getattr(app, "hub", None)
-    got = dict(reach.listening(hub))
-    got["stale"] = got.get("minutes") is None or got["minutes"] >= STALE_MINUTES
-    return got
+    return for_project(dict(reach.listening(getattr(app, "hub", None))), project, agent)
+
+
+def for_project(got: dict[str, Any], project: str = "", agent: str = "") -> dict[str, Any]:
+    """One project's line out of ``reach.listening``'s answer: its reader when it has one, else the machine beat."""
+    rows = got.get("projects") or []
+    r = next((r for r in rows if project and project in (r.get("project"), r.get("folder"))), None)
+    if r is None and agent:
+        r = next((r for r in rows if r.get("agent") == agent and not project), None)
+    if r is not None:
+        return {"machine": r.get("machine") or "", "at": r.get("at"), "minutes": r.get("minutes"),
+                "words": r.get("words") or "", "stale": not r.get("reading"), "reading": bool(r.get("reading")),
+                "kind": r.get("kind") or "pc", "offers": list(r.get("offers") or []), "projects": rows}
+    stale = got.get("minutes") is None or got["minutes"] >= STALE_MINUTES
+    return {"machine": got.get("machine") or "", "at": got.get("at"), "minutes": got.get("minutes"),
+            "words": got.get("words") or "", "stale": stale, "reading": not stale, "offers": [], "projects": rows}
 
 
 def seats(app, beat: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -67,7 +82,7 @@ def seats(app, beat: dict[str, Any] | None = None) -> list[dict[str, Any]]:
             "hub_agent": p["agent"] or sid, "where": "elsewhere", "status": status, "state": words,
             "goal": p.get("goal") or "", "detail": p.get("summary") or "", "asks": len(p.get("asks") or []),
             "actions": ["open_plan", "approve"] if status == "waiting" else ["open_plan"],
-            "last_activity": p.get("at") or "", "listening": beat,
+            "last_activity": p.get("at") or "", "listening": for_project(beat, sid),
         })
     return out
 
@@ -81,7 +96,7 @@ def join(seat_list: list[dict[str, Any]], extra: list[dict[str, Any]],
         beat = next((e["listening"] for e in extra if e.get("listening")), None)
     for s in seat_list:
         if s.get("where") == "elsewhere" and beat is not None:
-            s.setdefault("listening", beat)
+            s.setdefault("listening", for_project(beat, s["id"]))
     for e in extra:
         s = by_id.get(e["id"])
         if s is None:
@@ -124,7 +139,7 @@ def send_once(app, agent: str, folder: str, action: str, fields: dict[str, Any] 
     from .remote import FOLDER, PREFIX
 
     hub = getattr(app, "hub", None)
-    beat = listening(app)
+    beat = listening(app, folder or agent)
     cmd = {"action": action, **{k: v for k, v in (fields or {}).items() if k not in ("action", FOLDER)}}
     if folder and folder != agent:
         cmd[FOLDER] = folder

@@ -245,6 +245,12 @@ def write(home: Path, record: dict[str, Any]) -> None:
             out.write(line)
 
 
+def here() -> Path | None:
+    """The folder of the span now open (a task's), so the model and tool spans inside it go to the same file."""
+    s = _CURRENT.get()
+    return s.home if s is not None else None
+
+
 @contextmanager
 def span(home, name: str, **attrs):
     """One span around the ``with`` block. Yields a :class:`Span` (``.set``, ``.error``), or None while traces

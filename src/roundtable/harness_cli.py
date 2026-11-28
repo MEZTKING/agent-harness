@@ -32,6 +32,11 @@
     roundtable improve rollback [VERSION]    undo applied changes
     roundtable improve status                what has been learned, and history
     roundtable improve cycle [--llm] [--test]  analyze + test + auto-apply per policy
+
+    roundtable office-art quote | sample | approve | rest | remake ID [--yes]
+                                          the office's pictures: priced first, the sample, then the rest (at most $10)
+    roundtable proofrun [--no-art] [--no-sound] [--idea FILE] [--lab DIR] [--yes] [--report]
+                                          prove it: one idea, one small game, built for a known, capped price
 """
 
 from __future__ import annotations
@@ -300,7 +305,38 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--test", action="store_true", help="replay-test new proposals (spends money)")
     s.add_argument("--samples", type=int, default=3)
     s.add_argument("--max-cost", type=float, default=2.0)
+    s = sub.add_parser("office-art", help="the office's pictures from Retro Diffusion: priced first, at most $10")
+    s.add_argument("step", choices=["quote", "sample", "approve", "rest", "remake"])
+    s.add_argument("piece", nargs="?", default="", help="remake: the piece's id (from the manifest)")
+    s.add_argument("--out", help="where the pictures go (default: the app's own office folder)")
+    s.add_argument("--spent", help="the spend file (default: office-art-spend.jsonl in the lab)")
+    s.add_argument("--yes", action="store_true", help="remake: make it, not only price it")
+    from .proofrun import add_arguments as _proof_args
+
+    _proof_args(sub.add_parser("proofrun", help="prove it: one idea, one small game, built for a known, capped price"))
     return p
+
+
+def _office_art(args, cfg) -> None:
+    """``roundtable office-art``: the quote is free; the sample, the rest and a remake spend (each inside the cap)."""
+    import json as _json
+
+    from . import officeart
+
+    p = officeart.provider_for(cfg)
+    out = Path(args.out) if args.out else Path(__file__).resolve().parent / "ui" / "static" / "office"
+    spent = Path(args.spent) if args.spent else Path(cfg.lab_dir or ".") / "office-art-spend.jsonl"
+    if args.step == "quote":
+        got = officeart.quote(p)
+    elif args.step == "approve":
+        got = officeart.approve(spent)
+    elif args.step == "remake":
+        if not args.piece:
+            sys.exit("error: say which piece, e.g. roundtable office-art remake desk")
+        got = officeart.remake(p, args.piece, out, spent, confirm=args.yes)
+    else:
+        got = officeart.make(p, args.step, out, spent)
+    print(got.get("words") or _json.dumps(got, indent=2))
 
 
 def _lab(cfg):
@@ -641,6 +677,10 @@ def main(argv: list[str] | None = None) -> None:
                      host=args.host, port=args.port, open_browser=not args.no_browser, projects_dir=args.projects_dir)
     if args.cmd in ("settings", "set"):
         return _settings(args)
+    if args.cmd == "proofrun":
+        from . import proofrun
+
+        sys.exit(proofrun.main(args, real_cfg_loader=lambda: load_config(args.config)))
     if args.cmd in ("status", "metrics"):
         project = Project(args.dir)
         if not project.exists:
@@ -649,6 +689,8 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         cfg = load_config(args.config)
+        if args.cmd == "office-art":
+            return _office_art(args, cfg)
         if args.cmd == "roles":
             for r in cfg.roles.values():
                 chain = " -> ".join(str(m) for m in r.models)

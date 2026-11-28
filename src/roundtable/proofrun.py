@@ -421,7 +421,8 @@ def plan_phase(lab, cfg=None, *, on_event=None, balance: Callable[[Any], Any] | 
     allowed = [CHAT_PROVIDER] + [cfg.roles[r].models[0].provider for r in (ART_ROLE, SOUND_ROLE) if r in cfg.roles]
     projectsettings.update(orch.project.root, {
         "checking": "lean", "ask_first": "risky", "providers_allowed": sorted(set(allowed)),
-        "limits": {"max_cost_usd": caps["total_usd"], "max_real_usd_per_run": caps["text_usd"]},
+        "limits": {"max_cost_usd": caps["total_usd"], "max_real_usd_per_run": caps["text_usd"],
+                   **({"max_image_usd": caps["art_usd"]} if caps.get("art_usd") else {})},
     })
     orch = _orch(cfg, lab, ev)  # the project's own limits are read when it starts
     status = orch.run()

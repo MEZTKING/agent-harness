@@ -27,8 +27,8 @@ X = _load("words_extract")
 SW = _load("words_sweep")
 
 # Template strings and joined text the owner reads that don't pass the table yet. The coordinator's sweep brings it
-# down (to 18 at the time of writing); it may only fall. Raise it only by turning a sentence into t(…).
-NOT_THROUGH_LIMIT = 287
+# down (17 after wave 9's sweep, 28 November 2026); it may only fall. Raise it only by turning a sentence into t(…).
+NOT_THROUGH_LIMIT = 17
 
 
 def test_the_extractor_finds_sentences_in_h_title_toast_dialog_and_t():

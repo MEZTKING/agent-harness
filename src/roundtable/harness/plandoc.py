@@ -419,11 +419,13 @@ def _sound_price(cfg, role, task, history) -> float | None:
 
 
 def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, screens: bool = False,
-             extras: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+             extras: list[dict[str, Any]] | None = None, token_rows: list[dict[str, Any]] | None = None,
+             sizes: dict[str, str] | None = None) -> dict[str, Any]:
     """Rough cost and time for the given pending tasks, before anything runs. ``screens``: the app has screens,
     so each reviewed task may also have its pictures checked by a model that can see (proof.py, capped).
     ``extras``: the stages' own work (starting it, playing it, shipping it), each {id, usd, minutes, words},
-    added to the totals and returned as ``extras``."""
+    added to the totals and returned as ``extras``. ``token_rows``: real attempts' tokens (estimatedefaults.rows),
+    used in place of the fixed guess for a job with too little history; ``sizes``: each task's size (stages)."""
     from .config import ModelRef  # noqa: F401  (type only)
     from ..providers.base import Usage
 
@@ -458,7 +460,12 @@ def estimate(cfg, tasks, history: dict[str, dict[str, float]] | None = None, scr
                     listed = cfg.cost(role.models[0], Usage(0, 0))
                     cost = listed or None
             else:
-                i, o = DEFAULT_TOKENS["chat"]
+                if token_rows is not None:  # wave 9: the defaults learned from real runs (estimatedefaults.py)
+                    from . import estimatedefaults
+
+                    i, o = estimatedefaults.tokens(None, t.role, (sizes or {}).get(t.id, ""), found=token_rows)
+                else:
+                    i, o = DEFAULT_TOKENS["chat"]
                 cost = cfg.cost(role.models[0], Usage(i, o))
             if role.review and reviewer and role.kind == "chat":
                 rc = cfg.cost(reviewer.models[0], Usage(*DEFAULT_REVIEW_TOKENS))

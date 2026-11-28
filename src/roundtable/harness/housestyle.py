@@ -91,10 +91,13 @@ def settings(cfg: Any) -> dict[str, Any]:
 
 def block(cfg: Any) -> str:
     """The part added to the system prompt ("" when off or empty)."""
+    from ..words import owner_line
+
     s = settings(cfg)
+    lang = owner_line()  # "" in British English, so nothing changes there
     if not s["on"] or not s["text"].strip():
-        return ""
-    return f"{HEADING}\n{s['text'].strip()}"
+        return f"{HEADING}\n{lang}" if lang else ""
+    return f"{HEADING}\n{s['text'].strip()}" + (f"\n{lang}" if lang else "")
 
 
 def save(path: Path, body: dict[str, Any]) -> dict[str, Any]:

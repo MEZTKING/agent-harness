@@ -139,6 +139,7 @@ class Limits:
     max_parallel: int = 1
     max_scout_steps: int = 30  # steps for reading one reference (scout.py)
     max_auto_tasks: int = 8  # tasks the stages may add by themselves for one goal (Orchestrator.add_tasks)
+    max_image_usd: float = 0.0  # pictures from a picture service, for one project, at most this (0 = off)
 
 
 @dataclass
@@ -444,6 +445,8 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
     if isinstance(custom.get("breaker"), dict):  # the builders' settings from the app (permsapi.py)
         out["breaker"] = {**(raw.get("breaker") or {}), **custom["breaker"]}
+    if isinstance(custom.get("sound"), dict):  # the sound service and its cap chosen in the app (soundapi.py)
+        out["sound"] = {**(raw.get("sound") or {}), **custom["sound"]}
     if "allow_shell" in (custom.get("workspace") or {}):
         out["workspace"] = {**(raw.get("workspace") or {}), "allow_shell": bool(custom["workspace"]["allow_shell"])}
     if custom.get("default_profile") and custom["default_profile"] in (raw.get("profiles") or {}):
@@ -661,6 +664,7 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             max_scout_steps=int(lim.get("max_scout_steps", 30)),
             max_parallel=max(1, int(lim.get("max_parallel", 1) or 1)),
             max_auto_tasks=max(0, int(lim.get("max_auto_tasks", 8))),
+            max_image_usd=max(0.0, float(lim.get("max_image_usd", 0) or 0)),
         ),
         allow_shell=bool(ws.get("allow_shell", True)),
         git=bool(ws.get("git", True)),

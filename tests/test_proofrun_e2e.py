@@ -10,10 +10,10 @@ import json
 import pytest
 
 from roundtable import proofrun
-from roundtable.harness import soundprice
-from roundtable.harness.soundstage import SoundStage
 from roundtable.providers.base import ProviderError
 from roundtable.providers.scripted import ScriptedImages, ScriptedProvider, ScriptedSoundProvider, reply
+
+from .soundfakes import mp3
 
 GAME = """<!doctype html><html><head><title>Lantern Run</title></head><body><canvas id="c"></canvas>
 <script src="game.js"></script></body></html>
@@ -105,21 +105,6 @@ class FakeBalance:
         return {"deepseek": {"amount": amount, "currency": "USD"}}
 
 
-def fake_sound_task(self, task, role):
-    """Helper w9-sound's sound job, stood in for here (it isn't merged on this branch): one scripted sound,
-    charged like a picture, written where the plan says."""
-    ref = role.models[0]
-    prov = self.cfg.provider(ref.provider)
-    data, ext, usage = prov.generate(ref.model, task.description, task.sound_options)
-    self.budget.charge(usage.cost_usd, ref=ref, usage=usage, role=task.role)
-    self._save_spend()
-    path = self.ws.path(task.output_path or f"assets/sounds/{task.id.lower()}.{ext}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
-    task.summary = f"made {path.name}"
-    return True
-
-
 @pytest.fixture
 def quiet(monkeypatch):
     from roundtable.harness.orchestrator import Orchestrator
@@ -136,7 +121,7 @@ def lab_with(tmp_path, brain, *, art=True, sound=True, images=None, sounds=None,
     cfg = proofrun.load_lab_config(lab)
     cfg.register("deepseek", ScriptedProvider("deepseek", brain))
     images = images or PricedImages()
-    sounds = sounds or ScriptedSoundProvider("elevenlabs_sound", sounds=[(b"ID3" + b"\0" * 64, "mp3", 0.013)] * 4,
+    sounds = sounds or ScriptedSoundProvider("elevenlabs_sound", sounds=[(mp3(1.0), "mp3", 0.013)] * 4,
                                              price=0.013)
     if art:
         cfg.register("retrodiffusion", images)
@@ -146,8 +131,6 @@ def lab_with(tmp_path, brain, *, art=True, sound=True, images=None, sounds=None,
 
 
 def test_the_dress_rehearsal_builds_the_game_end_to_end(tmp_path, monkeypatch, quiet):
-    monkeypatch.setattr(soundprice, "per_sound", lambda cfg, model, kind, seconds, charges=None: 0.013)
-    monkeypatch.setattr(SoundStage, "_run_sound_task", fake_sound_task)
     brain = GameBrain()
     lab, cfg, images, sounds = lab_with(tmp_path, brain)
     bal = FakeBalance(fall=0.05)
@@ -183,7 +166,7 @@ def test_the_dress_rehearsal_builds_the_game_end_to_end(tmp_path, monkeypatch, q
     import yaml
 
     settings = yaml.safe_load((root / ".harness" / "project.yaml").read_text(encoding="utf-8"))
-    assert settings["limits"] == {"max_cost_usd": 3.0, "max_real_usd_per_run": 2.0}
+    assert settings["limits"] == {"max_cost_usd": 3.0, "max_real_usd_per_run": 2.0, "max_image_usd": 0.5}
     assert settings["checking"] == "lean"
     assert settings["providers_allowed"] == ["deepseek", "elevenlabs_sound", "retrodiffusion"]
 
@@ -200,7 +183,8 @@ def test_without_art_and_sound_the_game_is_drawn_and_heard_in_code(tmp_path, qui
 
 def test_a_sound_service_that_cant_be_priced_is_left_out_and_said(tmp_path, quiet):
     plan = [PLAN[0], PLAN[3]]
-    lab, cfg, _, _ = lab_with(tmp_path, GameBrain(plan), art=False)  # per_sound gives no price before w9-sound
+    unpriced = ScriptedSoundProvider("elevenlabs_sound", price=None)  # a sound service that gives no price
+    lab, cfg, _, _ = lab_with(tmp_path, GameBrain(plan), art=False, sounds=unpriced)
     rep = proofrun.run(lab, cfg, yes=lambda w: True, balance=FakeBalance())
     assert "sound" not in cfg.roles and "couldn't be priced" in rep["sounds"]["words"]
     assert any(f["where"] == "sound" for f in proofrun.findings(rep))

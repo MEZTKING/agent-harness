@@ -104,8 +104,14 @@ PHONE_ROUTES = {
     ("GET", "/api/documents"),  # your documents, read only; adding or removing a folder stays on the PC
     ("POST", "/api/agents"),  # give a job to an agent that already exists; making or renaming one stays on the PC
     ("POST", "/api/chat/talk"),  # Talk through the PC: the answer may name an action, never done by this route
+    # wave 9: read only, except a translation (priced, off by default, its own daily allowance)
+    ("GET", "/api/sounds"),  # a project's bought sounds (ui/soundapi.py); buying or the service stays on the PC
+    ("GET", "/api/app/frame"),  # a running app's frame, view only (ui/appframeapi.py)
+    ("GET", "/api/todo/actions"), ("GET", "/api/hub/seats"),  # to-dos as actions and who listens (ui/todoapi.py)
+    ("GET", "/api/proofrun"),  # how the proof run went (ui/proofrunapi.py); starting one stays on the PC
+    ("GET", "/api/words"), ("POST", "/api/translate"),  # the app in the owner's language (ui/wordsapi.py)
 }
-PC_ONLY_ASKS = ("shipoffer",)  # cards answered only on the PC (a download onto the PC itself)
+PC_ONLY_ASKS = ("shipoffer", "officeart")  # cards answered only on the PC (a download onto the PC, the office art)
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))
 
@@ -331,7 +337,9 @@ class PhoneAccess:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ctx.minimum_version = ssl.TLSVersion.TLSv1_2
             ctx.load_cert_chain(self.cert, self.key)
-            httpd = ThreadingHTTPServer(("0.0.0.0", s["port"]), make_phone_handler(self))
+            from . import webphone
+
+            httpd = ThreadingHTTPServer(("0.0.0.0", s["port"]), webphone.wrap(make_phone_handler(self), self))
             httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
             httpd.daemon_threads = True
         except OSError as e:

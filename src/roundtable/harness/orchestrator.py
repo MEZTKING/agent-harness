@@ -1052,8 +1052,15 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         except Exception:
             screens = False
         extras = [e for n in self.ESTIMATE_PARTS if (e := self._hook(n, tasks))]  # the stages' own costs
+        try:  # wave 9: the fixed token guess replaced by real attempts' tokens, per job and size
+            from . import estimatedefaults, stages as stagelib
+
+            token_rows = estimatedefaults.rows(uniq)
+            sizes = stagelib.read(self.project.root).get("sizes", {})
+        except Exception:  # the estimate must never stop planning
+            token_rows, sizes = None, None
         return plandoc.estimate(self.cfg, [t for t in tasks if t.status == "pending"], plandoc.history_by_role(uniq),
-                                screens=screens, extras=extras)
+                                screens=screens, extras=extras, token_rows=token_rows, sizes=sizes)
 
     def plan(self) -> list[Task]:
         meta = self.project.meta()
@@ -1225,6 +1232,13 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         new_doc["history"].append({"at": utcnow(), "version": new_doc["version"], "by": by,
                                    "change": (instruction[:300] or changes[:300]), "diff": diff})
         new_doc["pending"] = []
+        if by != "critic":  # a third or more changed: the critique is marked and the critic offered again
+            try:
+                from . import lookagain
+
+                lookagain.mark(self.project.root, new_doc, diff, len(old_open), self.cfg)
+            except Exception:  # noqa: BLE001 - never stops a revision
+                pass
         all_tasks = keep + new
         self.project.save_tasks(all_tasks)
         new_doc["estimate"] = self._estimate(new, new_doc.get("has_ui"))
@@ -1563,6 +1577,11 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 opts["from_image"] = str(self.ws.path(opts["from_image"]))  # a file of the project, as a full path
             info: dict[str, Any] = {}
             opts["record"] = info  # the provider says how it made the picture see-through, if it did
+            over = self._image_cap_words(ref)
+            if over:  # the project's own picture limit (limits.max_image_usd): never past it
+                self.emit("image_cap", {"model": str(ref), "words": over})
+                task.summary = over
+                return False
             try:
                 self.budget.check()
                 data, ext, usage = provider.generate(ref.model, task.description, opts)
@@ -1594,7 +1613,42 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         task.summary = f"image generation failed: {last}"
         return False
 
+    def _image_cap_words(self, ref) -> str:
+        """"" while the next picture fits under ``limits.max_image_usd`` (0: no limit), else the sentence to stop
+        with. Counts what this project's pictures really cost so far, plus the next one's price."""
+        cap = float(getattr(self.cfg.limits, "max_image_usd", 0) or 0)
+        if cap <= 0:
+            return ""
+        from .imageprice import per_image
+
+        image_roles = {n for n, r in self.cfg.roles.items() if r.kind == "image"}
+        spent = 0.0
+        for t in self.project.tasks():
+            if t.role in image_roles:
+                spent += sum(float(a.get("cost_usd") or 0) for a in (t.attempts or []))
+        nxt = per_image(self.cfg, ref, [self.project.dir / "metrics.jsonl"]) or 0.0
+        if spent + nxt <= cap + 1e-9:
+            return ""
+        return (f"pictures reached their limit of ${cap:.2f} for this project (${spent:.2f} spent); raise "
+                f"max_image_usd in the project's settings to make more")
+
     def _run_task(self, task: Task, tasks: list[Task]) -> bool:
+        """One task, inside its run-timeline span (otel.py: nothing is written while timelines are off)."""
+        from .. import otel
+        from .usage import project_id
+
+        with otel.span(getattr(self, "usage_home", None), "task", task=task.id, role=task.role, project=project_id(self.project.root),
+                       restricted=otel.restricted(self._otel_values())):
+            return self._run_task_body(task, tasks)
+
+    def _otel_values(self) -> dict[str, Any]:
+        """The project's own settings, so a project kept to some services never sends its timeline out."""
+        try:
+            return self.project_settings().values
+        except Exception:  # noqa: BLE001
+            return {"providers_allowed": True}
+
+    def _run_task_body(self, task: Task, tasks: list[Task]) -> bool:
         role = self.cfg.roles.get(task.role)
         if not role:
             raise HarnessError(f"task {task.id}: role {task.role!r} no longer exists in config")
@@ -2125,6 +2179,14 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         except (HarnessError, BudgetExceeded) as e:
             summary = f"(summary unavailable: {e})"
         summary += self._hook("_done_report_note", default="")  # "Finished: 5 of 7 checked …" (donestage.py)
+        try:  # which sounds were bought and which made in code (soundstage.py)
+            from .soundstage import report_lines as _sound_lines
+
+            lines = _sound_lines(self.project.root)
+            if lines:
+                summary += "\n\n" + "\n".join(f"- {ln}" for ln in lines)
+        except Exception:  # noqa: BLE001
+            pass
         (self.project.dir / "summary.md").write_text(summary + "\n", encoding="utf-8")
         self._set_status("done")
         self._resolved("approval", "budget", "money", note="the run finished")
@@ -2132,6 +2194,17 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         self._hub_update("done", f"completed goal: {meta['goals'][-1][:200]}")
         self._close_goal_plans(meta["goals"])
         meta = self.project.meta()
+        try:  # the estimate beside the real cost, kept so the next estimate learns (estimatedefaults.py)
+            from . import estimatedefaults
+
+            agreed = meta.get("agreed") or {}
+            got = estimatedefaults.after_run(self.project.dir, agreed.get("usd"),
+                                             float(meta.get("spent_usd") or 0) - float(agreed.get("spent_before") or 0),
+                                             self.project.root.name)
+            if got.get("line"):
+                self._journal("decision", got["line"])
+        except Exception:  # noqa: BLE001 - never stops the finish
+            pass
         first = next((ln.strip("# ").strip() for ln in summary.splitlines() if ln.strip()), "")
         # the owner reads the next steps on the phone and in the app: plain sentences; the paths and
         # commands go in the details

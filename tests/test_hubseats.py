@@ -82,3 +82,20 @@ def test_the_routes(tmp_path, monkeypatch):
     assert r["sent"]
     r = app.dispatch("POST", "/api/hub/send-once", {}, {"agent": "harness", "folder": "kite-shop", "action": "approve"})
     assert not r["sent"]
+
+
+def test_the_seat_reads_who_runs_it_from_the_readers_file(tmp_path):
+    """One source of truth: reach.readers (plans/readers/<project>.json, GET /api/listening's projects)."""
+    repo, app = _app(tmp_path)
+    _beat(repo, 1)  # a PC listened a minute ago, but nobody has run kite-shop for an hour
+    old = (datetime.now(timezone.utc) - timedelta(minutes=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    (repo / "plans" / "readers").mkdir()
+    (repo / "plans" / "readers" / "kite-shop.json").write_text(json.dumps(
+        {"project": "kite-shop", "agent": "harness", "folder": "kite-shop", "machine": "PC-desk", "machine_id": "m1",
+         "kind": "session", "at": old, "state": "reading", "note": ""}), encoding="utf-8")
+    s = hubseats.seats(app)[0]
+    assert s["listening"]["stale"] and s["listening"]["words"].startswith(reach.NOBODY)
+    assert s["listening"]["offers"][0]["id"] == "phone"
+    got = hubseats.send_once(app, "harness", "kite-shop", "approve")
+    assert got["reply"].startswith("Sent, but nothing is listening there right now. " + reach.NOBODY)
+    assert reach.listening(app.hub)["projects"][0]["words"] == s["listening"]["words"]

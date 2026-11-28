@@ -311,6 +311,11 @@ class RepoStage:
         except HarnessError as e:
             self._set_status("blocked", reason=str(e)[:500])
             raise
+        from . import setupdecl  # what the repository says it needs (siblings, system packages): asked first
+
+        stop = setupdecl.before_run(self)
+        if stop:
+            return stop
         meta = self.project.meta()
         values = st.values
         prev = meta.get("setup") or {}

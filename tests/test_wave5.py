@@ -131,7 +131,8 @@ def test_the_app_tab_and_the_phone_routes_are_wired():
 
     assert {"doneapi", "stagesapi", "appapi"} <= set(server.FEATURE_APIS)
     assert {("GET", "/api/done"), ("GET", "/api/done/evidence"), ("GET", "/api/stages")} <= PHONE_ROUTES
-    assert not any(p.startswith("/api/app") for _, p in PHONE_ROUTES)  # the command is never started from the phone
+    # the command is never started from the phone; only the running app's frame is seen (wave 9, view only)
+    assert [r for r in PHONE_ROUTES if r[1].startswith("/api/app")] == [("GET", "/api/app/frame")]
 
 
 def test_approving_before_there_is_a_plan_agrees_nothing(tmp_path):

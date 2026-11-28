@@ -22,10 +22,12 @@ from typing import Any
 
 from .core import secrets as vault
 
-GROUPS = ("Models", "Pictures", "GitHub", "Web search", "Tool servers", "Plug-ins")
+GROUPS = ("Models", "Pictures", "Sound", "GitHub", "Web search", "Tool servers", "Plug-ins")
 PICTURE_TYPES = ("chat_images", "openai_images", "retrodiffusion")
+SOUND_TYPES = ("elevenlabs_sound", "stable_audio")  # wave 9: sound effects and music (catalog category sound)
 DEFAULT_KEYS = {"anthropic": "ANTHROPIC_API_KEY", "chat_images": "OPENROUTER_API_KEY",
-                "retrodiffusion": "RETRODIFFUSION_API_KEY"}
+                "retrodiffusion": "RETRODIFFUSION_API_KEY", "elevenlabs_sound": "ELEVENLABS_API_KEY",
+                "stable_audio": "STABILITY_API_KEY"}
 _TESTS: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()
 
@@ -74,7 +76,7 @@ def listing(cfg, harness_path: str | Path | None = None, servers: dict[str, Any]
     for name, spec in sorted(providers.items()):
         spec = spec or {}
         kind = str(spec.get("type") or "")
-        group = "Pictures" if kind in PICTURE_TYPES else "Models"
+        group = "Pictures" if kind in PICTURE_TYPES else "Sound" if kind in SOUND_TYPES else "Models"
         who = _jobs_using(cfg, name)
         if kind == "cli":
             rows.append(_row(f"provider:{name}", group, f"{name} (coding helpers on this computer)", "ready",

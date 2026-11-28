@@ -173,7 +173,7 @@ def test_the_other_stubs_have_their_frozen_signatures_and_do_nothing(tmp_path):
     assert _sig(officeart.manifest) == "() -> list[dict[str, Any]]"
     assert _sig(officeart.quote) == "(provider) -> dict[str, Any]"
     assert _sig(officeart.make) == "(provider, stage: str, out, spent_file) -> dict[str, Any]"
-    assert officeart.manifest() == [] and officeart.quote(None)["cap"] == 10.0
+    assert isinstance(officeart.manifest(), list) and officeart.quote(None)["cap"] == 10.0  # filled by w9-office
     assert _sig(translate.price) == "(cfg, text: str, lang: str) -> float | None"
     assert _sig(translate.words) == "(cfg, root, text: str, lang: str, why: str) -> dict[str, Any]"
     assert translate.words(None, tmp_path, "Done", "ar", "a card") == {"text": "Done", "cached": False, "usd": 0.0}
@@ -186,8 +186,7 @@ def test_the_other_stubs_have_their_frozen_signatures_and_do_nothing(tmp_path):
     assert todoactions.action_for({"text": "add a key"}, None)["route"] == "#/settings/keys"  # filled by w9-gaps
     assert _sig(proofrun.prepare) == "(lab, idea: str, caps: dict[str, Any]) -> dict[str, Any]"
     assert _sig(proofrun.report) == "(lab) -> dict[str, Any]"
-    with pytest.raises(NotImplementedError):
-        proofrun.prepare(tmp_path, "a made-up game", {})
+    assert proofrun.report(tmp_path / "none") == {"ready": False, "words": "No proof run yet."}  # filled by w9-proof
 
 
 # -- the words stay British English -----------------------------------------------------------------------------

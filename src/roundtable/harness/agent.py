@@ -13,6 +13,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .. import otel
 from ..providers.base import Provider, ProviderError, Usage
 from .breaker import Breaker, BreakerSettings, work_tokens
 from .config import HarnessConfig, ModelRef
@@ -172,8 +173,12 @@ def run_agent(
         budget.check()
         sys_sent, msgs_sent = plugins.before_model_call(str(ref), system, messages)
         m0 = clock()
-        resp = provider.chat(ref.model, sys_sent, msgs_sent, toolbox.specs(), max_tokens=max_tokens, options=options,
-                             **_delta_kw(provider, on_delta))
+        with otel.span(otel.here(), "model", model=str(ref), role=role or "", step=step) as _sp:  # run timeline
+            resp = provider.chat(ref.model, sys_sent, msgs_sent, toolbox.specs(), max_tokens=max_tokens,
+                                 options=options, **_delta_kw(provider, on_delta))
+            if _sp:
+                _sp.set("input_tokens", resp.usage.input_tokens)
+                _sp.set("output_tokens", resp.usage.output_tokens)
         took = clock() - m0
         model_s += took
         plugins.after_model_call(str(ref), resp, resp.usage)
@@ -211,7 +216,10 @@ def run_agent(
                 else:
                     brk.tool_started(tc.name)
                     a0 = clock()
-                    out, is_err = toolbox.call(tc.name, tc.arguments)
+                    with otel.span(otel.here(), "tool", tool=tc.name) as _tsp:
+                        out, is_err = toolbox.call(tc.name, tc.arguments)
+                        if _tsp and is_err:
+                            _tsp.error("the tool reported a problem")
                     took = clock() - a0
                     tool_s += took
                     change = toolbox.take_change()
