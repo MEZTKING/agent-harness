@@ -6,6 +6,100 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-28 – Wave 9 merged (1.5.0): the seven helpers, every hook-up, the words sweep
+
+Asked: merge the seven wave 9 helpers in order (w9-sound, w9-office, w9-local, w9-gaps, w9-proof, w9-letters,
+w9-phone, w9-words), do every hook-up line in their reports and the plan's wrap-up items that cost nothing, keep
+one source of truth for who runs a project, check the phone's Sounds card against the PC's answer, take the
+proof run's stand-ins out, the words sweep last, version 1.5.0. Spend nothing: no real API call was made.
+
+Merged (no conflicts): d2d53e4 w9-sound, 60fd927 w9-office, 657e68f w9-local, 2d7ebde w9-gaps, 4f44eff w9-proof,
+95ec462 w9-letters, 2752635 w9-phone (Part A), ddf56cf w9-words. `tests/test_wave9_seam.py`: every frozen-signature
+assert kept; the stub-behaviour asserts now expect the filled code (`officeart.manifest()` a list,
+`proofrun.report` of an empty lab "No proof run yet.").
+
+Hooked up, by file:
+- `ui/server.py` `FEATURE_APIS` += wordsapi, soundapi, officeapi, countsapi, otelapi, webphoneapi, appframeapi,
+  todoapi, proofrunapi; `dispatch` counts each route's family first (`localcounts.count`, never fails a call);
+  `serve` and `desktop.start_server` set `app.ui_port` and start the loopback telemetry receiver
+  (`otelapi.start`, only when switched on).
+- `phone.py`: read-only routes `/api/sounds`, `/api/app/frame`, `/api/todo/actions`, `/api/hub/seats`,
+  `/api/proofrun`, `/api/words` and `POST /api/translate`; `PC_ONLY_ASKS` += officeart; the phone server's handler
+  is wrapped by `webphone.wrap` (the iPhone page, refused while `webphone.ADVISED` is False).
+- `harness/config.py`: `merge_custom` takes the app's `sound` section; `Limits.max_image_usd` (also in
+  `projectsettings.LIMIT_KEYS`). `harness/orchestrator.py`: `_image_cap_words` (the next picture never past the
+  project's picture limit; `tests/test_image_cap.py`), `_run_task` wraps `_run_task_body` in a task span
+  (`otel.span`, restricted for a project kept to some services, `_otel_values`), `revise_plan` calls
+  `lookagain.mark`, `_finish` adds `soundstage.report_lines` to the report and writes the estimate beside the real
+  cost (`estimatedefaults.after_run`, one journal line past a quarter's drift), `_estimate` passes real attempts'
+  tokens and the stages' sizes (`plandoc.estimate(token_rows=, sizes=)`, the fixed guess below ten rows).
+- `harness/agent.py`: model and tool spans inside the task's (`otel.here()`, new). `retention.py`: `traces_days`
+  14 and the "run timelines" step. `providers/cli_engine.py`: `OTEL_RESOURCE_ATTRIBUTES` += roundtable.driven=true.
+- `harness/repostage.py` `_prepare_run`: `setupdecl.before_run` first. `asks.py`: the look-again and set-up cards
+  and their answers. `harness/refstage.py`: a failed reference tried once more (`scout.retry_due`).
+  `harness/projectsettings.py`: `siblings` and `system` read elsewhere (`READ_ELSEWHERE`, no warning).
+  `prereq.CATALOG`: Google Drive for desktop (`gdrive`, winget `Google.GoogleDrive`, `_find_gdrive`).
+  `integrations.py`: a Sound group (`SOUND_TYPES`). `harness_cli.py`: `roundtable office-art quote | sample |
+  approve | rest | remake ID` and `roundtable proofrun`. `proofrun.plan_phase`: `max_image_usd` = the picture cap.
+- One source of truth for who runs a project: `hubseats.listening(app, project)` and the new `for_project` read
+  `reach.listening`'s `projects` (`reach.readers`, `plans/readers/<project>.json`); a seat without a reader file
+  falls back to the machine beat. `send_once` says "nobody is running this project" from the reader. Test:
+  `test_the_seat_reads_who_runs_it_from_the_readers_file`.
+- `ui/roundtable.py` `build`: each to-do carries its `action` (`todoactions.action_for`), the hub's seats joined
+  (`hubseats.join`), the office art's sample card in Needs you (`officeart.sample_ask`, `via: here`).
+- The desktop: `settings.js` (Sound and music under AI services, Prove it under Spending, the iPhone page under
+  Your phone, Browse for the backups folder, what you use most and run timelines under Advanced, Language),
+  `project.js` (the Sounds card; who runs a project elsewhere under Where it stands), `needs.js` (a to-do's own
+  button first; a card answered on its own route, with the usual "Are you sure?"), `hall.js` (the Ring | Office
+  switch, shown only once the office has pictures), `watch.js` (Timeline under Every detail; Read in <language>
+  under what builders and reviewers write), `asks.js` (Read in <language> under a card's reasons), `core.js` by
+  hand (project names kept as they are, markdown and prose from models kept as written, `ago` in the chosen
+  language, its two error sentences through `t`), `index.html` (`rtl.css`), `housestyle.block` (the owner's
+  language line). Then `tools/words_sweep.py --css` (269 template strings to `t(…)`; style.css
+  and the modules' own styles to logical properties) and `tools/words_extract.py`: 2,372 sentences in
+  `lang/en-GB.json`, **17** places not through the table (`NOT_THROUGH_LIMIT` 287 → 17).
+- The phone: the Sounds card's shape was guessed; it now reads the PC's own (`data/Documents.kt` `SoundItem`
+  {task, title, file, kind, service, made, usd, licence{…}}, `SoundsView` {sounds, spent, cap, owner_cap, words});
+  `Api.kt` `FEATURE_PREFIXES` += /api/sounds; `tests/conformance/calls.json` `sounds` with two made-up sounds,
+  `ConformanceTest.kt` decodes them; every conformance fixture written again. `tests/test_thisphone_fixtures.py`
+  (the generator's body: `UPDATE_GOLDENS=1` writes, else checks the keys). CI's `android-apk` job also runs
+  `assembleRelease`.
+- Tests changed: `test_proofrun_e2e.py` (the stand-ins for soundprice and SoundStage removed: a real 1-second MP3
+  from `soundfakes.mp3`, the unpriced case with a service that gives no price, the picture cap in the project's
+  limits), `test_stage_hooks.py` (SoundStage in STAGES), `test_prereq.py` (gdrive), `test_appserver.py` (the
+  phone's only /api/app route is the frame, read only), `test_hubseats.py` (+1).
+- Docs: `docs/phone-security.md` (the iPhone page, the frame relay, the DeepSeek key, the lost-phone step),
+  `docs/art.md` (the office's 33 pieces, costs after the run), `docs/desktop-design.md` (The office),
+  `docs/kinds.md` (Sound), `docs/sound.md` (what the adapters assume). No borrowed code in wave 9, so
+  `THIRD_PARTY_NOTICES.md` is unchanged.
+- `plans/parity.md`: MD-64, MD-91, DS-06 (not needed: This phone does it), DS-38, DS-44, DS-46 to Have; MD-29,
+  MD-90, DS-70, DS-73 to Partly (built; the pictures, the tables, the owner's yes, Part B); no row Planned or
+  Missing. `plans/gaps.md`: fourteen items to Fixed, four new (a PC without a project's files, a forged hub
+  command, the phone's languages, the letters' replies cut). `plans/owner-todo.md` from w9-gaps (nothing asks the
+  owner to leave the app), plus the music player's six letters and the phone download's signing key.
+  `plans/notes-for-owner.md`: the chat decision, Fable's advice on the phone's DeepSeek key and the six letters.
+
+Also: `static/webphone/card.js` moved to `static/webphonecard.js` (the page's modules are shipped flat,
+`test_desktop_ui`); the task span reads `usage_home` with `getattr` (the bare seams have no usage stage);
+`test_moneygate.py`'s `no_history` also leaves out real attempts' tokens (the gate's tests stay on typical sizes);
+`ui/static/whatsnew.md` bundled again from the README.
+
+Decided: the office card's route answer posts `{choice, confirm}` after askCard's own "Are you sure?"; a sound in
+the proof rehearsal is now a real MP3 so the real check passes; `siblings`/`system` are not form settings (a
+dict entry can't be shown as text). Not done: the optional sound rates in the estimate (`soundprice.rates`, the
+history's charges already price it) and Approve through `approveOnce` on the plan card (the hub command already
+sends once from the to-do's button). Letters: nothing new added; the chat replaces them in a later step.
+
+The incident (w9-letters, before the hold reached it): six of the eight music-player letters in the hub were
+processed (26 hub commits 4ef71eb..02f6168: six marked read, six receipts, the answer and five accepted ideas as
+changes waiting on the plan, which is still v2; `plans/music-player.md` republished). The owner chose to keep
+them. Nothing was built; DeepSeek balance $3.65 before and after (logged $0.00136 plus a cut-off planning call).
+
+Paid runs left for the coordinator (none made here): the language tables (eleven, about $0.92, `--max-usd 1.0`,
+first without `--confirm`); the sound adapters' real calls (about $0.30); the office art (quote free, sample at
+most $1.50, the rest $3–5 after the owner's yes, at most $10); the proof run (at most $3); one streamed call per
+provider (a few cents).
+
 ## 2026-11-28 – Wave 9, step 0: the seams
 
 Asked: step 0 of the wave 9 plan (→ 1.5.0): stubs with frozen signatures for the seven helpers, the six phone

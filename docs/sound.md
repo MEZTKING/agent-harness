@@ -43,6 +43,15 @@ So the gap is smaller than the plan said. ElevenLabs is still better and cheaper
 Audio no longer costs much more for a small game's handful of sounds, and has no monthly charge. That is the
 owner's question 1 (one card in the app).
 
+## What the adapters assume (1.5.0, not yet checked with a real call)
+
+The owner chose ElevenLabs (28 November 2026; Stable Audio stays as the second choice). The adapters price
+before each sound: ElevenLabs at $0.12 a minute for effects and $0.15 for music (`providers/elevenlabs_sound.py`),
+the real charge read as the drop in the subscription's credit; Stable Audio at 8 credits × $0.01 a clip, its
+balance read before and after (`providers/stable_audio.py`). The coordinator's first real calls (one 2-second
+effect and one short music loop, about $0.30 in all) check the request bodies, the field names and the real
+price; this section is then corrected with what they cost.
+
 ## Pages read
 
 - <https://elevenlabs.io/pricing/api> (plans, sound effects and music by the minute, music licence)

@@ -34,6 +34,51 @@ Notes for the people placing the art:
   background no longer shows; the phone helper may still set `ink` to the new background `#0a0a0f`.
 - The adaptive icon had no monochrome layer before, so none was added.
 
+## The office (1.5.0, wave 9; not made yet)
+
+The office view on Home (`ui/static/office.js`) only places pictures; it draws none itself. Its 33 pieces are
+listed in `src/roundtable/ui/static/office/manifest.json` (room 384 × 216) and made by Retro Diffusion through
+`roundtable office-art` (`officeart.py`): `quote` is free, `sample` makes the seven sample pieces (at most $1.50)
+and a sample sheet for the owner's look, `rest` only after the owner's yes; never more than $10 in all, the quote
+trimmed to stay under $8. The style names come from the manifest: check them with the provider's own list before
+the sample. The real cost goes in this table after the run.
+
+| Piece | File | Size | Stage | Style | Real cost |
+|---|---|---|---|---|---|
+| `wall` | wall.png | 64 × 64 | sample | `rd_tile__single_tile` | (after the run) |
+| `floor` | floor.png | 64 × 64 | rest | `rd_tile__single_tile` | (after the run) |
+| `window` | window.png | 64 × 64 | rest | `rd_tile__single_tile` | (after the run) |
+| `desk` | desk.png | 64 × 64 | sample | `rd_core__topdown` | (after the run) |
+| `shelf` | shelf.png | 64 × 64 | sample | `rd_core__topdown` | (after the run) |
+| `terminal` | terminal.png | 64 × 64 | rest | `rd_core__topdown` | (after the run) |
+| `mailbox` | mailbox.png | 64 × 64 | rest | `rd_core__topdown` | (after the run) |
+| `door` | door.png | 64 × 64 | rest | `rd_core__topdown` | (after the run) |
+| `sofa` | sofa.png | 96 × 64 | rest | `rd_core__topdown` | (after the run) |
+| `whiteboard` | whiteboard.png | 64 × 64 | rest | `rd_core__topdown` | (after the run) |
+| `plant` | plant.png | 64 × 64 | rest | `rd_core__topdown` | (after the run) |
+| `maelin-walk` | maelin-walk.png | 48 × 48 | sample | `animation__four_angle_walking` | (after the run) |
+| `maelin-work` | maelin-work.png | 48 × 48 | sample | `animation__any_animation` | (after the run) |
+| `torvic-walk` | torvic-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `torvic-work` | torvic-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `ondra-walk` | ondra-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `ondra-work` | ondra-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `kestrel-walk` | kestrel-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `kestrel-work` | kestrel-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `calla-walk` | calla-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `calla-work` | calla-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `pell-walk` | pell-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `pell-work` | pell-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `helper-a-walk` | helper-a-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `helper-a-work` | helper-a-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `helper-b-walk` | helper-b-walk.png | 48 × 48 | rest | `animation__four_angle_walking` | (after the run) |
+| `helper-b-work` | helper-b-work.png | 48 × 48 | rest | `animation__any_animation` | (after the run) |
+| `bubble-asleep` | bubble-asleep.png | 32 × 32 | rest | `rd_plus__ui_element` | (after the run) |
+| `bubble-question` | bubble-question.png | 32 × 32 | sample | `rd_plus__ui_element` | (after the run) |
+| `bubble-tick` | bubble-tick.png | 32 × 32 | sample | `rd_plus__ui_element` | (after the run) |
+| `bubble-warning` | bubble-warning.png | 32 × 32 | rest | `rd_plus__ui_element` | (after the run) |
+| `bubble-letter` | bubble-letter.png | 32 × 32 | rest | `rd_plus__ui_element` | (after the run) |
+| `bubble-coin` | bubble-coin.png | 32 × 32 | rest | `rd_plus__ui_element` | (after the run) |
+
 ## Checks
 
 Each final piece was looked at by eye; the wordmark reads "Darkness Harness", spelled right. The icon was

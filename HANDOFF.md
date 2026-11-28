@@ -1,4 +1,4 @@
-# Handoff – 28 November 2026 (wave 9, step 0)
+# Handoff – 28 November 2026 (wave 9 merged, 1.5.0 not released)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -27,25 +27,29 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 | Waves 1–3 | **Released** as 0.10.0, 0.11.0 and 0.12.0: autopilot and several tasks at once, comfort on the phone, proof, rewind, web search, kinds, the command line, pounds |
 | Waves 4–8 → **1.0.0 to 1.4.0** | **On `main`; 1.3.0 and 1.4.0 are released from it** (1.4.0 merged as #25). 1.0.0 the new name and the Eclipse look; 1.1.0 the done list, stages, finishing, real builds, money limits; 1.2.0 every model at once (the checking dial, rivals, the router, named agents); 1.3.0 it learns (the allowance, the charter, plug-ins in a box, search by meaning); 1.4.0 the board, words as they are written, `/` commands, follow-ups, timers, what each job may do, the editor and previews, work from outside, CI, the stand-up. DEVLOG has every hook-up. If a release of 1.0.0 to 1.2.0 is missing on GitHub, check before cutting 1.5.0 |
 | Beta (1.1.0 to 1.4.0) | Untried on real machines: a real Godot play, real EXE/APK/mod builds, window pictures, the emulator, junctions, the editor/PDF/Talk in the frozen app, engines installing themselves, the frozen `--python` and `--plugin-box`, the real cost of the checking dial and of a learning cycle, the six starter faces (initials show) |
-| Phone Part B | **On the session branch** `ccr-fca0772b-7ma69z` (commit 4d0e2e6, after 1.4.0, not released): words as they are written, the `/` menu, the queue, follow-ups, the new-project cards, timers' lines, the team, documents, previews and Talk on the phone. What it left is wave 9 helper 4 |
-| Wave 9 → **1.5.0** | **Step 0 done** (branch `w9-step0`, to be merged into the session branch): the seams with frozen signatures for the seven helpers (sound, the office, languages, the phone, the rows once declined, the biggest gaps, the proof run), the six phone routes Part B left with `phone.PHONE_NARROW`, This phone checked to answer like the PC, `docs/sound.md` (prices read on the day). A bare run sends byte for byte the same requests (`tests/test_wave9_seam.py`). The plan: the coordinator's `wave9-plan.md`; each open row names its helper in `plans/parity.md` and `plans/gaps.md` |
+| Phone Part B | **Merged** into the session branch before wave 9 (commit 4d0e2e6); its leftovers (Part A of w9-phone) are in `w9-integrate` |
+| Wave 9 → **1.5.0** | **Merged** on branch `w9-integrate` (all seven helpers and every hook-up line; version 1.5.0; not pushed, not released): sound (ElevenLabs, Stable Audio, $2 a project, made in code otherwise), the office (built; its pictures not made), eleven languages and right to left (built; the tables not made; the sweep done), to-dos as buttons and every hub project a seat with who runs it (`reach.readers`), the set-up a repository declares, the estimate's defaults from real runs, the critic looking again, local counts and run timelines, the iPhone page (built, off), a running app's frame on the phone, the proof run, a picture limit per project, the phone's Part A. **Not done:** the coordinator's paid runs, the phone's Part B (languages), the chat |
 | Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
 | Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
 
 ## 3. What to do next
 
-1. Merge `w9-step0` into the session branch; branch the seven wave 9 helpers off it (`w9-sound`, `w9-office`,
-   `w9-words`, `w9-phone`, `w9-local`, `w9-gaps`, `w9-proof`), each in its own worktree; merge them in that
-   order, `w9-phone` Part B last (it sweeps words in files the others add).
-2. The owner's questions, each a one-tap card: which sound service (ElevenLabs about $6 a month, or Stable
-   Audio at about 8 cents a clip – `docs/sound.md`); the office's sample sheet after its quote; the iPhone
-   page (Fable's advice first); which languages ship; the proof run (at most $3).
-3. Spend only after the merges, each priced first and written in DEVLOG: the language tables, the sound
-   adapters' real calls, the office art (at most $10), the proof run, one real streamed call per provider.
-4. Release 1.5.0 (CLAUDE.md "Releasing").
-5. On the owner's PC and phone through Remote Control: the beta list above, wave 8's table in DEVLOG's 1.4.0
-   entry, and wave 9's (the office in the frozen window, a bought sound playing, Arabic on both, Part B's
-   leftovers on a real phone).
+1. Merge `w9-integrate` into the session branch (all tests green there: see DEVLOG's newest entry).
+2. The coordinator's paid runs, each priced first, the real figure in DEVLOG (the list and the estimates are in
+   DEVLOG's newest entry): the language tables (about $0.92), the sound adapters' real calls (about $0.30), the
+   office art (quote free, sample at most $1.50, the rest only after the owner's yes, at most $10 in all), the proof
+   run (at most $3), one real streamed call per provider.
+3. Ask Fable, and note in `plans/notes-for-owner.md`: the iPhone page and its certificate, the frame relay, the
+   loopback telemetry receiver and the outside-collector switch, sound licences for a game the owner might sell,
+   a subscription as a service's price, machine-translated words shipped and labelled.
+4. The phone's Part B (the language tables in the APK, plural forms, right to left), after the tables exist.
+5. The chat in place of Letters (`plans/notes-for-owner.md`, 28 November: the owner's answers and Fable's
+   must-do list for the phone's DeepSeek key); Letters stay until then, with nothing new added to them. The owner
+   drives the music player's five accepted ideas through it (at most $2) before the release.
+6. Release 1.5.0 (CLAUDE.md "Releasing").
+7. On the owner's PC and phone through Remote Control: the beta list above, wave 8's table in DEVLOG's 1.4.0
+   entry, and wave 9's (the office in the frozen window, a bought sound playing, Arabic on both, Part A's
+   screens on a real phone).
 
 ## 4. Where to read more
 

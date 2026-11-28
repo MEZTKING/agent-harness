@@ -47,6 +47,35 @@ done on the PC only (Free asks "Are you sure?" there). A program on the PC can s
 hook (`/hooks/<id>`): that address is only on the desktop app, only from the PC itself (127.0.0.1), needs the
 hook's secret, and is never served by the phone server.
 
+Since 1.5.0 the phone can also **see** a project's sounds, its to-dos' buttons, who runs each hub project,
+how the proof run went, and the app's words in your language; it may ask for a translation (priced first, off by
+default, its own small daily allowance). Buying a sound, the office's pictures, the proof run itself and the
+office art's card stay on the PC (the office card is answered only there).
+
+### The page for an iPhone (built, switched off)
+
+There is no iPhone app. The phone server can show the phone's screens as a page at `/m/`, for an iPhone on the
+same Wi-Fi (`webphone.py`). Safari can't pin the PC's certificate the way the Android app does: it warns once,
+and you compare a few words shown on both screens (the certificate's fingerprint as words). Because that check
+is yours, not the app's, the page is **built switched off** (`webphone.ADVISED = False`) until Fable's advice on
+it and your yes. Only paired devices reach it; nothing else changes on the phone server.
+
+### A running app's frame on the phone (view only)
+
+`GET /api/app/frame` lets the phone see the page of an app the PC is running (the App tab). The PC fetches it
+from its own loopback address only (127.0.0.1, the app's own port), puts it in one page with a strict content
+policy (no scripts from elsewhere, nothing sent back), and the phone shows it as a still view. It never reaches
+any other address, and nothing on the phone can type into the app.
+
+### The DeepSeek key on the phone (with the chat, 1.5.0)
+
+The phone can answer by itself when no computer is on, with a DeepSeek key you paste once into the phone's key
+form. It is kept like your GitHub token (Android's keystore, AES-256-GCM), shown only by its last four
+characters, never copied to the clipboard, never written to the hub, a log or a crash report, and only sent to
+`api.deepseek.com` (no redirects followed). Only DeepSeek V4 Flash is used. Its $1 a day limit is the app's own
+count, so keep a small balance on a DeepSeek account used just for this. Nothing the phone reads can spend money
+or change anything without your tap.
+
 ## Pairing
 
 1. On the PC: **Settings → Your phone → Pair a phone**. A code shows for 5 minutes; five wrong
@@ -57,6 +86,7 @@ hook's secret, and is never served by the phone server.
 ## If you lose the phone
 
 On the PC: **Settings → Your phone**, then **Remove** next to it. The phone's pass stops working
-straight away. If you also gave the phone a GitHub token, delete that token on GitHub too.
+straight away. If you also gave the phone a GitHub token, delete that token on GitHub too. If you gave it a
+DeepSeek key, delete that key on DeepSeek's site as well.
 
 Turning off phone access on the PC stops the phone server and the Wi-Fi answer at once.

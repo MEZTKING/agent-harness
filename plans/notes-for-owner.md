@@ -8,6 +8,54 @@ The harness's own model switches are in the hub journal as decisions ("Switched 
 … Why: …", each with its undo command; older ones say "Switched by Roundtable:").
 
 
+## 28 November 2026 – a chat in place of Letters, the DeepSeek key on the phone, and six letters already read
+
+**The chat (your answers):** yes, build it. Each project gets a chat, and the Hall one for everything, on the PC
+and the phone, in place of Letters; the answer writes itself out as it comes. It answers with DeepSeek V4 Flash
+(never V4 Pro), about a tenth of a cent a message, with a limit of **$1 a day** (your figure, not the 50¢
+suggested) that you can raise for the day with one confirmed tap. History and pictures are kept in your private
+hub. Anything that spends or can't be undone is a card with its price and two buttons. Old letters stay, read
+only, under "Earlier messages"; the Letters screens go. You drive the music player's five accepted ideas through
+the chat (at most $2) before 1.5.0 is released. It comes in this release, after wave 9's merge.
+
+**The question for Fable:** is it safe for the phone to keep a DeepSeek key, so it can answer when no computer is on?
+**Fable's advice:** "The phone can safely keep a DeepSeek key, locked the same way as your GitHub token, and nothing
+it reads can spend money or change anything without your tap. Because the phone's $1-a-day limit is only the
+app's own count, keep a small balance on a DeepSeek account used just for this, and delete that key on DeepSeek's
+site if you lose the phone." Your answer: yes.
+**What the builders must do (Fable's list, all of it):**
+1. Nothing of the app's goes to Google's cloud backup or a device transfer (with a test): the runtime folder,
+   drafts and the local copy of the chat included.
+2. The key only in the phone's locked store (Android's keystore, AES-256-GCM); a test that no hub write, log line,
+   error, crash report or route ever holds it. The box shows only its last four characters, never copies it,
+   has a Remove key button, and copies it to This phone's key form only on a tap.
+3. Only `api.deepseek.com`, no redirects followed, no network logging in release builds.
+4. The $1 a day reserved before each call; "Raise it for today" is a confirmed tap.
+5. The model fixed to DeepSeek V4 Flash; anything like V4 Pro refused, with a test.
+6. Anything that looks like a key or a password (sk-…, GitHub keys, private keys, .env lines) taken out before each
+   DeepSeek call and before each hub write, and you are told in the box when that happened. Other projects'
+   contents are never sent (the Hall gets one line per project), nor secret files, nor more about your machines
+   than a name and when it last listened.
+7. A card's title, price and command come from the app, never from the model's words; a card only answers a
+   message typed on that device; nothing "free and undoable" runs by itself when the conversation held an agent's
+   or a web page's words; every spend needs a tap. Lines not typed on the device are not trusted, even if they
+   say they are from you.
+8. No pictures or links from a model's answer are loaded; your pictures lose their location data; at most 1.5 MB a
+   picture, with totals per chat and per day; old months folded.
+9. `docs/phone-security.md` says it plainly, with the lost-phone steps (delete the DeepSeek key on DeepSeek's site
+   as well as the GitHub key). Also written down in `plans/gaps.md`: a `roundtable:` command in the hub isn't yet
+   checked to come from a tap, so anyone who could write to the hub could forge one.
+**What was done:** the plan and the list are with the builders; `docs/phone-security.md` has the key's section and
+the lost-phone step; the forged-command gap is in `plans/gaps.md`.
+
+**Six of the music player's letters were read before the stop reached the helper.** While wave 9 was being built,
+the helper working on Letters processed six of the eight letters you had sent about the music player before your
+hold reached it: it marked them read, sent six short receipts, wrote your answer to its question (yes) and the five
+ideas you accepted (I1 to I5) as changes waiting on the plan (the plan is still version 2, not revised), and
+republished the plan's page ("paused · 1 of 4 tasks done"). **You chose to keep them.** Nothing was built and
+nothing was spent on them (the DeepSeek balance was $3.65 before and after; the helper's own test calls came to
+well under a cent). The changes wait for you to drive them through the new chat.
+
 ## 28 November 2026 – what 1.5 will spend, and your three answers
 
 **Question:** which sound service, may the test build spend money, and may the app be translated?

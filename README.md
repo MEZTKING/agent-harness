@@ -27,6 +27,37 @@ The app's look is **Eclipse**: a dark ring of lights, one for each project, roun
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\DarknessHarness` (or `%APPDATA%\RoundtableHold` if you had the app before 1.0.0) and is kept if you uninstall.
 
+### What's new in 1.5.0
+
+Sound, other languages, a little office, and a game built from one idea for a known price.
+
+- **Sound and music for games**: sound effects and a music loop from ElevenLabs (Stable Audio as the second
+  choice), each priced before it's made, never more than $2 a project. If the money runs out or no service is
+  picked, the sound is made in code instead, and the report says which. A project's **Sounds** card plays them.
+- **Your language**: Settings → Language. The app can be shown in eleven other languages, right to left for
+  Arabic; the words are a model's translation and labelled as such. **Read in <language>** under what a builder
+  or reviewer writes translates it, priced first.
+- **Every to-do has a button that does it** in the app (approve, carry on, add the key, turn on backups, set
+  GitHub's default branch…). Every project in the hub has a seat that says who runs it right now, and Approve is
+  sent once.
+- **The office** (once its pictures are made, with your yes to the sample): your agents at work in a little
+  pixel-art office, beside the Ring on Home.
+- **Prove it** (Settings → Spending): one idea, one small game, built end to end for at most $3, with the
+  estimate, the harness's own count and the real fall in the balance side by side.
+- **Private by default**: what you use most, counted on this computer only (Settings → Advanced); a timeline of
+  each run (Watch → More), off unless you turn it on. Before a project's first task on a new computer, one card
+  shows what it needs fetched and installed. The critic looks again after a big change to the plan. Pictures
+  have a limit of their own per project.
+- **The phone**: the timer on a question is held while you type, Answer these, the look's pictures on its card,
+  your documents, hiring, Talk through the PC, a project's sounds and settings (money and checking first).
+- **A chat in place of Letters** comes in this release too: a chat for each project and one for everything, on
+  the PC and the phone, answered by the cheap model (at most $1 a day). Old letters stay, read only.
+
+Beta notes: the office art, the language tables and the sound service's prices are made or checked with paid
+calls before the release; the office view, the languages on screen, a sound in a built game and the phone's new
+parts are still to be tried on your own PC and phone. The page for an iPhone is built but stays off until you
+say yes.
+
 ### What's new in 1.4.0
 
 It catches up: everything the two harnesses it was compared with can do, it can do too (the list is in

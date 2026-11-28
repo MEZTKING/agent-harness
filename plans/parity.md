@@ -18,9 +18,14 @@ code, for builders.
 
 | Project | Features | Have | Partly | Missing | Planned (was Not wanted) | Not wanted |
 |---|---|---|---|---|---|---|
-| Munder Difflin | 93 | 87 | 0 | 0 | 4 | 2 |
-| DSH Mobile + the DeepSeek Harness | 83 | 75 | 2 | 0 | 5 | 1 |
-| **Both** | **176** | **162** | **2** | **0** | **9** | **3** |
+| Munder Difflin | 93 | 89 | 2 | 0 | 0 | 2 |
+| DSH Mobile + the DeepSeek Harness | 83 | 79 | 3 | 0 | 0 | 1 |
+| **Both** | **176** | **168** | **5** | **0** | **0** | **3** |
+
+*Wave 9 (1.5.0, 28 November 2026): every Planned row is built. To Have: MD-64, MD-91, DS-06 (not needed: This
+phone does it), DS-38, DS-44 and DS-46. Partly: MD-29 (the office waits for its pictures, the coordinator's paid
+run), MD-90 and DS-73 (the language tables, the coordinator's paid run, and the phone's Part B), DS-70 (built,
+off until the owner's yes) and DS-47 (the owner's own no).*
 
 *Wave 9, step 0 (28 November 2026): the phone's Part B (commit 4d0e2e6) brought DS-13, DS-16, DS-31 and
 DS-83 to Have. Still Partly: DS-44 (the phone's countdown and hold, wave 9 helper 4) and DS-47 (the owner's
@@ -91,7 +96,7 @@ it's first in the ranking below.
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
-| MD-29 | The office floor in pixel art | Agents walk to the shelf, the terminal, the mailbox | `src/renderer/src/scene/office`, LimeZu tiles | **Planned, wave 9, helper 2 (w9-office)** (was Not wanted). The owner said yes on 27 November 2026: our own pixel art from Retro Diffusion, up to $10, quoted first, the sample sheet approved by the owner; never Munder Difflin's tiles. Seams in place (`office.py`, `officeart.py`, step 0). Today the Hall says the same in words (`ui/static/hall.js`) |
+| MD-29 | The office floor in pixel art | Agents walk to the shelf, the terminal, the mailbox | `src/renderer/src/scene/office`, LimeZu tiles | **Partly: built, waiting for its pictures** (1.5.0, wave 9, w9-office): the scene from what the harness knows (`office.py` `scene`), the art's manifest, quote, sample sheet and $10 cap (`officeart.py`, `ui/officeapi.py`, `roundtable office-art`), the view that only places pictures (`ui/static/office.js`) and the Ring or Office switch on Home (`hall.js`). The pictures are made by Retro Diffusion in the coordinator's paid run (the sample first, the rest only after the owner's yes); until then Home shows the Ring |
 | MD-30 | What each agent is doing, at a glance | Thinking, working, blocked, done | `SPEC.md` §4, `components/AgentCard.tsx` | **Have**: seat status in words (`ui/hall.py`, `ui/roundtable.py`) |
 | MD-31 | "Looping" and "compacting" states | The floor shows when the safety layer steps in | CHANGELOG "New avatar states" | **Have** (1.4.0, wave 8): Watch has a line for each safety stop and each compaction (`session.py` step kind "guard", `guard_line`) |
 | MD-32 | Live terminal for every agent | Watch the real output byte for byte, type into it | `components/PtyTerminalView.tsx`, `src/main/pty.ts` | **Have** (beta on Windows): a project's Command line tab on the PC, and each task's command as it prints with a Stop (`terminal.py`, `harness/livecmd.py`, wave 3) |
@@ -141,7 +146,7 @@ it's first in the ranking below.
 |---|---|---|---|---|
 | MD-62 | New models without a release | The model list is fetched from one file | `src/main/modelCatalog.ts`, `docs/model-catalog.json` | **Have**: models found live from each provider (`providers/catalog.py`), OpenRouter prices fetched (`providers/prices.py`) |
 | MD-63 | Real tokens and cost, for the app's lifetime | Per agent, per model | `src/main/costLifetime.ts`, `tokenUsage.ts` | **Have**: cost per step, spend, real balance, the cost log (`plugins/builtin/cost_log.py`) |
-| MD-64 | OpenTelemetry collector | Usage fed in by the CLIs' own telemetry | CHANGELOG "Live OTel telemetry" | **Planned, wave 9, helper 5 (w9-local)** (was Not wanted). Owner's answer, 27 November 2026: on this computer only (traces in a file the app shows; the coding helpers' own telemetry taken in on 127.0.0.1); an outside collector only if the owner types its address, with a warning. Seam: `otel.py` (step 0) |
+| MD-64 | OpenTelemetry collector | Usage fed in by the CLIs' own telemetry | CHANGELOG "Live OTel telemetry" | **Have** (1.5.0, wave 9, w9-local): run timelines as OpenTelemetry spans in a file on this computer, off by default (`otel.py`, `ui/otelapi.py`, `static/traces.js`, the Timeline fold on Watch); the coding helpers' own telemetry taken in on 127.0.0.1 (`otel.Receiver`); an outside collector only once the owner types its address and ticks the warning; a project kept to some services never sends its spans out |
 | MD-65 | Prerequisites page | Is git, Node, uv, each engine ready? Install buttons | `components/settings`, `src/main/cliReadiness.ts` | **Have**: the Tools page finds and installs what projects need (`prereq.py`, wave 1) |
 | MD-66 | Engines install themselves | A missing CLI or Node is installed, checked against its signature | `src/main/cliInstall.ts`, `nodeInstall.ts` | **Have** (1.4.0, wave 8): a task that stops for a missing coding helper gets "Install it and carry on" (only a checked download), then the task is tried again (`prereq.py` `engine_offer`, `install_and_carry_on`; `ui/reachapi.py`; the card in `ui/static/asks.js`) |
 | MD-67 | Change a model and keep the session | Switch model without losing the conversation | CHANGELOG "Changing an agent's model within the same provider resumes" | **Have**: routing changes apply to the next call (`routing.py`) |
@@ -192,8 +197,8 @@ it's first in the ranking below.
 |---|---|---|---|---|
 | MD-88 | Talk to the orchestrator by voice | A spoken conversation that reads the floor and acts after you confirm | `src/renderer/src/realtime/`, `src/main/realtime*.ts` | **Have** (1.4.0, wave 8): Talk: say a question and hear the answer, through the computer's own speech (`ui/static/voice.js` `talkButton`, `POST /api/chat/talk`); a maker's paid live voice model is left off (owner, 27 November 2026) |
 | MD-89 | Light and dark | Follows the computer | `DESIGN.md`, `src/shared/grokTheme.ts` | **Have**: `ui/static/theme.js`, Candlelit Oak light and dark |
-| MD-90 | Chinese and Arabic | The whole app in other languages, right to left | `src/renderer/src/i18n` | **Planned, wave 9, helper 3 (w9-words)** (was Not wanted): one table for both apps, keyed by the British English sentence (`ui/static/lang/<code>.json`, read by the phone too, rather than Android's own resources, so a sentence is translated once); English stays the default. Seams: `words.py`, `ui/static/words.js`, `core.js` `h`/`fill` (step 0) |
-| MD-91 | Anonymous usage counts | The makers learn what's used | `src/main/analytics.ts`, `TELEMETRY.md` | **Planned, wave 9, helper 5 (w9-local)** (was Not wanted). Owner's answer, 27 November 2026: counted on this computer only and shown to the owner ("what you use most"), never sent anywhere. Seam: `localcounts.py` (step 0) |
+| MD-90 | Chinese and Arabic | The whole app in other languages, right to left | `src/renderer/src/i18n` | **Partly: built, the tables not made yet** (1.5.0, wave 9, w9-words): one table per language keyed by the British English sentence (`words.py`, `ui/static/lang/`, `static/words.js`, `static/language.js` Settings → Language, `static/rtl.css`, `tools/words_extract.py`, `tools/words_sweep.py`); the eleven tables are made by the coordinator's paid translation run (about $0.92), labelled as a model's translation |
+| MD-91 | Anonymous usage counts | The makers learn what's used | `src/main/analytics.ts`, `TELEMETRY.md` | **Have** (1.5.0, wave 9, w9-local): what you use most, counted on this computer only and shown to the owner, never sent anywhere; no names or free text kept (`localcounts.py`, `ui/countsapi.py`, `static/counts.js` in Settings → Advanced) |
 | MD-92 | Release drops: "what's new" page | A designed page of what changed, on first start | `src/shared/releaseDrop.ts`, `components/ReleaseDrop.tsx` | **Have**: What's new shows once after an update (`ui/whatsnewapi.py`, wave 2); also "Updates" (**Have**: `updater.py`, the Windows installer) |
 | MD-93 | Tasks show their id on cards | "T12" on each card, so a task can be named in a message | CHANGELOG Unreleased | **Have** (1.4.0, wave 8): every card shows its task's id (T12) (`harness/boardstage.py` `card`) |
 
@@ -219,7 +224,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-03 | Away from home | A relay with a password, encryption and pairing | sorsama/deepseek-harness-relay, `docs/PROTOCOL.md` "Relay" | **Have** (another form): Hub mode works anywhere through the private GitHub hub (`GitHubHub.kt`); Tailscale for PC mode |
 | DS-04 | Find the computer on the network | Scan, or mDNS discovery | `app/connection/MdnsDiscovery.kt`, `DiscoveryEngine.kt` | **Have** (beta until tried at home): Look for my PC, and Look for it when its address changed (`discovery.py`, `net/Discovery.kt`, wave 3) |
 | DS-05 | Your own HTTPS reverse proxy | Use your own proxy's address | `harness/README.md` | **Not wanted** (owner, 27 November 2026: no public tunnel or own proxy): pinned TLS is built in |
-| DS-06 | Termux mode | Run the harness in Termux, started by the app | `app/termux/` | **Planned, wave 9, helper 5 (w9-local)** (was Not wanted): first a written check of whether Termux does anything This phone can't; if not, "Not needed: This phone does it" |
+| DS-06 | Termux mode | Run the harness in Termux, started by the app | `app/termux/` | **Have: not needed, This phone does it** (wave 9, w9-local's check): Debian on This phone gives Python, git, Node, ripgrep and apt; Termux needs the F-Droid app, a `termux.properties` edit, fails on manylinux wheels and is stopped by Android's phantom-process killer |
 | DS-07 | The harness on the phone itself | No computer needed: a small Linux in the app, signed download | `app/runtime/`, `harness/ON-DEVICE.md` | **Have**: This phone (beta) (`onphone.py`, `runtime/`, `mobile/.../runtime/`, borrowed and credited) |
 | DS-08 | Harness updates without an app update, with going back | A new version arrives on its own; a broken one rolls back | `app/runtime` (CHANGELOG 0.22.0) | **Have** (1.4.0, wave 8): a runtime update is tried first and the previous one comes back by itself when it fails (`mobile/.../runtime/RuntimeInstaller.kt` trial and rollback) |
 | DS-09 | Keep connected in the background | A foreground service, plus a checklist for battery settings | `app/connection/ConnectionService.kt`, `KeepAliveWorker.kt` | **Have**: This phone runs as a foreground service (`HarnessRuntimeService.kt`), Needs you is checked every 15 minutes (`work/Watch.kt`), and a battery checklist (`ui/ComfortScreen.kt` `BatteryChecklist`) |
@@ -256,7 +261,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-35 | Context and usage card | Tokens in and out, cache hit rate, context full | `ui/screens/main/UsageCard.kt` | **Have**: tokens, the context gauge and the cache share (wave 2) |
 | DS-36 | Balance in a second currency | "$54.12 · ≈ £42" | `app/rates/ExchangeRateRepository.kt` | **Have** (wave 3): dollars with pounds beside them (`money.py`, `ui/static/pounds.js`, `data/Pounds.kt`) |
 | DS-37 | Feedback on a message | A note on what was good or bad | `ui/screens/main/FeedbackDialog.kt`, `messageFeedback/put` | **Have**: 👍/👎 on results feeds self-improvement (Runs page, `improve/analysis.py`) |
-| DS-38 | Translate the thinking | Read reasoning in your language | `ui/screens/main/ReasoningTranslation.kt` | **Planned, wave 9, helper 3 (w9-words)** (was Not wanted): "Read in <language>" under thinking, one priced model call inside the project's allowed makers, kept so it is paid once. Seam: `translate.py` (step 0) |
+| DS-38 | Translate the thinking | Read reasoning in your language | `ui/screens/main/ReasoningTranslation.kt` | **Have** (1.5.0, wave 9, w9-words): "Read in <language>" under what builders and reviewers write (`static/language.js` `readIn`, `static/watch.js`), one priced model call (`translate.py`, `POST /api/translate`), kept so it is paid once; off by default with its own $0.10 a day |
 | DS-39 | Compact a long session | `/compact` summarises old turns | `commands/execute` `/compact` | **Have**: compaction (wave 2) |
 
 ### Approvals and safety
@@ -267,9 +272,9 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-41 | "Run it" or "Ask me first" | Choose per phone how commands run | `harness/ON-DEVICE.md` "Commands" | **Have**: off, risky or all (`harness/gate.py`, wave 1) |
 | DS-42 | Permission presets | Auto review, ask, allow; a sandbox where there is one | `permissionPresets/catalog`, `SheetPermission.kt` | **Have** (1.4.0, wave 8): the presets per job (`harness/perms.py`), as MD-48 |
 | DS-43 | Questions with options and your own words | Tap an answer or type one | `userQuestions/answer` | **Have**: `asks.py` (options, recommended, Other) |
-| DS-44 | Timed questions | A countdown; editing holds it; late answers still count | `userQuestions/attachWait` | **Partly** (1.4.0, wave 8): a question may carry a timer; when it runs out the recommended answer is taken, except for money, approval and other answers that must wait (`asktimer.py`, `ui/static/asks.js` `timerLine`); the phone shows the timer's line (`data/Asks.kt`). Left: the countdown on the phone's card and the hold while typing (`POST /api/asktimer {hold}`, opened in wave 9 step 0, narrowed by `phone.PHONE_NARROW`): **wave 9, helper 4 (w9-phone)** |
+| DS-44 | Timed questions | A countdown; editing holds it; late answers still count | `userQuestions/attachWait` | **Have** (1.4.0 on the desktop; the phone in 1.5.0, wave 9, w9-phone): a question may carry a timer; when it runs out the recommended answer is taken, except for money, approval and other answers that must wait (`asktimer.py`); the phone shows the countdown and holds it while the owner types, at most once every 20 seconds (`POST /api/asktimer {hold}`, narrowed by `phone.PHONE_NARROW`) |
 | DS-45 | Too long to show means not run | A command over 256 KB isn't asked, so isn't run | `harness/ON-DEVICE.md` | **Have**: a command too long to show in full is refused, never asked about (`harness/gate.py` `MAX_COMMAND_BYTES`, `refusal_too_long`) |
-| DS-46 | Approval reasons in your language | Why it's asking, translated | `approval/request` `displayReason` | **Planned, wave 9, helper 3 (w9-words)** (was Not wanted): as DS-38, for a card's reason |
+| DS-46 | Approval reasons in your language | Why it's asking, translated | `approval/request` `displayReason` | **Have** (1.5.0, wave 9, w9-words): as DS-38, for a card's reasons (`static/asks.js` `readIn`) |
 
 ### Terminal, files and previews
 
@@ -308,10 +313,10 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-67 | Answer from the notification | Allow or reject without opening the app | inspiration.md (their four-line rule) | **Have**: answer buttons on the notification (wave 1) |
 | DS-68 | The app updates itself | Downloaded, checked against checksum and signature, installed | `app/update/` | **Have**: `mobile/.../update/` (borrowed and credited) |
 | DS-69 | Tablets, foldables, Chromebooks | The layout follows the window | `ui/adaptive/ShellPlan.kt`, `docs/ADAPTIVE.md` | **Have** (1.4.0, wave 8): (beta) the shell splits at a foldable's hinge (`mobile/.../ui/adaptive/Hinge.kt`, Jetpack WindowManager in `MainActivity.kt`) |
-| DS-70 | iPhone | The same app on iOS | `iosApp/`, `docs/IOS.md` | **Planned, wave 9, helper 5 (w9-local)** (was Not wanted). Owner's answer, 27 November 2026: no real iPhone app; the phone's screens as a page an iPhone opens on the same Wi-Fi. Built switched off (`webphone.enabled: false`) until Fable's advice and the owner's yes on the certificate warning |
+| DS-70 | iPhone | The same app on iOS | `iosApp/`, `docs/IOS.md` | **Partly: built, switched off until the owner's yes** (1.5.0, wave 9, w9-local): no real iPhone app; the phone's screens as a page an iPhone on the same Wi-Fi opens at `/m/` (`webphone.py`, `ui/webphoneapi.py`, `static/webphone/`), built switched off (`webphone.ADVISED = False`) until Fable's advice on the certificate warning and the owner's yes |
 | DS-71 | A theme you tune | Accent colour, true black, text size | `ui/screens/settings`, `PRODUCT.md` | **Have**: accent colour, true black and text size (phone Comfort, wave 3) |
 | DS-72 | Haptics | The phone confirms a tap | CHANGELOG "Haptic strength" | **Have**: off, light or strong (phone Comfort, wave 3) |
-| DS-73 | Eleven languages, right to left | | `sharedUi/.../composeResources/values-*` | **Planned, wave 9, helpers 3 and 4 (w9-words, then w9-phone Part B)** (was Not wanted): as MD-90; right to left already switched by `data/Words.kt` `rtl` in `MainActivity.kt` (step 0) |
+| DS-73 | Eleven languages, right to left | | `sharedUi/.../composeResources/values-*` | **Partly** (1.5.0, wave 9): the desktop half is built (as MD-90) and right to left is switched on the phone (`data/Words.kt` `rtl`); left: the tables (the coordinator's paid run) and the phone's Part B (the tables in the APK, plural forms, checked on a real screen) |
 | DS-74 | Dictation | Speak a message into the box; nothing sent until you send | `ui/voice/`, `ComposerDictation.kt` | **Have**: Speak in the message box (wave 2) |
 | DS-75 | One search field everywhere | Sessions, models, commands, plugins, schedules, files | CHANGELOG "One search field everywhere" | **Have**: one search field on the desktop and the phone (wave 2) |
 | DS-76 | Pull down to reload | | CHANGELOG 0.21.0 | **Have**: the Table refreshes (`TableScreen.kt`) |
