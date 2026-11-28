@@ -1,0 +1,1 @@
+Lantern Run: a small browser game. You are a moth; hold to rise, let go to fall; fly between hanging lanterns; each one you pass lights up and scores; touch a lantern and the run ends; your best score is kept. Works with a tap on a phone and a key on a PC.
