@@ -10,17 +10,26 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 - **A PC told to carry on a project whose files it doesn't have says nothing** (28 November, wave 9, w9-letters):
   cloning the project from its hub agent's `repo:` is not built. → 1.5.x.
-- **A `roundtable:` command in the hub isn't checked to come from a tap** (28 November, Fable's security list for
-  the phone's DeepSeek key): anyone who can write to the hub could forge one, and a machine running Roundtable does
-  it. The hub is private, so only the owner's own devices write there today; a signed command (the device's key)
-  would close it. → the chat (1.5.0) or 1.5.x.
+- **A hub request can't be proven to come from a tap** (28 November, Fable's security list for the phone's DeepSeek
+  key, item 9): a `roundtable:` request in the hub, the chat's ones included, is done by whichever machine runs the
+  project, and nothing proves the owner tapped for it: anyone who can write to the hub could forge one. The hub is
+  private, so only the owner's own devices write there today. What 1.5.0 does: a request the chat sent carries its
+  chat, line and card, a machine skips it once its card was cancelled (`chat.cancelled` in `remote.process`), and
+  the answer goes back into that chat; a card is honoured only in reply to a message typed on the same device (the
+  trust rule). What would close it: each device signs its requests with a key of its own and machines check the
+  signature. → 1.5.x.
+- **The chat, what 1.5.0 leaves** (28 November, the chat's integration): on the phone a picture in a chat shows as
+  its name and size only; the phone's spend for the $1 a day counts only the day files it has read; the phone pins
+  DeepSeek's host but not its certificate; when the PC stops mid-answer the phone's fallback keeps the words but not
+  the draft's files; the phone's background check (every 15 minutes) notices an answer only in a chat it has read
+  once before, and reading a chat on the PC marks it read there; the phone's project page shows the follow-up queue
+  above the chat but no longer the old planner chat with / commands (`ui/ChatTab.kt` kept, not shown); the day files
+  grow (folding months is 1.5.1); the phone answering by itself can't open a project's files, only what the hub
+  holds. → 1.5.1.
 - **The phone in other languages and right to left** (28 November, wave 9): the desktop's language tables and the
   sweep are in; the phone's Part B (the tables copied into the APK, plural forms, right to left checked on a real
   screen) was not started, and the tables themselves are made by the coordinator's paid translation run. → wave 9,
   helper 4 Part B.
-- **The letters' replies were cut** (28 November, wave 9, w9-letters): plain letters don't get an answer, build
-  attachments and the "same command twice" check were taken out; a chat replaces Letters in 1.5.0 (`plans/notes-for-owner.md`,
-  28 November). Letters stay, read only, under "Earlier messages". → the chat.
 - **Wave 8 untried on real machines** (27 November, 1.4.0): a real EXE's window picture (`winshot`), an
   emulator started, an APK opened and pictured; links into a task's copy on a real `node_modules` (Windows
   junctions); the editor, Open as PDF and Talk in the frozen app's window; engines installing themselves; the
@@ -147,6 +156,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Fixed
 
+- **The letters' replies were cut** (wave 9, w9-letters) → fixed in 1.5.0 by the chat: Letters is now a chat for
+  every project and one for everything (Hall), on the PC and the phone; a request the chat sends is answered in
+  that chat (`chat.command_done` in `remote.process`); old letters stay, read only, under "Earlier messages"
+  (`chatstore.earlier`); the Letters screens are gone (`static/letters.js`, the phone's `LettersScreen`).
 - **Owner to-dos that send them out of the app** → fixed in 1.5.0 (wave 9, w9-gaps): every kind of to-do the
   harness writes has one button that does it in the app (`todoactions.action_for`: approve here or through the
   hub, carry on, try again, open its page or settings, the key form, the recommended set-up, a tool's install

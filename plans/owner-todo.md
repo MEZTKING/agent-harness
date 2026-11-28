@@ -8,6 +8,9 @@ leave the app.
 - **The music player** (the yardstick): your answer to its question and the five ideas you accepted (I1 to I5)
   wait as changes to the plan (from six of your letters, read on 28 November; you chose to keep them). You'll
   drive them through the new chat, at most $2, before 1.5.0 is released. Nothing was built or spent for them yet.
+- **If you want the phone to answer the chat when no computer is on: add a DeepSeek key, once**, in the chat's
+  own key form on the phone (the chat offers it: **Add a DeepSeek key**). Use a DeepSeek account with a small balance
+  kept just for this; the phone spends at most $1 a day. Without it the phone's messages wait for your PC.
 - **Try the phone app (Darkness) on your phone** (`RoundtableMobile-test.apk`, sent 25 November): say what's
   unclear or missing. It works in Hub mode with a fine-grained GitHub key.
 - **Money only you can add: Openference.** Its balance is below $1, so Claude can't work through it. Settings →

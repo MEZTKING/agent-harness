@@ -46,7 +46,13 @@ site if you lose the phone." Your answer: yes.
    as well as the GitHub key). Also written down in `plans/gaps.md`: a `roundtable:` command in the hub isn't yet
    checked to come from a tap, so anyone who could write to the hub could forge one.
 **What was done:** the plan and the list are with the builders; `docs/phone-security.md` has the key's section and
-the lost-phone step; the forged-command gap is in `plans/gaps.md`.
+the lost-phone step; the forged-command gap is in `plans/gaps.md`. **Built (28 November, the chat merged):** all
+nine items are in the code and tested (backups and device transfer off with a test; the key only in the locked
+store; only `api.deepseek.com`; the $1 a day reserved first; V4 Pro refused; secrets taken out before DeepSeek and
+the hub; cards made by the app and only for this device's own message; no remote pictures or links; the security
+page with what goes to DeepSeek and the three lost-phone steps). The forged-request gap is still open (a signed
+request would close it), written in `plans/gaps.md`; what the chat adds is that a cancelled card's request is
+skipped by every machine.
 
 **Six of the music player's letters were read before the stop reached the helper.** While wave 9 was being built,
 the helper working on Letters processed six of the eight letters you had sent about the music player before your

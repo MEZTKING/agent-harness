@@ -1,7 +1,7 @@
 # Your phone and your PC: what's kept, where it goes
 
-Short version: the phone talks only to your own PC, GitHub and (if you use it) the harness on the
-phone itself. Everything secret is locked on the phone. If you lose the phone, remove it on the PC
+Short version: the phone talks only to your own PC, GitHub, DeepSeek (only if you give it a key for the
+chat) and (if you use it) the harness on the phone itself. Everything secret is locked on the phone. If you lose the phone, remove it on the PC
 in **Settings → Your phone** and it can't get in any more.
 
 ## What the phone keeps
@@ -14,9 +14,12 @@ in **Settings → Your phone** and it can't get in any more.
 | A copy of the last Hall screen, which messages you've been told about | Phone, app's own storage | Locked the same way |
 | Drafts and pictures you're about to send | Phone, app's own folder (`drafts`) | Only this app can read it; cleared once sent |
 | The harness on this phone (if you set it up): its files and API keys | Phone, app's own folder (`runtime`) | Only this app can read it; keys stay with it |
+| Your DeepSeek key for the chat, if you add one | Phone, app's own storage | Locked the same way as the GitHub token; shown only by its last four characters |
+| The chat's own copy (your messages and the answers) and what it spent today | Phone, app's own folder (`chats`) | Only this app can read it; the history itself is kept in your private hub |
 
-Nothing is backed up to Google: backups are switched off for this app. Uninstalling the app
-deletes all of it.
+Nothing is backed up to Google and nothing moves to a new phone by "copy from your old phone": backups and
+device-to-device transfer are both switched off for this app (a test checks it). Uninstalling the app deletes
+all of it.
 
 ## What the phone connects to
 
@@ -34,6 +37,8 @@ deletes all of it.
     your code. (One stand-in in about a thousand could pass the check by luck; the QR code has no
     such gap, so use it when you can.)
 - **GitHub** (api.github.com): the hub, if you use it without the PC, and checking for app updates.
+- **DeepSeek** (api.deepseek.com), only once you've added a key, only when no computer can answer the chat:
+  see "The DeepSeek key on the phone" below.
 - **The harness on this phone** (127.0.0.1, the phone itself): the only place the app talks to
   without encryption, because it never leaves the phone.
 
@@ -72,9 +77,18 @@ any other address, and nothing on the phone can type into the app.
 The phone can answer by itself when no computer is on, with a DeepSeek key you paste once into the phone's key
 form. It is kept like your GitHub token (Android's keystore, AES-256-GCM), shown only by its last four
 characters, never copied to the clipboard, never written to the hub, a log or a crash report, and only sent to
-`api.deepseek.com` (no redirects followed). Only DeepSeek V4 Flash is used. Its $1 a day limit is the app's own
-count, so keep a small balance on a DeepSeek account used just for this. Nothing the phone reads can spend money
-or change anything without your tap.
+`api.deepseek.com` (no redirects followed, nothing logged in a release build). Only DeepSeek V4 Flash is used;
+V4 Pro is refused in the code.
+
+What goes to DeepSeek when the phone answers: your message, the last few messages of that chat, and the project's
+plan and state as the hub has them (for the Hall chat, one line per project). Anything that looks like a key or a
+token is taken out first, and the box tells you when it was. Other projects' files, secret files and your machines'
+details are never sent. Pictures lose their location data before they are kept.
+
+Its $1 a day limit is the app's own count, reserved before each answer, so keep a small balance on a DeepSeek
+account used just for this. Raising it for today is a tap you confirm. Nothing the phone reads can spend money or
+change anything without your tap: a card's title, price and command are made by the app, never by the model, and
+only for a message typed on this phone.
 
 ## Pairing
 
@@ -85,8 +99,10 @@ or change anything without your tap.
 
 ## If you lose the phone
 
-On the PC: **Settings → Your phone**, then **Remove** next to it. The phone's pass stops working
-straight away. If you also gave the phone a GitHub token, delete that token on GitHub too. If you gave it a
-DeepSeek key, delete that key on DeepSeek's site as well.
+1. On the PC: **Settings → Your phone**, then **Remove** next to it. The phone's pass stops working straight away.
+2. If you gave the phone a GitHub token: delete that token on GitHub (Settings → Developer settings → Personal
+   access tokens). The hub, and the chat history in it, can't be read with it any more.
+3. If you gave it a DeepSeek key: delete that key on DeepSeek's site (API keys). The phone's $1 a day limit is
+   only the app's own count, so this is what really stops the spending.
 
 Turning off phone access on the PC stops the phone server and the Wi-Fi answer at once.

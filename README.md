@@ -50,12 +50,27 @@ Sound, other languages, a little office, and a game built from one idea for a kn
   have a limit of their own per project.
 - **The phone**: the timer on a question is held while you type, Answer these, the look's pictures on its card,
   your documents, hiring, Talk through the PC, a project's sounds and settings (money and checking first).
-- **A chat in place of Letters** comes in this release too: a chat for each project and one for everything, on
-  the PC and the phone, answered by the cheap model (at most $1 a day). Old letters stay, read only.
+
+**Letters are now a chat.**
+
+- **One chat for each project, and one for everything (Hall)**, on the PC and on the phone. Type, and the answer
+  writes itself out straight away. Ask where a project stands, what it cost, or say what to do next.
+- **It answers with the cheap model** (DeepSeek V4 Flash), about a tenth of a cent a message, at most $1 a day on
+  all your devices together (Settings → Spending → Chat, most for one day). At the limit it says so and offers to
+  raise it for today.
+- **Nothing spends without your tap.** Anything that costs money or can't be undone shows as a card with its price
+  and two buttons. Work that needs the PC while it's off waits with a plain line, and the phone can offer to run it
+  on This phone instead.
+- **When no computer is on, the phone can answer by itself** with a DeepSeek key you paste once into the phone's
+  key form. If nothing can answer, the chat says why and what to tap; it never goes quiet.
+- **Pictures, files and voice** in the chat, and the same history on every device, kept in your private hub.
+- **Your old letters are still there**, read only, folded under "Earlier messages" at the top of each chat. The
+  Letters screens are gone; Needs you shows "<project> wrote to you" and opens that chat.
 
 Beta notes: the office art, the language tables and the sound service's prices are made or checked with paid
 calls before the release; the office view, the languages on screen, a sound in a built game and the phone's new
-parts are still to be tried on your own PC and phone. The page for an iPhone is built but stays off until you
+parts are still to be tried on your own PC and phone. The chat's first real test is yours: the music player's five
+accepted ideas, at most $2, through the chat on the phone. The page for an iPhone is built but stays off until you
 say yes.
 
 ### What's new in 1.4.0

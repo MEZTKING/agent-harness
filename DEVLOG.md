@@ -6,6 +6,69 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-28 – The chat merged: Letters are now a chat
+
+Asked (the coordinator): merge chat-server, chat-desktop and chat-phone onto step 0 (branch `chat-integrate`),
+apply every hook-up line, do the plan's free wrap-up and Fable's item 9, fix the proof run's limit test, delete the
+Letters screens, run everything. Nothing was spent; no real calls.
+
+Done:
+- Merged `chat-server` (05b425c, 5629dd0), `chat-desktop` (2c806a3), `chat-phone` (c3ed5eb) with no conflicts.
+- **The proof run's test** (`tests/test_proofrun.py::test_the_projects_own_limit_stops_a_scripted_run`, failing
+  since wave 9): the cause was the clock, not the image cap or the chat's defaults. DeepSeek's off-peak half price
+  (`config.price_now`, outside 01:00–04:00 and 06:00–10:00 UTC) made the dear call (five million input tokens) cost $1.10, under the $2.00
+  limit, so the money gate paused first (`over_estimate`); it only passed at peak hours. The dear call is now ten
+  million tokens (past $2 at either price) and the test fixes the hour both ways (`in_peak` patched, parametrised).
+- Server hook-ups: `remote.py` (`LONG` has `build`; `execute` drops `chat`, `chat_turn`, `chat_card`,
+  `max_cost_usd` from the action's fields, caps the run with `slash.cap_budget`, runs `build` with
+  `slash.build_project`; `process` skips a request whose card was cancelled, `chat.cancelled`, and answers a chat's
+  request in that chat, `chat.command_done`); `core/store.py` `resolve_side` (a turn's claim keeps the hub's copy);
+  `ui/roundtable.py` (the auto-sync calls `chat.drain`; Needs you's `messages` rows come from `chat.wrote_to_you`;
+  each seat carries `chat`); `chat.chat_of_seat` (new: `chatstore.chat_id` of the seat's hub name, the name it
+  would have in the hub for a project only here – the phone's `HubChat.chatOf` gives the same, and reads the PC's
+  `chat` field first); wording "comes back in its chat" (`ui/server.py`, `ui/todoapi.py`); search and recall show
+  old letters as "Earlier messages" and open their chat (`open.agent`).
+- Desktop: `app.js` (`chat: viewChat`, `#/letters` and `#/messages` go to the project's chat, else the Hall's;
+  the header's badge counts chats with something new, `newChats`; `g l` opens the Hall's chat), `index.html`
+  (Chat in the header), `project.js` (the project's chat in the main column, for hub projects too; the old
+  planner card and "Write to it" gone), `hall.js` (the Hall's chat on Home), `needs.js` (`wroteCard`; "Messages"),
+  `search.js`, `settings.js` (`chat_usd_per_day` in LIMITS; words). **`static/letters.js` deleted**;
+  `test_chat_static.py` and `test_desktop_ui.py` no longer list it.
+- Phone: `Api.kt` FEATURE_PREFIXES has `/api/chats`; `MainActivity.kt` (the Chat tab, `ChatsScreen` opened on a
+  chat from Needs you or search; letters loading gone); `ProjectScreen.kt` (tabs Status, Plan, Chat, Live: the
+  project's chat, `ProjectChat` in `ChatScreen.kt`, with the follow-up queue above it when the PC has the project;
+  the Letters tab, "Write to", the message and compose sheets gone; `ProjectActions.page`, `setupPhone`);
+  `TableScreen.kt` (`WroteCard`: one "<project> wrote to you" row per project, opening its chat; the group is
+  "Messages"); `Chat.kt` (`ChatLine.earlier`, `ChatRead.earlier`) and `ChatThread.read` (lines whose `earlier` is
+  true fold under Earlier messages; the PC's list stands for the phone's), so `ApiBrain` reads `earlier` from
+  `/api/chats/read`; `Settings.kt` (the shared settings show `chat_usd_per_day`); `notify/ChatWatch.kt` (new: the
+  15-minute worker reads the chats that wait and notifies `ChatNotices.news` once each; `Notifier.announceChat`);
+  the manifest's `dataExtractionRules` and `fullBackupContent="false"`, `res/xml/data_extraction_rules.xml`,
+  `BackupRulesTest.kt`; `HubChat.kt`'s two link patterns escaped for Android (`tests/test_mobile_regex.py`).
+  **`LettersScreen()` deleted** with its file; `EarlierLine`, `Earlier` and `EarlierMessages` moved to
+  `ui/EarlierMessages.kt`; ScreensTest's two Letters tests deleted, the project's tab tests renamed to the chat.
+- Conformance: `tests/conformance/calls.json` has `chats`, `chats_read`, `chats_say`, `chats_stop` (`/api/chats/tap`
+  exempt: a tap needs a real card; `test_chatsapi.py` covers it); fixtures rewritten; `ConformanceTest.kt` drives
+  `ApiBrain` over them (the earlier lines fold). Talk now answers through the chat, so `talk.json`'s words changed
+  (`PhonePartALeftoversTest`).
+- Docs: README "What's new in 1.5.0" ("Letters are now a chat"), the bundled `whatsnew.md`, `docs/phone-security.md`
+  (what the phone keeps and sends to DeepSeek, backups and transfer off, the three lost-phone steps),
+  `plans/gaps.md` (a hub request can't be proven to come from a tap; what the chat leaves; Letters' replies fixed),
+  `plans/parity.md` (MD-36, MD-57, DS-13, DS-16), `plans/notes-for-owner.md`, `plans/owner-todo.md` (the phone's
+  DeepSeek key, once), HANDOFF. Nothing borrowed, so THIRD_PARTY_NOTICES is unchanged. `tools/words_extract.py`
+  run last (17 not through the table, the limit kept).
+
+Decided: `ui/ChatTab.kt` (the old planner chat with the `/` menu) is kept but no longer shown, because the new chat
+has no list of commands as you type `/` yet (typed commands become cards); its `QueueCard` is reused above the
+project's chat. The phone's background check reads only chats that wait, since a read on the PC marks the chat
+read there.
+
+Tests: Python 2405 passed, 2 skipped (the full suite, `PYTHONPATH` this worktree); `node --check` on every JS file;
+the phone 516 unit tests, `assembleDebug` and `assembleRelease`; the conformance tests with fixtures rewritten.
+
+Still open: the ten-message real check on DeepSeek (about one cent, the balance before and after); the PC and the
+phone by hand (the plan's list); the owner's music-player test; the rest in `plans/gaps.md`.
+
 ## 2026-11-28 – The chat, step 0: the seams
 
 Asked (the owner): "remove the letter system. Make it so it's just like a chat." Step 0 of the chat plan: the
