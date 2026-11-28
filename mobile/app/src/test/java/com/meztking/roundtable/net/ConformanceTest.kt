@@ -268,6 +268,11 @@ class ConformanceTest {
         assertTrue("documents" in keys(api.documents()))
         assertTrue("agent" in keys(api.hireAgent("maelin", "planner")))
         assertTrue("reply" in keys(api.talk(project, "how is the bakery site going?")))
+        // wave 9: a project's sounds, in the PC's own shape (ui/soundapi.py)
+        val sounds = com.meztking.roundtable.data.Sounds.parse(api.feature("GET", com.meztking.roundtable.data.Sounds.url(project)))
+        assertEquals(listOf("Doorbell", "Oven hum"), sounds.sounds.map { it.heading })
+        assertTrue(sounds.sounds[1].madeInCode && !sounds.sounds[0].madeInCode && sounds.sounds[0].licence?.commercial == true)
+        assertEquals(2.0, sounds.cap)
 
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }

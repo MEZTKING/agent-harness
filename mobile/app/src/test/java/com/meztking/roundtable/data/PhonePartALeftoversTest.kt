@@ -120,9 +120,9 @@ class PhonePartALeftoversTest {
     }
 
     @Test fun theSoundsCardSaysWhatWasSpentOfTheCap() {
-        val v = Sounds.parse("""{"sounds": [{"name": "Coin", "file": "assets/sounds/coin.mp3", "service": "ElevenLabs", "cost_usd": 0.08},
-            {"name": "Jump", "file": "assets/sounds/jump.wav", "made_in_code": true}, {"name": "Odd", "file": "../../etc/x.mp3"}],
-            "spent_usd": 0.42, "cap_usd": 2.0}""")
+        val v = Sounds.parse("""{"sounds": [{"title": "Coin", "file": "assets/sounds/coin.mp3", "made": "bought", "service": "ElevenLabs", "usd": 0.08, "licence": {"commercial": true, "words": "Paid plan"}},
+            {"title": "Jump", "file": "", "made": "code", "why": "no service"}, {"title": "Odd", "file": "../../etc/x.mp3"}],
+            "spent": 0.42, "cap": 2.0, "owner_cap": 2.0}""")
         assertEquals("$0.42 of $2 used", Sounds.spendLine(v))
         assertEquals("Made by ElevenLabs · $0.08", v.sounds[0].line)
         assertEquals("Made in code", v.sounds[1].line)

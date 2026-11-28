@@ -3,9 +3,9 @@
   "agent": "proj",
   "closed_at": "",
   "closed_note": "",
-  "created_at": "2026-11-27T23:33:03Z",
+  "created_at": "2026-11-28T08:28:55Z",
   "details": "",
-  "id": "a93e15",
+  "id": "70cd13",
   "kind": "todo",
   "next": [],
   "priority": "high",
@@ -13,6 +13,6 @@
   "status": "open",
   "tags": [],
   "text": "check the logo colours",
-  "ts": 1795822383.7665045
+  "ts": 1795854535.0866985
  }
 ]

@@ -1126,6 +1126,20 @@
    "needs": [
     "reply"
    ]
+  },
+  {
+   "name": "sounds",
+   "method": "GET",
+   "path": "/api/sounds",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "sounds",
+    "spent",
+    "cap",
+    "words"
+   ]
   }
  ]
 }

@@ -141,13 +141,14 @@
   {
    "choices": [],
    "default": {},
-   "description": "Money and effort limits for this project only: max_real_usd_per_run, max_cost_usd, max_attempts_per_task, max_steps_per_task.",
+   "description": "Money and effort limits for this project only: max_real_usd_per_run, max_cost_usd, max_attempts_per_task, max_steps_per_task, max_image_usd (pictures).",
    "key": "limits",
    "keys": [
     "max_real_usd_per_run",
     "max_cost_usd",
     "max_attempts_per_task",
-    "max_steps_per_task"
+    "max_steps_per_task",
+    "max_image_usd"
    ],
    "source": "default",
    "type": "number-map",

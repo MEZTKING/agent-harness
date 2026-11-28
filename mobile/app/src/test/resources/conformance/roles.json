@@ -5,6 +5,7 @@
   "max_attempts_per_task": 3,
   "max_auto_tasks": 8,
   "max_cost_usd": 5.0,
+  "max_image_usd": 0.0,
   "max_parallel": 1,
   "max_real_usd_per_run": 0.0,
   "max_scout_steps": 30,

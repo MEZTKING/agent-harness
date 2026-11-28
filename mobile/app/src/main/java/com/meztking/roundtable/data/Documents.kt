@@ -25,25 +25,31 @@ object Documents {
     fun parse(json: String): DocumentsList = ApiJson.decodeFromString(DocumentsList.serializer(), json)
 }
 
-/** One sound a project bought or made (GET /api/sounds). */
+/** What a sound service's licence said, read on the day it was bought. */
 @Serializable
-data class SoundItem(val name: String = "", val file: String = "", val kind: String = "", val service: String = "",
-                     val cost_usd: Double? = null, val prompt: String = "", val seconds: Double? = null, val made_in_code: Boolean = false,
-                     val licence: String = "") {
-    val heading: String get() = name.ifBlank { file.substringAfterLast('/').substringBeforeLast('.') }
+data class SoundLicence(val commercial: Boolean? = null, val words: String = "", val link: String = "", val read_on: String = "")
 
-    /** "Bought from ElevenLabs · $0.08", "Made in code". */
+/** One sound a project bought or made (GET /api/sounds; the PC's ui/soundapi.py and harness/soundstage.py). */
+@Serializable
+data class SoundItem(val task: String = "", val title: String = "", val file: String = "", val kind: String = "",
+                     val service: String = "", val made: String = "", val usd: Double? = null, val prompt: String = "",
+                     val seconds: Double? = null, val why: String = "", val licence: SoundLicence? = null) {
+    val madeInCode: Boolean get() = made == "code"
+    val heading: String get() = title.ifBlank { file.substringAfterLast('/').substringBeforeLast('.').ifBlank { task } }
+
+    /** "Made by ElevenLabs · $0.08", "Made in code". */
     val line: String get() = when {
-        made_in_code -> Words.t("Made in code")
-        service.isNotBlank() -> Words.t("Made by {who}", "who" to service) + (cost_usd?.let { " · " + Money.usd(it) } ?: "")
-        else -> cost_usd?.let { Money.usd(it) }.orEmpty()
+        madeInCode -> Words.t("Made in code")
+        service.isNotBlank() -> Words.t("Made by {who}", "who" to service) + (usd?.let { " · " + Money.usd(it) } ?: "")
+        else -> usd?.let { Money.usd(it) }.orEmpty()
     }
 }
 
 /** A project's sounds, what they cost and the cap ("$0.42 of $2"). Read only on the phone: Make it again stays on the PC. */
 @Serializable
-data class SoundsView(val sounds: List<SoundItem> = emptyList(), val spent_usd: Double = 0.0, val cap_usd: Double? = null,
-                      val service: String = "", val words: String = "")
+data class SoundsView(val sounds: List<SoundItem> = emptyList(), val spent: Double = 0.0, val cap: Double? = null,
+                      val owner_cap: Double? = null, val service: String = "", val words: String = "",
+                      val just_for_me: Boolean = false)
 
 object Sounds {
     fun url(path: String) = "/api/sounds?path=${URLEncoder.encode(path, "UTF-8")}"
@@ -52,9 +58,9 @@ object Sounds {
 
     /** "$0.42 of $2 used"; just what was spent when there's no cap. */
     fun spendLine(v: SoundsView): String {
-        val cap = v.cap_usd
-        return if (cap != null) Words.t("{spent} of {cap} used", "spent" to Money.usd(v.spent_usd), "cap" to whole(cap))
-        else Words.t("{spent} used", "spent" to Money.usd(v.spent_usd))
+        val cap = v.cap
+        return if (cap != null) Words.t("{spent} of {cap} used", "spent" to Money.usd(v.spent), "cap" to whole(cap))
+        else Words.t("{spent} used", "spent" to Money.usd(v.spent))
     }
 
     /** "$2" for a whole number of dollars, else as Money writes it. */

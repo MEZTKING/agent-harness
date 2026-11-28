@@ -148,8 +148,8 @@ class PhonePartAScreensTest {
     }
 
     @Test fun theSoundsCardShowsWhatWasSpent() {
-        val v = Sounds.parse("""{"sounds": [{"name": "Coin", "file": "assets/sounds/coin.mp3", "service": "ElevenLabs", "cost_usd": 0.08}],
-            "spent_usd": 0.42, "cap_usd": 2}""")
+        val v = Sounds.parse("""{"sounds": [{"title": "Coin", "file": "assets/sounds/coin.mp3", "made": "bought", "service": "ElevenLabs", "usd": 0.08, "licence": {"commercial": true, "words": "Paid plan"}}],
+            "spent": 0.42, "cap": 2}""")
         val played = mutableListOf<String>()
         rule.setContent { RoundtableTheme { SoundsCardView(v) { played += it.file } } }
         rule.onNodeWithText("1 sound · $0.42 of $2 used").assertIsDisplayed()

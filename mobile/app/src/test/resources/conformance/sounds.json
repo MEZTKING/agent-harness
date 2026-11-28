@@ -1,0 +1,40 @@
+{
+ "cap": 2.0,
+ "just_for_me": false,
+ "owner_cap": 2.0,
+ "service": "",
+ "sounds": [
+  {
+   "file": "assets/sounds/doorbell.mp3",
+   "kind": "effect",
+   "licence": {
+    "commercial": true,
+    "link": "",
+    "read_on": "2026-11-28",
+    "words": "Made-up licence."
+   },
+   "loop": false,
+   "made": "bought",
+   "model": "el/effects",
+   "prompt": "a made-up shop doorbell",
+   "seconds": 1,
+   "service": "elevenlabs_sound",
+   "task": "S1",
+   "title": "Doorbell",
+   "usd": 0.002
+  },
+  {
+   "file": "",
+   "kind": "music",
+   "made": "code",
+   "prompt": "a made-up oven hum",
+   "seconds": 10,
+   "task": "S2",
+   "title": "Oven hum",
+   "usd": 0.0,
+   "why": "no sound service is picked"
+  }
+ ],
+ "spent": 0,
+ "words": "$0.00 of $2 used. 1 bought, 1 made in code."
+}
