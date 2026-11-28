@@ -3,6 +3,8 @@
 // aloud with the computer's own voices. When the planner proposes something to do, it is read back and waits:
 // a spoken "yes" or a tap; anything that spends or undoes needs the tap (and asks "Are you sure?" as its button
 // would). Where this window has no speech service the button isn't shown.
+// In the chat (chat.js, 1.5.0) opts.ask(text) sends the words as a chat message and resolves with the answer's
+// words: nothing is proposed by voice there, a card in the chat waits for the tap. speak(text) reads a reply aloud.
 import { BRAND, h, fill, post, toast } from "./core.js";
 import { runCommand } from "./slash.js";
 import { t as wt } from "./words.js";
@@ -26,7 +28,9 @@ function style() {
 `));
 }
 
-function speak(text) {
+export const canSpeak = () => typeof window !== "undefined" && !!window.speechSynthesis;
+
+export function speak(text) {
   return new Promise((done) => {
     const s = typeof window !== "undefined" ? window.speechSynthesis : null;
     if (!s || !text) { done(); return; }
@@ -101,6 +105,11 @@ export function talkButton(path, opts = {}) {
       if (!said) { heard.textContent = "Nothing was heard. Tap Talk and try again."; return; }
       heard.textContent = `You asked: ${said}`;
       btn.disabled = true;
+      if (opts.ask) {  // the chat: the answer is read aloud; anything it offers to do is a card in the chat
+        const reply = await opts.ask(said);
+        if (reply) await speak(reply);
+        return;
+      }
       const r = await post("/api/chat/talk", { path, text: said });
       if (opts.onDone) opts.onDone();
       await speak(r.reply);
