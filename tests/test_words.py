@@ -170,7 +170,7 @@ def _node(tmp_path, body: str) -> dict:
     probe.write_text('import "./shim.mjs";\nconst S = process.argv[2];\n'
                      'const words = await import(S + "/words.js");\nconst core = await import(S + "/core.js");\n'
                      + body, encoding="utf-8")
-    out = subprocess.run([NODE, str(probe), STATIC.as_uri()], capture_output=True, text=True, timeout=60)
+    out = subprocess.run([NODE, str(probe), STATIC.as_uri()], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
 

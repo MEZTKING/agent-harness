@@ -35,7 +35,7 @@ def _css(name: str) -> str:
 def test_it_parses_as_a_module(name, tmp_path):
     copy = tmp_path / (Path(name).stem + ".mjs")
     copy.write_text((STATIC / name).read_text(encoding="utf-8"), encoding="utf-8")
-    res = subprocess.run(["node", "--check", str(copy)], capture_output=True, text=True, timeout=60)
+    res = subprocess.run(["node", "--check", str(copy)], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert res.returncode == 0, res.stderr
 
 
@@ -152,7 +152,7 @@ def test_behaviour_in_a_stand_in_page(tmp_path):
         shutil.copy(f, tmp_path / f.name)
     (tmp_path / "package.json").write_text('{"type": "module"}', encoding="utf-8")
     (tmp_path / "run.js").write_text(SHIM, encoding="utf-8")
-    res = subprocess.run(["node", "run.js"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
+    res = subprocess.run(["node", "run.js"], cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout.strip().splitlines()[-1])
     # the model's words: text only, never a link or a picture, and nothing carries an address

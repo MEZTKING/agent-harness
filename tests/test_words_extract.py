@@ -119,7 +119,7 @@ def test_the_swept_modules_are_still_good_javascript(tmp_path):
     for name, (src, want) in MODULES.items():
         p = tmp_path / name.replace(".js", ".mjs")
         p.write_text(SW.sweep_text(src)[0], encoding="utf-8")
-        out = subprocess.run([shutil.which("node"), "--check", str(p)], capture_output=True, text=True)
+        out = subprocess.run([shutil.which("node"), "--check", str(p)], capture_output=True, text=True, encoding="utf-8")
         assert out.returncode == 0, (name, out.stderr)
 
 

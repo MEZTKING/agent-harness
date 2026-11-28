@@ -498,7 +498,9 @@ def receive(home: Path, automations: list[dict], path: str, client_ip: str, head
                     title = data["title"][:200]
             except ValueError:
                 pass
-        stamp = f"{time.time_ns()}"
+        # time plus a random part: on Windows the clock is coarse, and two deliveries in the same tick must
+        # never share a name (the second would replace the first)
+        stamp = f"{time.time_ns()}-{_random.token_hex(4)}"
         key = "local-" + hashlib.sha256((stamp + text).encode("utf-8")).hexdigest()[:20]
         row = {"key": key, "at": iso(utcnow()), "title": title, "body": text,
                "type": hd.get("content-type", "")[:100]}

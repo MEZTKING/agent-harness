@@ -70,7 +70,7 @@ def js(tmp_path_factory):
     d = tmp_path_factory.mktemp("js")
     (d / "shim.mjs").write_text(SHIM, encoding="utf-8")
     (d / "probe.mjs").write_text(PROBE, encoding="utf-8")
-    res = subprocess.run([NODE, str(d / "probe.mjs"), STATIC.as_uri()], capture_output=True, text=True, timeout=60)
+    res = subprocess.run([NODE, str(d / "probe.mjs"), STATIC.as_uri()], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert res.returncode == 0, res.stderr
     return json.loads(res.stdout)
 
