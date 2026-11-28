@@ -366,7 +366,7 @@ def test_remote_commands_are_the_actions_remote_py_knows():
                                                                           "until": "08:00", "cap": 3.0}
     for c in ("/undo T1", "/stop", "/test", "/compact"):
         assert chat.remote_command(c) is None
-    assert "build" not in LONG  # the hook-up adds it to remote.py (see the report)
+    assert "build" in LONG  # a build runs in the background, like approve (remote.py)
 
 
 def test_the_opening_file_is_made_from_the_table():
@@ -374,3 +374,13 @@ def test_the_opening_file_is_made_from_the_table():
     assert data == chat.opening_data()
     assert {c["name"] for c in data["commands"]} == set(chat.CARDS)
     assert "v4-pro" not in json.dumps(data).lower()
+
+
+def test_a_seat_s_chat_is_chat_id_of_its_hub_name_as_on_the_phone(tmp_path):
+    from types import SimpleNamespace
+
+    app = SimpleNamespace(cfg=lambda: None, hub=None)
+    assert chat.chat_of_seat(app, {"id": "proj", "hub_name": "harness--proj"}) == "harness-proj"
+    assert chat.chat_of_seat(app, {"id": "x", "path": str(tmp_path / "Shop Site")}) == "shop-site"  # no hub: its folder
+    assert chat.chat_of_seat(app, {"id": "Some Agent"}) == "some-agent"
+    assert chat.chat_of_seat(app, {"id": "hall"}) == "project-hall"  # never the Hall's own chat

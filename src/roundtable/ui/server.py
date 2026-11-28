@@ -1280,7 +1280,7 @@ class UIApp:
         except (PermissionError, ValueError) as e:
             raise ApiError(f"The hub didn't take it: {e}. Check the hub's rules let you message this project.") from None
         return {"reply": "Sent: it starts when that computer next checks the hub. Its answer comes back in "
-                         "Letters."}
+                         "its chat."}
 
     def activity(self, q):
         from .roundtable import activity

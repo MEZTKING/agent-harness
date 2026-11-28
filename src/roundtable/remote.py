@@ -43,7 +43,7 @@ from typing import Any, Callable
 PREFIX = "roundtable:"
 FOLDER = "project_folder"  # which project a command is for, when several share one hub agent (``harness``)
 MACHINE = "machine"  # which machine a command is for (sync.this_machine()["id"]); none: whichever runs it
-LONG = {"show_it", "revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer", "carry_on"}
+LONG = {"show_it", "revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer", "carry_on", "build"}
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -73,7 +73,11 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
 
     orch = Orchestrator(cfg, project, on_event=lambda k, d: None)
     action = cmd.get("action")
-    kw = {k: v for k, v in cmd.items() if k not in ("action", FOLDER, MACHINE)}
+    kw = {k: v for k, v in cmd.items() if k not in ("action", FOLDER, MACHINE, "chat", "chat_turn", "chat_card",
+                                                    "max_cost_usd")}
+    from .harness.slash import build_project, cap_budget
+
+    cap_budget(orch, float(cmd["max_cost_usd"]) if cmd.get("max_cost_usd") else None)  # "at most $N" from a chat card
     if action == "_invalid":
         return f"Couldn't do that: {cmd.get('error')}."
     if action == "answer" and "id" not in kw and "question" in kw:  # the plan's own answer: {question, text}
@@ -97,6 +101,8 @@ def execute(cfg, project: Path, cmd: dict[str, Any], log: Callable[[str], None] 
     if action == "revise":
         r = orch.revise_plan(kw.get("text", ""))
         return r["summary"] + ". The new plan is ready to look at."
+    if action == "build":
+        return f"The run ended as: {build_project(orch, str(kw.get('goal') or ''))}."
     if action == "approve":
         orch.approve()
         status = orch.run()
@@ -212,7 +218,9 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
     # the owner's own machines (seats registered in the hub as role: machine) speak for the owner too,
     # so a command sent from the phone's own Roundtable reaches the PC
     allowed |= {a for a, spec in hub.config.agents.items() if getattr(spec, "role", None) == "machine"}
+    from . import chat as chatmod
     from . import reach
+    from .desktop import app_home
 
     machine = this_machine()
     me = machine["id"]
@@ -233,6 +241,9 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
                 continue  # for another project that reports through the same hub agent: leave it for that one
             if cmd.get(MACHINE) and cmd[MACHINE] != me:
                 continue  # for another machine (the phone or another PC): leave it for that one
+            if cmd.get("chat") and chatmod.cancelled(hub, app_home(), cmd):
+                hub.mark_read(agent, [msg["id"]])  # the owner cancelled its card in the chat: never run it
+                continue
             key = f"{project}:{msg['id']}"
             with _busy_lock:
                 if key in _busy:
@@ -250,6 +261,8 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
                     with _busy_lock:
                         _busy.discard(key)
                 try:
+                    if cmd.get("chat") and chatmod.command_done(hub, app_home(), cmd, text, ok=not is_trouble(text)):
+                        return  # the answer went into the chat it came from, not a letter
                     sent = hub.reply(agent, msg["id"], text)
                     if not is_trouble(text):  # a receipt: it doesn't need the owner, so it arrives already read
                         hub.mark_read(msg["sender"], [sent["id"]])

@@ -112,6 +112,8 @@ FIRST_COMES_FIRST = ("claims/",)  # who builds a project: the claim that reached
 
 def resolve_side(rel: str) -> str:
     """Which copy a clashing file keeps during a pull: "upstream" (the hub's) or "local" (this machine's)."""
+    if rel.startswith("chats/") and "/claims/" in rel:
+        return "upstream"  # a chat turn's claim: the first machine to reach the hub answers it
     return "upstream" if rel.startswith(FIRST_COMES_FIRST) else "local"
 
 

@@ -59,7 +59,7 @@ LOG = "recall.jsonl"  # .harness/: what look_up found for which task (the pictur
 KIND_WEIGHT = {"decision": 0.6, "answer": 0.6, "memory": 0.35, "document": 0.3, "agent": 0.3, "task": 0.15,
                "plan": 0.1, "journal": 0.15, "letter": 0.1, "note": 0.2}
 KIND_WORDS = {"decision": "Decided", "answer": "Answered", "memory": "Memory", "document": "Your document",
-              "agent": "Agent's memory", "task": "Task", "plan": "Plan", "journal": "Journal", "letter": "Letter",
+              "agent": "Agent's memory", "task": "Task", "plan": "Plan", "journal": "Journal", "letter": "Earlier message",
               "note": "My notes"}
 
 # -- words ------------------------------------------------------------------------------------------------------
@@ -402,8 +402,8 @@ def hub_sources(hub, me: str | None, names: dict[str, str] | None = None) -> lis
                 sender = names.get(str(m.get("sender") or "")) or str(m.get("sender") or "someone")
                 for c in chunk(f"{m.get('subject') or ''}\n{m.get('body') or ''}"):
                     pieces.append(Piece("letter", str(m.get("subject") or "A letter")[:120], c,
-                                        f"Letters · from {sender}", at=str(m.get("created_at") or "")[:19],
-                                        open={"room": "letter", "id": str(m.get("id") or ""),
+                                        f"Earlier messages · from {sender}", at=str(m.get("created_at") or "")[:19],
+                                        open={"room": "letter", "id": str(m.get("id") or ""), "agent": str(m.get("sender") or ""),
                                               "thread": str(m.get("thread_id") or m.get("id") or "")}))
             return pieces
 

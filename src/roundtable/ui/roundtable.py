@@ -294,13 +294,15 @@ def build(app) -> dict[str, Any]:
                 except Exception:  # noqa: BLE001 - Done still works
                     need["action"] = None
                 needs.append(need)
-        if notes and notes["unread"]:
-            needs.append({"kind": "messages", "project": notes["id"], "name": hall.NOTES_NAME,
-                          "text": f"{notes['unread']} unread letter{'s' if notes['unread'] > 1 else ''}",
-                          "actions": ["read"], "at": ""})
-        elif app.agent in unread and unread[app.agent] and app.agent in seats:
-            needs.append({"kind": "messages", "project": app.agent, "name": seats[app.agent]["name"],
-                          "text": f"{unread[app.agent]} unread letter{'s' if unread[app.agent] > 1 else ''}", "actions": ["read"], "at": ""})
+        from .. import chat as chatmod
+
+        try:  # a project that wrote to the owner in its chat (the Letters' unread counts before 1.5.0)
+            wrote = chatmod.wrote_to_you(app)
+        except Exception:  # noqa: BLE001 - Needs you still shows the rest
+            wrote = []
+        for r in wrote:
+            needs.append({"kind": "messages", "project": r["chat"], "chat": r["chat"], "name": r["name"],
+                          "text": r["text"], "actions": ["read"], "at": ""})
 
     # harness runs on this computer: merged into the seat with the same name, else a seat of their own
     spend_today = 0.0
@@ -388,6 +390,10 @@ def build(app) -> dict[str, Any]:
     from ..sync import claim_fresh, this_machine
 
     me = this_machine()
+    from .. import chat as chatmod
+
+    for s in seat_list:  # each seat's chat: chatstore.chat_id of its hub name, as on the phone
+        s["chat"] = chatmod.chat_of_seat(app, s)
     for s in seat_list:  # which machine has it, and which builds it now (one at a time)
         mine = [c for c in claims.values() if (s.get("hub_name") and c.get("hub_name") == s["hub_name"])
                 or c.get("folder") == s["id"]]
@@ -614,6 +620,9 @@ class AutoSync:
                 from ..remote import process
 
                 process(cfg, self.app.hub, background=True, log=lambda s: None)  # commands from the phone
+                from .. import chat as chatmod
+
+                chatmod.drain(self.app)  # waiting chat messages this machine can answer
             from ..reach import on_sync
 
             on_sync(self.app)  # the stand-up, the hourly look and who is listening (reach.py)

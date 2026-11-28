@@ -172,7 +172,7 @@ def handoff(app, body: dict[str, Any]) -> dict[str, Any]:
     _close(app, todo, f"handed to {to}")
     from .hall import friendly
 
-    return {"ok": True, "reply": f"Handed to {friendly(to, hub.config.agents.get(to))}: its answer comes back in Letters."}
+    return {"ok": True, "reply": f"Handed to {friendly(to, hub.config.agents.get(to))}: its answer comes back in its chat."}
 
 
 # -- GitHub settings through the app's own key ------------------------------------------------------------------

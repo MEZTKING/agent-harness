@@ -43,7 +43,7 @@ NAMES = {
     "see.roundtable": "Home", "see.asks": "Needs you", "see.projects": "Projects", "see.project": "A project",
     "see.plan": "A plan", "see.activity": "Activity", "see.chat": "Chat", "see.gallery": "Gallery",
     "see.files": "Files", "see.board": "The board", "see.usage": "What's been used", "see.agents": "Agents",
-    "see.tools": "Tools", "see.search": "Search", "see.journal": "The journal", "see.inbox": "Letters",
+    "see.tools": "Tools", "see.search": "Search", "see.journal": "The journal", "see.inbox": "Earlier messages",
     "do.plan": "Plan buttons", "do.asks": "Answering cards", "do.chat": "Sending a message",
     "do.send": "Sending a letter", "do.project": "Project buttons", "do.projects": "Making a project",
     "do.attach.send": "Sending with files", "do.board.answer-several": "Answer these",

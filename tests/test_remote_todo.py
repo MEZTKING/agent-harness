@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import yaml
 
 from roundtable.remote import execute, is_trouble, process
@@ -65,3 +66,61 @@ def test_the_owners_own_machines_may_send_commands(tmp_path):
     assert process(orch.cfg, hub, log=lambda s: None) == 1
     status = {e["id"]: e["status"] for e in hub.journal.entries(agent, agent)}
     assert status[one["id"]] == "done" and status[two["id"]] == "open"
+
+
+# -- requests the chat sent (1.5.0): chat, chat_turn and chat_card ride along -------------------------------------------
+def _chat_request(hub, agent, body):
+    hub.send("me", agent, "roundtable: command", json.dumps(body), kind="request")
+
+
+def test_a_chat_request_whose_card_was_cancelled_is_skipped(tmp_path, monkeypatch):
+    from roundtable import chat as chatmod
+    from roundtable.harness.orchestrator import Orchestrator
+
+    orch = _orch(tmp_path)
+    hub, agent = orch._hub(), orch._hub_agent()
+    todo = hub.journal.add(agent, "todo", "Draw the shop sign", priority="high")
+    seen = []
+    monkeypatch.setattr(chatmod, "cancelled", lambda h, home, cmd: seen.append(cmd) or True)
+    monkeypatch.setattr(Orchestrator, "plan_update", lambda self, *a, **k: pytest.fail("a cancelled card ran"))
+    _chat_request(hub, agent, {"action": "todo_done", "id": todo["id"], "chat": "bakery", "chat_turn": "t1",
+                               "chat_card": "c1"})
+    process(orch.cfg, hub, log=lambda s: None)
+    assert seen and seen[0]["chat_card"] == "c1"
+    still = next(e for e in hub.journal.entries(agent, agent) if e["id"] == todo["id"])
+    assert still["status"] != "done"  # never run
+    assert hub.inbox(agent, unread_only=True) == []  # and taken off the list, so it isn't tried again
+    assert hub.inbox("me", unread_only=False) == []  # no letter back
+
+
+def test_a_chat_request_answers_in_its_chat_not_in_a_letter(tmp_path, monkeypatch):
+    from roundtable import chat as chatmod
+
+    orch = _orch(tmp_path)
+    hub, agent = orch._hub(), orch._hub_agent()
+    todo = hub.journal.add(agent, "todo", "Draw the shop sign", priority="high")
+    done = []
+    monkeypatch.setattr(chatmod, "cancelled", lambda h, home, cmd: False)
+    monkeypatch.setattr(chatmod, "command_done", lambda h, home, cmd, text, ok=True: done.append((cmd, text, ok)) or True)
+    _chat_request(hub, agent, {"action": "todo_done", "id": todo["id"], "chat": "bakery", "chat_turn": "t1"})
+    assert process(orch.cfg, hub, log=lambda s: None) == 1
+    assert done and '"Draw the shop sign" is ticked off' in done[0][1] and done[0][2] is True
+    assert hub.inbox("me", unread_only=False) == []  # the answer went into the chat
+
+
+def test_a_chat_request_s_extra_keys_never_reach_the_action_and_at_most_caps_it(tmp_path, monkeypatch):
+    from roundtable.harness import slash
+    from roundtable.harness.orchestrator import Orchestrator
+
+    orch = _orch(tmp_path)
+    got, caps = {}, []
+    monkeypatch.setattr(Orchestrator, "plan_update", lambda self, action, **kw: got.update(kw) or {"pending": []})
+    real = slash.cap_budget
+    monkeypatch.setattr(slash, "cap_budget", lambda o, cap: caps.append(cap) or real(o, cap))
+    execute(orch.cfg, orch.project.root, {"action": "choose", "decision": "D1", "option": "b", "chat": "bakery",
+                                          "chat_turn": "t1", "chat_card": "c1", "max_cost_usd": 2})
+    assert got == {"decision": "D1", "option": "b"} and caps == [2.0]
+    built = []
+    monkeypatch.setattr(slash, "build_project", lambda o, goal="", cap=None: built.append(goal) or "done")
+    text = execute(orch.cfg, orch.project.root, {"action": "build", "goal": "a shop page"})
+    assert text == "The run ended as: done." and built == ["a shop page"]

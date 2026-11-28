@@ -188,6 +188,20 @@ def projects(app) -> dict[str, dict[str, Any]]:
     return out
 
 
+def chat_of_seat(app, seat: dict[str, Any]) -> str:
+    """A seat's chat, by the one rule everywhere (the phone's ``HubChat.chatOf`` too): ``chat_id`` of the project's
+    hub name; a project only on this machine uses the name it would have in the hub."""
+    from . import chatstore
+
+    name = str(seat.get("hub_name") or "")
+    if not name and seat.get("path"):
+        try:
+            name = _local_hub_name(_cfg(app), _hub(app), Path(seat["path"]))
+        except Exception:  # noqa: BLE001 - its folder's name, as with no hub
+            name = Path(seat["path"]).name
+    return chatstore.chat_id(name or str(seat.get("id") or ""))
+
+
 def chat_for_path(app, path: str) -> str:
     """The chat of a project on this machine, by its folder."""
     from . import chatstore
