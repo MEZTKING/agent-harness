@@ -84,8 +84,8 @@ object ChatSafety {
     /** Model words as plain text for the screen: no picture or link is ever drawn or opened from them. A markdown
      *  picture becomes its words, a link its words, and a web address stays plain text. */
     fun plainFromModel(text: String): String = text
-        .replace(Regex("!\\[([^\\]]*)]\\([^)]*\\)")) { it.groupValues[1].ifBlank { "(picture)" } }
-        .replace(Regex("\\[([^\\]]+)]\\([^)]*\\)")) { it.groupValues[1] }
+        .replace(Regex("!\\[([^\\]]*)\\]\\([^)]*\\)")) { it.groupValues[1].ifBlank { "(picture)" } }
+        .replace(Regex("\\[([^\\]]+)\\]\\([^)]*\\)")) { it.groupValues[1] }
         .replace(Regex("<img[^>]*>", RegexOption.IGNORE_CASE), "(picture)")
         .replace(Regex("<a\\s[^>]*>(.*?)</a>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))) { it.groupValues[1] }
 
