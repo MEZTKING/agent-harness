@@ -40,7 +40,7 @@ def test_after_the_turn_style_css_has_nothing_physical_but_the_ring_s_centre_and
     out, n = SW.logical_css((STATIC / "style.css").read_text(encoding="utf-8"))
     left = [m.group(0) for line in out.splitlines() if PHYSICAL.search(line)
             for m in [PHYSICAL.search(line)] if not any(k in line for k in SW.KEEP_PHYSICAL)]
-    assert left == [] and n >= 30
+    assert left == []  # n rules turned: 35 before the coordinator runs the turn, 0 after
 
 
 def test_the_modules_own_styles_turn_too():
