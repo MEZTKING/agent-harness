@@ -204,7 +204,7 @@ def test_the_desktops_words_seam():
     js = (STATIC / "words.js").read_text(encoding="utf-8")
     for name in ("t(text, vals)", "auto(text)", "lang()", "dir()", "locale()", "load()"):
         assert f"export {'async ' if name == 'load()' else ''}function {name}" in js, name
-    assert re.search(r"export function auto\(text\) \{ return text; \}", js)  # the stub: identity
+    assert re.search(r"export function auto\(text\) \{\n  if \(LANG === \"en-GB\"[^\n]*return text;", js)  # English: as it is
     core = (STATIC / "core.js").read_text(encoding="utf-8")
     assert 'import * as words from "./words.js";' in core and "words.auto(" in core
     assert 'WORDY = new Set(["title", "placeholder", "aria-label", "alt"])' in core
