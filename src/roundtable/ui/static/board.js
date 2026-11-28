@@ -5,6 +5,7 @@
 // of projects by hand, kept on this computer.
 import { h, fill, get, post, toast, dialog, every, card, empty, q, plural, jobName, modelName } from "./core.js";
 import { openFocus } from "./focus.js";
+import { t as wt } from "./words.js";
 
 boardStyles();
 
@@ -38,7 +39,7 @@ function boardView(seat, d, redraw) {
     d.earlier && d.earlier.count ? h("details", { class: "card fold bd-earlier" },
       h("summary", { title: "Finished tasks of earlier goals, put away so the board stays short. Nothing was deleted." }, d.earlier.title),
       h("ul", { class: "bd-earlier-list" }, d.earlier.cards.map((t) => h("li", {}, h("b", { class: "bd-num" }, t.number), " ", t.title,
-        h("span", { class: "muted small" }, ` · goal ${t.goal} · ${t.line}`))))) : null];
+        h("span", { class: "muted small" }, wt(" · goal {goal} · {line}", { goal: t.goal, line: t.line })))))) : null];
 }
 
 function taskCard(seat, t, redraw) {
@@ -112,8 +113,8 @@ export function orderButtons(seat, shown, after) {  // up and down on one projec
     catch (e) { toast(e.message, true); }
   };
   return h("span", { class: "bd-order" },
-    h("button", { class: "small", type: "button", title: "Show this project higher on Home (what needs you still comes first)", "aria-label": `Move ${seat.name} up`, onclick: (ev) => move(ev, -1) }, "↑"),
-    h("button", { class: "small", type: "button", title: "Show this project lower on Home", "aria-label": `Move ${seat.name} down`, onclick: (ev) => move(ev, 1) }, "↓"));
+    h("button", { class: "small", type: "button", title: "Show this project higher on Home (what needs you still comes first)", "aria-label": wt("Move {name} up", { name: seat.name }), onclick: (ev) => move(ev, -1) }, "↑"),
+    h("button", { class: "small", type: "button", title: "Show this project lower on Home", "aria-label": wt("Move {name} down", { name: seat.name }), onclick: (ev) => move(ev, 1) }, "↓"));
 }
 
 function boardStyles() {
@@ -123,7 +124,7 @@ function boardStyles() {
 .bd-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: start; }
 .bd-col { background: var(--color-sunken); border: 1px solid var(--color-line); border-radius: var(--radius); padding: 8px; min-width: 0; }
 .bd-col-head { display: flex; align-items: center; gap: 6px; margin: 2px 4px 8px; font: 700 14px/1.2 var(--font-display); }
-.bd-col-head .count { margin-left: auto; color: var(--color-muted); font-weight: 600; }
+.bd-col-head .count { margin-inline-start: auto; color: var(--color-muted); font-weight: 600; }
 .bd-col.waiting .bd-col-head { color: var(--color-flare); } .bd-col.stuck .bd-col-head { color: var(--color-bad); } .bd-col.done .bd-col-head { color: var(--color-good); }
 .bd-card { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-small); padding: 8px 10px; margin-bottom: 8px; }
 .bd-card.waiting { border-color: var(--color-flare); } .bd-card.stuck { border-color: var(--color-bad); } .bd-card.building { border-color: var(--color-accent); }
@@ -135,7 +136,7 @@ function boardStyles() {
 .bd-more summary { cursor: pointer; font-size: 12.5px; color: var(--color-muted); margin-top: 4px; }
 .bd-more p { margin: 4px 0 0; }
 .bd-none { margin: 4px; }
-.bd-earlier { margin-top: 12px; } .bd-earlier-list { list-style: none; padding-left: 4px; margin: 6px 0; } .bd-earlier-list li { margin: 3px 0; }
+.bd-earlier { margin-top: 12px; } .bd-earlier-list { list-style: none; padding-inline-start: 4px; margin: 6px 0; } .bd-earlier-list li { margin: 3px 0; }
 .bd-state { font-weight: 700; } .bd-state.working { color: var(--color-good); } .bd-state.waiting { color: var(--color-flare); }
 .bd-state.quiet { color: var(--color-warn); } .bd-state.resting { color: var(--color-muted); }
 .bd-order { display: inline-flex; gap: 2px; } .bd-order button { min-height: 24px; padding: 0 7px; }

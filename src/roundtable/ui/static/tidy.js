@@ -1,16 +1,17 @@
 // Settings → Advanced: "Tidy up old files automatically" and "Show what would be removed" (ui/tidyapi.py,
 // retention.py). No numbers to tune here: the limits stay in the settings file.
 import { h, fill, get, post, act, dialog } from "./core.js";
+import { t } from "./words.js";
 
 const TIP = "Old logs, pictures and finished tasks' working copies. Never your project's files or anything you sent.";
 
 export async function tidyCard() {
   let st;
   try { st = await get("/api/tidy"); } catch (e) {
-    return h("section", { class: "card" }, h("h2", {}, "Tidying up"), h("p", {}, `This copy can't tidy up yet: ${e.message}`));
+    return h("section", { class: "card" }, h("h2", {}, "Tidying up"), h("p", {}, t("This copy can't tidy up yet: {message}", { message: e.message })));
   }
   const last = h("p", { class: "small muted", "aria-live": "polite" });
-  const drawLast = (s) => fill(last, s.last ? `Last time: ${s.last.message}` : "Nothing has been tidied up yet.");
+  const drawLast = (s) => fill(last, s.last ? t("Last time: {message}", { message: s.last.message }) : "Nothing has been tidied up yet.");
   drawLast(st);
   const out = h("div", { "aria-live": "polite" });
   const preview = (btn) => act(btn, () => post("/api/tidy/preview", {}), null, (r) => fill(out,
@@ -40,7 +41,7 @@ function notChosen() {
     items.forEach((it) => (byProject[it.path] = byProject[it.path] || []).push(it));
     const clear = (path, task, label) => async (ev) => {
       const btn = ev.currentTarget;
-      if (!(await dialog({ title: "Clear attempts not chosen?", text: `${label} The chosen work stays in the project; only the other attempts' branches and patches go.`, yes: "Clear" }))) return;
+      if (!(await dialog({ title: "Clear attempts not chosen?", text: t("{label} The chosen work stays in the project; only the other attempts' branches and patches go.", { label }), yes: "Clear" }))) return;
       act(btn, () => post("/api/tidy/not-chosen/clear", { path, task }), null, (x) => { draw(x); });
     };
     fill(box, h("h3", { title: "When two or three models built a task side by side, the attempts not chosen are kept so you can look at them" }, "Attempts not chosen"),
@@ -49,8 +50,8 @@ function notChosen() {
         Object.entries(byProject).map(([path, its]) => h("div", {},
           h("div", { class: "row" }, h("b", {}, its[0].project), h("button", { class: "small", type: "button", title: "Removes these attempts' branches and patches. Only when you press it",
             onclick: clear(path, "", `${its.length} attempt${its.length === 1 ? "" : "s"} in ${its[0].project}.`) }, "Clear")),
-          h("ul", { class: "small" }, its.map((it) => h("li", {}, `${it.task} (${it.rival})`, it.why ? ` · another was chosen: ${it.why}` : "",
-            it.patch ? ` · patch ${it.size}` : "", it.branch ? h("span", { class: "muted" }, ` · branch ${it.branch}`) : null)))))) : null);
+          h("ul", { class: "small" }, its.map((it) => h("li", {}, `${it.task} (${it.rival})`, it.why ? t(" · another was chosen: {why}", { why: it.why }) : "",
+            it.patch ? t(" · patch {size}", { size: it.size }) : "", it.branch ? h("span", { class: "muted" }, t(" · branch {branch}", { branch: it.branch })) : null)))))) : null);
   };
   get("/api/tidy/not-chosen").then(draw).catch(() => box.remove());  // an older PC: nothing shows
   return box;

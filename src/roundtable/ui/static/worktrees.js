@@ -2,6 +2,7 @@
 // was kept. "Open its files" lists what that copy changed; "Tidy" shows what the daily tidy-up would do with each,
 // by its own rule. This panel never deletes anything.
 import { h, fill, get, post, toast, q, empty, plural } from "./core.js";
+import { t } from "./words.js";
 
 worktreesStyles();
 
@@ -24,11 +25,11 @@ export async function worktreesPanel(seat) {
       try {
         const r = await post("/api/tidy/preview", {});
         const going = items.filter((it) => (r.items || []).some((x) => x.path === it.folder));
-        fill(tidyWords, going.length ? `The daily tidy-up would remove ${plural(going.length, "copy", "copies")} (${going.map((x) => x.task).join(", ")}); the rest stay, as each says. Tidying runs from Settings → Advanced.`
+        fill(tidyWords, going.length ? t("The daily tidy-up would remove {v1} ({v2}); the rest stay, as each says. Tidying runs from Settings → Advanced.", { v1: plural(going.length, "copy", "copies"), v2: going.map((x) => x.task).join(", ") })
           : "The daily tidy-up would keep every copy here, for the reason each gives.");
       } catch (e) { toast(e.message, true); } finally { tidyBtn.disabled = false; }
     };
-    fill(body, h("p", { class: "muted small" }, `${plural(items.length, "copy", "copies")} kept.`), h("div", { class: "row" }, tidyBtn), tidyWords,
+    fill(body, h("p", { class: "muted small" }, t("{v1} kept.", { v1: plural(items.length, "copy", "copies") })), h("div", { class: "row" }, tidyBtn), tidyWords,
       h("ul", { class: "wt-list" }, items.map((it) => row(seat, it))));
   };
   box.addEventListener("toggle", () => { if (box.open) draw(); });
@@ -48,7 +49,7 @@ function row(seat, it) {
   };
   return h("li", { class: "wt-row" },
     h("div", {}, h("b", { class: "wt-num" }, it.task), " ", it.title || "", h("span", { class: `wt-unsaved ${it.unsaved === "yes" ? "yes" : ""}` }, ` · ${UNSAVED[it.unsaved] || it.unsaved}`)),
-    h("p", { class: "small muted" }, it.why ? `Kept because ${it.why}. ` : "", it.tidy),
+    h("p", { class: "small muted" }, it.why ? t("Kept because {why}. ", { why: it.why }) : "", it.tidy),
     h("div", { class: "row" }, open),
     h("details", { class: "wt-more" }, h("summary", {}, "More"), h("p", { class: "small muted" }, h("code", {}, it.branch), " · ", h("code", {}, it.folder))),
     files);
@@ -57,7 +58,7 @@ function row(seat, it) {
 function worktreesStyles() {
   if (typeof document === "undefined" || document.getElementById("wt-style")) return;
   document.head.append(h("style", { id: "wt-style" }, `
-.wt-list, .wt-flist { list-style: none; padding-left: 0; margin: 8px 0 0; }
+.wt-list, .wt-flist { list-style: none; padding-inline-start: 0; margin: 8px 0 0; }
 .wt-row { border: 1px solid var(--color-line); border-radius: var(--radius-small); padding: 8px 10px; margin-bottom: 8px; background: var(--color-sunken); }
 .wt-row p { margin: 4px 0; } .wt-num { font-family: var(--font-mono); color: var(--color-accent); }
 .wt-unsaved.yes { color: var(--color-warn); font-weight: 700; }

@@ -113,7 +113,7 @@ async function checkUpdate() {
   try {
     const st = await get("/api/update");
     if (!st.available) return;
-    fill(el, h("b", {}, `A new ${BRAND.name} is ready`), h("span", { class: "muted" }, st.latest && /^\d+\.\d+/.test(st.latest) ? `Version ${st.latest}` : ""),
+    fill(el, h("b", {}, words.t("A new {name} is ready", { name: BRAND.name })), h("span", { class: "muted" }, st.latest && /^\d+\.\d+/.test(st.latest) ? words.t("Version {latest}", { latest: st.latest }) : ""),
       h("span", { class: "spacer" }),
       h("button", { class: "primary", title: "Backs up your settings first, then updates", onclick: (ev) => act(ev.currentTarget, () => post("/api/update", {}), "Updating…",
         (j) => { el.hidden = true; if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, "Update now"),

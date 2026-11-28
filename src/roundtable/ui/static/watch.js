@@ -11,6 +11,9 @@ import { appStartCard } from "./appstart.js";
 import { streamUnder, followBox } from "./stream.js";
 import { openFocus } from "./focus.js";
 import { pathLinker } from "./files.js";
+import { tracesFold } from "./traces.js";
+import { readIn } from "./language.js";
+import { t as wt } from "./words.js";
 
 // paths in a step's output link to Files, local addresses to the Browser (files.js); plain text until it's known
 let LINK = (t) => [t];
@@ -121,7 +124,7 @@ export function gauge(ctx) {
   const level = ctx.share == null ? "" : ctx.share >= 0.85 ? " full" : ctx.share >= 0.6 ? " high" : "";
   return h("span", { class: "tw-gauge" + level, title: tip + (ctx.cache_hit != null ? ` ${pct(ctx.cache_hit)} of what it read came from the cache (cheaper).` : "") },
     ctx.share != null ? h("span", { class: "tw-meter" }, h("span", { style: `width:${Math.max(2, ctx.share * 100)}%` })) : null,
-    ctx.share != null ? `${pct(ctx.share)} full` : `${tokens(ctx.used)} tokens`);
+    ctx.share != null ? wt("{v1} full", { v1: pct(ctx.share) }) : wt("{v1} tokens", { v1: tokens(ctx.used) }));
 }
 function taskSummary(t, key, open) {
   const bar = timeBar(t.time), g = gauge(t.context);
@@ -130,7 +133,7 @@ function taskSummary(t, key, open) {
     ...(t.time ? t.time.parts.map((p) => h("li", {}, h("span", { class: "tw-key tw-" + p.key }), `${p.label}: ${dur(p.ms)}`)) : []),
     t.time && t.time.unrecorded ? h("li", { class: "t-meta" }, "Some earlier steps weren't timed, so they're left out.") : null,
     t.context ? h("li", {}, `Context: ${Number(t.context.used).toLocaleString("en-GB")} tokens` + (t.context.window ? ` of ${Number(t.context.window).toLocaleString("en-GB")}` : "") + ` (${modelName(t.context.model)})`) : null,
-    t.context && t.context.cache_hit != null ? h("li", {}, `From the cache: ${pct(t.context.cache_hit)} of what the models read`) : null,
+    t.context && t.context.cache_hit != null ? h("li", {}, wt("From the cache: {v1} of what the models read", { v1: pct(t.context.cache_hit) })) : null,
   ];
   const det = h("details", { class: "tw-sum", open: open.has(key) }, h("summary", { title: "Where this task's time went – click for the details" }, bar, g), h("ul", { class: "tw-list" }, rows));
   det.addEventListener("toggle", () => (det.open ? open.add(key) : open.delete(key)));
@@ -141,7 +144,7 @@ export function changedFiles(t, key, open) {
   if (!list.length) return null;
   const add = list.reduce((a, c) => a + c.added, 0), del = list.reduce((a, c) => a + c.removed, 0);
   const det = h("details", { class: "t-tool tw-files", open: open.has(key) },
-    h("summary", { title: "The files this task changed" }, h("span", { class: "t-dot" }, "●"), h("b", {}, `Changed ${list.length} file${list.length > 1 ? "s" : ""}`),
+    h("summary", { title: "The files this task changed" }, h("span", { class: "t-dot" }, "●"), h("b", {}, wt("Changed {length} file{v1}", { length: list.length, v1: list.length > 1 ? "s" : "" })),
       h("span", { class: "t-detail" }, ` · +${add} −${del}`)),
     h("ul", { class: "tw-list" }, list.map((c) => h("li", {}, c.path, h("span", { class: "t-detail" }, ` ${c.new ? "new · " : ""}+${c.added} −${c.removed}`)))));
   det.addEventListener("toggle", () => (det.open ? open.add(key) : open.delete(key)));
@@ -152,7 +155,7 @@ export function workingNow(tasks, running) {
   const last = new Map(tasks.map((t) => [t.id, t]));
   const live = (running || []).map((id) => last.get(id)).filter(Boolean);
   if (!live.length) return null;
-  return h("section", { class: "card tw-now" }, h("div", { class: "card-head" }, h("h2", {}, live.length > 1 ? `Working on ${live.length} tasks at once` : "Working on")),
+  return h("section", { class: "card tw-now" }, h("div", { class: "card-head" }, h("h2", {}, live.length > 1 ? wt("Working on {length} tasks at once", { length: live.length }) : "Working on")),
     h("div", { class: "tw-rows" }, live.map((t) => h("div", { class: "tw-row" },
       h("div", { class: "tw-title" }, h("b", {}, t.title || t.id), h("span", { class: "muted small" }, ` ${t.id} · ${jobName(t.role)}`), h("span", { class: "spacer" }), taskPill(t.status)),
       h("div", { class: "tw-doing muted small", title: t.now || "" }, t.now || "Starting"),
@@ -174,8 +177,8 @@ function watchStyles() {
 .tw-gauge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 .tw-meter { display: inline-block; width: 56px; height: 6px; border-radius: 3px; background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
 .tw-meter > span { display: block; height: 100%; background: var(--color-good); } .tw-gauge.high .tw-meter > span { background: var(--color-warn); } .tw-gauge.full .tw-meter > span { background: var(--color-bad); }
-.tw-list { margin: 6px 0 4px; padding-left: 18px; font-size: 12px; list-style: none; } .tw-list li { margin: 2px 0; }
-.tw-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.tw-list { margin: 6px 0 4px; padding-inline-start: 18px; font-size: 12px; list-style: none; } .tw-list li { margin: 2px 0; }
+.tw-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline-end: 6px; vertical-align: -1px; }
 `));
 }
 
@@ -188,7 +191,7 @@ function remoteSteps(events) {
   for (const e of events) {
     if (e.kind === "task_started") {
       box = h("div", { class: "t-task" }, h("div", { class: "t-head" }, h("span", { class: "t-prompt" }, "▶"), h("b", {}, e.title || e.task || "A task"),
-        e.role ? h("span", { class: "t-meta" }, ` · ${jobName(e.role)}`) : null, e.index && e.total ? h("span", { class: "t-meta" }, ` · ${e.index} of ${e.total}`) : null));
+        e.role ? h("span", { class: "t-meta" }, ` · ${jobName(e.role)}`) : null, e.index && e.total ? h("span", { class: "t-meta" }, wt(" · {index} of {total}", { index: e.index, total: e.total })) : null));
       out.push(box);
       if (e.task) byTask.set(e.task, box);
       continue;
@@ -206,14 +209,14 @@ function remoteSteps(events) {
 export function stepNode(path, s, key, open) {
   const cost = s.cost ? h("span", { class: "t-cost", title: "What this model turn cost" }, money(s.cost)) : null;
   if (s.kind === "say") return h("div", { class: "t-say" + (s.who === "reviewer" ? " rev" : "") }, h("span", { class: "t-dot" }, "⏺"),
-    h("div", {}, s.who === "reviewer" ? h("b", {}, "Reviewer  ") : null, LINK(s.text)), cost);
-  if (s.kind === "attempt") { const n = (String(s.text).match(/Attempt (\d+)/) || [])[1]; return h("div", { class: "t-meta" }, n && n !== "1" ? `Try ${n}, with ${modelName(s.model)}` : `Working with ${modelName(s.model)}`); }
+    readIn(h("div", {}, s.who === "reviewer" ? h("b", {}, "Reviewer  ") : null, LINK(s.text)), s.text, s.who === "reviewer" ? "a reviewer's reasons" : "a builder's thinking", path), cost);
+  if (s.kind === "attempt") { const n = (String(s.text).match(/Attempt (\d+)/) || [])[1]; return h("div", { class: "t-meta" }, n && n !== "1" ? wt("Try {n}, with {v1}", { n, v1: modelName(s.model) }) : wt("Working with {v1}", { v1: modelName(s.model) })); }
   if (s.kind === "review") return h("div", { class: "t-review " + (s.approved ? "ok" : "no") }, s.approved ? "✓ Approved" : "✗ Sent back", h("span", {}, "  " + (s.text || "")));
   if (s.kind === "finish") return h("div", { class: "t-meta" }, "✓ Finished: ", s.text);
   if (s.kind === "error") return h("div", { class: "t-review no" }, "! A model didn't answer: ", String(s.text).replace(/^[^:]+\/[^:]+:\s*/, ""));
   if (s.kind === "shots") {
     const rec = { dir: s.dir || s.task, task: s.task, pictures: {} };
-    return h("div", { class: "t-shots" }, h("div", { class: "t-meta" }, s.pictures.length ? `Pictures of the app${s.errors ? ` · the page reported ${s.errors} error${s.errors > 1 ? "s" : ""}` : ""}` : `No pictures: ${s.note}`),
+    return h("div", { class: "t-shots" }, h("div", { class: "t-meta" }, s.pictures.length ? wt("Pictures of the app{v1}", { v1: s.errors ? ` · the page reported ${s.errors} error${s.errors > 1 ? "s" : ""}` : "" }) : wt("No pictures: {note}", { note: s.note })),
       s.pictures.length && path ? h("div", { class: "strip" }, s.pictures.map((k) => picture(shotUrl(path, rec, k), `${SHOT_NAMES[k] || k} · after this task`))) : null);
   }
   const body = s.diff ? diffView(s.diff) : s.output ? h("pre", { class: "t-out" }, LINK(s.output)) : null;
@@ -239,7 +242,8 @@ async function moreDetails(path) {
   try { d = await get(`/api/project?${q({ path })}`); } catch { return null; }
   return h("details", { class: "card fold" }, h("summary", { title: "The full record, for when you want every detail" }, "Every detail"),
     h("h3", {}, "The full log"), h("pre", { class: "log" }, d.events.map((e) => `${(e.at || "").slice(11, 16)}  ${e.text}`).join("\n") || "Empty"),
-    h("h3", {}, `Its files (${d.files.length})`), h("pre", { class: "log short" }, d.files.join("\n") || "None yet"));
+    h("h3", {}, wt("Its files ({length})", { length: d.files.length })), h("pre", { class: "log short" }, d.files.join("\n") || "None yet"),
+    tracesFold(path));
 }
 
 // ---------- App: the real app running, and its pictures ----------
@@ -286,7 +290,7 @@ async function hubApp(seat, now) {
 const day = (iso) => { try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(iso).slice(0, 10); } };
 function liveApp(L) {
   if (!L.preview) {
-    return card("The app", h("p", { class: "muted" }, L.entry ? `The app opens here in the ${BRAND.name} desktop app.`
+    return card("The app", h("p", { class: "muted" }, L.entry ? wt("The app opens here in the {name} desktop app.", { name: BRAND.name })
       : L.start_command ? "It starts with a command: start it above." : "Nothing to open yet: the app's first page hasn't been made."));
   }
   const frame = h("iframe", { class: "live-frame", src: L.preview, title: "The app, live", sandbox: "allow-scripts allow-same-origin allow-forms" });
@@ -310,12 +314,12 @@ function livePictures(path, L, finished = false, seat = null) {
   const kinds = Object.keys(rec.pictures || {}), errs = rec.errors || [];
   const earlier = (L.history || []).filter((r) => Object.keys(r.pictures || {}).length);
   return card(h("div", { class: "card-head" }, h("h2", {}, finished ? "Final pictures" : "Pictures"),
-    h("span", { class: "muted small" }, finished ? day(rec.at) : [rec.title ? `after “${rec.title}”` : "after the newest task", ` · ${ago(rec.at)}`])),
+    h("span", { class: "muted small" }, finished ? day(rec.at) : [rec.title ? wt("after “{title}”", { title: rec.title }) : "after the newest task", ` · ${ago(rec.at)}`])),
     kinds.length ? h("div", { class: "shots" }, kinds.map((k) => h("figure", { class: "shot " + k }, picture(shotUrl(path, rec, k), SHOT_NAMES[k] || k), h("figcaption", {}, SHOT_NAMES[k] || k))))
       : h("p", { class: "muted" }, rec.failed || rec.note || "No pictures this time."),
     kinds.length && rec.note ? h("p", { class: "small muted" }, rec.note) : null,
     rec.task && path ? proofCard(path, rec.task) : null,  // before and after that task, and what a model that can see said
-    errs.length ? h("details", {}, h("summary", { title: "Errors the page wrote while the pictures were taken" }, `The page reported ${errs.length} error${errs.length > 1 ? "s" : ""}`), h("pre", { class: "log short" }, errs.join("\n"))) : null,
-    earlier.length > 1 ? h("details", {}, h("summary", {}, `Earlier pictures (${earlier.length - 1})`), h("div", { class: "strip" }, earlier.map((r) => h("figure", {}, picture(shotUrl(path, r, "desktop"), r.title || "An earlier picture"),
+    errs.length ? h("details", {}, h("summary", { title: "Errors the page wrote while the pictures were taken" }, wt("The page reported {length} error{v1}", { length: errs.length, v1: errs.length > 1 ? "s" : "" })), h("pre", { class: "log short" }, errs.join("\n"))) : null,
+    earlier.length > 1 ? h("details", {}, h("summary", {}, wt("Earlier pictures ({v1})", { v1: earlier.length - 1 })), h("div", { class: "strip" }, earlier.map((r) => h("figure", {}, picture(shotUrl(path, r, "desktop"), r.title || "An earlier picture"),
       h("figcaption", {}, r.title || "", h("span", { class: "muted" }, " " + ago(r.at))))))) : null);
 }

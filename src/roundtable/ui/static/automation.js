@@ -4,6 +4,7 @@
 // (MIT, Copyright (c) 2026 DSH Mobile contributors).
 import { h, fill, get, post, act, ago, money, page, card, empty, seg, dialog } from "./core.js";
 import { HOOK_KINDS, hookParts, addLocalHook, hookRowExtras } from "./hooks.js";
+import { t as wt } from "./words.js";
 
 const DAYS = [["mon", "M", "Monday"], ["tue", "T", "Tuesday"], ["wed", "W", "Wednesday"], ["thu", "T", "Thursday"],
   ["fri", "F", "Friday"], ["sat", "S", "Saturday"], ["sun", "S", "Sunday"]];
@@ -46,7 +47,7 @@ function body(d, draw) {
       : empty("None yet. Add one below: for example, plan the next goal of a project every weekday at 9:00.")),
     card("Add an automation", form(null, d, send, draw)),
     d.github.set ? h("details", { class: "fold" }, h("summary", {}, "Your GitHub key"),
-      h("p", { class: "small muted" }, `The harness reads GitHub with ${d.github.which}. It asks GitHub every few minutes; nothing on the internet can reach this computer.`),
+      h("p", { class: "small muted" }, wt("The harness reads GitHub with {which}. It asks GitHub every few minutes; nothing on the internet can reach this computer.", { which: d.github.which })),
       keyForm(send, "Change it")) : null,
   ];
 }
@@ -62,8 +63,8 @@ function keyForm(send, label) {
 }
 
 function row(a, d, send, draw) {
-  const last = a.last_run ? h("span", { class: a.last_ok === false ? "err" : "" }, `Last run ${ago(a.last_run)}: ${a.last_result}`) : h("span", { class: "muted" }, "Not run yet");
-  const next = a.next_run ? h("span", { title: new Date(a.next_run).toLocaleString() }, `Next: ${local(a.next_run)} (${inWords(a.next_run)})`)
+  const last = a.last_run ? h("span", { class: a.last_ok === false ? "err" : "" }, wt("Last run {v1}: {last_result}", { v1: ago(a.last_run), last_result: a.last_result })) : h("span", { class: "muted" }, "Not run yet");
+  const next = a.next_run ? h("span", { title: new Date(a.next_run).toLocaleString() }, wt("Next: {v1} ({v2})", { v1: local(a.next_run), v2: inWords(a.next_run) }))
     : h("span", { class: "muted" }, a.on ? "No more runs" : "Off");
   const edit = h("div", { hidden: true });
   return h("li", { class: "auto" + (a.on ? "" : " off") },
@@ -82,12 +83,12 @@ function row(a, d, send, draw) {
     hookRowExtras(a, async () => draw(await get("/api/automations"))),
     edit,
     h("details", {}, h("summary", { class: "small" }, "More"),
-      h("p", { class: "small" }, a.money, a.spent_usd ? ` Spent so far: ${money(a.spent_usd)}.` : ""),
+      h("p", { class: "small" }, a.money, a.spent_usd ? wt(" Spent so far: {v1}.", { v1: money(a.spent_usd) }) : ""),
       (a.made || []).length ? [h("h4", {}, "What it made"), h("ul", { class: "small" }, a.made.map((m) =>
         h("li", {}, h("time", { title: m.at }, ago(m.at)), " ", m.text, m.project ? ` (${m.project.split(/[\\/]/).pop()})` : "",
           m.link ? [" · ", h("a", { href: m.link, target: "_blank", rel: "noopener" }, "on GitHub")] : "")))] : null,
       a.editable ? h("button", { class: "danger small", type: "button", onclick: async (ev) => {
-        if (await dialog({ title: "Remove this automation?", text: `“${a.name}” stops and is removed. What it already made stays.`, yes: "Remove", danger: true }))
+        if (await dialog({ title: "Remove this automation?", text: wt("“{name}” stops and is removed. What it already made stays.", { name: a.name }), yes: "Remove", danger: true }))
           send({ action: "remove", id: a.id }, ev.currentTarget);
       } }, "Remove") : null));
 }

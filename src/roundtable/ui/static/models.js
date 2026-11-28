@@ -6,6 +6,7 @@ import { jobCaps } from "./usage.js";
 import { learnedTab } from "./learned.js";
 import { walletCard } from "./wallet.js";
 import { permsCell } from "./perms.js";
+import { t as wt } from "./words.js";
 
 export async function viewModels(tab = "jobs") {
   if (!S.ov.harness) return page("Models", null, card("The harness can't build on this computer yet",
@@ -26,7 +27,7 @@ async function loadRouting() { S.routing = await get("/api/routing"); return S.r
 // Your other machines and phone follow the base choices and the default set too (shared settings, when the hub is there).
 async function share(changes) {
   if (!S.ov.hub || !(await has("/api/settings/shared"))) return;
-  try { await post("/api/settings/shared", { changes }); } catch (e) { toast(`Saved here, but your other machines weren't told: ${e.message}`, true); }
+  try { await post("/api/settings/shared", { changes }); } catch (e) { toast(wt("Saved here, but your other machines weren't told: {message}", { message: e.message }), true); }
 }
 
 // ---------- who does what ----------
@@ -64,10 +65,10 @@ function jobRow(R, j, set, redraw) {
   const row = h("div", { class: "jt-row", role: "row" },
     h("span", { role: "cell", class: "jt-job" }, h("b", { title: j.about }, j.name), h("small", { class: "muted" }, j.about),
       j.kind === "image" ? h("span", { class: "pill" }, "pictures") : null, j.learned ? h("span", { class: "pill good", title: "The harness changed this from what it learned (Learning tab)" }, "learned") : null),
-    h("span", { role: "cell" }, modelChip(R, main), e.effort ? h("span", { class: "pill", title: "How hard it thinks before answering" }, `thinks: ${e.effort}`) : null,
+    h("span", { role: "cell" }, modelChip(R, main), e.effort ? h("span", { class: "pill", title: "How hard it thinks before answering" }, wt("thinks: {effort}", { effort: e.effort })) : null,
       inherited ? h("small", { class: "muted", title: "This set doesn't name this job, so the base choice is used" }, " · base choice") : null),
     h("span", { role: "cell", class: "jt-backups" }, backups.length ? backups.map((m) => modelChip(R, m, true)) : h("span", { class: "muted small" }, "No backup")),
-    h("span", { role: "cell" }, h("button", { class: "small", title: `Choose who does the ${j.name} job`, onclick: () => row.replaceWith(editor(R, j, set, redraw)) }, "Change")));
+    h("span", { role: "cell" }, h("button", { class: "small", title: wt("Choose who does the {name} job", { name: j.name }), onclick: () => row.replaceWith(editor(R, j, set, redraw)) }, "Change")));
   // what this job may do (perms.js): filled in when it's known, nothing on an older app
   permsCell(j.role).then((el) => { if (el) row.querySelector(".jt-job").append(el); }).catch(() => {});
   return row;
@@ -75,7 +76,7 @@ function jobRow(R, j, set, redraw) {
 function modelChip(R, m, small = false) {
   if (!m) return h("span", { class: "muted" }, "Nobody");
   const ok = keyOk(R, m.ref);
-  return h("span", { class: "mchip" + (small ? " small" : "") + (ok ? "" : " nokey"), title: ok ? m.label : `${m.label}: there's no key for ${R.providers[m.ref.split("/")[0]].name} yet, so it's skipped` },
+  return h("span", { class: "mchip" + (small ? " small" : "") + (ok ? "" : " nokey"), title: ok ? m.label : wt("{label}: there's no key for {v1} yet, so it's skipped", { label: m.label, v1: R.providers[m.ref.split("/")[0]].name }) },
     m.label, ok ? null : h("a", { href: `#/settings/keys`, class: "addkey", title: "Add the key in Settings" }, "add the key"));
 }
 
@@ -90,7 +91,7 @@ function editor(R, j, set, redraw) {
     return groups;
   };
   const picker = (ref, i) => {
-    const sel = h("select", { "aria-label": i ? `Backup ${i}` : "Does the work", onchange: async (ev) => {
+    const sel = h("select", { "aria-label": i ? wt("Backup {i}", { i }) : "Does the work", onchange: async (ev) => {
       if (ev.target.value === "__other") {
         const v = await otherModel(R);
         if (v) { if (!R.choices.some((c) => c.ref === v)) R.choices.push({ ref: v, label: modelName(v), provider: v.split("/")[0] }); list[i] = v; }
@@ -101,7 +102,7 @@ function editor(R, j, set, redraw) {
     Object.entries(choices()).map(([g, cs]) => h("optgroup", { label: g }, cs.map((c) => h("option", { value: c.ref, selected: c.ref === ref }, c.label.replace(/ \([^)]*\)$/, "") + (keyOk(R, c.ref) ? "" : " – no key yet"))))),
     !R.choices.some((c) => c.ref === ref) ? h("option", { value: ref, selected: true }, modelName(ref)) : null,
     h("option", { value: "__other" }, "Another model…"));
-    return h("li", {}, h("span", { class: "label" }, i ? `Backup ${i}` : "Does the work"), sel,
+    return h("li", {}, h("span", { class: "label" }, i ? wt("Backup {i}", { i }) : "Does the work"), sel,
       h("span", { class: "row" },
         i > 0 ? h("button", { type: "button", class: "icon", title: "Move up", "aria-label": "Move up", onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } }, "↑") : null,
         list.length > 1 ? h("button", { type: "button", class: "icon danger", title: "Take it off", "aria-label": "Take it off", onclick: () => { list.splice(i, 1); draw(); } }, "×") : null));
@@ -113,9 +114,9 @@ function editor(R, j, set, redraw) {
     if (!set) await share({ roles: { [j.role]: list.length === 1 ? list[0] : list } });
     return r;
   },
-    `${j.name}: saved`, (r) => { Object.assign(R, r); S.routing = R; redraw(); }) }, "Save");
+    wt("{name}: saved", { name: j.name }), (r) => { Object.assign(R, r); S.routing = R; redraw(); }) }, "Save");
   return h("div", { class: "jt-edit", role: "row" },
-    h("div", { class: "jt-edit-head" }, h("b", {}, `Who does the ${j.name} job`), h("span", { class: "muted small" }, set ? `in the ${(R.sets.find((s) => s.id === set) || {}).name} set` : "when a set doesn't say")),
+    h("div", { class: "jt-edit-head" }, h("b", {}, wt("Who does the {name} job", { name: j.name })), h("span", { class: "muted small" }, set ? wt("in the {v1} set", { v1: (R.sets.find((s) => s.id === set) || {}).name }) : "when a set doesn't say")),
     rows,
     h("div", { class: "row" }, h("button", { type: "button", class: "small", onclick: () => { list.push(R.choices.find((c) => !list.includes(c.ref))?.ref || list[0]); draw(); } }, "+ Add a backup"),
       set && j.kind !== "image" ? h("label", { class: "row small", title: "How hard it thinks before answering: harder is slower and costs more, and is better at difficult work" }, "Thinks",
@@ -144,7 +145,7 @@ async function otherModel(R) {
 function keysNote(R) {
   const missing = Object.entries(R.providers).filter(([pid, p]) => p.needs_key && !p.key_set && R.jobs.some((j) => [j.base, ...Object.values(j.sets)].some((e) => e.models.some((m) => m.ref.startsWith(pid + "/")))));
   if (!missing.length) return null;
-  return card("Some models have no key yet", h("p", {}, `Without a key they're skipped and the backup does the job: ${missing.map(([, p]) => p.name).join(", ")}.`),
+  return card("Some models have no key yet", h("p", {}, wt("Without a key they're skipped and the backup does the job: {v1}.", { v1: missing.map(([, p]) => p.name).join(", ") })),
     h("a", { class: "btn primary", href: "#/settings/keys" }, "Add the keys"));
 }
 
@@ -159,7 +160,7 @@ async function health() {
   const run = card("Check the models",
     h("p", { class: "muted small" }, "Short tests each model is marked on (using tools, writing data, following instructions, reasoning, fixing a bug), compared with how it usually does. Run it before big changes; it costs a few cents."),
     h("div", { class: "row" }, h("select", { "aria-label": "Which models", onchange: (ev) => { which = ev.target.value; } },
-      h("option", { value: "" }, "Every model"), R.jobs.map((j) => h("option", { value: j.role }, `The ${j.name} job's models`))),
+      h("option", { value: "" }, "Every model"), R.jobs.map((j) => h("option", { value: j.role }, wt("The {name} job's models", { name: j.name })))),
     h("label", { class: "check", title: "Also makes one test picture (a few cents more)" }, h("input", { type: "checkbox", onchange: (ev) => { images = ev.target.checked; } }), "Picture models too"),
     h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/probes", { roles: which ? [which] : [], images }), "Checking the models…", () => { live._sig = undefined; }) }, "Check now")));
   const live = h("div");
@@ -170,15 +171,15 @@ async function health() {
     let full = null;
     if (running) full = await get(`/api/jobs/${running.id}`);
     patch(live, JSON.stringify([running && full.log.length, last && last.status]), () => running ? card("Checking now…", h("pre", { class: "log short" }, full.log.join("\n") || "Starting…"))
-      : last && Array.isArray(last.result) ? card(`The latest check, ${ago(last.ended)}`, h("table", { class: "plain-table" },
+      : last && Array.isArray(last.result) ? card(wt("The latest check, {v1}", { v1: ago(last.ended) }), h("table", { class: "plain-table" },
         h("tr", {}, h("th", {}, "Model"), h("th", { class: "num" }, "Passed"), h("th", { class: "num" }, "Usually"), h("th", { class: "num" }, "Seconds"), h("th", {}, "How it did"), h("th", {}, "Notes")),
-        last.result.map((r) => h("tr", {}, h("td", {}, modelName(r.model)), h("td", { class: "num" }, `${r.passed} of ${r.total}`),
+        last.result.map((r) => h("tr", {}, h("td", {}, modelName(r.model)), h("td", { class: "num" }, wt("{passed} of {total}", { passed: r.passed, total: r.total })),
           h("td", { class: "num" }, r.baseline_score === null ? "–" : Math.round(r.baseline_score * 100) + "%"), h("td", { class: "num" }, r.seconds.toFixed(1)),
           h("td", {}, r.status.map(probePill)), h("td", { class: "small" }, r.notes.join("; ")))))) : null);
     patch(hist, JSON.stringify(probes.models.map((m) => [m.model, m.runs.length])), () => card("Over time", probes.models.length ? h("table", { class: "plain-table" },
       h("tr", {}, h("th", {}, "Model"), h("th", {}, "Checks, oldest to newest"), h("th", {}, "Latest")),
       probes.models.map((m) => { const r = m.runs[m.runs.length - 1]; return h("tr", {}, h("td", {}, modelName(m.model)), h("td", {}, spark(m.runs)),
-        h("td", { class: "small" }, `${r.passed} of ${r.total} · ${ago(r.at)}`, h("details", {}, h("summary", {}, "Each test"),
+        h("td", { class: "small" }, wt("{passed} of {total} · {v1}", { passed: r.passed, total: r.total, v1: ago(r.at) }), h("details", {}, h("summary", {}, "Each test"),
           h("ul", { class: "plain small" }, r.results.map((x) => h("li", {}, x.passed ? "✓ " : "✗ ", readable(x.probe), ` · ${(x.seconds || 0).toFixed(1)}s`, x.error || x.detail ? h("span", { class: "muted" }, ` · ${x.error || x.detail}`) : null)))))); }))
       : empty("No checks yet. Press Check now to see how each model is doing.")));
     if (!running) return undefined;
@@ -189,7 +190,7 @@ async function health() {
 function spark(runs) {
   return h("span", { class: "spark", title: "Each mark is one check, oldest first" }, runs.slice(-15).map((r) => {
     const f = r.total ? r.passed / r.total : 0;
-    return h("i", { class: f === 1 ? "ok" : f >= 0.6 ? "mid" : "no", title: `${new Date(r.at).toLocaleString()}: ${r.passed} of ${r.total}` });
+    return h("i", { class: f === 1 ? "ok" : f >= 0.6 ? "mid" : "no", title: wt("{v1}: {passed} of {total}", { v1: new Date(r.at).toLocaleString(), passed: r.passed, total: r.total }) });
   }));
 }
 
@@ -223,7 +224,7 @@ async function suggestions(R, reload) {
         h("span", { class: "muted small" }, p.source === "owner" ? "your idea" : "the harness's idea", ` · ${ago(p.created_at)}`)),
       h("details", {}, h("summary", { class: "small" }, "More"), h("p", { class: "small" }, p.rationale),
         p.kind === "prompt" ? h("p", { class: "pre-line small" }, p.change.prompt_text) : null),
-      p.test ? h("p", { class: "small" }, `Tested on ${plural(p.test.tasks_compared, "earlier task")}: now ${p.test.current.approved} approved for ${money(p.test.current.cost_usd)}, with the change ${p.test.candidate.approved} for ${money(p.test.candidate.cost_usd)}. `,
+      p.test ? h("p", { class: "small" }, wt("Tested on {v1}: now {approved} approved for {v2}, with the change {approved2} for {v3}. ", { v1: plural(p.test.tasks_compared, "earlier task"), approved: p.test.current.approved, v2: money(p.test.current.cost_usd), approved2: p.test.candidate.approved, v3: money(p.test.candidate.cost_usd) }),
         h("b", {}, p.test.passed ? "Better or as good." : "Not better."), p.test.note ? ` ${p.test.note}` : "") : null,
       ["proposed", "tested"].includes(p.status) ? h("div", { class: "row" },
         h("button", { disabled: !!running, title: "Tries the change on practice tasks and a few earlier tasks, to compare (up to $2)", onclick: startJob({ action: "test", id: p.id, samples: 3, max_cost: 2 }, "Testing it…") }, "Test it"),
@@ -234,14 +235,14 @@ async function suggestions(R, reload) {
         h("button", { class: "danger", onclick: (ev) => act(ev.currentTarget, () => post("/api/improve", { action: "reject", id: p.id }), "Turned down", reload) }, "Turn down")) : null);
   };
   return h("div", { class: "stack" },
-    h("p", {}, POLICY[data.policy] || `Policy: ${data.policy}.`),
+    h("p", {}, POLICY[data.policy] || wt("Policy: {policy}.", { policy: data.policy })),
     h("div", { class: "row" },
       h("button", { class: "primary", disabled: !!running, title: "Looks through the finished tasks for better choices (free)", onclick: startJob({ action: "analyze" }, "Looking…") }, "Look for improvements"),
       h("button", { disabled: !!running, title: "A model reads the history too and suggests changes (up to $2)", onclick: startJob({ action: "analyze", llm: true, max_cost: 2 }, "A model is looking…") }, "Ask a model to look"),
       running ? h("a", { href: `#/activity/work/${running.id}` }, "Working on it now…") : null),
     open.length ? open.map(prop) : h("p", { class: "muted" }, "No suggestions waiting. Press Look for improvements after a few projects, or suggest one below."),
     suggest(R, reload),
-    closed.length ? h("details", { class: "fold" }, h("summary", {}, `Turned down (${closed.length})`), closed.map(prop)) : null);
+    closed.length ? h("details", { class: "fold" }, h("summary", {}, wt("Turned down ({length})", { length: closed.length })), closed.map(prop)) : null);
 }
 function suggest(R, reload) {
   let kind = "routing";

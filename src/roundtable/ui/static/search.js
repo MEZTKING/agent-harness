@@ -4,6 +4,7 @@
 import { h, fill, get, post, q, act, toast, dialog, page, card, empty, seg, markdown, when, refreshHall, seatByPath,
   projectHref, S, has } from "./core.js";
 import { askBox, documentsPage, memoryPicture } from "./recall.js";
+import { t as wt } from "./words.js";
 
 // this page's few looks, kept here so style.css stays as it is
 const CSS = `
@@ -178,7 +179,7 @@ export async function openMemory(o) {
   const src = o.machine ? { machine: 1 } : { path: o.path };
   if (o.archive) {
     const a = await get(`/api/memory?${q({ ...src, archive: 1 })}`);
-    await dialog({ title: `${a.where}: older memory`, text: a.words, wide: true, yes: "Close", no: null,
+    await dialog({ title: wt("{where}: older memory", { where: a.where }), text: a.words, wide: true, yes: "Close", no: null,
       body: a.markdown ? h("pre", { class: "sr-peek", style: "white-space: pre-wrap" }, a.markdown) : null });
     return;
   }
@@ -192,7 +193,7 @@ export async function openMemory(o) {
   const body = h("div", { class: "stack" },
     h("p", { class: "muted small" }, "The harness reads this before planning and before each task. Rules never move; when it gets long, the oldest notes move word for word to the archive."),
     counts, area, extra);
-  const save = await dialog({ title: `${m.where}: memory`, body, yes: "Save", no: "Cancel", wide: true });
+  const save = await dialog({ title: wt("{where}: memory", { where: m.where }), body, yes: "Save", no: "Cancel", wide: true });
   if (!save) return;
   await act(null, () => post("/api/memory", { ...src, markdown: area.value }),
     (r) => (r.moved ? `Saved. ${r.moved} older line${r.moved === 1 ? "" : "s"} moved to the archive.` : "Saved"));

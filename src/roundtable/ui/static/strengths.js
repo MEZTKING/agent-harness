@@ -1,6 +1,7 @@
 // What each model is good at, learned from real runs (ui/strengthsapi.py, harness/router.py). Short first: one
 // plain line per model; the full table by kind of work sits behind "More".
 import { h, get, has, card, empty, money } from "./core.js";
+import { t } from "./words.js";
 
 strengthsStyles();
 
@@ -11,12 +12,12 @@ export async function strengthsTab(path) {
   try { s = await get("/api/strengths" + (path ? "?path=" + encodeURIComponent(path) : "")); }
   catch (e) { return empty("Couldn't read what each model is good at. Try again in a moment."); }
   if (!(s.lines || []).length) {
-    return empty(`Nothing learned yet. After a model has tried ${s.min_samples || 5} tasks of one kind, the harness shows what it's best at here and sends that kind of work to it.`);
+    return empty(t("Nothing learned yet. After a model has tried {v1} tasks of one kind, the harness shows what it's best at here and sends that kind of work to it.", { v1: s.min_samples || 5 }));
   }
   return card(null,
     h("p", { class: "muted small" }, "Each task goes to the model that wins its kind of work. Learned from real runs."),
     h("ul", { class: "st-lines" }, s.lines.map((l) =>
-      h("li", { title: `${l.label}: approved ${l.approved} of the ${l.n} ${l.tag} tasks it tried` },
+      h("li", { title: t("{label}: approved {approved} of the {n} {tag} tasks it tried", { label: l.label, approved: l.approved, n: l.n, tag: l.tag }) },
         h("b", {}, l.label), h("span", { class: "muted" }, " · "), l.words))),
     strengthsMore(s.table || []));
 }
@@ -29,7 +30,7 @@ function strengthsMore(rows) {
       h("thead", {}, h("tr", {}, ["Job", "Model", "Kind of work", "Approved", "Score", "Per finished task"].map((x) => h("th", {}, x)))),
       h("tbody", {}, rows.map((r) => h("tr", {},
         h("td", {}, r.role), h("td", { title: r.model }, r.label), h("td", {}, r.tag_words || r.tag),
-        h("td", {}, `${r.approved} of ${r.n}`), h("td", {}, Math.round((r.quality || 0) * 100) + "%"),
+        h("td", {}, t("{approved} of {n}", { approved: r.approved, n: r.n })), h("td", {}, Math.round((r.quality || 0) * 100) + "%"),
         h("td", { title: "What one approved result cost, failed tries included" }, r.cost_per_success == null ? "–" : money(r.cost_per_success)))))));
 }
 

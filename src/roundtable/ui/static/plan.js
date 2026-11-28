@@ -10,6 +10,7 @@ import { stagedTaskList } from "./stages.js";
 import { pounds } from "./pounds.js";
 import { checkingChoice, checkingLabel, tandemFor, tandemRow } from "./tandem.js";
 import { councilFold } from "./council.js";
+import { t as wt } from "./words.js";
 
 const SETS = { budget: ["Budget", "Cheapest that still works"], balanced: ["Balanced", "Strong models where it matters, cheaper ones for the rest"], quality: ["Quality", "The strongest model for every job"] };
 const setName = (n) => (SETS[n] || [n[0].toUpperCase() + n.slice(1)])[0];
@@ -61,23 +62,23 @@ async function localPlan(seat, redraw) {
   const note = { get value() { return noteBox.composer.text(); }, focus: () => noteBox.composer.focus() };
   const top = card(
     h("div", { class: "card-head" }, h("h2", { class: "plan-title" }, words.title || "The plan"),
-      h("span", { class: "muted small", title: "Each change makes a new version; More about this plan lists them" }, `version ${doc.version}`)),
+      h("span", { class: "muted small", title: "Each change makes a new version; More about this plan lists them" }, wt("version {version}", { version: doc.version }))),
     h("p", { class: "plan-state" }, h("i", { class: "sdot " + (finished ? "good" : locked ? "busy" : "wait") }), words.state || ""),
     !locked && words.estimate ? h("p", { class: "muted small", title: (doc.estimate || {}).note || "What the planner expects the building to cost" }, words.estimate[0].toUpperCase() + words.estimate.slice(1),
       pounds((doc.estimate || {}).cost_usd) ? ` (${pounds(doc.estimate.cost_usd)})` : "") : null,
     d.busy ? h("p", { class: "muted small" }, "It's working on this project now; changes wait until it stops.") : null,
     locked ? null : h("div", { class: "row" },
       pending.length ? h("button", { class: "primary", disabled: d.busy, title: "The planner rewrites the plan with your answers and changes (a few cents)",
-        onclick: () => startJob({ action: "revise", text: note.value }, "Updating the plan…") }, `Update the plan (${plural(pending.length, "change")})`) : null,
+        onclick: () => startJob({ action: "revise", text: note.value }, "Updating the plan…") }, wt("Update the plan ({v1})", { v1: plural(pending.length, "change") })) : null,
       h("button", { class: pending.length ? "" : "primary", disabled: d.busy || pending.length > 0, title: pending.length ? "Update the plan with your changes first" : "Building starts now, as the plan says",
         onclick: () => startJob({ action: "approve" }, "Approved: building has started") }, "Approve and start"),
       h("button", { class: "small", disabled: d.busy, title: "Tell the planner what to change; it waits until you update the plan", onclick: () => { noteBox.hidden = !noteBox.hidden; if (!noteBox.hidden) note.focus(); } }, "Tell the planner")),
     locked ? null : noteBox,
-    pending.length ? h("details", { class: "small" }, h("summary", {}, `Your changes waiting to go in (${pending.length})`), h("ul", {}, pending.map((p) => h("li", {}, p.text)))) : null);
+    pending.length ? h("details", { class: "small" }, h("summary", {}, wt("Your changes waiting to go in ({length})", { length: pending.length })), h("ul", {}, pending.map((p) => h("li", {}, p.text)))) : null);
 
   const input = waiting.length && !locked ? h("div", { class: "asks" }, waiting.map(cardFor)) : null;
   const done = d.tasks.filter((t) => t.status === "done").length;
-  const tasks = d.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, `${done} of ${d.tasks.length} done`)),
+  const tasks = d.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, wt("{done} of {length} done", { done, length: d.tasks.length }))),
     stagedTaskList(d.tasks, doc.stages, (ts) => taskLines(ts, who))) : null;  // under a heading per stage when the plan has stages
 
   // More about this plan: each part its own fold
@@ -95,7 +96,7 @@ async function localPlan(seat, redraw) {
       return h("li", {}, h("b", {}, c.question), " ", pick ? pick.label : "", h("span", { class: "muted small" }, c.chosen ? " (your choice)" : " (recommended)"));
     }))) : null,
     Object.keys(ests).length || doc.checking_estimates ? fold(checkingLabel(doc, doc.profile ? setName(doc.profile) : ""),
-      Object.keys(ests).length ? (locked ? h("ul", {}, Object.keys(ests).map((n) => h("li", {}, `${setName(n)}: about ${money(ests[n].cost_usd || 0)}`, n === doc.profile ? h("span", { class: "muted small" }, " (used)") : null)))
+      Object.keys(ests).length ? (locked ? h("ul", {}, Object.keys(ests).map((n) => h("li", {}, wt("{v1}: about {v2}", { v1: setName(n), v2: money(ests[n].cost_usd || 0) }), n === doc.profile ? h("span", { class: "muted small" }, " (used)") : null)))
         : seg(Object.keys(ests).map((n) => [n, `${setName(n)} · about ${money(ests[n].cost_usd || 0)}`, (SETS[n] || [])[1] || ""]), doc.profile, (n) => n !== doc.profile && edit({ action: "profile", name: n }, `This project now uses the ${setName(n)} set`), "Set of models")) : null,
       d.busy || finished ? null : checkingChoice(doc, (name) => edit({ action: "checking", name }, `Checking is now ${name[0].toUpperCase() + name.slice(1)}`))) : null,
     fold("What it does and doesn't do", scopeLists(doc, locked || d.busy, edit)),
@@ -103,11 +104,11 @@ async function localPlan(seat, redraw) {
     (doc.references || []).length || !locked ? fold("Make it like these", likeSection(doc.references || [], d.busy || locked, edit)) : null,
     (doc.look || {}).directions && (doc.look.directions.length || !locked) ? fold("Looks", lookSection(doc.look || {}, d.busy || locked, edit, startJob)) : null,
     councilFold(doc),  // where the rival planners disagreed (council.js); nothing for a plan by one planner
-    cr ? fold(`Second opinion${cr.verdict === "good" ? ": looks good" : ""}`, h("p", { class: "muted small" }, `From ${modelName(cr.model)}`),
+    cr ? fold(`Second opinion${cr.verdict === "good" ? ": looks good" : ""}`, h("p", { class: "muted small" }, wt("From {v1}", { v1: modelName(cr.model) })),
       h("ul", {}, (cr.points || []).map((pt) => h("li", {}, h("span", { class: "pill " + ({ high: "bad", medium: "warn" }[pt.severity] || "") }, { high: "Important", medium: "Worth doing", low: "Small" }[pt.severity] || pt.severity), " ", pt.text,
         pt.suggestion ? h("div", { class: "muted small" }, "Suggestion: ", pt.suggestion) : null)))) : null,
     (doc.history || []).length > 1 ? fold(`History (${doc.history.length} versions)`, h("ul", {}, doc.history.slice().reverse().map((x) => h("li", { class: "small" },
-      `Version ${x.version} · ${ago(x.at)} · ${x.by === "critic" ? "changed after the second opinion" : x.by === "owner" ? "your changes" : x.change || "the first plan"}`)))) : null);
+      wt("Version {version} · {v1} · {v2}", { version: x.version, v1: ago(x.at), v2: x.by === "critic" ? "changed after the second opinion" : x.by === "owner" ? "your changes" : x.change || "the first plan" }))))) : null);
 
   const kind = doc.kind ? kindCard(doc.kind, path, () => { refreshHall(); redraw(); }) : null;  // "This looks like a website. Right?"
   const doneList = doneCard(seat);  // "Done when: 5 of 7 ✓", each thing on opening (donelist.js)
@@ -133,7 +134,7 @@ function scopeLists(doc, readOnly, edit) {
     return h("div", {}, h("h3", { title: tip }, title),
       items.length ? h("ul", { class: "plain edit-list" }, items.map((it) => h("li", {}, h("span", { class: "grow" }, it.text, it.why ? h("span", { class: "muted small" }, ` · ${it.why}`) : null,
         it.by === "owner" ? h("span", { class: "pill info" }, "yours") : null),
-      readOnly ? null : h("button", { class: "icon danger", title: "Take it off", "aria-label": `Take off: ${it.text}`, onclick: () => edit(removeBody(it)) }, "×")))) : h("p", { class: "muted small" }, "Nothing yet."),
+      readOnly ? null : h("button", { class: "icon danger", title: "Take it off", "aria-label": wt("Take off: {text}", { text: it.text }), onclick: () => edit(removeBody(it)) }, "×")))) : h("p", { class: "muted small" }, "Nothing yet."),
       readOnly ? null : h("div", { class: "row" }, inp, h("button", { class: "small", onclick: addIt }, "Add")));
   };
   return [h("div", { class: "grid2" },
@@ -143,7 +144,7 @@ function scopeLists(doc, readOnly, edit) {
 }
 
 function specPart(sp, tasks, all, readOnly, edit) {
-  const ta = h("textarea", { rows: 5, class: "grow", "aria-label": `Change: ${sp.title}` }, sp.text);
+  const ta = h("textarea", { rows: 5, class: "grow", "aria-label": wt("Change: {title}", { title: sp.title }) }, sp.text);
   const txt = h("div", {}, prose(sp.text));
   const editBox = h("div", { class: "stack", hidden: true }, ta, h("div", { class: "row" },
     h("button", { class: "primary small", onclick: () => edit({ action: "section", id: sp.id, text: ta.value }, "Changed: update the plan to put it in") }, "Save"),
@@ -158,7 +159,7 @@ export function taskList(tasks, all = tasks) {
   return h("ol", { class: "tasks compact" }, tasks.map((t) => {
     const last = t.attempts[t.attempts.length - 1];
     return h("li", { class: "task " + t.status }, h("div", { class: "task-top" }, h("b", {}, t.title), taskPill(t.status)),
-      h("div", { class: "task-meta" }, jobName(t.role), last ? ` · ${modelName(last.model, true)}` : "", t.depends_on.length ? ` · after ${t.depends_on.map(title).join(", ")}` : ""));
+      h("div", { class: "task-meta" }, jobName(t.role), last ? ` · ${modelName(last.model, true)}` : "", t.depends_on.length ? wt(" · after {v1}", { v1: t.depends_on.map(title).join(", ") }) : ""));
   }));
 }
 
@@ -176,7 +177,7 @@ function likeSection(refs, busy, edit) {
       r.status === "failed" ? h("p", { class: "muted small" }, r.error) : null,
       (rep.borrow || []).length ? h("p", { class: "small" }, h("b", {}, "Borrow: "), rep.borrow.join("; ")) : null,
       (rep.avoid || []).length ? h("p", { class: "small" }, h("b", {}, "Avoid: "), rep.avoid.join("; ")) : null,
-      r.report ? h("p", { class: "muted small", title: "Code is only used when its licence clearly allows it, and then it's credited" }, `Licence: ${rep.licence} · its code: ${rep.code_reuse}`) : null);
+      r.report ? h("p", { class: "muted small", title: "Code is only used when its licence clearly allows it, and then it's credited" }, wt("Licence: {licence} · its code: {code_reuse}", { licence: rep.licence, code_reuse: rep.code_reuse })) : null);
   };
   return h("div", {},
     h("p", { class: "muted small" }, "Things you want it to be like. The harness makes something similar, never a copy: no names, characters, art, music or text taken."),
@@ -197,7 +198,7 @@ function lookSection(lk, busy, edit, startJob) {
       h("p", { class: "small" }, x.mood),
       h("p", { class: "muted small" }, "What makes it stand out: ", x.signature),
       h("div", { class: "row swatches", title: "Its colours" }, ["background", "surface", "text", "accent"].map((k) => swatch(light[k], k)),
-        h("span", { class: "muted small" }, `${x.fonts.display.family} and ${x.fonts.body.family}`)));
+        h("span", { class: "muted small" }, wt("{family} and {family2}", { family: x.fonts.display.family, family2: x.fonts.body.family }))));
   };
   return h("div", {},
     h("p", { class: "muted small" }, dirs.length ? "The looks in detail. Choose one on the Look card above: every task then follows it."
@@ -221,7 +222,7 @@ async function hubPlan(seat) {
   const state = p.plan_state || (finished ? `Finished – ${plural(md.tasks.length, "task")}` : waiting ? "Waiting for you" : md.tasks.length
     ? `${md.tasks.filter((t) => t.status === "done").length} of ${md.tasks.length} tasks done` : p.state);
   const est = waiting ? (p.estimate || md.estimate.replace(", about ", " and ")) : "";
-  const top = card(h("div", { class: "card-head" }, h("h2", { class: "plan-title" }, p.plan_title || p.goal || "The plan"), h("span", { class: "muted small" }, p.at ? `updated ${ago(p.at)}` : "")),
+  const top = card(h("div", { class: "card-head" }, h("h2", { class: "plan-title" }, p.plan_title || p.goal || "The plan"), h("span", { class: "muted small" }, p.at ? wt("updated {v1}", { v1: ago(p.at) }) : "")),
     h("p", { class: "plan-state" }, h("i", { class: "sdot " + (finished ? "good" : waiting ? "wait" : "busy") }), state,
       h("span", { class: "muted small", title: "Your answers and approval go to that computer through the hub, and it carries on there" }, " · built on another computer")),
     est ? h("p", { class: "muted small" }, est[0].toUpperCase() + est.slice(1)) : null,
@@ -229,7 +230,7 @@ async function hubPlan(seat) {
       onclick: (ev) => act(ev.currentTarget, () => hubCommand(need, "approve"), null, () => refreshHall()) }, "Approve and start")) : null);
   const asks = (p.asks || []).length && !finished ? h("div", { class: "asks" }, p.asks.map((a) => askCard(a, async (ans) => { await answerHub(need, a, ans); await refreshHall(); }))) : null;
   const done = md.tasks.filter((t) => t.status === "done").length;
-  const tasks = md.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, `${done} of ${md.tasks.length} done`)), taskLines(md.tasks)) : null;
+  const tasks = md.tasks.length ? card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted small" }, wt("{done} of {length} done", { done, length: md.tasks.length }))), taskLines(md.tasks)) : null;
   const parts = [p.plan_summary ? null : md.intro.length ? ["What it will be", md.intro.join("\n\n")] : null, ...md.sections.map((x) => [x.title, x.body])].filter(Boolean);
   const more = parts.length ? h("details", { class: "card fold more" }, h("summary", {}, "More about this plan"),
     parts.map(([t, body]) => h("details", { class: "fold-part" }, h("summary", {}, t), markdown(body)))) : null;

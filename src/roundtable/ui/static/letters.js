@@ -2,6 +2,7 @@
 // project. (The hub's messages.)
 import { h, fill, get, post, S, act, card, page, ago, empty, seg, toast, refreshHall, projectName, projectHref, dot, plural, q } from "./core.js";
 import { composer } from "./compose.js";
+import { t as wt } from "./words.js";
 
 const KIND_VERB = { ask: "asks", notify: "lets you know", request: "asks you to do something" };
 const KINDS = [["ask", "A question", "They should answer"], ["notify", "Just so you know", "No answer needed"], ["request", "Please do this", "A job for them"]];
@@ -11,7 +12,7 @@ export function letterRow(m, me, done, compact = false) {
   const replyBox = h("div", { class: "reply", hidden: true });
   const openReply = () => {
     if (!replyBox.firstChild) replyBox.append(composer({ key: `reply:${m.id}`, noFiles: true, rows: 2, label: "Your reply",
-      placeholder: `Reply to ${projectName(m.sender)}…`, onSend: async ({ text }) => {
+      placeholder: wt("Reply to {v1}…", { v1: projectName(m.sender) }), onSend: async ({ text }) => {
         await post("/api/reply", { as: me, message_id: m.id, body: text });
         toast("Reply sent");
         if (!m.read) await post(`/api/inbox/${encodeURIComponent(me)}/read`, { ids: [m.id] }).catch(() => null);
@@ -31,7 +32,7 @@ export function letterRow(m, me, done, compact = false) {
       compact ? null : h("button", { class: "small link-btn", title: "The letters before and after this one", onclick: async () => {
         try {
           const t = await get(`/api/thread?${q({ as: me, thread: m.thread_id })}`);
-          fill(thread, t.length > 1 ? t.map((x) => h("p", { class: "small" }, h("b", {}, projectName(x.sender)), ` to ${projectName(x.recipient)}, ${ago(x.created_at)}: `, x.body)) : h("p", { class: "muted small" }, "Just this one."));
+          fill(thread, t.length > 1 ? t.map((x) => h("p", { class: "small" }, h("b", {}, projectName(x.sender)), wt(" to {v1}, {v2}: ", { v1: projectName(x.recipient), v2: ago(x.created_at) }), x.body)) : h("p", { class: "muted small" }, "Just this one."));
         } catch (e) { toast(e.message, true); }
       } }, "The whole conversation")),
     replyBox, thread];
@@ -56,12 +57,12 @@ export async function viewLetters(asAgent) {
       unread.length ? h("div", { class: "row" }, h("h2", { class: "section-title grow" }, plural(unread.length, "new letter")),
         h("button", { onclick: (ev) => act(ev.currentTarget, () => post(`/api/inbox/${encodeURIComponent(me)}/read`, { ids: unread.map((m) => m.id) }), "All marked read", done) }, "Mark all read")) : null,
       unread.length ? unread.map((m) => letterRow(m, me, done)) : empty("No new letters. When a project or an agent writes to you, it shows up here, and in Needs you."),
-      read.length ? h("details", { class: "card fold" }, h("summary", {}, `Read letters (${read.length})`), read.slice(0, 100).map((m) => letterRow(m, me, done))) : null);
+      read.length ? h("details", { class: "card fold" }, h("summary", {}, wt("Read letters ({length})", { length: read.length })), read.slice(0, 100).map((m) => letterRow(m, me, done))) : null);
   };
   const done = async () => { await reload(); await refreshHall(); };
   await reload();
   const others = agents.filter((a) => a.id !== me);
-  return page(me === S.ov.agent ? "Letters" : `Letters to ${projectName(me)}`, null, box, compose(me, others, params.get("to")),
+  return page(me === S.ov.agent ? "Letters" : wt("Letters to {v1}", { v1: projectName(me) }), null, box, compose(me, others, params.get("to")),
     h("details", { class: "card fold" }, h("summary", { title: "Read the letters another project received" }, "Read another project's letters"),
       h("div", { class: "row" }, h("select", { "aria-label": "Whose letters", onchange: (ev) => { location.hash = `#/letters/${encodeURIComponent(ev.target.value)}`; } },
         agents.map((a) => h("option", { value: a.id, selected: a.id === me }, a.name || a.id))))));

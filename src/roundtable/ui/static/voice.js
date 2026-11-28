@@ -5,6 +5,7 @@
 // would). Where this window has no speech service the button isn't shown.
 import { BRAND, h, fill, post, toast } from "./core.js";
 import { runCommand } from "./slash.js";
+import { t as wt } from "./words.js";
 
 const Recogniser = () => (typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)) || null;
 export const canTalk = () => !!Recogniser();
@@ -51,7 +52,7 @@ function hear({ onWords, seconds = 0 } = {}) {
       if (onWords) onWords(now);
     };
     rec.onerror = (ev) => { clearTimeout(timer); reject(new Error(ev.error === "not-allowed"
-      ? `The microphone isn't allowed. Allow it for ${BRAND.name}, then try again.` : "Nothing was heard. Try again.")); };
+      ? wt("The microphone isn't allowed. Allow it for {name}, then try again.", { name: BRAND.name }) : "Nothing was heard. Try again.")); };
     rec.onend = () => { clearTimeout(timer); resolve(final.trim()); };
     if (seconds) timer = setTimeout(() => rec.stop(), seconds * 1000);
     rec.start();

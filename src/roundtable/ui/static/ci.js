@@ -5,7 +5,7 @@ import { h, fill, get, q, ago } from "./core.js";
 
 const STYLE = `
 .ci-chip { display: inline-flex; gap: 6px; align-items: center; }
-.ci-runs { margin: 4px 0 0; padding-left: 18px; color: var(--color-muted); font-size: 12.5px; }
+.ci-runs { margin: 4px 0 0; padding-inline-start: 18px; color: var(--color-muted); font-size: 12.5px; }
 `;
 let styled = false;
 const PILL = { passing: "good", failing: "bad", running: "info", none: "", not_github: "", no_key: "warn", error: "warn" };

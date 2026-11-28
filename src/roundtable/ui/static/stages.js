@@ -2,6 +2,7 @@
 // under each stage. Short first: one sentence and the strip; the parts, the warnings and who changes which file fold
 // under "More". (harness/stages.py, ui/stagesapi.py)
 import { h, fill, get, q, has } from "./core.js";
+import { t as wt } from "./words.js";
 
 const STATE_WORDS = { done: "Built", now: "Being built", stuck: "Something didn't pass", waiting: "Waiting" };
 const STATE_TIPS = {
@@ -34,8 +35,8 @@ export function stagedTaskList(tasks, stages, render) {
   if (groups.length === 1 && !groups[0].id) return render(groups[0].tasks);
   return h("div", { class: "stg-groups" }, groups.map((g, i) => h("div", { class: "stg-group" },
     h("div", { class: "stg-group-head" },
-      h("b", {}, g.id ? `Stage ${i + 1}: ${g.title}` : g.title),
-      g.shows ? h("span", { class: "muted small", title: "What you can try once this stage is finished" }, ` · then you can try ${g.shows}`) : null),
+      h("b", {}, g.id ? wt("Stage {v1}: {title}", { v1: i + 1, title: g.title }) : g.title),
+      g.shows ? h("span", { class: "muted small", title: "What you can try once this stage is finished" }, wt(" · then you can try {shows}", { shows: g.shows })) : null),
     render(g.tasks))));
 }
 
@@ -78,7 +79,7 @@ function moreBody(v) {
   }
   if ((v.strayed || []).length) {
     out.push(h("ul", { class: "small muted", title: "Files a task changed that its plan didn't name. Only noted, never a failure" },
-      v.strayed.map((s) => h("li", {}, `${s.task} also changed ${s.files.join(", ")}`))));
+      v.strayed.map((s) => h("li", {}, wt("{task} also changed {v1}", { task: s.task, v1: s.files.join(", ") })))));
   }
   const files = Object.entries(v.files || {});
   if (files.length) {

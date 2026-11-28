@@ -1,6 +1,6 @@
 // Settings → Your phone: "The page for an iPhone" (ui/webphoneapi.py, webphone.py). Built switched off: it can only
 // be turned on after advice on its certificate warning and the owner's yes. The certificate to compare is shown here.
-import { h, fill, get, post, act } from "../core.js";
+import { h, fill, get, post, act } from "./core.js";
 
 export async function webPhoneCard() {
   let st;

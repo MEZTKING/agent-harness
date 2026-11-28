@@ -5,6 +5,8 @@
 // A question may carry a timer (asktimer.py): the card says what happens when it runs out, and typing an
 // answer holds the clock while you write.
 import { h, fill, get, post, toast, projectName, q } from "./core.js";
+import { readIn } from "./language.js";
+import { t as wt } from "./words.js";
 
 const AT = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
 const RUNS_OUT = { recommended: "it takes the recommended answer", nothing: "it keeps waiting and nothing is done", pause: "the project waits for your answer" };
@@ -16,11 +18,11 @@ export function timerLine(ask) {
   if (ask.kind === "command") return null;  // its own line (commandBlock)
   if (ask.timed_out) {
     const t = ask.timed_out, words = (RAN_OUT[t.did] || RAN_OUT.nothing)(t.label);
-    return h("p", { class: "muted small ask-timer", title: "This question had a time limit" }, `The time ran out${AT(t.at) ? ` at ${AT(t.at)}` : ""}: ${words}.`);
+    return h("p", { class: "muted small ask-timer", title: "This question had a time limit" }, wt("The time ran out{v1}: {words}.", { v1: AT(t.at) ? ` at ${AT(t.at)}` : "", words }));
   }
   if (!ask.expires_at || !RUNS_OUT[ask.on_expire]) return null;
   return h("p", { class: "muted small ask-timer", title: "Typing an answer stops the clock while you write" },
-    ask.held ? "The clock is stopped while you write." : `If nobody answers by ${AT(ask.expires_at)}, ${RUNS_OUT[ask.on_expire]}.`);
+    ask.held ? "The clock is stopped while you write." : wt("If nobody answers by {v1}, {v2}.", { v1: AT(ask.expires_at), v2: RUNS_OUT[ask.on_expire] }));
 }
 
 // Tell the timer the owner is typing (at most every 30 seconds).
@@ -46,12 +48,12 @@ export function commandBlock(ask) {
   const pre = h("pre", { class: "log short ask-cmd", "aria-label": "The command" }, ask.folded ? ask.preview || full.slice(0, 1200) : full);
   const until = ask.expires_at ? new Date(ask.expires_at) : null;
   const foot = h("p", { class: "muted small" },
-    until && !isNaN(until) ? `If nobody answers by ${until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, it doesn't run.` : "");
+    until && !isNaN(until) ? wt("If nobody answers by {v1}, it doesn't run.", { v1: until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }) : "");
   if (!ask.folded) return h("div", { class: "ask-command" }, pre, foot);
   let open = false;
   const btn = h("button", { class: "link-btn", type: "button", title: "Show the whole command before you answer",
     onclick: () => { open = !open; pre.textContent = open ? full : ask.preview || full.slice(0, 1200); btn.textContent = open ? "Show less" : `Show all (${ask.lines || 1} lines)`; } },
-  `Show all (${ask.lines || 1} lines)`);
+  wt("Show all ({v1} lines)", { v1: ask.lines || 1 }));
   return h("div", { class: "ask-command" }, pre, h("div", { class: "row" }, btn), foot);
 }
 
@@ -116,7 +118,7 @@ export function askCard(ask, onAnswer, opts = {}) {
       o.description ? h("span", {}, o.description) : null);
     });
     const otherBtn = ask.allow_other !== false && !textOnly ? h("button", { class: "ask-opt other", type: "button", disabled: opts.disabled,
-      title: `Type your own answer (press ${options.length + 1})`, onclick: () => showOther(otherRow.hidden) },
+      title: wt("Type your own answer (press {v1})", { v1: options.length + 1 }), onclick: () => showOther(otherRow.hidden) },
     h("b", {}, h("kbd", {}, options.length + 1), "Other…"), h("span", {}, ask.other_hint || "Type your own answer")) : null;
     fill(card,
       h("div", { class: "ask-head" },
@@ -124,7 +126,7 @@ export function askCard(ask, onAnswer, opts = {}) {
         opts.project ? h("span", { class: "ask-proj" }, opts.project) : null,
         ask.answer ? h("span", { class: "pill good" }, "Answered") : null),
       h("h3", { class: "ask-q" }, ask.question),
-      ask.detail ? h("p", { class: "ask-detail" }, ask.detail) : null,
+      ask.detail ? readIn(h("div", {}, h("p", { class: "ask-detail" }, ask.detail)), ask.detail, "a question's reasons", ask.path) : null,
       ask.kind === "command" ? commandBlock(ask) : null,
       ask.engine && ask.path ? engineOffer(ask) : null,
       ask.more ? h("details", { class: "ask-more" }, h("summary", { title: "The exact steps it would run" }, "More"), h("pre", { class: "small" }, ask.more)) : null,
@@ -172,7 +174,7 @@ export async function skipHere(ask) {
 export async function answerHub(need, ask, a) {
   const r = await post("/api/hub/command", { agent: need.hub_agent, folder: need.project, action: "answer",
     fields: { id: ask.id, stamp: ask.stamp, chosen: a.chosen, other: a.other, confirmed: a.confirmed } });
-  toast(r.reply || `Sent to ${projectName(need.project)}`);
+  toast(r.reply || wt("Sent to {v1}", { v1: projectName(need.project) }));
   return r;
 }
 export async function hubCommand(seatOrNeed, action, fields = {}) {

@@ -14,6 +14,7 @@ import { gfm, linkPaths, richView, findBar, previewStyles } from "./preview.js";
 import { openEditor, editsList } from "./editor.js";
 import { historyView } from "./gitlog.js";
 import { browserView } from "./browser.js";
+import { t as wt } from "./words.js";
 
 const pfile = (path, file, download) => "/raw/pfile?" + q({ path, file, download: download ? "1" : "" });
 const ICONS = { folder: "📁", image: "🖼", pdf: "📄", markdown: "📝", csv: "▦", json: "{ }", code: "</>", text: "≡", other: "•",
@@ -52,7 +53,7 @@ export async function filesTab(seat, now) {
   if (!seat.path) {  // built on another machine: say where its files are
     let d = null;
     try { d = await get(`/api/files?${q({ name: seat.hub_name || seat.id })}`); } catch { /* the words below */ }
-    return card("Files", h("p", {}, (d && d.words) || `This project's files aren't on this computer. Open ${BRAND.name} on the computer that builds it.`));
+    return card("Files", h("p", {}, (d && d.words) || wt("This project's files aren't on this computer. Open {name} on the computer that builds it.", { name: BRAND.name })));
   }
   highlightStyles();
   previewStyles();
@@ -124,13 +125,13 @@ function filesBrowser(seat, editing) {
         d.crumbs.map((c, i) => [i ? h("span", { class: "muted" }, " / ") : null,
           i === d.crumbs.length - 1 ? h("b", {}, c.name) : h("a", { href: "#", onclick: (ev) => { ev.preventDefault(); open(c.dir); } }, c.name)])),
       d.items.length ? h("ul", { class: "files-items" }, d.items.map((it) => h("li", {},
-        h("button", { class: "file-row", type: "button", title: it.folder ? "Open this folder" : `Open ${it.name}`,
+        h("button", { class: "file-row", type: "button", title: it.folder ? "Open this folder" : wt("Open {name}", { name: it.name }),
           onclick: () => (it.folder ? open(it.path) : showFile(it.path)) },
           h("span", { class: "file-ic", "aria-hidden": "true" }, ICONS[it.preview] || ICONS[it.kind] || "•"),
           h("span", { class: "grow" }, it.name),
           it.folder ? null : h("span", { class: "muted small" }, fileSize(it.size))))))
         : h("p", { class: "muted" }, "This folder is empty."),
-      d.more ? h("p", { class: "muted small" }, `And ${plural(d.more, "more file")}, not shown.`) : null);
+      d.more ? h("p", { class: "muted small" }, wt("And {v1}, not shown.", { v1: plural(d.more, "more file") })) : null);
   };
   const refreshEdits = () => (editing ? editsList(edits, path, (file) => { if (current === file) showFile(file); }) : null);
 
@@ -272,7 +273,7 @@ function commandLog(seat, now, box) {
     sig = s;
     const failed = d.commands.filter((c) => c.passed === false).length;
     const runBtn = d.test_command
-      ? h("button", { class: "primary", disabled: !d.can_run || null, title: d.can_run ? `Runs the project's own test command: ${d.test_command}` : d.why_not,
+      ? h("button", { class: "primary", disabled: !d.can_run || null, title: d.can_run ? wt("Runs the project's own test command: {test_command}", { test_command: d.test_command }) : d.why_not,
         onclick: (ev) => act(ev.currentTarget, async () => {
           const job = await post("/api/files/run_tests", { path });
           followTests(job, box, () => { sig = ""; draw(); });
@@ -320,8 +321,8 @@ function filesStyles() {
 .files-card .card-head { gap: 12px; flex-wrap: wrap; }
 .fv-code { position: relative; display: flex; max-height: 62vh; overflow: auto; border-radius: var(--radius-small); background: var(--color-sunken); font: 13px/1.5 var(--font-mono); }
 .fv-gutter, .fv-text { margin: 0; padding: 8px; white-space: pre; font: inherit; background: none; }
-.fv-gutter { color: var(--color-muted); text-align: right; user-select: none; border-right: 1px solid var(--color-line); position: sticky; left: 0; background: var(--color-sunken); }
+.fv-gutter { color: var(--color-muted); text-align: end; user-select: none; border-inline-end: 1px solid var(--color-line); position: sticky; inset-inline-start: 0; background: var(--color-sunken); }
 .fv-text { flex: 1; tab-size: 4; }
-.fv-mark { position: absolute; left: 0; right: 0; background: var(--color-accent-soft); opacity: 0.6; pointer-events: none; }
+.fv-mark { position: absolute; inset-inline-start: 0; inset-inline-end: 0; background: var(--color-accent-soft); opacity: 0.6; pointer-events: none; }
 `));
 }

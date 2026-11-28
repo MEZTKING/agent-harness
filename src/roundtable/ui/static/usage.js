@@ -2,6 +2,7 @@
 // usageCard() for Settings, jobCaps() for Models, seenList(path) for a project's settings. Each shows nothing
 // on an older PC without /api/usage. Short first: one line per service; the rest behind More.
 import { h, fill, get, post, q, has, act, plural } from "./core.js";
+import { t } from "./words.js";
 
 const SERVICE_FIELDS = [
   ["usd_per_month", "$ a month", "The most this service may cost in a calendar month, across every project. Empty or 0: no limit", 0.5],
@@ -89,7 +90,7 @@ export function jobCaps() {
       const set = rows.filter((r) => Object.values(r.values()).some(Boolean)).length;
       const det = h("details", { class: "us-more" },
         h("summary", { title: "So one job can't run up the bill: when a job reaches its limit on a project, the project waits for you" },
-          set ? `Limits per project: set for ${plural(set, "job")}` : "Limits per project: none set"));
+          set ? t("Limits per project: set for {v1}", { v1: plural(set, "job") }) : "Limits per project: none set"));
       const save = h("button", { class: "btn" }, "Save job limits");
       save.addEventListener("click", () => act(save, async () => {
         const body = { jobs: {} };
@@ -114,7 +115,7 @@ export function seenList(path) {
       const rows = v.makers || [];
       const more = rows.length ? h("details", { class: "us-more" }, h("summary", { title: "Each maker, the service it came through, and when" }, "More"),
         h("ul", { class: "us-lines" }, rows.map((r) => h("li", {},
-          `${r.maker_name} through ${r.service_name}: ${plural(r.calls, "call")}, first ${day(r.first)}, last ${day(r.last)}`))),
+          t("{maker_name} through {service_name}: {v1}, first {v2}, last {v3}", { maker_name: r.maker_name, service_name: r.service_name, v1: plural(r.calls, "call"), v2: day(r.first), v3: day(r.last) })))),
         h("p", { class: "muted small" }, v.note || "")) : null;
       fill(box, h("p", { class: "small", title: "Every model that was sent this project's work, counted by the company that made it" }, v.words), more);
     } catch (e) { box.remove(); }
@@ -128,7 +129,7 @@ const day = (ts) => { const d = new Date(ts); return isNaN(d) ? "–" : d.toLoca
 function usageStyles() {
   if (typeof document === "undefined" || document.getElementById("us-style")) return;
   document.head.append(h("style", { id: "us-style" }, `
-.us-lines { margin: 4px 0; padding-left: 18px; }
+.us-lines { margin: 4px 0; padding-inline-start: 18px; }
 .us-lines li { margin: 2px 0; }
 .us-hit { color: var(--color-warn); }
 .us-more { margin-top: 6px; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); padding: 4px 10px; }

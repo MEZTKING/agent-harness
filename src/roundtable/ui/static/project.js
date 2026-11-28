@@ -24,6 +24,9 @@ import { keepPlace } from "./stream.js";
 import { talkButton } from "./voice.js";
 import { projectPermsBox } from "./perms.js";
 import { ciChip } from "./ci.js";
+import { soundsCard } from "./sounds.js";
+import { listeningLine } from "./hubseat.js";
+import { t as wt } from "./words.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
@@ -116,14 +119,15 @@ async function overview(seat, now) {
   const doneBox = h("div"), stagesBox = h("div");  // the done list's one line, the stages' strip
   const grid = h("div", { class: "overview" },
     h("div", { class: "ov-main" }, waits, doneBox, stagesBox, tasksBox, history, report, brief),
-    h("div", { class: "ov-side" }, money_, chat));
+    h("div", { class: "ov-side" }, money_, seat.path ? soundsCard(seat.path) : null, chat));
   if (!seat.path) {  // another computer's project, or a hub project: what the hub knows
     const items = (S.rt.needs_you || []).filter((n) => n.project === seat.id);
     const { gather } = await import("./needs.js");
     const its = (await gather({ ...S.rt, needs_you: items }, true)).filter((i) => i.project === seat.id);
     fill(waits, its.length ? [h("h2", { class: "section-title" }, "Waiting for you"), its.map((i) => needCard(i, () => refreshHall(), { showProject: false }))] : null);
     fill(brief, briefCard(seat));
-    fill(money_, seat.spent_usd || seat.detail ? card("Where it stands", seat.detail ? h("p", {}, seat.detail) : null, seat.spent_usd ? h("p", {}, `${money(seat.spent_usd)} spent so far`) : null) : null);
+    const heard = listeningLine(seat);  // whether the computer that builds it is listening (hubseat.js)
+    fill(money_, seat.spent_usd || seat.detail || heard ? card("Where it stands", seat.detail ? h("p", {}, seat.detail) : null, heard, seat.spent_usd ? h("p", {}, wt("{v1} spent so far", { v1: money(seat.spent_usd) })) : null) : null);
     return grid;
   }
   const path = seat.path, qp = q({ path });
@@ -159,7 +163,7 @@ function tasksCard(seat, d, tq = null) {
   const done = tasks.filter((t) => t.status === "done").length;
   const post_ = (body, ok) => (ev) => act(ev.currentTarget, () => post("/api/project", { path: seat.path, ...body }), ok, () => refreshHall());
   const busy = seat.status === "running";
-  return card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted" }, `${done} of ${tasks.length} done`),
+  return card(h("div", { class: "card-head" }, h("h2", {}, "Tasks"), h("span", { class: "muted" }, wt("{done} of {length} done", { done, length: tasks.length })),
     h("a", { class: "spacer-left", href: projectHref(seat.id, "watch") }, "Watch the steps")),
   h("ol", { class: "tasks" }, tasks.map((t) => {
     const last = t.attempts[t.attempts.length - 1];
@@ -168,7 +172,7 @@ function tasksCard(seat, d, tq = null) {
     return h("li", { class: "task " + t.status },
       h("div", { class: "task-top" }, h("b", {}, t.title), taskPill(t.status)),
       h("div", { class: "task-meta" }, jobName(t.role), model ? [" · ", h("span", { title: modelName(model) }, modelName(model, true))] : null,
-        t.attempts.length > 1 ? ` · ${t.attempts.length} tries` : "", t.depends_on.length ? h("span", { title: "It waits for these tasks to finish first" }, ` · after ${t.depends_on.map((x) => titleOf(tasks, x)).join(", ")}`) : null),
+        t.attempts.length > 1 ? wt(" · {length} tries", { length: t.attempts.length }) : "", t.depends_on.length ? h("span", { title: "It waits for these tasks to finish first" }, wt(" · after {v1}", { v1: t.depends_on.map((x) => titleOf(tasks, x)).join(", ") })) : null),
       tandemRow(tq && (tq.tasks || {})[t.id]),  // "Built by … · checked by … · they disagreed" (tandem.js)
       t.summary && t.status === "done" ? h("p", { class: "task-sum" }, t.summary.slice(0, 280)) : null,
       why ? h("p", { class: "task-why" }, "Why it stopped: ", why.slice(0, 300)) : null,
@@ -177,7 +181,7 @@ function tasksCard(seat, d, tq = null) {
           h("button", { class: "small", title: "Leave this task out", onclick: post_({ action: "skip", task: t.id }, "Left out") }, "Leave it out")] : null,
         t.status === "done" ? [h("button", { class: "small", title: "Tell the harness this was good work: it learns which models do well", onclick: post_({ action: "feedback", task: t.id, rating: "good" }, "Thanks: noted as good work") }, "Good work"),
           h("button", { class: "small", title: "Tell the harness what was wrong: it learns from it", onclick: async (ev) => {
-            const note = await dialog({ title: "What wasn't right?", text: `About “${t.title}”. The harness uses this to choose better models next time.`, yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
+            const note = await dialog({ title: "What wasn't right?", text: wt("About “{title}”. The harness uses this to choose better models next time.", { title: t.title }), yes: "Send", input: { rows: 3, placeholder: "What was wrong?" } });
             if (note !== null) post_({ action: "feedback", task: t.id, rating: "bad", note })(ev);
           } }, "Not right"),
           h("button", { class: "small", title: "Do this task again from the start", onclick: post_({ action: "retry", task: t.id }, "It will be done again: press Carry on to start") }, "Do it again")] : null));
@@ -190,10 +194,10 @@ function moneyCard(d, plan) {
   const est = plan && plan.doc && plan.doc.estimate ? plan.doc.estimate.cost_usd || 0 : 0;
   const unpriced = d.meta.unpriced_calls || 0;
   const pct = est ? Math.min(100, (100 * spent) / est) : 0;
-  return card("Money", h("p", { class: "big" }, money(spent), spent > 0 ? poundsTag(spent) : null, h("span", { class: "muted" }, est ? ` of about ${money(est)}` : " spent")),
-    est ? h("div", { class: "bar wide" + (spent > est * 1.2 ? " over" : ""), title: `${Math.round((100 * spent) / est)}% of the estimate` }, h("i", { style: `width:${pct}%` })) : null,
+  return card("Money", h("p", { class: "big" }, money(spent), spent > 0 ? poundsTag(spent) : null, h("span", { class: "muted" }, est ? wt(" of about {v1}", { v1: money(est) }) : " spent")),
+    est ? h("div", { class: "bar wide" + (spent > est * 1.2 ? " over" : ""), title: wt("{v1}% of the estimate", { v1: Math.round((100 * spent) / est) }) }, h("i", { style: `width:${pct}%` })) : null,
     spent > est * 1.2 && est ? h("p", { class: "warn small" }, "It has gone past the estimate. It stops at the project's limit and asks you before spending more.") : null,
-    unpriced ? h("p", { class: "muted small", title: "Add their price in Settings → AI services so they count towards the limit" }, `${plural(unpriced, "call")} to models with no price yet aren't counted.`) : null,
+    unpriced ? h("p", { class: "muted small", title: "Add their price in Settings → AI services so they count towards the limit" }, wt("{v1} to models with no price yet aren't counted.", { v1: plural(unpriced, "call") })) : null,
     d.metrics.length ? h("details", {}, h("summary", {}, "Who did the work"), h("table", { class: "plain-table" },
       h("tr", {}, h("th", {}, "Job and model"), h("th", { class: "num" }, "Tries"), h("th", { class: "num" }, "Approved"), h("th", { class: "num" }, "Cost")),
       d.metrics.map((m) => { const [role, model] = m.key.split(" · "); return h("tr", {}, h("td", {}, jobName(role), h("div", { class: "muted small" }, modelName(model))),

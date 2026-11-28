@@ -3,6 +3,7 @@
 // the same rules the phone uses. Loaded once by the shell; does nothing when this copy has no such route.
 import { h, fill, get, post, toast, has, act, projectHref, ago } from "./core.js";
 import { answerHere, answerHub } from "./asks.js";
+import { t } from "./words.js";
 
 const KEEP = 20;
 const ICON = "icon.png";
@@ -46,15 +47,15 @@ function announce(fresh) {
   first.forEach(popup);
   if (show.length > first.length) {
     const more = show.length - first.length;
-    popup({ key: "more", project: "", title: `${more} more things for you`, text: "Open the bell to see them." });
+    popup({ key: "more", project: "", title: t("{more} more things for you", { more }), text: "Open the bell to see them." });
   }
 }
 
 // ---------- the bell ----------
 const STYLE = `
 .notify-bell { position: relative; }
-.notify-bell .badge { position: absolute; top: -6px; right: -6px; }
-.notify-panel { position: fixed; top: 64px; right: 16px; z-index: 60; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
+.notify-bell .badge { position: absolute; top: -6px; inset-inline-end: -6px; }
+.notify-panel { position: fixed; top: 64px; inset-inline-end: 16px; z-index: 60; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
   background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; }
 .notify-panel h2 { font-size: 16px; margin: 4px 4px 8px; }
 .notify-item { padding: 8px 4px; border-top: 1px solid var(--color-line); }
@@ -170,7 +171,7 @@ export async function notifySettings() {
     const r = await get("/api/notifications?since=" + (state.next ?? 0));
     s = r.settings; kinds = r.kinds || [];
   } catch (e) {
-    return h("section", { class: "card" }, h("h2", {}, "Notifications"), h("p", {}, `This copy can't show news yet: ${e.message}`));
+    return h("section", { class: "card" }, h("h2", {}, "Notifications"), h("p", {}, t("This copy can't show news yet: {message}", { message: e.message })));
   }
   const save = (changes) => act(null, () => post("/api/notifications/settings", changes), "Saved", (r) => { state.settings = r; s = r; });
   const perm = h("p", { class: "small muted" });

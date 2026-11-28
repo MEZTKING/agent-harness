@@ -9,6 +9,7 @@
 // Everything is built with h() as text: nothing from a file is ever read as HTML. API: ui/editapi.py.
 import { h, fill, plural, fileSize, picture } from "./core.js";
 import { highlight, highlightStyles } from "./highlight.js";
+import { t as wt } from "./words.js";
 
 // -- links from words to files ---------------------------------------------------------------------------
 const PATHISH = /(?:^|[\s("'`\[<])((?:\.\/)?(?:[\w@.+-]+\/)*[\w@+-][\w@.+-]*\.[A-Za-z0-9]{1,10})(?::(\d+))?(?::\d+)?(?=$|[\s)"'`\],.;:!?>])/g;
@@ -46,7 +47,7 @@ export function linkPaths(text, files, opts = {}) {
     const shown = text.slice(x.at, x.end);
     out.push(x.url
       ? h("a", { href: "#", class: "plink", title: "Open this page in the Browser (here in the app)", onclick: (ev) => { ev.preventDefault(); opts.onUrl(x.url); } }, shown)
-      : h("a", { href: "#", class: "plink", title: x.line ? `Open ${x.path} at line ${x.line} in Files` : `Open ${x.path} in Files`,
+      : h("a", { href: "#", class: "plink", title: x.line ? wt("Open {path} at line {line} in Files", { path: x.path, line: x.line }) : wt("Open {path} in Files", { path: x.path }),
         onclick: (ev) => { ev.preventDefault(); opts.onPath(x.path, x.line); } }, shown));
     last = x.end;
   }
@@ -181,7 +182,7 @@ export function inline(s, opts = {}) {
       if (SAFE_LINK.test(href)) out.push(h("a", { href, target: "_blank", rel: "noopener noreferrer", title: href }, inline(m[8], opts)));
       else if (!/^[a-z]+:/i.test(href) && !href.startsWith("#") && opts.onPath) {
         const path = resolve(opts.base, href.split("#")[0]);
-        out.push(h("a", { href: "#", title: `Open ${path} in Files`, onclick: (ev) => { ev.preventDefault(); opts.onPath(path, 0); } }, inline(m[8], opts)));
+        out.push(h("a", { href: "#", title: wt("Open {path} in Files", { path }), onclick: (ev) => { ev.preventDefault(); opts.onPath(path, 0); } }, inline(m[8], opts)));
       } else out.push(inline(m[8], opts));
     } else if (m[10]) out.push(h("a", { href: m[10], target: "_blank", rel: "noopener noreferrer" }, m[10]));
     else if (m[11] || m[12]) out.push(h("i", {}, m[11] || m[12]));
@@ -220,15 +221,15 @@ export function richView(d, opts = {}) {
 function archiveView(d) {
   const shown = d.entries || [];
   return h("div", { class: "pv-archive" },
-    h("p", {}, `${plural(d.count, "item")}, ${fileSize(d.total)} when unpacked. Nothing is unpacked to show this list.`),
+    h("p", {}, wt("{v1}, {v2} when unpacked. Nothing is unpacked to show this list.", { v1: plural(d.count, "item"), v2: fileSize(d.total) })),
     d.unsafe ? h("p", { class: "bad small", title: "A name like ../file would land outside the folder it's unpacked into" },
-      `${plural(d.unsafe, "name")} would land outside the folder if unpacked: take care with this archive.`) : null,
+      wt("{v1} would land outside the folder if unpacked: take care with this archive.", { v1: plural(d.unsafe, "name") })) : null,
     h("div", { class: "files-table" }, h("table", { class: "plain-table" },
       h("thead", {}, h("tr", {}, h("th", {}, "Name"), h("th", {}, "Size"))),
       h("tbody", {}, shown.map((e) => h("tr", { class: e.unsafe ? "pv-unsafe" : null },
         h("td", { class: "mono" }, (e.folder ? "📁 " : "") + e.name, e.link ? h("span", { class: "muted" }, " (link)") : null, e.unsafe ? h("span", { class: "bad" }, " ⚠") : null),
         h("td", { class: "muted" }, e.folder ? "" : fileSize(e.size))))))),
-    d.more ? h("p", { class: "muted small" }, `And ${plural(d.more, "more item")}, not listed.`) : null);
+    d.more ? h("p", { class: "muted small" }, wt("And {v1}, not listed.", { v1: plural(d.more, "more item") })) : null);
 }
 
 function notebookView(d, opts) {
@@ -241,7 +242,7 @@ function notebookView(d, opts) {
       (c.outputs || []).map((o) => o.kind === "image"
         ? h("div", { class: "pv-out" }, h("img", { src: `data:${o.mime};base64,${o.data}`, alt: "A picture this cell made", class: "pv-img" }))
         : h("pre", { class: "log short pv-out" + (o.kind === "error" ? " bad" : "") }, o.text)))),
-    d.more ? h("p", { class: "muted small" }, `And ${plural(d.more, "more cell")}, not shown.`) : null,
+    d.more ? h("p", { class: "muted small" }, wt("And {v1}, not shown.", { v1: plural(d.more, "more cell") })) : null,
     h("p", { class: "muted small" }, "A notebook is shown as it was saved: it isn't run here."));
 }
 
@@ -329,17 +330,17 @@ export function previewStyles() {
   document.head.append(h("style", { id: "pv-style" }, `
 .plink { color: var(--color-accent); text-decoration: underline dotted; }
 .gfm h2, .gfm h3, .gfm h4, .gfm h5, .gfm h6, .gfm h7 { margin: 16px 0 8px; }
-.gfm-task { list-style: none; margin-left: -1.2em; }
-.gfm-task input { margin-right: 6px; }
+.gfm-task { list-style: none; margin-inline-start: -1.2em; }
+.gfm-task input { margin-inline-end: 6px; }
 .gfm-pic { color: var(--color-muted); border: 1px dashed var(--color-line-strong); border-radius: var(--radius-small); padding: 0 6px; font-size: 13px; }
-.gfm-front th { color: var(--color-muted); font-weight: 600; text-align: left; }
+.gfm-front th { color: var(--color-muted); font-weight: 600; text-align: start; }
 .gfm-code { white-space: pre; overflow-x: auto; }
 .pv-media { width: 100%; max-height: 62vh; background: var(--color-shade); border-radius: var(--radius-small); }
 .pv-audio { width: 100%; }
 .pv-unsafe td { background: var(--color-bad-soft); }
 .pv-nb { display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow: auto; }
-.pv-cell { border-left: 3px solid var(--color-line); padding-left: 10px; }
-.pv-code { border-left-color: var(--color-accent-soft); }
+.pv-cell { border-inline-start: 3px solid var(--color-line); padding-inline-start: 10px; }
+.pv-code { border-inline-start-color: var(--color-accent-soft); }
 .pv-in { display: flex; gap: 8px; align-items: flex-start; }
 .pv-in pre { flex: 1; min-width: 0; margin: 0; }
 .pv-count { font-family: var(--font-mono); min-width: 3em; padding-top: 6px; }
@@ -349,7 +350,7 @@ export function previewStyles() {
 .pv-office-head { gap: 8px; align-items: center; }
 .pv-sheets { gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
 .pv-sheets [aria-selected="true"] { background: var(--color-accent-soft); border-color: var(--color-accent); }
-.pv-slides { display: flex; flex-direction: column; gap: 8px; padding-left: 1.5em; }
+.pv-slides { display: flex; flex-direction: column; gap: 8px; padding-inline-start: 1.5em; }
 .pv-slide { border: 1px solid var(--color-line); border-radius: var(--radius-small); padding: 8px 12px; }
 .fx-bar { gap: 6px; align-items: center; margin: 0 0 8px; }
 .fx-hit { background: var(--color-warn-soft); color: var(--color-text); border-radius: 2px; }

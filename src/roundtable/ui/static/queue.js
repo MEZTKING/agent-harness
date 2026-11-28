@@ -1,6 +1,7 @@
 // The messages waiting for the next task (GET/POST /api/queue): listed above the message box, each with
 // Send now (to the task working now), Change and Remove. Once a task has read a message it leaves the list.
 import { h, fill, get, post, q, toast, every, patch, clock } from "./core.js";
+import { t } from "./words.js";
 
 let styled = false;
 function style() {
@@ -37,7 +38,7 @@ export function queueList(path) {
         h("button", { type: "button", class: "small primary", onclick: (ev) => act(ev.currentTarget, { action: "change", id: x.id, text: field.value }, () => { editing = null; }) }, "Save"),
         h("button", { type: "button", class: "small", onclick: () => { editing = null; load(true); } }, "Cancel")));
     }
-    return h("div", { class: "qu-item" }, h("span", { class: "t", title: x.at ? `Written at ${clock(x.at)}` : "" }, x.text), h("span", { class: "acts" },
+    return h("div", { class: "qu-item" }, h("span", { class: "t", title: x.at ? t("Written at {v1}", { v1: clock(x.at) }) : "" }, x.text), h("span", { class: "acts" },
       running ? h("button", { type: "button", class: "small", title: "Give it to the task working now, at its next step", onclick: (ev) => act(ev.currentTarget, { action: "send_now", id: x.id }) }, "Send now") : null,
       h("button", { type: "button", class: "small", title: "Change the words before a task reads them", onclick: () => { editing = x.id; load(true); } }, "Change"),
       h("button", { type: "button", class: "small", title: "Take it back: no task will read it", onclick: (ev) => act(ev.currentTarget, { action: "remove", id: x.id }) }, "Remove")));
@@ -46,7 +47,7 @@ export function queueList(path) {
     const items = r.items || [];
     node.hidden = !items.length;
     const build = () => [h("div", { class: "qu-head", title: "Instructions you gave that no task has read yet" },
-      items.length === 1 ? "Waiting for the next task" : `${items.length} messages waiting for the next task`), items.map((x) => item(x, r.running))];
+      items.length === 1 ? "Waiting for the next task" : t("{length} messages waiting for the next task", { length: items.length })), items.map((x) => item(x, r.running))];
     if (force) { node._sig = undefined; fill(node, build()); node._sig = JSON.stringify([items, r.running, editing]); }
     else patch(node, JSON.stringify([items, r.running, editing]), build);
   }

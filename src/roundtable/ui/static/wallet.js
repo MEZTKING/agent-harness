@@ -2,6 +2,7 @@
 // of Models → Learning. Short first: one line ("Learning: $0.42 of $2 this week"); the week's lines behind More.
 // Off shows one sentence and one button that asks the owner for a figure. Nothing shows on an older PC.
 import { h, fill, get, post, has, act, dialog, money } from "./core.js";
+import { t } from "./words.js";
 
 walletStyles();
 
@@ -35,7 +36,7 @@ function parts(v, reload) {
     v.day_limit ? `It counts inside your daily limit (${money(v.day_limit)}).` : "",
   ].filter(Boolean).join(" ");
   const lines = (v.lines || []).slice().reverse().map((l) =>
-    h("li", { title: l.proposal ? `For change ${l.proposal}` : "" }, `${WHAT[l.what] || WHAT.tool}: ${money(l.usd)}`));
+    h("li", { title: l.proposal ? t("For change {proposal}", { proposal: l.proposal }) : "" }, `${WHAT[l.what] || WHAT.tool}: ${money(l.usd)}`));
   more.append(h("p", { class: "muted small" }, facts),
     lines.length ? h("ul", { class: "wl-lines" }, lines) : h("p", { class: "muted small" }, "Nothing spent yet this week."),
     h("div", { class: "wl-acts" }, choose));
@@ -43,7 +44,7 @@ function parts(v, reload) {
 }
 
 async function ask(v, btn, reload) {
-  const field = await dialog({ title: "Learning's weekly money", text: `How much may learning spend by itself each week? Choices: ${(v.choices || [0, 1, 2, 5]).map((c) => (c ? money(c) : "Off (0)")).join(", ")}.`,
+  const field = await dialog({ title: "Learning's weekly money", text: t("How much may learning spend by itself each week? Choices: {v1}.", { v1: (v.choices || [0, 1, 2, 5]).map((c) => (c ? money(c) : "Off (0)")).join(", ") }),
     yes: "Next", input: { placeholder: "2", label: "Dollars a week", value: String(v.allowance || 2) } });
   if (field === null || field === false) return;
   const usd = Number(String(field).replace(/[^0-9.]/g, "")) || 0;
@@ -60,7 +61,7 @@ function walletStyles() {
   document.head.append(h("style", { id: "wl-style" }, `
 .wl-more { margin-top: 6px; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); padding: 4px 10px; }
 .wl-more > summary { cursor: pointer; padding: 2px 0; }
-.wl-lines { margin: 4px 0; padding-left: 18px; }
+.wl-lines { margin: 4px 0; padding-inline-start: 18px; }
 .wl-lines li { margin: 2px 0; }
 .wl-acts { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }
 `));

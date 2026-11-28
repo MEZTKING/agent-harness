@@ -3,6 +3,7 @@ import { h, fill, get, post, S, onHall, patch, refreshHall, projectHref, money, 
 import { composer } from "./compose.js";
 import { askCard } from "./asks.js";
 import { whereWords, loadMachines } from "./machines.js";
+import { t as wt } from "./words.js";
 
 const FILTERS = [["all", "All", "Every project"], ["needs", "Needs you", "Projects with something waiting for you"],
   ["building", "Building", "Projects being built now"], ["done", "Finished", "Projects that are finished"],
@@ -45,9 +46,9 @@ function row(s, x) {
       h("span", { class: "pr-state" }, h("i", { class: "sdot" }), s.state || "No news yet"),
       s.goal || s.description ? h("span", { class: "pr-goal" }, s.goal || s.description) : null),
     h("span", { class: "pr-meta" },
-      p.total ? h("span", { title: `${p.done} of ${p.total} tasks done` }, `${p.done} of ${p.total} tasks`) : null,
-      s.waiting_for_you ? h("span", { class: "waits" }, `${s.waiting_for_you} for you`) : null,
-      s.spent_usd ? h("span", { title: unpriced ? `Spent so far. ${plural(unpriced, "call")} to models with no price yet aren't counted: add their price in Settings.` : "Spent so far" },
+      p.total ? h("span", { title: wt("{done} of {total} tasks done", { done: p.done, total: p.total }) }, wt("{done} of {total} tasks", { done: p.done, total: p.total })) : null,
+      s.waiting_for_you ? h("span", { class: "waits" }, wt("{waiting_for_you} for you", { waiting_for_you: s.waiting_for_you })) : null,
+      s.spent_usd ? h("span", { title: unpriced ? wt("Spent so far. {v1} to models with no price yet aren't counted: add their price in Settings.", { v1: plural(unpriced, "call") }) : "Spent so far" },
         money(s.spent_usd), unpriced ? h("small", {}, " + some not priced") : null) : null,
       h("span", { class: "muted" }, whereWords(s)),
       s.last_activity ? h("span", { class: "muted" }, ago(s.last_activity)) : null));
@@ -115,7 +116,7 @@ export async function viewNew() {
 // the same, typed: a folder name, the goal, what it should be like
 function typeIt(dir, withFiles) {
   const name = h("input", { class: "grow", required: true, placeholder: "A short name, e.g. bakery-site", "aria-label": "Project name",
-    title: `A folder with this name is made in your projects folder (${dir})` });
+    title: wt("A folder with this name is made in your projects folder ({dir})", { dir }) });
   const box = withFiles ? composer({ key: "new-idea-typed", rows: 4, label: "What to build",
     placeholder: "What should be built? Who is it for, what must it do, anything to avoid… Attach a sketch or a photo if you like." }) : null;
   const goal = box || h("textarea", { rows: 4, required: true, placeholder: "What should be built? Who is it for, what must it do, anything to avoid…", "aria-label": "What to build" });

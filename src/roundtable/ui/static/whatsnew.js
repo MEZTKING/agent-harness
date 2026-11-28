@@ -2,12 +2,13 @@
 // first; what each one means folds under "More". "Got it" (or Escape, or a click outside) means never again
 // for this version. Loaded once by the shell; does nothing when this copy has no such route.
 import { BRAND, h, get, post, has } from "./core.js";
+import { t } from "./words.js";
 
 const STYLE = `
 .whatsnew .lead { margin: 0; color: var(--color-muted); }
-.whatsnew ul.heads { margin: 0; padding-left: 20px; }
+.whatsnew ul.heads { margin: 0; padding-inline-start: 20px; }
 .whatsnew ul.heads li { margin: 4px 0; font-weight: 700; }
-.whatsnew details ul { margin: 8px 0 0; padding-left: 20px; }
+.whatsnew details ul { margin: 8px 0 0; padding-inline-start: 20px; }
 .whatsnew details li { margin: 6px 0; }
 .whatsnew details li b { display: block; }
 .whatsnew .row { display: flex; justify-content: flex-end; }
@@ -29,7 +30,7 @@ export function whatsNewCard(data, onDone) {
   const ok = h("button", { class: "primary", type: "button", onclick: done }, "Got it");
   const box = h("div", { class: "modal whatsnew", role: "dialog", "aria-modal": "true", "aria-labelledby": "whatsnew-title" },
     h("h2", { id: "whatsnew-title" }, data.title || "What's new"),
-    h("p", { class: "lead" }, `${BRAND.name} has been updated. The main changes:`),
+    h("p", { class: "lead" }, t("{name} has been updated. The main changes:", { name: BRAND.name })),
     h("ul", { class: "heads" }, heads.map((i) => h("li", {}, i.title))),
     more ? h("p", { class: "lead" }, more.trim()) : null,
     h("details", {},

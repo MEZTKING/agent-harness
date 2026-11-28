@@ -2,13 +2,14 @@
 // askBox(): the "Ask" box for the top of the Search page. documentsPage(): the "Your documents" tab.
 // memoryPicture(): the "Who knows what" tab. Each brings its own looks (theme tokens only, no pictures).
 import { h, fill, get, post, act, toast, dialog, card, empty, money, plural, when, BRAND } from "./core.js";
+import { t as wt } from "./words.js";
 
 const CSS = `
 .rc-ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .rc-ask input { flex: 1 1 260px; padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--color-line);
   background: var(--color-surface); color: var(--color-text); font: inherit; }
 .rc-answer { margin-top: 10px; }
-.rc-quote { border-left: 3px solid var(--color-accent); padding: 4px 10px; margin: 8px 0; }
+.rc-quote { border-inline-start: 3px solid var(--color-accent); padding: 4px 10px; margin: 8px 0; }
 .rc-src { color: var(--color-muted); font-size: 13px; }
 .rc-piece { border-top: 1px solid var(--color-line); padding: 8px 2px; }
 .rc-piece:first-child { border-top: 0; }
@@ -31,7 +32,7 @@ const CSS = `
 .rc-svg .n-seat circle { fill: var(--color-muted); }
 .rc-svg text { fill: var(--color-text); font: 12px var(--font-body); }
 .rc-key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--color-muted); }
-.rc-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.rc-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 5px; vertical-align: middle; }
 .rc-key .k-agent { background: var(--color-accent); } .rc-key .k-project { background: var(--color-flare); }
 .rc-key .k-document { background: var(--color-good); } .rc-key .k-topic { background: var(--color-warn); }
 `;
@@ -91,7 +92,7 @@ export function askBox() {
       res.answer ? h("p", {}, res.answer) : h("p", {}, res.words),
       (res.quotes || []).map((x) => h("blockquote", { class: "rc-quote" }, h("div", {}, `“${x.text}”`),
         h("div", { class: "rc-src", title: x.found ? "These words are in the source" : "The model's words: check the source" }, x.source, x.found ? "" : " (not word for word)"))),
-      h("p", { class: "muted small" }, res.words, res.cost_usd ? ` Cost ${money(res.cost_usd)}.` : ""),
+      h("p", { class: "muted small" }, res.words, res.cost_usd ? wt(" Cost {v1}.", { v1: money(res.cost_usd) }) : ""),
       showPieces(res.pieces || []),
       res.model ? more("Which model", h("p", { class: "muted small" }, res.model)) : null);
   }));
@@ -133,7 +134,7 @@ export async function documentsPage() {
     const picker = h("input", { type: "file", multiple: true, hidden: true });
     const upload = async (files) => {
       for (const f of files) {
-        try { data = await post("/api/documents", { action: "add", name: f.name, data: await readFile(f) }); toast(`Added ${f.name}`); }
+        try { data = await post("/api/documents", { action: "add", name: f.name, data: await readFile(f) }); toast(wt("Added {name}", { name: f.name })); }
         catch (e) { toast(e.message, true); }
       }
       draw(data);
@@ -159,7 +160,7 @@ export async function documentsPage() {
       });
       const rm = h("button", { type: "button", class: "btn", title: "Moved aside, not deleted" }, "Remove");
       rm.addEventListener("click", async () => {
-        if (!await dialog({ title: `Remove ${d.title}?`, text: "It's moved aside, not deleted. Your agents stop looking it up.", yes: "Remove" })) return;
+        if (!await dialog({ title: wt("Remove {title}?", { title: d.title }), text: "It's moved aside, not deleted. Your agents stop looking it up.", yes: "Remove" })) return;
         try { draw(await post("/api/documents", { action: "remove", id: d.id })); } catch (e) { toast(e.message, true); }
       });
       return h("div", { class: "rc-doc" },
@@ -172,7 +173,7 @@ export async function documentsPage() {
     });
     fill(host, h("p", {}, data.words), drop, picker, h("div", { class: "row" }, linkBtn),
       list.length ? card(null, rows) : null,
-      data.removed ? h("p", { class: "muted small" }, `${plural(data.removed, "document")} moved aside.`) : null);
+      data.removed ? h("p", { class: "muted small" }, wt("{v1} moved aside.", { v1: plural(data.removed, "document") })) : null);
   };
   try { await draw(); } catch (e) { fill(host, empty(e.message)); }
   return host;

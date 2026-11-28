@@ -3,19 +3,20 @@
 // "Are you sure?" first, as the button would. Slow ones (summing up the chat, the tests, a plug-in) come back as
 // a background job, followed here for as long as it takes: nothing gives up after 30 seconds.
 import { h, fill, get, post, q, dialog, toast } from "./core.js";
+import { t as wt } from "./words.js";
 
 let styled = false;
 function style() {
   if (styled || typeof document === "undefined") return;
   styled = true;
   document.head.append(h("style", { "data-for": "slash" }, `
-.slash-menu { position: absolute; z-index: 6; left: 0; right: 0; bottom: calc(100% + 4px); max-height: 260px; overflow: auto; margin: 0; padding: 4px;
+.slash-menu { position: absolute; z-index: 6; inset-inline-start: 0; inset-inline-end: 0; bottom: calc(100% + 4px); max-height: 260px; overflow: auto; margin: 0; padding: 4px;
   list-style: none; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-small); box-shadow: var(--shadow); }
 .slash-menu li { display: flex; gap: 10px; align-items: baseline; padding: 5px 8px; border-radius: 4px; cursor: pointer; }
 .slash-menu li.on, .slash-menu li:hover { background: var(--color-accent-soft); }
 .slash-menu b { font: 600 13px/1.4 var(--font-mono); white-space: nowrap; }
 .slash-menu span { font-size: 12.5px; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slash-reply { white-space: pre-line; font-size: 13px; margin: 0; padding: 6px 10px; border-left: 3px solid var(--color-accent); background: var(--color-sunken);
+.slash-reply { white-space: pre-line; font-size: 13px; margin: 0; padding: 6px 10px; border-inline-start: 3px solid var(--color-accent); background: var(--color-sunken);
   border-radius: 0 var(--radius-small) var(--radius-small) 0; }
 .slash-reply.busy::before { content: "… "; }
 `));
@@ -79,7 +80,7 @@ export function slashMenu(area, path, holder) {
   function draw() {
     list.hidden = !items.length;
     fill(list, items.map((c, i) => h("li", { role: "option", class: i === pick ? "on" : "", "aria-selected": String(i === pick),
-      title: c.confirm ? `${c.words}. It asks you first.` : c.words, onmousedown: (ev) => { ev.preventDefault(); choose(c); } },
+      title: c.confirm ? wt("{words}. It asks you first.", { words: c.words }) : c.words, onmousedown: (ev) => { ev.preventDefault(); choose(c); } },
     h("b", {}, `/${c.name}${c.args ? " " + c.args : ""}`), h("span", {}, c.words))));
   }
   function choose(c) {

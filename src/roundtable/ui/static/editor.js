@@ -3,6 +3,7 @@
 // Saving goes through /api/files/save (ui/editapi.py): refused when the file changed since it was opened (both
 // versions are shown), asks first while a task is building that file, and every save can be put back.
 import { h, fill, get, post, q, toast, dialog, act, ago } from "./core.js";
+import { t as wt } from "./words.js";
 
 // openEditor(box, {path, file, line, onDone}) draws the editor into box. onDone(saved) when it's closed.
 export async function openEditor(box, { path, file, line = 0, onDone = () => {} }) {
@@ -13,7 +14,7 @@ export async function openEditor(box, { path, file, line = 0, onDone = () => {} 
   if (d.elsewhere) { fill(box, h("p", { class: "bad" }, d.elsewhere)); return; }
   let base = d.base, saved = d.text, dirty = false, closed = false;
   const indent = /^\t/m.test(d.text) ? "\t" : (d.text.match(/^( {2,4})\S/m) || [, "    "])[1];
-  const area = h("textarea", { class: "ed-area", spellcheck: "false", wrap: "off", "aria-label": `The text of ${d.name}`, autocomplete: "off" });
+  const area = h("textarea", { class: "ed-area", spellcheck: "false", wrap: "off", "aria-label": wt("The text of {name}", { name: d.name }), autocomplete: "off" });
   area.value = d.text;
   const gutter = h("div", { class: "ed-gutter", "aria-hidden": "true" });
   const state = h("span", { class: "muted small grow", "aria-live": "polite" });
@@ -164,12 +165,12 @@ export async function editsList(box, path, after) {
   try { d = await get(`/api/files/edits?${q({ path })}`); } catch (e) { fill(box, h("p", { class: "bad" }, e.message)); return; }
   if (!d.edits.length) { fill(box); return; }
   fill(box, h("details", { class: "ed-edits" },
-    h("summary", {}, `Your edits (${d.edits.length})`),
+    h("summary", {}, wt("Your edits ({length})", { length: d.edits.length })),
     h("ul", { class: "plain" }, d.edits.map((e) => h("li", { class: "row" },
       h("span", { class: "grow" }, h("code", {}, e.file), h("span", { class: "muted small" }, " · ", ago(e.at), e.undone ? " · put back" : "")),
       e.undone ? null : h("button", { type: "button", title: "Put this file back as it was before this edit (only while the file hasn't changed since)",
         onclick: (ev) => act(ev.currentTarget, async () => {
-          if (!(await dialog({ title: "Put it back?", text: `${e.file} goes back to how it was before this edit.`, yes: "Put it back" }))) return null;
+          if (!(await dialog({ title: "Put it back?", text: wt("{file} goes back to how it was before this edit.", { file: e.file }), yes: "Put it back" }))) return null;
           return post("/api/files/undo_edit", { path, id: e.id });
         }, (r) => (r ? r.words : ""), async (r) => { if (r) { await editsList(box, path, after); if (after) after(e.file); } }) }, "Put it back"))))));
 }
@@ -180,14 +181,14 @@ export function editorStyles() {
 .ed { display: flex; flex-direction: column; gap: 8px; }
 .ed-head { gap: 8px; align-items: center; }
 .ed-box { display: flex; border: 1px solid var(--color-line-strong); border-radius: var(--radius-small); background: var(--color-sunken); height: 62vh; overflow: hidden; }
-.ed-gutter { white-space: pre; text-align: right; padding: 8px 8px 8px 10px; color: var(--color-muted); font: 13px/1.5 var(--font-mono); overflow: hidden; user-select: none; border-right: 1px solid var(--color-line); min-width: 3em; }
+.ed-gutter { white-space: pre; text-align: end; padding-block: 8px; padding-inline: 10px 8px; color: var(--color-muted); font: 13px/1.5 var(--font-mono); overflow: hidden; user-select: none; border-inline-end: 1px solid var(--color-line); min-width: 3em; }
 .ed-area { flex: 1; min-width: 0; resize: none; border: 0; outline: none; padding: 8px; background: transparent; color: var(--color-text); font: 13px/1.5 var(--font-mono); tab-size: 4; white-space: pre; overflow: auto; }
 .ed-box:focus-within { border-color: var(--color-accent); }
 .ed-theirs { height: 30vh; width: 100%; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); }
 .ed-findrow { gap: 6px; align-items: center; }
 .ed-find { flex: 1; min-width: 0; }
-.ed-warn { background: var(--color-warn-soft); color: var(--color-text); border-left: 3px solid var(--color-warn); padding: 6px 10px; border-radius: var(--radius-small); }
-.ed-conflict { background: var(--color-bad-soft); border-left: 3px solid var(--color-bad); padding: 8px 12px; border-radius: var(--radius-small); display: flex; flex-direction: column; gap: 8px; }
+.ed-warn { background: var(--color-warn-soft); color: var(--color-text); border-inline-start: 3px solid var(--color-warn); padding: 6px 10px; border-radius: var(--radius-small); }
+.ed-conflict { background: var(--color-bad-soft); border-inline-start: 3px solid var(--color-bad); padding: 8px 12px; border-radius: var(--radius-small); display: flex; flex-direction: column; gap: 8px; }
 .ed-edits { margin-top: 10px; }
 .ed-edits ul { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 4px; }
 `));

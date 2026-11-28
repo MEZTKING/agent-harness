@@ -1,5 +1,6 @@
 // Activity: the minutes of every project in plain words, and the work the app is doing in the background.
 import { BRAND, h, fill, get, S, every, patch, projectName, projectHref, jobName, modelName, clock, ago, page, tabs, empty, card, dot, jobPill, seatByPath, prose, readable } from "./core.js";
+import { t as wt } from "./words.js";
 
 const TOOL_WORDS = { write_file: "Wrote", edit_file: "Changed", read_file: "Read", run_command: "Ran", list_files: "Looked through",
   search: "Searched for", finish_task: "Finished", submit_review: "Review:", web_search: "Searched the web for",
@@ -96,7 +97,7 @@ function jobsList() {
     patch(box, JSON.stringify(jobs.map((j) => [j.id, j.status, j.ended])), () => jobs.length ? card(null, h("ul", { class: "jobs" }, jobs.map((j) => {
       const s = j.target ? seatByPath(j.target) : null;
       return h("li", {}, h("a", { href: `#/activity/work/${j.id}` }, h("b", {}, jobTitle(j))), jobPill(j.status),
-        h("span", { class: "muted small" }, `started ${ago(j.started)}`, j.ended ? ` · ended ${ago(j.ended)}` : ""),
+        h("span", { class: "muted small" }, wt("started {v1}", { v1: ago(j.started) }), j.ended ? wt(" · ended {v1}", { v1: ago(j.ended) }) : ""),
         s ? h("a", { class: "small", href: projectHref(s.id, j.kind === "run" ? "watch" : "plan") }, "Open the project") : null,
         j.error ? h("div", { class: "err small" }, friendlyError(j.error)) : null);
     }))) : empty("Nothing is running, and nothing has run since the app started. Building, health checks, backups and updates show up here while they work.",
@@ -119,7 +120,7 @@ async function viewJob(id) {
     log.textContent = lines.join("\n") || "Starting…";
     if (stick) log.scrollTop = log.scrollHeight;
     const s = j.target ? seatByPath(j.target) : null;
-    patch(head, JSON.stringify([j.status, j.title]), () => [h("h2", {}, jobTitle(j)), jobPill(j.status), h("span", { class: "muted small" }, `started ${ago(j.started)}`),
+    patch(head, JSON.stringify([j.status, j.title]), () => [h("h2", {}, jobTitle(j)), jobPill(j.status), h("span", { class: "muted small" }, wt("started {v1}", { v1: ago(j.started) })),
       s ? h("a", { class: "btn small", href: projectHref(s.id, j.kind === "run" ? "watch" : "plan") }, "Open the project") : null]);
     patch(result, JSON.stringify([j.status, j.error, j.result]), () => [
       j.error ? h("p", { class: "err" }, friendlyError(j.error)) : null,

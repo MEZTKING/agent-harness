@@ -4,6 +4,7 @@
 // question that changed meanwhile is refused, as when it is answered alone.
 import { h, fill, post, toast, plural, projectName } from "./core.js";
 import { answerHub } from "./asks.js";
+import { t } from "./words.js";
 
 bulkStyles();
 
@@ -29,7 +30,7 @@ export function bulkBar(items, done) {
     title: "Each ticked card gets the answer marked as recommended on it" }, "Use the recommended answer for the ticked ones");
   const recount = () => { const n = [...ticks.values()].filter((c) => c.checked).length; go.disabled = !n; count.textContent = n ? `${plural(n, "card")} ticked` : "Tick the cards to answer"; };
   const row = (it) => {
-    const box = h("input", { type: "checkbox", "aria-label": `Answer ${it.ask.question}`, onchange: recount });
+    const box = h("input", { type: "checkbox", "aria-label": t("Answer {question}", { question: it.ask.question }), onchange: recount });
     ticks.set(it, box);
     const rec = (it.ask.options || []).find((o) => o.id === it.ask.recommended);
     return h("label", { class: "bk-row" }, box, h("span", {}, h("b", {}, projectName(it.project)), " · ", it.ask.question,
@@ -38,7 +39,7 @@ export function bulkBar(items, done) {
   const all = h("button", { class: "small", type: "button", title: "Tick every card that can take its recommended answer" }, "Tick all");
   all.onclick = () => { ticks.forEach((c) => { c.checked = true; }); recount(); };
   const list = h("div", { class: "bk-list" }, ok.map(row),
-    alone.length ? h("p", { class: "muted small bk-alone" }, `Answered on their own card: ${alone.map((i) => `${projectName(i.project)} (${aloneWhy(i.ask).toLowerCase().replace(/\.$/, "")})`).join("; ")}.`) : null);
+    alone.length ? h("p", { class: "muted small bk-alone" }, t("Answered on their own card: {v1}.", { v1: alone.map((i) => `${projectName(i.project)} (${aloneWhy(i.ask).toLowerCase().replace(/\.$/, "")})`).join("; ") })) : null);
   go.onclick = async () => {
     const picked = [...ticks.entries()].filter(([, c]) => c.checked).map(([it]) => it);
     go.disabled = true;
@@ -60,7 +61,7 @@ export function bulkBar(items, done) {
   };
   recount();
   return h("details", { class: "card fold bk" }, h("summary", { title: "Settle several cards at once with their recommended answers" },
-    `Answer these (${ok.length} of ${cards.length} can take the recommended answer)`),
+    t("Answer these ({length} of {length2} can take the recommended answer)", { length: ok.length, length2: cards.length })),
     h("div", { class: "row bk-top" }, all, count), list, h("div", { class: "row" }, go));
 }
 

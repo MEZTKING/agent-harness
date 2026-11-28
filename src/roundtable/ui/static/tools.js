@@ -5,6 +5,7 @@ import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName, has
 import { webSearchCard } from "./websearch.js";
 import { marketPage } from "./market.js";
 import { integrationsCard, mcpCatalogue } from "./integrations.js";
+import { t as wt } from "./words.js";
 
 const ROW = "padding: 10px 0; border-top: 1px solid var(--color-line)";  // no stylesheet change: style.css isn't this page's
 const STATE = { found: ["Found", "good"], old: ["Too old", "warn"], broken: ["Didn't start", "bad"], missing: ["Not found", ""] };
@@ -49,7 +50,7 @@ function toolRow(x, t, draw) {
   let action = null;
   if (x.state !== "found" && inst.can) {
     const label = x.state === "old" ? "Update" : "Install";
-    action = h("button", { class: "small primary", disabled: !!inst.blocked, title: inst.blocked || `Installs ${x.name} on this computer${inst.admin ? " (Windows asks you to allow it)" : ""}`,
+    action = h("button", { class: "small primary", disabled: !!inst.blocked, title: inst.blocked || wt("Installs {name} on this computer{v1}", { name: x.name, v1: inst.admin ? " (Windows asks you to allow it)" : "" }),
       onclick: (ev) => install(ev.currentTarget, x, log, draw) }, label);
   }
   const more = h("details", {}, h("summary", { class: "small muted" }, "More"),
@@ -57,7 +58,7 @@ function toolRow(x, t, draw) {
       x.where ? [h("dt", {}, "Where"), h("dd", {}, x.where)] : null,
       x.detail ? [h("dt", {}, "Also"), h("dd", {}, x.detail)] : null,
       (x.also || []).length ? [h("dt", {}, "Other copies"), h("dd", {}, x.also.join("; "))] : null,
-      x.min_version ? [h("dt", {}, "Needs"), h("dd", {}, `${x.min_version} or newer`)] : null,
+      x.min_version ? [h("dt", {}, "Needs"), h("dd", {}, wt("{min_version} or newer", { min_version: x.min_version }))] : null,
       inst.shown ? [h("dt", {}, "Install command"), h("dd", {}, h("code", {}, inst.shown))] : null,
       inst.note ? [h("dt", {}, "After installing"), h("dd", {}, inst.note)] : null));
   return h("div", { class: "tool-row", id: `tool-${x.id}`, style: ROW },
@@ -71,7 +72,7 @@ async function install(btn, x, log, draw) {
   let r = await act(btn, () => post("/api/tools/install", { tool: x.id }));
   if (!r) return;
   if (r.confirm) {
-    if (!(await dialog({ title: r.title || `Install ${x.name}?`, text: r.confirm, yes: "Install" }))) return;
+    if (!(await dialog({ title: r.title || wt("Install {name}?", { name: x.name }), text: r.confirm, yes: "Install" }))) return;
     r = await act(btn, () => post("/api/tools/install", { tool: x.id, confirm: true }));
     if (!r) return;
   }
@@ -113,8 +114,8 @@ function servers(t, draw) {
       k.prepare ? h("button", { class: "small", title: "Puts the add-on it needs into Blender (once)",
         onclick: (ev) => { const b = ev.currentTarget;
           act(b, () => post("/api/tools/servers/prepare", { known: k.id }), null, (j) => follow(j, b, b.closest(".tool-row").querySelector("pre"), draw)); } }, "Put it in Blender") : null,
-      k.added ? null : h("button", { class: "small primary", title: `Adds ${k.name} so you can give it to a job`,
-        onclick: (ev) => act(ev.currentTarget, () => post("/api/tools/servers/add", { known: k.id }), `${k.name} added`, () => draw()) }, "Add")),
+      k.added ? null : h("button", { class: "small primary", title: wt("Adds {name} so you can give it to a job", { name: k.name }),
+        onclick: (ev) => act(ev.currentTarget, () => post("/api/tools/servers/add", { known: k.id }), wt("{name} added", { name: k.name }), () => draw()) }, "Add")),
     h("p", { class: "muted small" }, k.about),
     h("details", {}, h("summary", { class: "small muted" }, "How to turn it on"), h("p", { class: "small" }, k.steps)),
     h("pre", { class: "log small", hidden: true })));
@@ -138,7 +139,7 @@ function serverRow(s, t, draw) {
             out.className = "small " + (r.ok ? "good" : "bad"); out.textContent = r.words; }); } }, "Test"),
       h("button", { class: "small", title: "Choose which jobs may use its tools", onclick: (ev) => give(ev.currentTarget, s, t, draw) }, "Give to a job"),
       s.removable ? h("button", { class: "small danger", onclick: async (ev) => {
-        if (await dialog({ title: `Remove ${s.name}?`, text: "Jobs that use it stop getting its tools.", yes: "Remove", danger: true }))
+        if (await dialog({ title: wt("Remove {name}?", { name: s.name }), text: "Jobs that use it stop getting its tools.", yes: "Remove", danger: true }))
           act(ev.currentTarget, () => post("/api/tools/servers/remove", { name: s.name }), "Removed", () => draw());
       } }, "Remove") : null),
     h("details", {}, h("summary", { class: "small muted" }, "More"), h("p", { class: "small" }, h("code", {}, s.where)),
@@ -151,11 +152,11 @@ async function give(btn, s, t, draw) {
     const box = h("input", { type: "checkbox", value: j.role, checked: (s.roles || []).includes(j.role) });
     return h("label", { class: "row" }, box, j.name || jobName(j.role));
   });
-  const ok = await dialog({ title: `Which jobs use ${s.name}?`, text: "Ticked jobs get its tools while they work.",
+  const ok = await dialog({ title: wt("Which jobs use {name}?", { name: s.name }), text: "Ticked jobs get its tools while they work.",
     yes: "Save", body: h("div", { class: "stack" }, boxes) });
   if (!ok) return;
   const roles = boxes.map((l) => l.querySelector("input")).filter((b) => b.checked).map((b) => b.value);
-  await act(btn, () => post("/api/tools/servers/give", { name: s.name, roles }), (r) => r.jobs.length ? `Given to ${r.jobs.join(", ")}` : "No job uses it now", () => draw());
+  await act(btn, () => post("/api/tools/servers/give", { name: s.name, roles }), (r) => r.jobs.length ? wt("Given to {v1}", { v1: r.jobs.join(", ") }) : "No job uses it now", () => draw());
 }
 
 async function addOwn(btn, draw) {
@@ -166,5 +167,5 @@ async function addOwn(btn, draw) {
   if (!ok) return;
   const w = where.value.trim();
   const spec = /^https?:\/\//.test(w) ? { url: w } : { command: w.split(/\s+/)[0], args: w.split(/\s+/).slice(1) };
-  await act(btn, () => post("/api/tools/servers/add", { name: name.value.trim(), ...spec }), (r) => `${r.added} added`, () => draw());
+  await act(btn, () => post("/api/tools/servers/add", { name: name.value.trim(), ...spec }), (r) => wt("{added} added", { added: r.added }), () => draw());
 }

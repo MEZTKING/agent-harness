@@ -84,7 +84,7 @@ function tandemStyles() {
   if (typeof document === "undefined" || document.getElementById("tq-style")) return;
   document.head.append(h("style", { id: "tq-style" }, `
 .tq-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
-.tq-head { font-weight: 600; margin-right: 4px; }
+.tq-head { font-weight: 600; margin-inline-end: 4px; }
 .tq-level { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; border: 1px solid var(--color-line); border-radius: var(--radius-small); background: var(--color-sunken); color: var(--color-text); cursor: pointer; font: inherit; }
 .tq-level.on { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
 .tq-level:disabled { opacity: 0.6; cursor: wait; }
