@@ -107,18 +107,25 @@ def test_an_estimate_over_the_cap_stops_before_any_build_call(tmp_path, quiet):
 
 
 class DearBrain(GameBrain):
-    """The first builder's answer reads five million words: far more than the plan said."""
+    """The first builder's answer reads ten million words: far more than the plan said, and past the $2.00 limit
+    at DeepSeek's peak price ($4.40) and at its half price off-peak ($2.20) alike."""
 
     def __call__(self, model, system, messages, tools):
         resp = super().__call__(model, system, messages, tools)
         if any(t.name == "finish_task" for t in tools) and messages[-1]["role"] == "user":
             from roundtable.providers.base import Usage
 
-            resp.usage = Usage(input_tokens=5_000_000, output_tokens=10)
+            resp.usage = Usage(input_tokens=10_000_000, output_tokens=10)
         return resp
 
 
-def test_the_projects_own_limit_stops_a_scripted_run(tmp_path, quiet):
+@pytest.mark.parametrize("peak", [True, False])
+def test_the_projects_own_limit_stops_a_scripted_run(tmp_path, quiet, monkeypatch, peak):
+    # the price depends on the hour (DeepSeek's off-peak half price): the test fixes the hour both ways, so it
+    # doesn't pass or fail with the clock
+    from roundtable.harness import config as hconfig
+
+    monkeypatch.setattr(hconfig, "in_peak", lambda windows, now=None: peak)
     lab, cfg, _, _ = lab_with(tmp_path, DearBrain(SMALL), art=False, sound=False)
     rep = proofrun.run(lab, cfg, yes=lambda w: True, balance=FakeBalance())
     root = lab / proofrun.PROJECT
