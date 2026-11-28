@@ -20,8 +20,7 @@ import { tandemFor, tandemRow } from "./tandem.js";
 import { seenList } from "./usage.js";
 import { boardTab } from "./board.js";
 import { worktreesPanel } from "./worktrees.js";
-import { keepPlace } from "./stream.js";
-import { talkButton } from "./voice.js";
+import { chatIdOf, chatView } from "./chat.js";
 import { projectPermsBox } from "./perms.js";
 import { ciChip } from "./ci.js";
 import { soundsCard } from "./sounds.js";
@@ -108,7 +107,6 @@ function moveOn(s) {
   if (s.hub_name && s.status === "waiting") return [
     h("button", { class: "primary", title: "Sends your approval to the computer that builds it; it starts there", onclick: (ev) => act(ev.currentTarget, () => hubCommand(s, "approve")) }, "Approve and start"),
     h("a", { class: "btn", href: projectHref(s.id, "plan") }, "Read the plan")];
-  if ((S.ov.agents || []).some((a) => a.id === s.id)) return [h("a", { class: "btn", href: `#/letters?to=${encodeURIComponent(s.id)}`, title: "Send a letter to the agent working on this project" }, "Write to it")];
   return [];
 }
 
@@ -118,14 +116,17 @@ async function overview(seat, now) {
   const history = h("div");  // what each task changed, Undo and Try another way (rewind.js)
   const doneBox = h("div"), stagesBox = h("div");  // the done list's one line, the stages' strip
   const grid = h("div", { class: "overview" },
-    h("div", { class: "ov-main" }, waits, doneBox, stagesBox, tasksBox, history, report, brief),
-    h("div", { class: "ov-side" }, money_, seat.path ? soundsCard(seat.path) : null, chat));
+    h("div", { class: "ov-main" }, waits, chat, doneBox, stagesBox, tasksBox, history, report, brief),
+    h("div", { class: "ov-side" }, money_, seat.path ? soundsCard(seat.path) : null));
+  // the project's chat (chat.js), its id by the one rule everywhere: chatstore.chat_id of its hub name
+  const chatOf = () => chatView(seat.chat || chatIdOf(seat.hub_name || seat.id), { project: seat.path || "", name: seat.name });
   if (!seat.path) {  // another computer's project, or a hub project: what the hub knows
     const items = (S.rt.needs_you || []).filter((n) => n.project === seat.id);
     const { gather } = await import("./needs.js");
     const its = (await gather({ ...S.rt, needs_you: items }, true)).filter((i) => i.project === seat.id);
     fill(waits, its.length ? [h("h2", { class: "section-title" }, "Waiting for you"), its.map((i) => needCard(i, () => refreshHall(), { showProject: false }))] : null);
     fill(brief, briefCard(seat));
+    fill(chat, chatOf());
     const heard = listeningLine(seat);  // whether the computer that builds it is listening (hubseat.js)
     fill(money_, seat.spent_usd || seat.detail || heard ? card("Where it stands", seat.detail ? h("p", {}, seat.detail) : null, heard, seat.spent_usd ? h("p", {}, wt("{v1} spent so far", { v1: money(seat.spent_usd) })) : null) : null);
     return grid;
@@ -150,7 +151,7 @@ async function overview(seat, now) {
       try { fill(history, await historyCard(seat)); } catch { /* the history is a help: the rest still shows */ }
     }
     fill(report, d.summary ? card("The final report", prose(d.summary)) : null);
-    if (!chat.firstChild) fill(chat, chatCard(seat));
+    if (!chat.firstChild) fill(chat, chatOf());
   }, () => (now().status === "running" ? 3000 : 15000));
   const lanes = await worktreesPanel(seat).catch(() => null);  // what each worktree lane is doing (worktrees.js)
   if (lanes) grid.querySelector(".ov-main").append(lanes);
@@ -202,46 +203,6 @@ function moneyCard(d, plan) {
       h("tr", {}, h("th", {}, "Job and model"), h("th", { class: "num" }, "Tries"), h("th", { class: "num" }, "Approved"), h("th", { class: "num" }, "Cost")),
       d.metrics.map((m) => { const [role, model] = m.key.split(" · "); return h("tr", {}, h("td", {}, jobName(role), h("div", { class: "muted small" }, modelName(model))),
         h("td", { class: "num" }, m.attempts), h("td", { class: "num" }, m.approved), h("td", { class: "num" }, money(m.cost))); }))) : null);
-}
-
-// talk to the planner: ask about the project, or give an instruction for the next tasks
-let steer = false;  // Ask or Instruct, kept between visits
-function chatCard(seat) {
-  const log = h("div", { class: "chat", role: "log", "aria-live": "polite" });
-  keepPlace(log);  // the place in the conversation stays when the window's width changes (stream.js)
-  let pending = null, history = [];
-  const draw = () => {
-    const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-    fill(log, [...history.map((m) => msg(m)), pending ? [msg({ who: "owner", text: pending.text, steer: pending.steer }), h("div", { class: "msgl orc pending" }, h("small", {}, "Planner"), h("div", { class: "body" }, h("i", { class: "pulse-dot" }), pending.steer ? "Noting it…" : "Thinking…"))] : null]);
-    if (!history.length && !pending) fill(log, h("p", { class: "muted small" }, "Ask about this project (“what's left?”, “why did the logo task stop?”), or give an instruction for the next tasks (“use bigger buttons from now on”)."));
-    if (atEnd) log.scrollTop = log.scrollHeight;
-  };
-  const msg = (m) => h("div", { class: "msgl " + (m.who === "owner" ? "you" : "orc") + (m.steer ? " steer" : "") },
-    h("small", {}, m.who === "owner" ? (m.steer ? "You · instruction" : "You") : "Planner", m.at ? ` · ${ago(m.at)}` : ""), h("div", { class: "body" }, m.text),
-    m.steer && m.who === "owner" ? h("div", { class: "steer-note" }, "The next tasks follow this") : null);
-  // the message box (compose.js): pictures, files, @, Speak; an instruction can reach the task working now
-  const box = composer({ key: `chat:${seat.path}`, project: seat.path, rows: 2, label: "Your message", modes: true,
-    onOpen: (p) => { location.hash = projectHref(seat.id, p); },
-    placeholder: "A question about this project, or an instruction for the next tasks",
-    onSend: async ({ text, key, mode }) => {
-      if (pending) return;
-      pending = { text, steer }; draw();
-      try {
-        const r = await post("/api/attach/send", { key, path: seat.path, as: steer ? "note" : "chat", mode, text });
-        if (steer) toast(r.reply || "Noted: the next tasks follow it");
-      } finally { pending = null; await load(); }
-    } });
-  const mode = h("div", { class: "seg", role: "group", "aria-label": "Kind of message" });
-  const setMode = (v) => { steer = v;
-    fill(mode, [[false, "Ask", "A question: the planner answers, nothing changes"], [true, "Instruct", "An instruction: the next tasks follow it (Now: the task working now too)"]].map(([k, t, tip]) =>
-      h("button", { type: "button", class: k === v ? "on" : "", "aria-pressed": String(k === v), title: tip, onclick: () => setMode(k) }, t))); };
-  setMode(steer);
-  const form = h("div", { class: "stack" }, mode, box);
-  const load = async () => { try { history = await get(`/api/chat?${q({ path: seat.path })}`); } catch { history = history || []; } draw(); };
-  load();
-  const talk = talkButton(seat.path, { onDone: load });  // talk instead of typing (voice.js; none where it can't)
-  if (talk) form.append(talk);
-  return card("Talk to the planner", log, form);
 }
 
 function briefCard(seat) {

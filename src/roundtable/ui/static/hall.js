@@ -8,6 +8,7 @@ import { whereWords, builtBy, machinesStrip, loadMachines } from "./machines.js"
 import { feedLine } from "./activity.js";
 import { loadStates, stateWord, orderSeats, orderButtons } from "./board.js";
 import { t } from "./words.js";
+import { chatView } from "./chat.js";
 
 const RING_MAX = 10;   // lights on the ring; more and the ring becomes a heading over a grid
 
@@ -80,7 +81,7 @@ export async function viewHall() {
   const office = await import("./office.js");
   const sw = await office.officeSwitch(() => { table._sig = undefined; table._office = false; draw(S.rt); }).catch(() => null);
   const root = h("div", { class: "page home" },
-    h("div", { class: "home-main" }, sw, table, notes, now), side);
+    h("div", { class: "home-main" }, sw, table, notes, now, chatView("hall", { short: true, name: BRAND.short })), side);
   const newIdea = () => h("a", { class: "ring-card new-idea", href: "#/new", title: "A few taps, then the planner makes a plan for you to check. Nothing is built until you approve it." },
     h("i", { class: "unlit", "aria-hidden": "true" }), h("b", {}, "+ New idea"), h("span", {}, "Start a project"));
 
@@ -121,7 +122,7 @@ export async function viewHall() {
         h("p", { class: "muted" }, "Every project is either working or waiting for a new idea. Questions, plans to approve and your to-dos show up here."),
         h("a", { class: "btn primary", href: "#/new" }, "+ Start a new project"));
       const [first, ...rest] = items;
-      return [h("div", { class: "side-head" }, h("h2", {}, "Needs you"), h("span", { class: "count", title: "Every card waiting, letters not counted" }, needsCount(rt) || items.length),
+      return [h("div", { class: "side-head" }, h("h2", {}, "Needs you"), h("span", { class: "count", title: "Every card waiting, chat messages not counted" }, needsCount(rt) || items.length),
         h("a", { class: "spacer-left", href: "#/needs" }, "See all")),
       needCard(first, null, { compact: true }),
       rest.length ? h("section", { class: "card next-up" }, h("h3", { class: "label" }, "Also waiting"),

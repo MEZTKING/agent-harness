@@ -18,7 +18,7 @@ from roundtable import chatstore
 from . import test_contrast as contrast
 
 STATIC = Path(__file__).resolve().parents[1] / "src" / "roundtable" / "ui" / "static"
-OWNED = ("chat.js", "chatcard.js", "letters.js", "compose.js", "stream.js", "queue.js", "voice.js")
+OWNED = ("chat.js", "chatcard.js", "compose.js", "stream.js", "queue.js", "voice.js")
 STYLED = ("chat.js", "chatcard.js")
 node = pytest.mark.skipif(not shutil.which("node"), reason="Node isn't installed here")
 
@@ -89,11 +89,10 @@ def test_every_word_goes_through_the_table():
     sys.path.insert(0, str(STATIC.parents[3] / "tools"))
     import words_extract as X
 
-    for name in ("chat.js", "chatcard.js", "letters.js"):
+    for name in ("chat.js", "chatcard.js"):
         found, left = X.sentences_of((STATIC / name).read_text(encoding="utf-8"))
         assert not left, (name, [s.tok.value for s in left])
-        if name != "letters.js":
-            assert len(found) > 20, name
+        assert len(found) > 20, name
 
 
 def test_the_model_s_words_are_never_html_and_cards_post_only_to_the_pc_route():

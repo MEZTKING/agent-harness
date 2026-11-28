@@ -22,7 +22,7 @@ import { t as wt } from "./words.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
   ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["writing", "How agents write", "The house style: how the agents write for you"],
-  ["builders", "Builders", "What the builders may do without asking you, and how they work"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
+  ["builders", "Builders", "What the builders may do without asking you, and how they work"], ["hub", "Hub", "Where your projects, journal and chats are kept and shared"],
   ["phone", "Your phone", "Use the harness from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
   ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"], ["language", "Language", "The language the app is written in"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
@@ -146,7 +146,8 @@ async function recommendedPart(st) {
 // ---------- spending (shared by every machine through the hub) ----------
 const LIMITS = [["max_usd_per_day", "Most for one day, on every project", "When the day's spending reaches this, building stops until tomorrow (or until you raise it)."],
   ["max_cost_usd", "Most for one project", "A project stops at this and asks you before spending more."],
-  ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."]];
+  ["max_real_usd_per_run", "Most for one go at building", "One build stops at this, even if the project could spend more."],
+  ["chat_usd_per_day", "Chat, most for one day", "What the chat may spend in a day on every device together; at the limit it says so and offers to raise it for today."]];
 // What each service has used against your limits comes first (usage.js), then the shared limits.
 // learning's own weekly allowance (improve/wallet.py) sits with the rest of the money
 async function spendingPart() { return [usageCard(), ...[await sharedSpending()].flat(), walletCard(), proofRunCard()]; }
@@ -191,7 +192,7 @@ async function sharedSpending() {
 async function hubPart(st) {
   const mode = st.hub.mode;
   const url = h("input", { class: "grow", placeholder: "Your hub's GitHub address, e.g. https://github.com/you/agent-hub-data", "aria-label": "GitHub address" });
-  return card("Your hub", h("p", {}, "The hub keeps your projects' journals and letters, and shares them with your other computers, your phone and every Claude session."),
+  return card("Your hub", h("p", {}, "The hub keeps your projects' journals and chats, and shares them with your other computers, your phone and every Claude session."),
     h("p", {}, "Now: ", mode === "git" ? h("span", { class: "pill good" }, "Shared through GitHub") : mode === "file" ? h("span", { class: "pill info" }, "On this computer only") : h("span", { class: "pill bad" }, "Not set up"),
       S.ov.agents ? h("span", { class: "muted small" }, ` · ${plural(S.ov.agents.length, "project")}`) : null),
     st.hub.error ? h("p", { class: "bad small" }, "It didn't open: ", st.hub.error) : null,
@@ -224,7 +225,7 @@ async function phonePart() {
     fill(box,
       h("p", {}, "Now: ", s.running ? h("span", { class: "pill good" }, "On") : s.enabled ? h("span", { class: "pill bad", title: s.error || "" }, "On, but not working") : h("span", { class: "pill" }, "Off")),
       s.error ? h("p", { class: "bad small" }, s.error, " Turn it off and on again; if it still fails, restart the app.") : null,
-      h("p", { class: "muted small" }, "A paired phone sees every project, answers what waits, approves, tries again, talks to the planner and reads and sends letters. Keys, settings and updates stay on this computer. The connection is private; away from home it works through Tailscale."),
+      h("p", { class: "muted small" }, "A paired phone sees every project, answers what waits, approves, tries again, and chats with the Hall and every project. Keys, settings and updates stay on this computer. The connection is private; away from home it works through Tailscale."),
       h("div", { class: "row" },
         s.running ? h("button", { class: "primary", onclick: (ev) => call(ev.currentTarget, { action: "pair" }) }, "Pair a phone")
           : h("button", { class: "primary", onclick: (ev) => call(ev.currentTarget, { action: "enable" }, "Your phone can connect now") }, "Let my phone connect"),
@@ -427,7 +428,7 @@ export async function viewSetup() {
     h("h2", { class: "step" }, "2. Your hub"), await hubPart(st),
     h("h2", { class: "step" }, "3. Where projects go"),
     card(null, h("label", { class: "field" }, h("span", { class: "label" }, "Projects folder"), folder),
-      me ? h("label", { class: "field", title: "Your own name in the hub: your notes and letters" }, h("span", { class: "label" }, "You are"), me) : null,
+      me ? h("label", { class: "field", title: "Your own name in the hub: your notes and messages" }, h("span", { class: "label" }, "You are"), me) : null,
       h("div", { class: "row" },
         h("button", { class: "primary", onclick: (ev) => act(ev.currentTarget, () => post("/api/setup/done", { projects_dir: folder.value, agent: me ? me.value : null }), "All set", () => { location.hash = "#/"; location.reload(); }) }, wt("Start using {name}", { name: BRAND.name })),
         h("button", { title: "A short check that each model answers (a few cents)", onclick: (ev) => act(ev.currentTarget, () => post("/api/probes", {}), "Checking your models…", (j) => { if (j && j.id) location.hash = `#/activity/work/${j.id}`; }) }, "Check my models first"))));
