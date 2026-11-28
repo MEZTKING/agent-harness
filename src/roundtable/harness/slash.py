@@ -19,6 +19,7 @@ for the phone: commands that run programs on the PC (``/test``, plug-ins) are th
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from pathlib import Path
 from typing import Any, Callable
@@ -42,7 +43,26 @@ COMMANDS: dict[str, tuple[str, str, str, bool, bool]] = {
     "search": ("Look for something in every project and the journal", "<words>", "", False, False),
     "board": ("Open the board of tasks", "", "", False, False),
     "help": ("List these commands", "", "", False, False),
+    # 1.5.0: what the phone's letters could do and the box couldn't (the chat's cards run them too)
+    "approve": ("Approve the plan and build (say “at most $N” to set the limit)", "[at most $N]", "spend", False,
+                False),
+    "build": ("Build the accepted ideas, or something new (say “at most $N” to set the limit)",
+              "[accepted | what to build] [at most $N]", "spend", False, False),
+    "answer": ("Answer one of the plan's questions", "<question id> <answer>", "", False, False),
+    "choose": ("Choose one of a decision's options", "<decision id> <option id>", "", False, False),
+    "looks": ("Make new looks to choose from", "[a starting point]",
+              "The designer makes new looks. That is one model call from your accounts.", False, False),
+    "accept": ("Accept a stopped task as it is and carry on building", "<task id> [note]", "spend", False, False),
+    "autopilot": ("Autopilot for every project: on (until a time, at most $N), off, or how it is",
+                  "on [until HH:MM] [at most $N] | off | status", "autopilot", False, False),
+    "pictures": ("Take pictures of the app as it is now", "", "", False, False),
+    "note": ("Tell the planner something: the next tasks and plans read it", "<words>", "", False, False),
+    "todo": ("Tick off one of the project's to-dos", "done <to-do id>", "", False, False),
+    "recall": ("Look through every project for the answer to a question", "<question>", "recall", False, False),
+    "new": ("Start a new project: the planner writes its plan, building waits for your yes", "<what to build>",
+            "The planner writes a plan for it. That is one model call from your accounts.", False, False),
 }
+NO_PROJECT = ("help", "search", "recall", "new", "autopilot")  # commands that work in Hall, without a project
 SPEND = "It starts building, which spends from your model accounts{est}. You can stop a command any time."
 
 
@@ -118,7 +138,7 @@ def run(app, path: str, line: str, confirmed: bool = False, pc: bool = True) -> 
         raise SlashError("A command starts with /. Type / to see them all.")
     if name in COMMANDS:
         words, args, confirm, slow, pc_only = COMMANDS[name]
-        if not path and name not in ("help", "search"):
+        if not path and name not in NO_PROJECT:
             raise SlashError("Open a project first: commands work on the project you're looking at.")
         if pc_only and not pc:
             raise SlashError("That one runs programs on the PC, so it's only in the PC's own app.")
@@ -145,6 +165,11 @@ def _confirm_words(app, path: str, name: str, confirm: str, rest: str) -> str:
         return SPEND.format(est=_estimate(app, path))
     if confirm == "undo":
         return _undo_preview(app, path, rest)["confirm"]
+    if confirm == "autopilot":
+        return "Autopilot answers what waits and builds on its own, which spends from your model accounts." \
+            if (rest.split() or [""])[0].lower() == "on" else ""
+    if confirm == "recall":
+        return _recall_price(app, rest)
     return confirm
 
 
@@ -359,8 +384,218 @@ def _skill(app, path, skill, rest):
     return {"reply": f"Noted: the next tasks use the skill “{skill.name}”."}
 
 
+# -- 1.5.0: the commands the chat's cards run ---------------------------------------------------------------
+_CAP = re.compile(r"(?i)\b(?:at most|no more than|up to|max(?:imum)?|stops? at|cap(?:ped)? at)\s*(?:of\s*)?"
+                  r"(?:US)?\$\s*(\d{1,4}(?:\.\d{1,4})?)\b|\$\s*(\d{1,4}(?:\.\d{1,4})?)\s*(?:at most|max(?:imum)?)\b")
+
+
+def split_cap(rest: str) -> tuple[str, float | None]:
+    """``"accepted at most $2"`` -> ``("accepted", 2.0)``: the run's own limit, said in words."""
+    m = _CAP.search(rest or "")
+    if not m:
+        return (rest or "").strip(), None
+    cap = float(m.group(1) or m.group(2))
+    return (rest[:m.start()] + rest[m.end():]).strip(" ,.;"), cap if cap > 0 else None
+
+
+def cap_budget(orch, cap: float | None) -> None:
+    """``at most $N``: this run stops once it has spent N more (the project's own limit still holds)."""
+    if cap:
+        orch.budget.limit_usd = min(orch.budget.limit_usd, orch.budget.spent_usd + float(cap))
+
+
+def build_project(orch, goal: str = "", cap: float | None = None) -> str:
+    """Build the accepted ideas (the plan's waiting changes applied first) or a new goal, approved, within
+    ``cap``. The same steps as Update plan, Approve and Build; remote.py's ``build`` does the same."""
+    from .orchestrator import HarnessError
+
+    cap_budget(orch, cap)
+    goal = (goal or "").strip()
+    if goal and goal.lower() != "accepted":
+        orch.extend(goal)
+    else:
+        doc = orch.project.plan_doc() or {}
+        if doc.get("pending"):
+            orch.revise_plan("")
+    meta = orch.project.meta()
+    if not meta.get("plan_approved") or meta.get("status") == "awaiting_approval":
+        try:
+            orch.approve()
+        except HarnessError:
+            raise
+    return orch.run()
+
+
+def _busy_check(app, root) -> None:
+    if app._busy(root):
+        raise SlashError("Wait for the job running on this project to finish, then try again.")
+
+
+def _approve(app, path, rest):
+    _rest, cap = split_cap(rest)
+    root = _project(app, path).root
+    cfg = app.need_cfg()
+    _busy_check(app, root)
+
+    def work(job):
+        orch = app._orch(cfg, root, job)
+        orch.approve()
+        cap_budget(orch, cap)
+        return {"status": orch.run()}
+
+    return _job(app.jobs.start("run", f"run {root.name}", work, target=str(root)).view(),
+                "Approved. Building now" + (f"; it stops at ${cap:.2f}." if cap else "."))
+
+
+def _build(app, path, rest):
+    goal, cap = split_cap(rest)
+    if goal.lower() in ("accepted", "the accepted ideas", "accepted ideas", "ideas"):
+        goal = ""
+    root = _project(app, path).root
+    cfg = app.need_cfg()
+    _busy_check(app, root)
+
+    def work(job):
+        return {"status": build_project(app._orch(cfg, root, job), goal, cap)}
+
+    what = "the new goal" if goal else "the accepted ideas"
+    return _job(app.jobs.start("run", f"build {root.name}", work, target=str(root)).view(),
+                f"Building {what}" + (f"; it stops at ${cap:.2f}." if cap else "."))
+
+
+def _plan_edit(app, path, action, **kw):
+    from .orchestrator import HarnessError
+
+    try:
+        r = app.plan_post({"path": path, "action": action, **kw})
+    except HarnessError as e:
+        raise SlashError(str(e)) from None
+    n = int((r or {}).get("pending") or 0)
+    return {"reply": f"Saved. {n} change{'s' if n != 1 else ''} wait{'s' if n == 1 else ''} for the plan to be "
+                     "updated (/build does that and builds)."}
+
+
+def _answer(app, path, rest):
+    qid, _, text = rest.partition(" ")
+    if not qid or not text.strip():
+        raise SlashError("Say which question and the answer, like /answer Q1 blue and gold.")
+    return _plan_edit(app, path, "answer", question=qid, text=text.strip())
+
+
+def _choose(app, path, rest):
+    parts = rest.split()
+    if len(parts) < 2:
+        raise SlashError("Say which decision and which option, like /choose D1 b.")
+    return _plan_edit(app, path, "choose", decision=parts[0], option=parts[1])
+
+
+def _looks(app, path, rest):
+    return _job(app.plan_post({"path": path, "action": "looks", "text": rest}),
+                "Making new looks. They show on the Plan page to choose from.")
+
+
+def _accept(app, path, rest):
+    parts = rest.split(None, 1)
+    if not parts:
+        raise SlashError("Say which task to accept, like /accept T3.")
+    tid = _task_id(app, path, parts[0], (), "")
+    note, cap = split_cap(parts[1] if len(parts) > 1 else "")
+    root = _project(app, path).root
+    cfg = app.need_cfg()
+    _busy_check(app, root)
+
+    def work(job):
+        orch = app._orch(cfg, root, job)
+        orch.accept(tid, note)
+        cap_budget(orch, cap)
+        return {"status": orch.run()}
+
+    return _job(app.jobs.start("run", f"accept {tid} in {root.name}", work, target=str(root)).view(),
+                f"{tid} is accepted as it is. Building carries on.")
+
+
+def _autopilot(app, path, rest):
+    from ..remote import autopilot_command
+
+    words, cap = split_cap(rest)
+    parts = words.split()
+    state = parts[0].lower() if parts else "status"
+    if state not in ("on", "off", "status"):
+        raise SlashError("Say on, off or status, like /autopilot on until 08:00 at most $2.")
+    kw: dict[str, Any] = {"state": state}
+    until = next((p for p in parts[1:] if re.fullmatch(r"\d{1,2}:\d\d", p)), "")
+    if until:
+        kw["until"] = until
+    if cap:
+        kw["cap"] = cap
+    return {"reply": autopilot_command(app.need_cfg(), kw)}
+
+
+def _pictures(app, path, rest):
+    return _job(app.project_action({"path": path, "action": "show_it"}),
+                "Taking pictures of the app. They show on the Live tab.")
+
+
+def _note(app, path, rest):
+    from .orchestrator import HarnessError, Orchestrator
+
+    if not rest:
+        raise SlashError("Say what to tell the planner, like /note use British spelling.")
+    try:
+        return {"reply": Orchestrator(app.need_cfg(), _project(app, path).root).steer(rest)["reply"]}
+    except HarnessError as e:
+        raise SlashError(str(e)) from None
+
+
+def _todo(app, path, rest):
+    from ..remote import todo_done
+    from .orchestrator import Orchestrator
+
+    parts = rest.split()
+    if len(parts) < 2 or parts[0].lower() != "done":
+        raise SlashError("Say which to-do is done, like /todo done 20261128-ab12.")
+    return {"reply": todo_done(Orchestrator(app.need_cfg(), _project(app, path).root), {"id": parts[1]})}
+
+
+def _recall_price(app, rest) -> str:
+    try:
+        from ..ui import recallapi
+
+        r = recallapi.ask(app, {"question": rest, "confirm": False})
+        usd = float(r.get("price_usd") or 0)
+        return f"It asks one model, with only the pieces it may see: about ${usd:.3f}."
+    except Exception:  # noqa: BLE001 - the words are a help
+        return "It asks one model, with only the pieces it may see. That is one model call from your accounts."
+
+
+def _recall(app, path, rest):
+    from ..ui import recallapi
+
+    if not rest:
+        raise SlashError("Say what you want to know, like /recall which projects use a login page?")
+    r = recallapi.ask(app, {"question": rest, "confirm": True})
+    return {"reply": str(r.get("answer") or r.get("words") or "Nothing was found."), "cost_usd": r.get("cost_usd", 0)}
+
+
+def _new(app, path, rest):
+    import re as _re
+
+    if not rest:
+        raise SlashError("Say what to build, like /new a recipe app for my family.")
+    name = _re.sub(r"[^a-z0-9]+", "-", rest.lower()).strip("-")[:40].strip("-") or "new-project"
+    base = name
+    i = 2
+    while (app.projects_dir / name).exists():
+        name = f"{base}-{i}"
+        i += 1
+    return _job(app.project_new({"goal": rest, "dir": name, "approve": True}),
+                f"The planner is writing a plan for “{rest[:80]}”. It shows in the Hall; building waits for your yes.")
+
+
 DO: dict[str, Callable[[Any, str, str], dict[str, Any]]] = {
     "plan": _plan, "run": _run, "next": lambda app, path, rest: _run(app, path, rest, max_tasks=1), "stop": _stop,
     "retry": _retry, "skip": _skip, "undo": _undo, "goal": _goal, "compact": _compact, "model": _model, "test": _test,
     "search": _search, "board": _board, "help": _help,
+    "approve": _approve, "build": _build, "answer": _answer, "choose": _choose, "looks": _looks, "accept": _accept,
+    "autopilot": _autopilot, "pictures": _pictures, "note": _note, "todo": _todo, "recall": _recall, "new": _new,
 }

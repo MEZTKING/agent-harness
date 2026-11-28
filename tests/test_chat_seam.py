@@ -141,16 +141,17 @@ def test_every_cannot_line_is_a_line_with_known_buttons():
 
 
 # -- the stubs do nothing -----------------------------------------------------------------------------------------
-def test_the_stubs_write_and_spend_nothing(tmp_path):
+def test_with_no_hub_and_no_harness_nothing_is_sent_or_spent(tmp_path):
+    """(Step 0 checked the stubs did nothing; chat-server filled them: now only the local copy is written.)"""
     line = chatstore.append(tmp_path, None, "hall", {"who": "owner", "seat": "s", "text": "hello"})
     assert line["text"] == "hello" and line["id"] and line["at"]
-    assert chatstore.read(tmp_path, None, "hall") == {"lines": [], "at": ""}
+    assert [x["text"] for x in chatstore.read(tmp_path, None, "hall")["lines"]] == ["hello"]
     assert chatstore.earlier(None, "hall") == [] and chatstore.waiting(None) == [] and chatstore.chats(None) == []
     assert chatstore.claim(None, "hall", "t", "s") is False
     assert chatstore.attach(tmp_path, None, "hall", "a.txt", b"hi")["size"] == 2
-    assert chat.drain(None) == 0 and chat.card_for(None, "hall", "Action: /build") is None
+    assert chat.drain(None) == 0
     assert chat.estimate(None, "hall") == 0.0 and chat.model_for(None, None) is None
-    assert list(tmp_path.iterdir()) == []
+    assert {p.name for p in tmp_path.iterdir()} == {"chats"}
 
 
 # -- the routes -------------------------------------------------------------------------------------------------
@@ -172,11 +173,17 @@ def test_the_routes_answer_in_their_frozen_shapes():
         home = hub = None
 
     r = chatsapi.routes(App())
-    assert r[("GET", "/api/chats")]({}) == {"chats": []}
+    assert [c["id"] for c in r[("GET", "/api/chats")]({})["chats"]] == ["hall"]
     got = r[("GET", "/api/chats/read")]({"chat": ["hall"]})
-    assert set(got) == {"lines", "at", "answering", "can"} and set(got["can"]) == {"answer", "why"}
+    assert {"lines", "at", "answering", "can"} <= set(got) and set(got["can"]) == {"answer", "why"}
     assert set(r[("POST", "/api/chats/say")]({"chat": "hall", "text": "hi"})) == {"line", "turn"}
-    assert set(r[("POST", "/api/chats/tap")]({"chat": "hall", "card": "c1"})) == {"line"}
+    from roundtable.ui import chatsapi as _api
+
+    _api.wait("hall")
+    note = chat.cannot("allowance", limit="$1.00")
+    chatstore.append(chat.home_of(App()), None, "hall", {**note, "seat": chatstore.me()["id"]})
+    app_card = note["card"]["id"]  # the app's own card: Not now just folds it
+    assert set(r[("POST", "/api/chats/tap")]({"chat": "hall", "card": app_card, "button": "not_now"})) == {"line"}
     assert r[("POST", "/api/chats/stop")]({"chat": "hall", "turn": "t"}) == {"stopped": False}
     from roundtable.ui.server import ApiError
 

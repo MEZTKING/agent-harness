@@ -257,26 +257,71 @@ def test_no_project_no_command(chat_app):
         slash.run(app, "", "not a command")
 
 
-def test_talk_sends_a_question_and_reads_back_a_proposed_action(chat_app, monkeypatch):
+def test_talk_is_a_chat_message_and_reads_back_the_answers_card(tmp_path, monkeypatch):
+    """1.5.0: the microphone's words go through the chat (chat.reply, aloud): the answer to read out, and the
+    card it offers as the action (a tap still runs it). Voice never offers undoing a task."""
+    from .chatworld import World
+
+    w = World(tmp_path, monkeypatch, answers=["Three tasks are done.", "T2 stopped on the logo.\nAction: /retry T2",
+                                              "Sure.\nAction: /undo T3", "Building.\nAction: /run"])
+    talk = lambda text: w.app.dispatch("POST", "/api/chat/talk", {}, {"path": str(w.root), "text": text})  # noqa: E731
+    r = talk("how is it going?")
+    assert r["reply"] == "Three tasks are done." and r["action"] is None
+    assert "read aloud" in w.model.sent[0]["messages"][0]["content"]
+    assert [x["text"] for x in w.lines()][:2] == ["how is it going?", "Three tasks are done."]  # the chat keeps it
+    r = talk("what's wrong?")
+    assert r["reply"] == "T2 stopped on the logo."
+    assert {k: r["action"][k] for k in ("line", "words", "confirm")} == {"line": "/retry T2",
+                                                                        "words": COMMANDS["retry"][0], "confirm": False}
+    assert r["action"]["chat"] == w.chat and r["action"]["card"]
+    assert talk("undo it")["action"] is None  # not offered by voice
+    assert talk("go")["action"]["confirm"] is True
+    with pytest.raises(Exception):
+        talk("")
+
+
+def test_the_chats_new_commands_do_what_remote_py_does(chat_app, monkeypatch):
+    """1.5.0: the commands the phone's letters could do, each through the function a button or remote.py calls."""
     from roundtable.harness.orchestrator import Orchestrator
 
     app, root = chat_app
-    r = app.dispatch("POST", "/api/chat/talk", {}, {"path": str(root), "text": "how is it going?"})
-    assert r["reply"] == "Final report: all done." and r["action"] is None
-    hist = Orchestrator(app.cfg(), root).chat_history(2)
-    assert hist[0]["text"] == "how is it going?" and hist[0]["talk"]  # the owner's own words, not the hint
-    assert hist[0].get("steer") is False  # a question, never an instruction
+    p = str(root)
+    seen = []
+    job = {"id": "j1"}
+    monkeypatch.setattr(app, "plan_post", lambda b: seen.append(("plan_post", b)) or (job if b["action"] == "looks"
+                                                                                       else {"pending": 1}))
+    monkeypatch.setattr(app, "project_action", lambda b: seen.append(("project_action", b)) or job)
+    assert "1 change waits" in cmd(app, root, "/answer Q1 blue and gold")["reply"]
+    assert cmd(app, root, "/choose D1 b")["reply"].startswith("Saved")
+    assert cmd(app, root, "/looks warmer", True)["job"] == job
+    assert cmd(app, root, "/pictures")["job"] == job
+    assert seen == [("plan_post", {"path": p, "action": "answer", "question": "Q1", "text": "blue and gold"}),
+                    ("plan_post", {"path": p, "action": "choose", "decision": "D1", "option": "b"}),
+                    ("plan_post", {"path": p, "action": "looks", "text": "warmer"}),
+                    ("project_action", {"path": p, "action": "show_it"})]
+    assert "Noted" in cmd(app, root, "/note use British spelling")["reply"]
+    assert Orchestrator(app.cfg(), root).project.meta()["guidance"][-1]["text"] == "use British spelling"
+    for line in ("/approve at most $2", "/build accepted at most $2", "/accept T1", "/looks", "/new a recipe app"):
+        got = cmd(app, root, line)
+        assert got.get("confirm") and "job" not in got, line  # spends: asks first
+    assert cmd(app, root, "/autopilot status")["reply"].startswith("Autopilot")
+    assert cmd(app, root, "/autopilot on").get("confirm")
+    from roundtable.ui.server import ApiError
 
-    def ask(self, text):
-        assert "Action: /<command>" in text
-        return {"reply": "T2 stopped on the logo. Shall I try it again?\nAction: /retry T2", "cost_usd": 0.01}
+    with pytest.raises(ApiError, match="which question"):
+        cmd(app, root, "/answer Q1")
+    with pytest.raises(ApiError, match="which to-do"):
+        cmd(app, root, "/todo T1")
 
-    monkeypatch.setattr(Orchestrator, "ask", ask)
-    r = app.dispatch("POST", "/api/chat/talk", {}, {"path": str(root), "text": "what's wrong?"})
-    assert r["reply"] == "T2 stopped on the logo. Shall I try it again?"
-    assert r["action"] == {"line": "/retry T2", "words": COMMANDS["retry"][0], "confirm": False}
 
-    monkeypatch.setattr(Orchestrator, "ask", lambda self, t: {"reply": "Sure.\nAction: /undo T3"})
-    assert app.dispatch("POST", "/api/chat/talk", {}, {"path": str(root), "text": "undo it"})["action"] is None  # not offered by voice
-    monkeypatch.setattr(Orchestrator, "ask", lambda self, t: {"reply": "Building.\nAction: /run"})
-    assert app.dispatch("POST", "/api/chat/talk", {}, {"path": str(root), "text": "go"})["action"]["confirm"] is True
+def test_build_with_a_limit_runs_the_accepted_ideas_and_stops_at_it(tmp_path, monkeypatch):
+    from .chatworld import World
+
+    w = World(tmp_path, monkeypatch, plan=True)
+    w.app.dispatch("POST", "/api/commands/pc", {}, {"path": str(w.root), "line": "/build accepted at most $0.0002",
+                                                    "confirmed": True})
+    for j in list(w.app.jobs.jobs.values()):
+        wait(w.app, j.view())
+    j = next(iter(w.app.jobs.jobs.values()))
+    assert j.status == "done" and j.result["status"] != "done", j.error
+    assert w.orch.project.meta()["plan_approved"] is True

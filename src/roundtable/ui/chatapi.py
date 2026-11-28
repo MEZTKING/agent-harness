@@ -30,7 +30,8 @@ Timers on questions (asktimer.py):
 
 Talking to the planner (voice.js): the words the browser heard, sent as a question, never as an instruction:
 
-    POST /api/chat/talk {path, text}      -> {reply, action: {line, words, confirm} | null}
+    POST /api/chat/talk {path, text}      -> {reply, action: {line, words, confirm, card, chat} | null}
+                          (1.5.0: a message in the project's chat, chat.reply; the action is the answer's card)
 """
 
 from __future__ import annotations
@@ -223,51 +224,30 @@ def timer(app, b: dict[str, Any]) -> dict[str, Any]:
 
 
 # -- talking -----------------------------------------------------------------------------------------------
-TALK_HINT = ("\n\n(The owner is speaking, and your answer is read aloud: answer in two or three short spoken "
-             "sentences, no lists or code. If one of these would do what the owner wants, end with one line "
-             "'Action: /<command> <words>' and nothing after it: {names}.)")
 ACTION = re.compile(r"^\s*Action:\s*(/\S.*)$", re.M)
 TALK_COMMANDS = ("run", "next", "retry", "skip", "goal", "plan", "stop", "model", "board", "search")
 
 
 def talk(app, b: dict[str, Any]) -> dict[str, Any]:
-    from ..harness.orchestrator import HarnessError
+    """The words the browser heard, as a chat message (chat.reply): an answer to read aloud, and the card it
+    offers as an action (a tap still runs it). Voice never offers undoing or leaving out a task."""
+    from .. import chat as chatmod
 
-    root = _root(app, str(b.get("path") or ""))
+    path = str(b.get("path") or "")
+    _root(app, path)
     text = str(b.get("text") or "").strip()[:2000]
     if not text:
         raise _error("Nothing was heard. Try again, a little closer to the microphone.")
-    orch = _orch(app, root)
-    asked = text + TALK_HINT.format(names=", ".join("/" + n for n in TALK_COMMANDS))
+    chat = chatmod.chat_for_path(app, path)
     try:
-        r = orch.ask(asked)
-    except HarnessError as e:
+        line = chatmod.reply(app, chat, text, aloud=True)
+    except chatmod.ChatError as e:
         raise _error(str(e)) from None
-    reply = str(r.get("reply") or "")
+    card = line.get("card") if line.get("who") == "chat" else None
     action = None
-    m = ACTION.search(reply)
-    if m:
-        reply = (reply[:m.start()] + reply[m.end():]).strip()
-    _tidy_chat(orch.project.dir / "chat.jsonl", asked, text, str(r.get("reply") or ""), reply)
-    if m:
-        name, _ = slash.parse(m.group(1))
+    if card and card.get("state") == "open":
+        name, _ = slash.parse(card["command"])
         if name in TALK_COMMANDS:
-            words, _a, confirm, _slow, _pc = slash.COMMANDS[name]
-            action = {"line": m.group(1).strip()[:300], "words": words, "confirm": bool(confirm)}
-    return {"reply": reply, "action": action, "cost_usd": r.get("cost_usd", 0)}
-
-
-def _tidy_chat(p: Path, asked: str, said: str, answered: str, shown: str) -> None:
-    """The chat keeps what the owner said and the answer they heard, not the words added for speaking."""
-    import json
-
-    try:
-        rows = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
-    except (OSError, ValueError):
-        return
-    for row in reversed(rows[-4:]):
-        if row.get("who") == "owner" and row.get("text") == asked:
-            row.update(text=said, talk=True)
-        elif row.get("who") == "orchestrator" and row.get("text") == answered:
-            row.update(text=shown or answered, talk=True)
-    p.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in rows), encoding="utf-8")
+            action = {"line": card["command"], "words": slash.COMMANDS[name][0],
+                      "confirm": bool(slash.COMMANDS[name][2]), "card": card["id"], "chat": chat}
+    return {"reply": line.get("text", ""), "action": action, "cost_usd": line.get("cost_usd", 0) or 0}
