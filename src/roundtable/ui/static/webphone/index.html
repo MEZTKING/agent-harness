@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="referrer" content="no-referrer">
+  <title>Darkness Harness</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="webphone/webphone.css">
+  <link rel="icon" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <script src="theme.js"></script>
+</head>
+<body class="webphone">
+  <header class="wp-top" id="top">
+    <span class="brand-name">Darkness Harness</span>
+    <nav class="wp-rooms" aria-label="Rooms" id="rooms" hidden>
+      <a href="#/" data-room="hall" title="Every project, and what needs you">Home</a>
+      <a href="#/needs" data-room="needs" title="Everything waiting for your answer">Needs you</a>
+      <a href="#/projects" data-room="projects" title="Every project in one list">Projects</a>
+    </nav>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <main id="main" tabindex="-1"><p class="loading">Waking up…</p></main>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module" src="webphone/webphone.js"></script>
+</body>
+</html>
