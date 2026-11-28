@@ -216,7 +216,7 @@ object StatusText {
 
 /**
  * What waits for the owner, organised: one heading per project (with its count), and inside it by kind,
- * in this order: decisions and questions to answer now, money and stopped runs, to-dos, ideas, letters.
+ * in this order: decisions and questions to answer now, money and stopped runs, to-dos, ideas, chats that wrote to you.
  * Newest first inside each group.
  */
 object NeedsOrder {
@@ -225,7 +225,7 @@ object NeedsOrder {
         MONEY("Money and stopped runs", "stopped run", "stopped runs"),
         TODO("To-dos", "to-do", "to-dos"),
         IDEA("Ideas", "idea", "ideas"),
-        LETTER("Letters", "letter", "letters");
+        LETTER("Messages", "message", "messages");
 
         fun count(n: Int): String = "$n ${if (n == 1) one else many}"
     }

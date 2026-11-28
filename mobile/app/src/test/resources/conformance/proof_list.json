@@ -1,31 +1,7 @@
 {
  "items": [
   {
-   "at": "2026-11-28T08:29:00Z",
-   "changed": [],
-   "lines": [
-    {
-     "checkable": true,
-     "id": "starts",
-     "optional": false,
-     "passed": null,
-     "words": "It opens with no errors"
-    },
-    {
-     "checkable": true,
-     "id": "tests",
-     "optional": true,
-     "passed": null,
-     "words": "Its tests pass"
-    }
-   ],
-   "task": "T3",
-   "tests": "Tests: they pass.",
-   "verdict": null,
-   "words": "Nobody looked at the pictures (there were none). Tests: they pass."
-  },
-  {
-   "at": "2026-11-28T08:28:59Z",
+   "at": "2026-11-28T11:14:26Z",
    "changed": [],
    "lines": [
     {
@@ -49,7 +25,7 @@
    "words": "Tests: not run for this task."
   },
   {
-   "at": "2026-11-28T08:28:59Z",
+   "at": "2026-11-28T11:14:26Z",
    "changed": [],
    "lines": [
     {
@@ -68,6 +44,30 @@
     }
    ],
    "task": "T1",
+   "tests": "Tests: they pass.",
+   "verdict": null,
+   "words": "Nobody looked at the pictures (there were none). Tests: they pass."
+  },
+  {
+   "at": "2026-11-28T11:14:26Z",
+   "changed": [],
+   "lines": [
+    {
+     "checkable": true,
+     "id": "starts",
+     "optional": false,
+     "passed": null,
+     "words": "It opens with no errors"
+    },
+    {
+     "checkable": true,
+     "id": "tests",
+     "optional": true,
+     "passed": null,
+     "words": "Its tests pass"
+    }
+   ],
+   "task": "T3",
    "tests": "Tests: they pass.",
    "verdict": null,
    "words": "Nobody looked at the pictures (there were none). Tests: they pass."

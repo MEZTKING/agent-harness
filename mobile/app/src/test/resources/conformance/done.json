@@ -6,7 +6,7 @@
  "items": [
   {
    "by": "kind",
-   "checked_at": "2026-11-28T08:29:00Z",
+   "checked_at": "2026-11-28T11:14:26Z",
    "checked_by": "finish",
    "evidence": {},
    "how": "page_opens",
@@ -19,7 +19,7 @@
   },
   {
    "by": "kind",
-   "checked_at": "2026-11-28T08:29:00Z",
+   "checked_at": "2026-11-28T11:14:26Z",
    "checked_by": "finish",
    "command": "npm test",
    "evidence": {
@@ -50,14 +50,14 @@
  "passed": 0,
  "rounds": [
   {
-   "at": "2026-11-28T08:29:00Z",
+   "at": "2026-11-28T11:14:26Z",
    "by": "finish",
    "item": "D1",
    "passed": null,
    "words": "There's nothing to open yet: no page and no start command."
   },
   {
-   "at": "2026-11-28T08:29:00Z",
+   "at": "2026-11-28T11:14:26Z",
    "by": "finish",
    "item": "D2",
    "passed": null,

@@ -692,7 +692,10 @@ fun NeedsList(
                         Text(if (shut) "Show" else "Hide", style = MaterialTheme.typography.bodySmall, color = Hall.muted)
                     }
                 }
-                if (!shut) {
+                if (!shut && sec.group == com.meztking.roundtable.data.NeedsOrder.Group.LETTER) {
+                    // the chat replaced Letters (1.5.0): one row per project that wrote, opening its chat
+                    item(key = "w:$gk") { WroteCard(p.project, sec.items, onOpen) }
+                } else if (!shut) {
                     val all = gk in opened
                     val shown = if (all) sec.items else sec.items.take(3)
                     items(shown, key = { it.key }) { n ->
@@ -710,6 +713,24 @@ fun NeedsList(
                     }
                 }
             }
+        }
+    }
+}
+
+/** "<project> wrote to you": what it said last, and Open the chat. */
+@Composable
+fun WroteCard(project: String, items: List<NeedView>, onOpen: (NeedView) -> Unit) {
+    val last = items.first()
+    Parchment(Modifier.fillMaxWidth(), seal = Hall.amber) {
+        Text(com.meztking.roundtable.data.Words.t("{project} wrote to you", "project" to project), fontFamily = Serif,
+            fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Hall.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(2.dp))
+        val sub = listOf(last.text.ifBlank { last.title }, if (items.size > 1) com.meztking.roundtable.data.Words.t("{n} new messages", "n" to items.size) else ago(last.at))
+            .filter { it.isNotBlank() }.joinToString("\n")
+        Text(sub, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, maxLines = 4, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { onOpen(last.copy(kind = "message")) }, colors = ParchmentButtons.main(), contentPadding = PaddingValues(horizontal = 14.dp)) {
+            Text(com.meztking.roundtable.data.Words.t("Open the chat"))
         }
     }
 }

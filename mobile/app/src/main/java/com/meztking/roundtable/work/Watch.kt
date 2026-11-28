@@ -30,6 +30,8 @@ class Watch(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, param
         val hall = runCatching { backend.hall() }.getOrElse { return Result.retry() }
         runCatching { app.store.cachedHall = ApiJson.encodeToString(HallState.serializer(), hall) }
         announce(applicationContext, hall, plans(backend, hall))
+        // the chat: a message that was answered, a queued card that is done (notify/ChatWatch.kt)
+        runCatching { com.meztking.roundtable.notify.ChatWatch.look(applicationContext, backend, hall, app.store.chatSeat) }
         return Result.success()
     }
 

@@ -1,0 +1,53 @@
+{
+ "chats": [
+  {
+   "id": "hall",
+   "last": "",
+   "name": "Hall",
+   "unread": 0,
+   "waiting": 0
+  },
+  {
+   "id": "proj",
+   "last": "Final report: all done.",
+   "name": "Proj",
+   "unread": 1,
+   "waiting": 0
+  },
+  {
+   "id": "frontend",
+   "last": "",
+   "name": "Frontend",
+   "unread": 0,
+   "waiting": 0
+  },
+  {
+   "id": "made-up-another-way",
+   "last": "",
+   "name": "Made Up Another Way",
+   "unread": 0,
+   "waiting": 0
+  },
+  {
+   "id": "made-up-garden",
+   "last": "",
+   "name": "Made Up Garden",
+   "unread": 0,
+   "waiting": 0
+  },
+  {
+   "id": "made-up-kite-shop",
+   "last": "",
+   "name": "Made Up Kite Shop",
+   "unread": 0,
+   "waiting": 0
+  },
+  {
+   "id": "secret",
+   "last": "",
+   "name": "Secret",
+   "unread": 0,
+   "waiting": 0
+  }
+ ]
+}

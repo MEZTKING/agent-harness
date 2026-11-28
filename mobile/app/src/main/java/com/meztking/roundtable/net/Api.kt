@@ -306,7 +306,9 @@ class Api(var link: PcLink, private val client: OkHttpClient = pinnedClient(link
             // wave 9: what Part B left, each narrowed by the PC (phone.PHONE_NARROW)
             "/api/asktimer", "/api/plan/looks", "/api/chat/talk",
             // wave 9: a project's sounds, read only (ui/soundapi.py)
-            "/api/sounds")
+            "/api/sounds",
+            // 1.5.0: the chat (ui/chatsapi.py), narrowed by the PC (phone.PHONE_NARROW for tap)
+            "/api/chats")
         /** How long a slow call may take: a model's answer or a job's first reply. */
         const val SLOW_S = 300L
         private val JSON = "application/json".toMediaType()

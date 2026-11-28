@@ -8,7 +8,8 @@
   "/api/keys",
   "/api/projects/clone",
   "/api/projects/import",
-  "/api/projects/share"
+  "/api/projects/share",
+  "/api/chats/tap"
  ],
  "calls": [
   {
@@ -1140,6 +1141,55 @@
     "cap",
     "words"
    ]
+  },
+  {
+   "name": "chats",
+   "method": "GET",
+   "path": "/api/chats",
+   "needs": [
+    "chats"
+   ]
+  },
+  {
+   "name": "chats_read",
+   "method": "GET",
+   "path": "/api/chats/read",
+   "query": {
+    "chat": "proj",
+    "since": ""
+   },
+   "needs": [
+    "lines",
+    "at",
+    "answering",
+    "can",
+    "earlier"
+   ]
+  },
+  {
+   "name": "chats_say",
+   "method": "POST",
+   "path": "/api/chats/say",
+   "body": {
+    "chat": "hall",
+    "text": "where does the bakery site stand?"
+   },
+   "needs": [
+    "line",
+    "turn"
+   ],
+   "save": {
+    "turn": "turn"
+   }
+  },
+  {
+   "name": "chats_stop",
+   "method": "POST",
+   "path": "/api/chats/stop",
+   "body": {
+    "chat": "hall",
+    "turn": "{turn}"
+   }
   }
  ]
 }

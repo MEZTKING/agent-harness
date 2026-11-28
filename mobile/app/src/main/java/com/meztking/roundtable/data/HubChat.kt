@@ -393,7 +393,7 @@ class HubChat(
         private fun safe(s: String) = s.replace(Regex("[^A-Za-z0-9_.-]+"), "-").trim('.', '-').ifEmpty { "x" }
 
         /** The chat of a seat: "hall" for none, else its name in the hub made into a chat id (chatstore.chat_id). */
-        fun chatOf(seat: SeatView?): String = chatOf(seat?.let { it.hubName.ifBlank { it.id } })
+        fun chatOf(seat: SeatView?): String = seat?.chat?.takeIf { it.isNotBlank() } ?: chatOf(seat?.let { it.hubName.ifBlank { it.id } })
 
         fun chatOf(project: String?): String {
             if (project.isNullOrBlank()) return ChatLayout.HALL

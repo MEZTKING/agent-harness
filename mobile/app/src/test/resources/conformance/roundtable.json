@@ -56,7 +56,7 @@
     "stamp": "cdfbec2f0b"
    },
    "asks": 2,
-   "at": "2026-11-28T08:28:55Z",
+   "at": "2026-11-28T11:14:20Z",
    "kind": "run",
    "name": "Proj",
    "order": 1,
@@ -73,8 +73,8 @@
     "done"
    ],
    "agent": "proj",
-   "at": "2026-11-28T08:28:55Z",
-   "id": "70cd13",
+   "at": "2026-11-28T11:14:20Z",
+   "id": "f5668c",
    "kind": "todo",
    "name": "Proj",
    "order": 0,
@@ -94,19 +94,19 @@
    "brief": {
     "agent": "proj",
     "description": "the harness project",
-    "last_activity": "2026-11-28T08:28:55Z",
+    "last_activity": "2026-11-28T11:14:20Z",
     "last_session": null,
-    "last_ts": 1795854535.0866985,
+    "last_ts": 1795864460.719854,
     "open_plans": [],
     "open_todos": [
      {
       "agent": "proj",
       "closed_at": "",
       "closed_note": "",
-      "created_at": "2026-11-28T08:28:55Z",
+      "created_at": "2026-11-28T11:14:20Z",
       "details": "",
       "for_owner": true,
-      "id": "70cd13",
+      "id": "f5668c",
       "kind": "todo",
       "next": [],
       "plan_ready": false,
@@ -115,13 +115,14 @@
       "status": "open",
       "tags": [],
       "text": "check the logo colours",
-      "ts": 1795854535.0866985
+      "ts": 1795864460.719854
      }
     ],
     "recent_decisions": [],
     "recent_done": [],
     "repo": ""
    },
+   "chat": "proj",
    "description": "the harness project",
    "detail": "plan ready (about $0.41 + unpriced models, ~19 min): look at it, then approve it to start",
    "failed_task": null,
@@ -129,7 +130,7 @@
    "high": 1,
    "id": "proj",
    "kind": "both",
-   "last_activity": "2026-11-28T08:28:55Z",
+   "last_activity": "2026-11-28T11:14:20Z",
    "last_session": null,
    "machine": "pc-vm",
    "machine_name": "PC (VM)",
@@ -165,6 +166,7 @@
     "recent_done": [],
     "repo": "me/api"
    },
+   "chat": "backend",
    "description": "API",
    "detail": "",
    "high": 0,
@@ -197,6 +199,7 @@
     "recent_done": [],
     "repo": "me/web"
    },
+   "chat": "frontend",
    "description": "",
    "detail": "",
    "high": 0,
@@ -229,6 +232,7 @@
     "recent_done": [],
     "repo": "me/secret"
    },
+   "chat": "secret",
    "description": "",
    "detail": "",
    "high": 0,

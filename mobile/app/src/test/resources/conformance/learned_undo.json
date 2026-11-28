@@ -5,7 +5,7 @@
   "undone": 1,
   "waiting": 0
  },
- "id": "P62fff2",
+ "id": "Pb15851",
  "lines": [
   {
    "before_after": {
@@ -16,13 +16,13 @@
    "by": "you",
    "can_put_back": true,
    "can_undo": false,
-   "id": "P62fff2",
+   "id": "Pb15851",
    "kind": "options",
    "numbers": {},
    "role": "orchestrator",
    "state": "undone",
    "what": "Planner now temperature 0.3",
-   "when": "2026-11-28T08:28:55Z",
+   "when": "2026-11-28T11:14:20Z",
    "why": "you undid it",
    "words": "Planner now temperature 0.3: you undid it."
   }

@@ -193,10 +193,10 @@ class ScreensTest {
 
     @Test fun projectPlan() = shot("6-project-plan") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
-            sent = mapOf("answer:Q1" to "Sent. The harness will reply in Letters.")), ProjectActions(), initialTab = 1)
+            sent = mapOf("answer:Q1" to "Sent. The harness will reply in its chat.")), ProjectActions(), initialTab = 1)
     }
 
-    @Test fun projectMessages() = shot("7-project-messages") {
+    @Test fun projectChat() = shot("7-project-chat") {  // the chat that replaced the project's Letters tab
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(), Load(listOf(letter, letter.copy(id = "2", read = true, subject = "Hub check")))),
             ProjectActions(), initialTab = 2)
     }
@@ -237,7 +237,7 @@ class ScreensTest {
     @Config(qualifiers = "+night")
     @Test fun projectPlanDark() = shot("6-project-plan-dark") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan, canApprove = true)), Load(),
-            sent = mapOf("answer:Q1" to "Sent. The harness will reply in Letters.")), ProjectActions(), initialTab = 1)
+            sent = mapOf("answer:Q1" to "Sent. The harness will reply in its chat.")), ProjectActions(), initialTab = 1)
     }
 
     @Config(qualifiers = "+night")
@@ -274,7 +274,7 @@ class ScreensTest {
         command("c3", "note", "{\"action\":\"note\",\"text\":\"Look: clean and modern\"}", 3),
     )
 
-    @Test fun projectLettersInPlainWords() = shot("7b-project-letters-plain") {
+    @Test fun projectChatWithOldCommands() = shot("7b-project-chat-old-commands") {
         ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(status), Load(PlanView(plan)), Load(commands)), ProjectActions(), initialTab = 2)
     }
 
@@ -284,13 +284,6 @@ class ScreensTest {
             asks = Load(com.meztking.roundtable.data.Asks.fromPlan(agreed, "quill-notes"))), ProjectActions(), initialTab = 1)
     }
 
-    @Test fun lettersWithReceipts() = shot("8b-letters-receipts") {
-        val rs = (1..12).map { receipt("r$it", "Done. 1 change waits for you to press Update plan.", 20L + it) } +
-            receipt("r13", "Plan v3: 3 tasks added. The new plan is ready to look at.", 19) +
-            receipt("bad", "Couldn't do 'run': there's no plan yet", 18)
-        LettersScreen(Load(listOf(letter) + rs), "me", seats.map { it.id }, {}, {}, { _, _, _, _ -> }, { _, _, _ -> })
-    }
-
     @Test fun needsYouOrganised() = shot("4c-needs-you-organised") {
         val agreed = PlanDoc.parse(PLAN_AGREED)
         val asks = com.meztking.roundtable.data.Asks.fromPlan(agreed, "quill-notes").map { com.meztking.roundtable.data.askNeed("quill-notes", listOf(it), 1).copy(at = ago(1)) }
@@ -298,10 +291,6 @@ class ScreensTest {
             Mode.HUB, emptySet(), { _, _ -> }, {}, Modifier.padding(16.dp), onClose = {})
     }
 
-    @Test fun letters() = shot("8-letters") {
-        LettersScreen(Load(listOf(letter, letter.copy(id = "2", sender = "lantern-app", subject = "Glow is done", read = true, created_at = ago(30)))),
-            "me", seats.map { it.id }, {}, {}, { _, _, _, _ -> }, { _, _, _ -> })
-    }
 }
 
 private val PLAN_AGREED = """

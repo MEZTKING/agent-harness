@@ -17,6 +17,7 @@ import com.meztking.roundtable.data.Search
 import com.meztking.roundtable.data.SessionLog
 import com.meztking.roundtable.data.SharedSettings
 import com.meztking.roundtable.data.Sync
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -273,6 +274,18 @@ class ConformanceTest {
         assertEquals(listOf("Doorbell", "Oven hum"), sounds.sounds.map { it.heading })
         assertTrue(sounds.sounds[1].madeInCode && !sounds.sounds[0].madeInCode && sounds.sounds[0].licence?.commercial == true)
         assertEquals(2.0, sounds.cap)
+        // 1.5.0: the chat, through ApiBrain as PC mode and This phone use it (ui/chatsapi.py)
+        val brain = com.meztking.roundtable.data.ApiBrain({ m, p, b -> api.feature(m, p, b) })
+        val chats = brain.chats()
+        assertTrue(chats.any { it.id == "hall" } && chats.any { it.id == "proj" })
+        val read = brain.read("proj", "")
+        assertTrue(read.earlier.isNotEmpty() && read.earlier.all { it.earlier } && read.lines.none { it.earlier })
+        val folded = com.meztking.roundtable.ui.ChatThread.read(com.meztking.roundtable.ui.ChatUiState(), read)
+        assertTrue(folded.earlier.any { it.kind == "agent" && it.text.contains("hello") })  // frontend's letter to proj
+        assertTrue(folded.lines.none { it.id.startsWith("earlier-") })
+        val sent = brain.say("hall", "where does the bakery site stand?", null).first() as com.meztking.roundtable.data.Piece.Sent
+        assertEquals("owner", sent.line.who)
+        brain.stop("hall", sent.turn)
 
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }

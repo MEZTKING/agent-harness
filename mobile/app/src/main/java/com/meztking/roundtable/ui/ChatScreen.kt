@@ -90,7 +90,27 @@ object ChatThread {
         return byKey.values.filter { it.id !in ids || it in incoming }.sortedWith(com.meztking.roundtable.data.ChatLayout.order)
     }
 
-    fun read(s: ChatUiState, r: ChatRead): ChatUiState = s.copy(lines = merge(s.lines, r.lines), can = r.can, loading = false)
+    /** A read merged in. Lines whose `earlier` is true (old letters) are folded under "Earlier messages", never shown
+     *  as messages; the machine's own list of them, when it sends one, stands for the phone's. */
+    fun read(s: ChatUiState, r: ChatRead): ChatUiState {
+        val (old, now) = r.lines.partition { it.earlier }
+        val folded = (r.earlier + old).distinctBy { it.id }
+        val earlier = if (folded.isEmpty()) s.earlier else folded.sortedWith(com.meztking.roundtable.data.ChatLayout.order).map(::earlierLine)
+        return s.copy(lines = merge(s.lines.filterNot { it.earlier }, now), can = r.can, loading = false, earlier = earlier)
+    }
+
+    /** An old letter as the Earlier fold shows it: its first line, the rest behind More. */
+    fun earlierLine(l: ChatLine): EarlierLine {
+        val first = l.text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(120)
+        val rest = l.text.trim().removePrefix(first).trim()
+        return when {
+            l.who == "agent" -> EarlierLine(l.id, l.at, "agent",
+                Words.t("{from} told {to}: {what}", "from" to l.from.orEmpty(), "to" to l.to.orEmpty(), "what" to first), rest)
+            l.who == "owner" && l.text.startsWith("You asked it to") -> EarlierLine(l.id, l.at, "command", l.text)
+            l.who == "owner" -> EarlierLine(l.id, l.at, "letter", Words.t("You: {words}", "words" to first), rest)
+            else -> EarlierLine(l.id, l.at, "letter", "${l.from.orEmpty().ifBlank { l.device.orEmpty() }}: $first", rest)
+        }
+    }
 
     fun piece(s: ChatUiState, p: Piece): ChatUiState = when (p) {
         is Piece.Sent -> s.copy(lines = merge(s.lines, listOf(p.line)), turn = p.turn, writing = "", thinking = "", notice = null)
@@ -360,6 +380,35 @@ fun ChatsScreen(
                 earlier = { earlierFor(backend, seat, store?.identity ?: "me") },
                 onAddKey = { keying = true }, onPage = onPage, onSetUpPhone = onSetUpPhone)
         }
+    }
+}
+
+/**
+ * A project's own chat (the project page's Chat tab): the same chat as in the Chat tab's list, its id by the one rule
+ * everywhere ([HubChat.chatOf]: chatstore.chat_id of the hub name), answered by whichever machine or this phone can.
+ * [seat] null: a project the Table doesn't show now, found by [project].
+ */
+@Composable
+fun ProjectChat(seat: SeatView?, project: String, onPage: (String) -> Unit = {}, onSetUpPhone: () -> Unit = {}) {
+    val context = LocalContext.current
+    val app = context.applicationContext as? RoundtableApp
+    remember(context) { ChatHome.ensure(context.filesDir) { runCatching { context.assets.open("chat-opening.json").bufferedReader().readText() }.getOrNull() } }
+    val store = app?.store
+    val backend = remember(app) { app?.backend() }
+    val id = remember(seat, project) { if (seat != null) HubChat.chatOf(seat) else HubChat.chatOf(project) }
+    var keying by remember { mutableStateOf(false) }
+    var keyEnd by remember { mutableStateOf(store?.chatKeyEnd) }
+    val brain = remember(backend, seat, keyEnd) { backend?.chatBrain(seat) ?: com.meztking.roundtable.data.NoChatBrain }
+    Column(Modifier.fillMaxSize()) {
+        if (keying && store != null) Box(Modifier.padding(12.dp)) {
+            ChatKeyCard(keyEnd, onSave = { store.chatKey = it; keyEnd = store.chatKeyEnd }, onRemove = { store.chatKey = null; keyEnd = null },
+                check = { DeepSeekChat.create(it).check() }, onOpenPage = onPage,
+                onToThisPhone = if (store.thisPhone) ({ store.chatKey?.let { app.thisPhoneApi().saveKey("deepseek", it) } }) else null,
+                onClose = { keying = false })
+        }
+        ChatView(id, brain, store?.chatSeat.orEmpty(),
+            earlier = { earlierFor(backend, seat, store?.identity ?: "me") },
+            onAddKey = { keying = true }, onPage = onPage, onSetUpPhone = onSetUpPhone)
     }
 }
 

@@ -64,6 +64,8 @@ data class ChatLine(
     val state: String? = null,
     val from: String? = null,
     val to: String? = null,
+    /** An old letter, read only: folded under "Earlier messages", never answered or tapped. */
+    val earlier: Boolean = false,
 )
 
 /** One row of the list of chats (GET /api/chats). */
@@ -81,7 +83,9 @@ data class CanAnswer(val answer: Boolean = false, val why: String = "")
 /** GET /api/chats/read: the lines since `at`, the answer being written, and whether anything can answer. */
 @Serializable
 data class ChatRead(val lines: List<ChatLine> = emptyList(), val at: String = "", val answering: StreamRead? = null,
-                    val can: CanAnswer = CanAnswer())
+                    val can: CanAnswer = CanAnswer(),
+                    /** The first page only: the old letters of this chat, read only (each `earlier` true). */
+                    val earlier: List<ChatLine> = emptyList())
 
 /** POST /api/chats/say: the owner's line as kept, and the turn (the id the answer will have). */
 @Serializable

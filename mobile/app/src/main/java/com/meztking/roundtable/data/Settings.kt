@@ -36,6 +36,7 @@ data class SharedSettings(
         val LIMITS = linkedMapOf(
             "max_real_usd_per_run" to "Most real money one run may spend (US \$)",
             "max_cost_usd" to "Most one project may cost in all (US \$)",
+            "chat_usd_per_day" to "Most the chat may spend in a day, on every device (US \$)",
             "max_attempts_per_task" to "Tries per task before it stops and asks you",
             "max_steps_per_task" to "Steps in each try",
         )

@@ -201,7 +201,7 @@ object Sync {
         r.holder == Source.PC -> "Sent: your PC picks it up when it's on."
         r.holder == Source.PHONE -> "Sent: this phone picks it up when the harness runs on it."
         r.machine.isNotBlank() -> "Sent: ${machineWords(r.machine, r.machineName, selves)} picks it up when it's on."
-        else -> "Sent. The harness will reply in Letters."
+        else -> "Sent. The harness will reply in its chat."
     }
 
     // -- reading the machines and claims ------------------------------------------------------------------------

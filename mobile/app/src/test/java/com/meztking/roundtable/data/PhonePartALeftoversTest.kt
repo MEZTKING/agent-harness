@@ -107,7 +107,7 @@ class PhonePartALeftoversTest {
     @Test fun talkNeverRunsAnActionWithoutATap() {
         val r = Talk.parseReply(fixture("talk"))
         assertNull(r.action)
-        assertTrue(r.reply.startsWith("T1 failed"))
+        assertEquals("Final report: all done.", r.reply)  // the PC answers Talk through the chat since 1.5.0 (the scripted brain's words)
         val withAction = Talk.parseReply("""{"reply": "I can try it again.", "action": {"line": "/retry T1", "words": "Try a task again", "confirm": false}}""")
         val a = withAction.action!!
         assertFalse(Talk.mayRun(a, tapped = false, sure = false))

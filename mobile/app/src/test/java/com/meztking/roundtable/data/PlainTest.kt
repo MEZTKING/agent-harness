@@ -129,8 +129,8 @@ class PlainTest {
         // newest first inside a group
         assertEquals(listOf("2026-11-25T11:00:00Z", "2026-11-25T05:00:00Z", "2026-11-25T02:00:00Z"), music.sections[0].items.map { it.at })
         assertEquals(10 - 2, music.count)
-        assertEquals("3 questions, 2 stopped runs, 1 to-do, 1 idea, 1 letter", music.summary)
-        assertEquals("1 to-do, 1 letter", NeedsOrder.summary(needs, "garden"))
+        assertEquals("3 questions, 2 stopped runs, 1 to-do, 1 idea, 1 message", music.summary)
+        assertEquals("1 to-do, 1 message", NeedsOrder.summary(needs, "garden"))
         assertEquals("", NeedsOrder.summary(needs, "nobody"))
     }
 

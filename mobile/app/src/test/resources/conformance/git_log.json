@@ -2,48 +2,48 @@
  "branch": "master",
  "commits": [
   {
-   "at": "2026-11-28T08:29:00+00:00",
+   "at": "2026-11-28T11:14:26+00:00",
    "author": "agent-harness",
    "kind": "task",
    "parents": [
-    "674fb4eed9a38e2b10487203431dd74f4a025d96"
+    "bf2589bc2bca2598897f21d8fdaab93c0e57d231"
    ],
-   "sha": "3d780e5ed5b2d96573066d91c05734eff16c94a8",
-   "short": "3d780e5",
+   "sha": "cf18540b44b3b3171dc1205f611b5552ff687b98",
+   "short": "cf18540",
    "subject": "[T3] tests",
    "task": "T3"
   },
   {
-   "at": "2026-11-28T08:28:59+00:00",
+   "at": "2026-11-28T11:14:26+00:00",
    "author": "agent-harness",
    "kind": "task",
    "parents": [
-    "07cfba65a18cc5dc83feb185eaa067da7d9aa542"
+    "f1f05324676572e3110e30a2e413ef24f9d4e2d0"
    ],
-   "sha": "674fb4eed9a38e2b10487203431dd74f4a025d96",
-   "short": "674fb4e",
+   "sha": "bf2589bc2bca2598897f21d8fdaab93c0e57d231",
+   "short": "bf2589b",
    "subject": "[T2] logo",
    "task": "T2"
   },
   {
-   "at": "2026-11-28T08:28:59+00:00",
+   "at": "2026-11-28T11:14:26+00:00",
    "author": "agent-harness",
    "kind": "task",
    "parents": [
-    "099aeb8090d4d7130cfad1fc88b43d8e1aa56b00"
+    "83b9afaea2ee10e594d9ebbb4d50d753e349de84"
    ],
-   "sha": "07cfba65a18cc5dc83feb185eaa067da7d9aa542",
-   "short": "07cfba6",
+   "sha": "f1f05324676572e3110e30a2e413ef24f9d4e2d0",
+   "short": "f1f0532",
    "subject": "[T1] hello module",
    "task": "T1"
   },
   {
-   "at": "2026-11-28T08:28:59+00:00",
+   "at": "2026-11-28T11:14:26+00:00",
    "author": "agent-harness",
    "kind": "other",
    "parents": [],
-   "sha": "099aeb8090d4d7130cfad1fc88b43d8e1aa56b00",
-   "short": "099aeb8",
+   "sha": "83b9afaea2ee10e594d9ebbb4d50d753e349de84",
+   "short": "83b9afa",
    "subject": "harness: snapshot before task",
    "task": ""
   }

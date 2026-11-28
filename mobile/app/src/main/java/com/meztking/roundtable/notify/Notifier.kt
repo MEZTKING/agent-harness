@@ -95,6 +95,17 @@ object Notifier {
         return loud
     }
 
+    /** The chat's news (ChatWatch): posted once each on the Needs-you channel, when that kind is switched on. */
+    fun announceChat(ctx: Context, news: List<News>): List<News> {
+        val prefs = NotifyPrefs(ctx)
+        val seen = prefs.seen
+        val fresh = fresh(news, seen, emptySet(), prefs::on)
+        prefs.seen = seen + news.map { it.key }.filter { it !in seen }
+        if (fresh.isEmpty() || !allowed(ctx)) return emptyList()
+        post(ctx, fresh)
+        return fresh
+    }
+
     private fun allowed(ctx: Context) = Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 

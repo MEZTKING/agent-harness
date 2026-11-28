@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TripOrigin
 import androidx.compose.runtime.Composable
@@ -140,7 +140,7 @@ class ComfortScreensTest {
 
     @Composable
     private fun shell(content: @Composable () -> Unit) {
-        AdaptiveShell(listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needs.size), ShellPlace("Letters", Icons.AutoMirrored.Filled.MenuBook, 2),
+        AdaptiveShell(listOf(ShellPlace("Table", Icons.Filled.TripOrigin, needs.size), ShellPlace("Chat", Icons.AutoMirrored.Filled.Chat, 2),
             ShellPlace("Settings", Icons.Filled.Settings)), selected = 0, onSelect = {},
             beside = { NeedsList(needs, Mode.HUB, emptySet(), { _, _ -> }, {}, Modifier.padding(16.dp)) }) { content() }
     }
@@ -190,9 +190,9 @@ class ComfortScreensTest {
         }
     }
 
-    @Test fun projectLettersWithHistoryBlackAndBig() {
+    @Test fun projectChatBlackAndBig() {
         blackAndBig(); withHistory()
-        shot("5b-project-letters-black-130") {
+        shot("5b-project-chat-black-130") {
             ProjectScreen(ProjectUi("quill-notes", seats[1], Mode.HUB, "me", Load(), Load(), Load(letters)), ProjectActions(), initialTab = 2)
         }
     }

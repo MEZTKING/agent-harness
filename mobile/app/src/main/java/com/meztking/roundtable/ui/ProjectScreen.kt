@@ -46,6 +46,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -115,6 +117,10 @@ class ProjectActions(
     /** The machine that has the project (the PC, or this phone's Roundtable): Undo…, proof, kinds and pounds.
      *  Null in Hub mode, where those wait for the PC. */
     val machine: com.meztking.roundtable.net.Api? = null,
+    /** A page in the app's own browser (the chat's key form and top-up links). */
+    val page: (String) -> Unit = {},
+    /** This phone's set-up (the chat's "Set up This phone first"). */
+    val setupPhone: () -> Unit = {},
 )
 
 @Composable
@@ -158,15 +164,13 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
         if (machine != null && folder != null) ChecksChip(folder, { machine.feature("GET", com.meztking.roundtable.data.Team.ciUrl(folder)) },
             Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         Spacer(Modifier.height(6.dp))
-        val unread = ui.inbox.data?.count { !it.read } ?: 0
         PrimaryTabRow(selectedTabIndex = tab, containerColor = Hall.bg) {
-            // one line each, even on a narrow phone ("Letters", as in the bottom bar)
+            // one line each, even on a narrow phone
             val one = @Composable { t: String -> Text(t, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip) }
             Tab(tab == 0, { tab = 0 }, text = { one("Status") })
             Tab(tab == 1, { tab = 1 }, text = { one(if (ui.plan.data?.doc?.waitingForOwner == true || !ui.asks.data.isNullOrEmpty()) "Plan •" else "Plan") })
-            Tab(tab == 2, { tab = 2 }, text = { one(if (unread > 0) "Letters •" else "Letters") })
+            Tab(tab == 2, { tab = 2 }, text = { one("Chat") })
             Tab(tab == 3, { tab = 3 }, text = { one("Live") })
-            if (machine != null && folder != null) Tab(tab == 4, { tab = 4 }, text = { one("Chat") })
         }
         Box(Modifier.weight(1f)) {
             when (tab) {
@@ -178,11 +182,11 @@ fun ProjectScreen(ui: ProjectUi, a: ProjectActions, initialTab: Int = 0) {
                     stream = if (machine != null && folder != null) ({ t, since ->
                         com.meztking.roundtable.data.Stream.parse(machine.feature("GET", com.meztking.roundtable.data.Stream.url(folder, t, since)))
                     }) else null)
-                4 -> if (machine != null && folder != null) {
-                    val chat = remember(machine, folder) { ApiChat(machine, folder) }
-                    ChatTab(chat, running = ui.live.data?.session?.shown?.firstOrNull { it.status == "running" }?.id)
-                } else MessagesTab(ui, a)
-                else -> MessagesTab(ui, a)
+                else -> Column(Modifier.fillMaxSize()) {
+                    // what waits for the next task (the PC's queue), above the project's chat
+                    if (machine != null && folder != null) WaitingQueue(remember(machine, folder) { ApiChat(machine, folder) })
+                    Box(Modifier.weight(1f)) { ProjectChat(ui.seat, ui.id, onPage = a.page, onSetUpPhone = a.setupPhone) }
+                }
             }
         }
     }
@@ -517,49 +521,17 @@ private fun PlanButtons(project: String, sent: Map<String, String>, a: ProjectAc
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** The messages waiting for the next task, when there are any: change, remove or send now (the PC's queue). */
 @Composable
-private fun MessagesTab(ui: ProjectUi, a: ProjectActions) {
-    var open by rememberSaveable { mutableStateOf<String?>(null) }
-    var writing by rememberSaveable { mutableStateOf(false) }
-    val inbox = ui.inbox
-    val unread = inbox.data?.count { !it.read } ?: 0
-    val comfort = LocalComfort.current
-    val history = comfort?.let { c -> c.sentVersion.let { c.sent(ui.id) } }.orEmpty()
-    fun letter(subject: String, body: String, done: Done) = a.send(subject, body) { ok ->
-        if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), subject.trim()))
-        done(ok)
+private fun WaitingQueue(source: ChatSource) {
+    val scope = rememberCoroutineScope()
+    var queue by remember { mutableStateOf(com.meztking.roundtable.data.QueueView()) }
+    LaunchedEffect(source) {
+        while (true) { queue = runCatching { source.queue() }.getOrDefault(queue); kotlinx.coroutines.delay(15_000) }
     }
-    PullToRefreshBox(inbox.loading && inbox.data != null, a.refresh, Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${ui.id}'s inbox" + if (unread > 0) " · $unread new" else "", style = MaterialTheme.typography.bodySmall, color = Hall.muted, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { writing = true }) { Text("Write to ${ui.id}") }
-                }
-            }
-            if (inbox.error != null) item { ErrorLine(inbox.error, a.refresh) }
-            if (inbox.data == null && inbox.loading) item { Loading("Fetching the inbox…") }
-            if (inbox.data?.isEmpty() == true) item { Text("No messages.", color = Hall.muted, modifier = Modifier.padding(vertical = 24.dp)) }
-            items(inbox.data.orEmpty(), key = { it.id }) { m -> LetterRow(m, showTo = false, plan = ui.plan.data?.doc) { open = m.id; a.opened(m) } }
-            if (history.isNotEmpty()) item(key = "sent-history") {
-                SentHistory(history, onResend = { item ->
-                    if (item.kind == SentItem.NOTE) {
-                        a.command("note:${item.text.hashCode()}", "note", mapOf("text" to item.text))
-                        comfort?.remember(ui.id, item)
-                    } else letter(item.subject, item.text) { }
-                }, modifier = Modifier.padding(top = 8.dp))
-            }
-        }
-    }
-    inbox.data?.firstOrNull { it.id == open }?.let { m ->
-        MessageSheet(m, ui.identity, plan = ui.plan.data?.doc, onDismiss = { open = null }, onReply = { body, done -> a.reply(m, body) { ok ->
-            if (ok) comfort?.remember(ui.id, SentItem(SentItem.LETTER, body.trim(), "Re: " + m.subject.removePrefix("Re: ")))
-            done(ok); if (ok) open = null
-        } })
-    }
-    if (writing) ComposeSheet(listOf(ui.id), ui.identity, ui.id, onDismiss = { writing = false }) { _, s, b, done ->
-        letter(s, b) { ok -> done(ok); if (ok) writing = false }
+    if (queue.items.isEmpty()) return
+    Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        QueueCard(queue) { action, item, words -> scope.launch { runCatching { source.changeQueue(action, item.id, words) }.onSuccess { queue = it } } }
     }
 }
 

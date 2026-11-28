@@ -64,6 +64,8 @@ data class Seat(
     /** The hub project commands go to, and the plan's name in the hub. */
     val hub_agent: String = "",
     val hub_name: String = "",
+    /** Its chat (1.5.0): chatstore.chat_id of its hub name, as the PC works it out. */
+    val chat: String = "",
     /** The machine building it (its claim), when the machine says. */
     val machine: String = "",
     val machine_name: String = "",
