@@ -1,0 +1,48 @@
+/* Right to left (Arabic, Hebrew, Persian, Urdu): only what logical properties can't do. words.load() sets
+   dir="rtl" on <html>; style.css uses margin-inline-start, inset-inline-end and text-align: start, so the rest
+   turns round by itself. The board's columns are a grid and follow the direction already. */
+
+/* The Ring: cards and lights are placed from the start side (hall.js sets inset-inline-start), so their own
+   centring turns round too, and the ring runs the other way round. */
+:root[dir="rtl"] .ring > .ring-card,
+:root[dir="rtl"] .ring-light { transform: translate(50%, -50%); }
+
+/* Code, file paths, model ids, keys, money and numbers stay left to right inside right-to-left words. */
+:root[dir="rtl"] code,
+:root[dir="rtl"] kbd,
+:root[dir="rtl"] pre,
+:root[dir="rtl"] textarea.code,
+:root[dir="rtl"] .log,
+:root[dir="rtl"] .mono,
+:root[dir="rtl"] .path,
+:root[dir="rtl"] .model-id,
+:root[dir="rtl"] input[type="url"],
+:root[dir="rtl"] input[type="number"],
+:root[dir="rtl"] input[type="password"] { direction: ltr; unicode-bidi: isolate; text-align: start; }
+:root[dir="rtl"] .num,
+:root[dir="rtl"] .money,
+:root[dir="rtl"] time,
+:root[dir="rtl"] .today b { unicode-bidi: isolate; direction: ltr; }
+:root[dir="rtl"] .num { text-align: end; }
+
+/* Pictures of a direction (an arrow drawn as an icon) turn round; a tick or a spinner never does. */
+:root[dir="rtl"] .flip { transform: scaleX(-1); }
+
+/* Scripts whose letters need more room, with the computer's own fonts where ours have none. */
+:root[lang="ar"] body, :root[lang="fa"] body, :root[lang="ur"] body {
+  font-family: "Inter", "Segoe UI", "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, sans-serif; line-height: 1.7; }
+:root[lang="he"] body { font-family: "Inter", "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif; }
+:root[lang="hi"] body { font-family: "Inter", "Nirmala UI", "Noto Sans Devanagari", sans-serif; line-height: 1.7; }
+:root[lang="zh-Hans"] body { font-family: "Inter", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif; }
+:root[lang="ja"] body { font-family: "Inter", "Yu Gothic UI", "Meiryo", "Noto Sans JP", sans-serif; }
+:root[lang="ko"] body { font-family: "Inter", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+/* Headings: the display font has no Arabic letters, so no letter spacing that would break them apart. */
+:root[lang="ar"] h1, :root[lang="ar"] h2, :root[lang="ar"] h3,
+:root[lang="fa"] h1, :root[lang="fa"] h2, :root[lang="fa"] h3,
+:root[lang="ur"] h1, :root[lang="ur"] h2, :root[lang="ur"] h3 { letter-spacing: 0; }
+
+/* "Read in <language>": the translation reads in its own direction. */
+.read-in-text { white-space: pre-line; }
+.read-in-link { padding: 4px 0; }
+.lang-part { margin-block-start: 12px; }
+.lang-part h3 { margin-block: 0 4px; font-size: 15px; }
