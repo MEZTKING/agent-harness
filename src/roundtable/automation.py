@@ -414,7 +414,8 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     a: dict[str, Any] = {"id": str(raw.get("id") or _random.token_hex(4)), "kind": kind,
                          "name": " ".join(str(raw.get("name") or "").split())[:80],
                          "on": raw.get("on", True) is not False,
-                         "start_by_itself": bool(raw.get("start_by_itself")),
+                         # outside text (a local program, events, an address) always waits for the owner's OK
+                         "start_by_itself": bool(raw.get("start_by_itself")) and kind not in _HOOKS,
                          "cap_usd": round(max(0.0, float(raw.get("cap_usd") or 0)), 2),
                          "created_at": raw.get("created_at") or iso(utcnow())}
     if a["start_by_itself"] and a["cap_usd"] <= 0:
@@ -563,6 +564,8 @@ def next_run(a: dict[str, Any], st: dict[str, Any], now: datetime) -> str | None
 def view(a: dict[str, Any], st: dict[str, Any], now: datetime | None = None, cfg: Any = None) -> dict[str, Any]:
     """An automation as the page shows it."""
     now = now or utcnow()
+    if isinstance(a.get("hook"), dict):  # a local hook's secret is kept hashed and never shown again
+        a = {**a, "hook": {k: v for k, v in a["hook"].items() if k not in ("secret_hash", "secret")}}
     return {**a, "what": what_words(a), "when_words": when_words(a["when"]) if a["kind"] == "schedule" else
             _HOOK_WHEN.get(a["kind"], "Looks at GitHub every few minutes"), "money": money_words(a, st, cfg),
             "last_run": st.get("last_run"), "last_result": st.get("last_result") or "",
@@ -889,7 +892,8 @@ def _plan_job(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], root: Path, new
             est_words = f" Its estimate: about ${est:.2f}." if est is not None else ""
             text = f"Planned “{title}” in {root.name}.{est_words}"
             left = _left(a, ctx.home, ctx.machine) - (float(Project(root).meta().get("spent_usd") or 0) - before)
-            if status == "awaiting_approval" and a["start_by_itself"] and est is not None and est <= left:
+            by_itself = a["start_by_itself"] and a.get("kind") not in _HOOKS  # outside text never starts alone
+            if status == "awaiting_approval" and by_itself and est is not None and est <= left:
                 orch = Orchestrator(cfg, root, on_event=on_event)
                 orch.approve()
                 orch.budget.limit_usd = min(orch.budget.limit_usd, orch.budget.spent_usd + left)
@@ -899,7 +903,7 @@ def _plan_job(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], root: Path, new
                 text += f" Started building by itself (it had ${left:.2f} of its limit left); the run ended as: {status}."
             elif status == "awaiting_approval":
                 why = ""
-                if a["start_by_itself"]:
+                if by_itself:
                     why = (f" Its estimate is more than what's left of this automation's limit (${max(left, 0):.2f})."
                            if est is not None else " It has no estimate, so it won't start by itself.")
                 text += f"{why} It waits for your OK in Needs you."
@@ -1169,6 +1173,8 @@ def run_now(ctx: Ctx, aid: str) -> dict[str, Any]:
             raise AutomationError("Its project is busy right now. Try again when that job has finished.")
         r = act(ctx, a, item, approved=True)
         return r or {"id": aid, "text": "Nothing to do now.", "ok": True}
+    if a["kind"] in _HOOKS:  # Run now looks at once, whatever the next look was set to
+        _update_state(ctx.home, aid, lambda x: x.pop("next_look", None), ctx.machine)
     st = load_state(ctx.home, ctx.machine).get(aid) or {}
     done = _run_one(ctx, a, st, settings(ctx.cfg), force=True)
     st = load_state(ctx.home, ctx.machine).get(aid) or {}

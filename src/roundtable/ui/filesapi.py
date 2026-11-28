@@ -183,6 +183,40 @@ def safe_file(root: Path, rel: str) -> Path | None:
     return showit.safe_path(root, "/".join(parts))
 
 
+def writable_file(root: Path, rel: str) -> Path | None:
+    """``safe_file``, and safe to write: no part of the path is a link (a notes.txt that links to .git/config or
+    .env is refused), and where it really is has no hidden part (.git, .harness, a dot-file) and no key-like
+    name. For saving a file from the app and for putting a hand edit back."""
+    f = safe_file(root, rel)
+    parts = _parts(rel)
+    if f is None or not parts:
+        return None
+    base = Path(root).resolve()
+    walk = Path(root)
+    for p in parts:  # every step as written, before links are followed
+        walk = walk / p
+        try:
+            if walk.is_symlink() or (os.name == "nt" and _is_junction(walk)):
+                return None
+        except OSError:
+            return None
+    try:
+        real = f.resolve(strict=True).relative_to(base).parts
+    except (OSError, ValueError):
+        return None
+    if not real or any(p.startswith(".") for p in real) or is_secret(real[-1]) \
+            or any(is_secret(p, True) for p in real[:-1]):
+        return None
+    return f
+
+
+def _is_junction(p: Path) -> bool:
+    try:
+        return bool(getattr(os.path, "isjunction", lambda _p: False)(p))
+    except OSError:
+        return True
+
+
 def _inside(base: Path, p: Path) -> bool:
     try:
         r = p.resolve()

@@ -435,6 +435,11 @@ def _host_name(h: str) -> str:
     return h.rsplit(":", 1)[0] if h.count(":") == 1 else h
 
 
+def _no_hook() -> tuple[int, dict[str, Any]]:
+    """One answer for "no such hook", "switched off" and "wrong secret" (so a caller learns nothing)."""
+    return 403, {"error": f"No such hook, or the secret (the {SECRET_HEADER} header) is wrong."}
+
+
 def receive(home: Path, automations: list[dict], path: str, client_ip: str, headers: dict[str, str], rfile,
             ) -> tuple[int, dict[str, Any]]:
     """``POST /hooks/<id>`` from a program on this PC: (status, answer). Checks the caller is this computer
@@ -450,7 +455,7 @@ def receive(home: Path, automations: list[dict], path: str, client_ip: str, head
         return 403, {"error": "A web page can't send to a hook."}
     parts = path.strip("/").split("/")
     if len(parts) != 2 or parts[0] != "hooks" or not _ID.fullmatch(parts[1]):
-        return 404, {"error": "No such hook."}
+        return _no_hook()
     try:
         length = int(hd.get("content-length", ""))
     except ValueError:
@@ -458,10 +463,12 @@ def receive(home: Path, automations: list[dict], path: str, client_ip: str, head
     if length < 0 or length > MAX_BODY:
         return 413, {"error": f"Too big: a hook takes at most {MAX_BODY // 1024} KB."}
     a = next((x for x in automations if x.get("id") == parts[1] and x.get("kind") == "local"), None)
-    if not a or not a.get("on", True):
-        return 404, {"error": "No such hook, or it is switched off."}
-    if not secret_matches(hd.get(SECRET_HEADER.lower(), ""), (a.get("hook") or {}).get("secret_hash", "")):
-        return 403, {"error": f"Wrong or missing secret (the {SECRET_HEADER} header)."}
+    given = hd.get(SECRET_HEADER.lower(), "")
+    # the secret is checked even when there is no such hook, and every refusal here is the same answer: a
+    # caller can't tell a hook that exists from one that doesn't by the reply (or by how long it takes)
+    good = secret_matches(given, (a.get("hook") or {}).get("secret_hash", "") if a else "")
+    if not a or not a.get("on", True) or not good:
+        return _no_hook()
     raw = rfile.read(length) if length else b""
     if len(raw) > MAX_BODY:
         return 413, {"error": f"Too big: a hook takes at most {MAX_BODY // 1024} KB."}

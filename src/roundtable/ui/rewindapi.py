@@ -77,8 +77,9 @@ def elsewhere(app, root: Path) -> str:
             who = where.get("machine_name") or "another computer"
             return (f"This project is being built on {who} right now. Wait for it to finish or pause there, "
                     "then try again.")
-    except Exception:  # noqa: BLE001 - the hub can't be read: nothing to say about it
-        return ""
+    except Exception:  # noqa: BLE001 - the hub can't be read: can't tell, so don't change anything
+        return ("Whether another computer is building this project can't be told just now (the hub can't be "
+                "read). Try again once the hub is back.")
     return ""
 
 

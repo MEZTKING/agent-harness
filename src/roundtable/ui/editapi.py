@@ -139,7 +139,7 @@ def _elsewhere(app, root: Path) -> str:
 
 # -- opening for editing --------------------------------------------------------------------------------
 def _editable(root: Path, rel: str) -> tuple[Path, bytes]:
-    f = filesapi.safe_file(root, rel)
+    f = filesapi.writable_file(root, rel)  # never through a link, never where the harness keeps its own files
     if f is None or not f.is_file():
         raise _error("That file can't be changed: it isn't in the project, or it's one the harness keeps private "
                      "(keys, passwords and its own records).", 404)
@@ -346,7 +346,7 @@ def undo(app, body: dict) -> dict[str, Any]:
             raise _error("That edit isn't in this project's list any more.", 404)
         if any(r.get("kind") == "put_back" and r.get("of") == eid for r in _log_rows(root)):
             raise _error("That edit has already been put back.", 409)
-        f = filesapi.safe_file(root, str(row.get("file") or ""))
+        f = filesapi.writable_file(root, str(row.get("file") or ""))  # never through a link
         copy = _edits_dir(root) / str(row.get("copy") or "")
         if f is None or not copy.is_file() or copy.parent != _edits_dir(root):
             raise _error("The old text of that edit can't be found any more.", 404)
@@ -485,8 +485,28 @@ def _git(app, q: dict, fn) -> dict[str, Any]:
 
 
 def _checkout_block(app, root: Path) -> str:
+    """Why the branch can't be switched now, or "". This app's jobs, then the project's own state (another
+    program or a run started from the command line may be working on it), then the other computers."""
     if _busy(app, root):
         return "The harness is working on this project right now. Wait for it to finish or stop it, then switch."
+    try:
+        from ..harness.orchestrator import Project
+        from ..harness.worktrees import WORKTREES
+
+        proj = Project(root)
+        status = str(proj.meta().get("status") or "") if proj.exists else ""
+        tasks = proj.tasks() if proj.exists else []
+        lanes = [p for p in (root / WORKTREES).iterdir() if (p / ".git").exists()] if (root / WORKTREES).is_dir() else []
+    except Exception:  # noqa: BLE001 - can't tell: don't switch under someone's feet
+        return "This project's state can't be read just now, so the branch isn't switched. Try again in a moment."
+    if status in ("running", "planning"):
+        return "This project is being planned or built right now. Wait for it to finish or pause it, then switch."
+    if any(t.status in ("pending", "running") for t in tasks):
+        return ("This project has tasks still to build on this branch. Finish, skip or pause them first, so "
+                "nothing is built on the wrong branch.")
+    if lanes:
+        return (f"{len(lanes)} task cop{'ies are' if len(lanes) != 1 else 'y is'} still kept for this project "
+                "(Overview → Task copies). Let them finish or remove them first, then switch.")
     return _elsewhere(app, root)
 
 

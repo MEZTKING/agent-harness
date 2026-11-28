@@ -205,8 +205,9 @@ def test_a_local_hook_refuses_anything_not_from_this_pc_or_without_the_secret(tm
     assert post(home, hook, body=b"x" * (reach.MAX_BODY + 1))[0] == 413
     assert post(home, hook, body=b"tiny", length=reach.MAX_BODY + 1)[0] == 413  # told too big: not even read
     assert reach.receive(home, [hook], "/hooks/nope", "127.0.0.1", {"Host": "127.0.0.1"}, io.BytesIO())[0] == 411
-    assert reach.receive(home, [hook], "/hooks/nope", "127.0.0.1", {"Host": "127.0.0.1", "Content-Length": "0"},
-                         io.BytesIO())[0] == 404
+    unknown = reach.receive(home, [hook], "/hooks/nope", "127.0.0.1", {"Host": "127.0.0.1", "Content-Length": "0"},
+                            io.BytesIO())
+    assert unknown == post(home, hook, secret="wrong")  # no such hook and a wrong secret: the same answer
     assert not reach.inbox_dir(home, hook["id"]).exists()
     assert post(home, hook, ip="::1", host="[::1]:8765")[0] == 202
 
@@ -233,7 +234,7 @@ def test_a_switched_off_hook_and_a_full_inbox_are_refused(tmp_path, hook, monkey
     home = tmp_path / "home"
     assert reach.receive(home, [{**hook, "on": False}], f"/hooks/{hook['id']}", "127.0.0.1",
                          {"Host": "localhost", "Content-Length": "2", reach.SECRET_HEADER: hook["_secret"]},
-                         io.BytesIO(b"{}"))[0] == 404
+                         io.BytesIO(b"{}"))[0] == 403
     monkeypatch.setattr(reach, "MAX_INBOX", 2)
     assert [post(home, hook)[0] for _ in range(3)] == [202, 202, 429]
 

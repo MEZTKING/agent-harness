@@ -145,7 +145,7 @@ def hook_new(app, body: dict[str, Any]) -> dict[str, Any]:
     secret = reach.new_secret()
     raw = {"kind": "local", "name": str(body.get("name") or ""), "make": body.get("make") or "idea",
            "project": body.get("project") or None, "hook": {"secret": secret},
-           "start_by_itself": bool(body.get("start_by_itself")), "cap_usd": body.get("cap_usd") or 0}
+           "start_by_itself": False, "cap_usd": 0}  # what a local program sends always waits for the owner's OK
     try:
         a = au.add(ctx.home, {k: v for k, v in raw.items() if v is not None})
     except au.AutomationError as e:
@@ -307,8 +307,14 @@ def engine_install(app, body: dict[str, Any]) -> dict[str, Any]:
         cfg = app.need_cfg()
         root = app.project(cfg, str(body["path"])).root
 
+    task = str(body.get("task") or "")
+
     def carry_on():
         if root is not None:
+            if task:  # the task that stopped for the missing helper is tried again
+                from ..harness.orchestrator import Orchestrator
+
+                Orchestrator(app.need_cfg(), root).retry(task)
             app.start_run_job(app.need_cfg(), root, f"after installing {offer['name']}")
 
     return app.jobs.start("install", f"install {offer['name']} and carry on",

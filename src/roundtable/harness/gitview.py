@@ -398,6 +398,11 @@ def undo_edit(root: str | Path, sha: str) -> dict[str, Any]:
         raise GitViewError("Only an edit made by hand can be put back here. Task changes are undone on the "
                            "History of tasks (Undo).")
     rel = check_file(subject[len(HAND_PREFIX):])
+    from ..ui.filesapi import writable_file  # the file named in the commit's subject: checked like a save
+
+    if writable_file(root, rel) is None:
+        raise GitViewError("That file can't be put back from here: it isn't a plain file of the project (it may "
+                           "be a link, or one the harness keeps private).")
     parent = _out(root, "rev-parse", "--verify", "-q", full + "^")
     old_blob, new_blob = _blob_of(root, parent, rel), _blob_of(root, full, rel)
     if not old_blob:

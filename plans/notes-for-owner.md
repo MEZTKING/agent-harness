@@ -9,6 +9,32 @@ The harness's own model switches are in the hub journal as decisions ("Switched 
 
 ## 2026-11-27
 
+- **Wave 8 (1.4.0): are saving files from the app, switching branch, the local hook and shared folders safe?**
+  Asked Fable before release. *Advice, in short:* yes, with six fixes – never write through a link or into the
+  harness's own files; check the file a put-back names; never switch branch while anything at all is working
+  on the project or the hub can't be read; what comes from outside never starts building by itself; a hook
+  only ever answers this computer, the same way for a wrong secret as for no hook, and never on the phone; and
+  an install in a task's copy gets its own folders instead of writing into the project's. *Done, each with a
+  test (`tests/test_wave8_safety.py`):*
+  1. Saving and Undo refuse a file that is a link, or whose real place is hidden (`.git`, `.harness`, a
+     dot-file) or looks like a key (`ui/filesapi.py` `writable_file`, used by `ui/editapi.py`).
+  2. Putting a hand edit back checks the file named in the commit the same way (`harness/gitview.py`
+     `undo_edit`).
+  3. A branch switch waits while the project says it is planning or building, while tasks are unfinished and
+     while task copies are kept, not only for this app's own jobs; and "another computer?" counts as "can't
+     tell" when the hub can't be read (`ui/editapi.py` `_checkout_block`, `ui/rewindapi.py` `elsewhere`).
+  4. A local hook, GitHub events and a watched address never start building by themselves: their plan always
+     waits for your OK, and the tick-box is gone for them (`automation.py`, `ui/reachapi.py`,
+     `ui/static/automation.js`).
+  5. A hook is read on the desktop only, from the connection's own address (never a forwarded header), with
+     one answer for "no such hook" and "wrong secret"; the phone server never serves one (`ui/server.py`,
+     `reach.py`, `phone.py`). The secret is shown once and kept only as a hash, never on a page.
+  6. An install (npm, pnpm, yarn, pip, uv, poetry, Gradle, Godot) in a task's copy whose folders are shared with
+     the project first takes the link away, so the copy gets its own; then it goes through your usual
+     approval (`harness/perms.py` `own_copy_first`). A task copy that still holds a link out of it is never
+     removed (`harness/worktrees.py` `links_out`).
+  Also checked: the phone may never save, undo, edit a file or switch branch.
+
 - **Your answers for wave 9 (asked in the chat):** sound and music – yes, capped at $2 a project (Fable first
   compares two services on price and on whether you own what they make, then you pick one; until then sounds
   are made in code); Telegram or Slack – no; the animated office view – yes, up to $10 of our own pixel art

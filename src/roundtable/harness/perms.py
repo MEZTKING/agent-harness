@@ -98,6 +98,9 @@ def _project_job(root: Path, role: str) -> Any:
     try:
         if "perms" in ps.BY_KEY:  # the project-settings line is in: it validates the value
             st = ps.load(root)
+            bad = [e for e in st.errors if "perms" in e]
+            if bad:  # a wrong value isn't skipped quietly: what each job may do can't be told, so it asks
+                raise _Unreadable(bad[0])
             table = st.values.get("perms") if st.sources.get("perms") != "default" else None
         else:
             table = None
@@ -338,6 +341,56 @@ def _is_delete(name: str) -> bool:
     return any(w in parts for w in _DELETE_WORDS)
 
 
+_INSTALLERS = {  # program -> its first words that write into a dependency folder (None: any use of it)
+    "npm": {"ci", "install", "i", "add", "update", "up", "upgrade", "rebuild", "uninstall", "remove", "rm", "prune",
+            "dedupe"},
+    "pnpm": {"install", "i", "add", "update", "up", "upgrade", "remove", "rm", "rebuild", "prune", "import"},
+    "yarn": {"", "install", "add", "upgrade", "up", "remove", "dedupe"},
+    "bun": {"install", "i", "add", "update", "remove", "rm"},
+    "pip": {"install", "uninstall"}, "pip3": {"install", "uninstall"},
+    "uv": {"sync", "add", "remove", "pip", "venv", "lock"},
+    "poetry": {"install", "add", "remove", "update", "lock"}, "pipenv": {"install", "uninstall", "update", "sync"},
+    "gradle": None, "gradlew": None,  # Gradle writes its .gradle folder whatever it is asked
+    "godot": None, "godot4": None,  # Godot fills .godot/imported when it opens the project
+}
+
+
+def is_install(command: str) -> bool:
+    """A command that writes into a dependency folder (an install, a sync, a Gradle build)."""
+    for seg in _gate.segments(command):
+        name, args = _gate.program(_gate.tokens(seg))
+        if name in ("python", "python3", "py") and args[:2] == ["-m", "pip"]:
+            name, args = "pip", args[2:]
+        if name not in _INSTALLERS:
+            continue
+        words = _INSTALLERS[name]
+        first = next((a.lower() for a in args if not a.startswith("-")), "")
+        if words is None or first in words:
+            return True
+    return False
+
+
+def own_copy_first(root: Path, lane: Path | None, command: str) -> str | None:
+    """Before an install in a task's copy whose dependency folders are linked to the main project: take that
+    copy's links away, so the install makes the copy its own folders and never writes into the shared ones.
+    Returns a refusal when a link couldn't be taken away, else None (the command then goes through the gate)."""
+    if lane is None or not is_install(command):
+        return None
+    from .worktrees import Worktrees, _read_links
+
+    try:
+        lane = Path(lane).resolve()
+        if not _read_links(Path(root).resolve()).get(lane.name):
+            return None
+        stuck = Worktrees(root).unlink_deps(lane)
+    except Exception:  # noqa: BLE001 - can't tell: don't let it write into the shared folders
+        stuck = ["the linked folders"]
+    if stuck:
+        return (f"This command installs into {', '.join(stuck)}, which this copy shares with the main project, "
+                "and the link couldn't be taken away, so it wasn't run. Ask the owner to look at the task's copy.")
+    return None
+
+
 def _linked_findings(root: Path, command: str) -> list[_gate.Finding]:
     """A command that deletes a folder shared with the main project (worktrees.link_deps)."""
     from .worktrees import linked_folders
@@ -398,6 +451,11 @@ def guard(root, cfg, role: str, gate) -> Callable:
     def _command(preset: str, command: str) -> str | None:
         if preset == "read_only":
             return _gate.refusal_read_only()
+        lane = getattr(check, "ws_root", None)
+        if lane is not None and Path(lane).resolve() != root.resolve():
+            stop = own_copy_first(root, Path(lane), command)  # an install gets its own folders first
+            if stop:
+                return stop
         extra = _linked_findings(root, command)
         if preset == "free":
             if extra:
