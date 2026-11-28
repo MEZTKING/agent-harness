@@ -61,7 +61,9 @@ FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "file
                                 # run timelines, the iPhone page, a running app's frame, to-dos as actions, the
                                 # proof run
                                 "wordsapi", "soundapi", "officeapi", "countsapi", "otelapi", "webphoneapi",
-                                "appframeapi", "todoapi", "proofrunapi")
+                                "appframeapi", "todoapi", "proofrunapi",
+                                # 1.5.0: the chat that replaced Letters (chat.py, chatstore.py)
+                                "chatsapi")
 
 
 def _feature_routes(app) -> dict:

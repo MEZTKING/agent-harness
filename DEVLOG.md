@@ -6,6 +6,35 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-28 – The chat, step 0: the seams
+
+Asked (the owner): "remove the letter system. Make it so it's just like a chat." Step 0 of the chat plan: the
+frozen signatures, the shapes and the settings the three helpers (chat-server, chat-desktop, chat-phone) fill.
+
+Done:
+- `src/roundtable/chatstore.py` (stub): the hub layout in its docstring (`chats/<chat>/<day>.<seat>.jsonl`,
+  `files/<sha>.<ext>`, `claims/<turn>.json`), the line and card shapes (`LINE_KEYS`, `CARD_KEYS`, `BUTTONS`,
+  `check_line`, `check_card`, `order_key`, `day_path`, `file_path`, `claim_path`, `chat_id`, `new_id`, `now`),
+  and the stubs `append`, `read`, `earlier`, `attach`, `waiting`, `claim`, `chats`.
+- `src/roundtable/chat.py` (stub): `NEVER = ("v4-pro",)`, `never`, `CANNOT` (the "never silence" codes and
+  words), `cannot`, `BUTTON_WORDS`, and the stubs `model_for`, `context`, `reply`, `card_for`, `tap`, `drain`,
+  `estimate`; `prompts/chat-opening.json` (the opening and command table, copied to the phone's assets).
+- `src/roundtable/ui/chatsapi.py`: the six routes plus `POST /api/chats/tap/pc` (the PC's own app; as
+  `/api/commands/pc`), in `FEATURE_APIS`; `phone.py`: the six in `PHONE_ROUTES`, `_narrow_chat_tap`.
+- `harness/config.py`: `ChatSettings` (`chat:` – `enabled`, `max_usd_per_day` 1.0, the owner's $1, and
+  `context_tokens` 5000), `chat_role`, `merge_custom` takes `chat:`; `sync.py`: `CHAT_LIMIT`
+  (`limits.chat_usd_per_day` in the shared settings, applied into `chat.max_usd_per_day`).
+- Phone: `data/Chat.kt` (`ChatLine`, `ChatCard`, `CardButton`, `ChatFile`, `ChatSummary`, `ChatRead`,
+  `CanAnswer`, `SayResult`, `TapResult`, `ChatLayout`), `data/ChatBrain.kt` (`ChatBrain`, `Piece`, the stub
+  `NoChatBrain`), `MultiBackend.chatBrain(seat)`, `Store.chatKey` / `chatKeyEnd` / `chatSeat`; `ChatTest.kt`.
+- `tests/test_chat_seam.py`: the golden requests unchanged, the signatures, routes, narrowing, shapes, settings.
+
+Decided: a tap names its button (`button`, default `do`) and the card carries the checked `command`; the PC's
+taps go through `/tap/pc` so the phone's route can never run a PC-only command; `GET /api/chats` answers
+`{chats: [...]}`.
+
+Open: the three helpers.
+
 ## 2026-11-28 – Wave 9 merged (1.5.0): the seven helpers, every hook-up, the words sweep
 
 Asked: merge the seven wave 9 helpers in order (w9-sound, w9-office, w9-local, w9-gaps, w9-proof, w9-letters,

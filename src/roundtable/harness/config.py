@@ -152,6 +152,30 @@ class GodotSettings:
     enabled: bool = True  # false: never start Godot
 
 
+@dataclass
+class ChatSettings:
+    """``chat:`` in harness.yaml: the chat that replaced Letters (chat.py). The allowance is shared by every
+    machine (sync.py's shared settings, ``limits.chat_usd_per_day``) and counts every device's spend."""
+
+    enabled: bool = True  # false: the chat never calls a model (the app answers that it is switched off)
+    max_usd_per_day: float = 1.0  # the chat's daily allowance, across every device (the owner's $1)
+    context_tokens: int = 5000  # the project's state, cut to about this many tokens
+
+
+def _chat_settings(raw: Any) -> ChatSettings:
+    if raw is None:
+        return ChatSettings()
+    if isinstance(raw, bool):
+        return ChatSettings(enabled=raw)
+    if not isinstance(raw, dict):
+        raise ValueError("chat must be a setting like {enabled: true, max_usd_per_day: 1.0, context_tokens: 5000}")
+    usd = float(raw.get("max_usd_per_day", 1.0) if raw.get("max_usd_per_day") is not None else 1.0)
+    tokens = int(raw.get("context_tokens", 5000) or 5000)
+    if usd < 0 or tokens < 500:
+        raise ValueError("chat: max_usd_per_day can't be below 0 and context_tokens must be at least 500")
+    return ChatSettings(enabled=bool(raw.get("enabled", True)), max_usd_per_day=usd, context_tokens=tokens)
+
+
 def _godot_settings(raw: Any, base: Path) -> GodotSettings:
     if raw is None:
         return GodotSettings()
@@ -185,6 +209,8 @@ class HarnessConfig:
     critic_role: str | None = None  # a second model that critiques each new plan (ideally another maker's)
     design_role: str | None = None  # makes the app's looks (default: a chat role "designer", else the planner)
     scout_role: str | None = None  # reads the owner's references (default: a chat role "scout", else the planner)
+    chat_role: str | None = None  # answers the chat (default: a chat role "chat"; else chat.model_for chooses)
+    chat: ChatSettings = field(default_factory=ChatSettings)  # the chat's allowance and budget (chat.py)
     look_stage: str = "auto"  # auto: offer looks when the plan is for an app with screens; off: only on request
     show_it: str = "auto"  # auto: pictures of the app's own screens after every approved task; off: never
     prompts_dir: Path | None = None
@@ -445,6 +471,10 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
     if isinstance(custom.get("breaker"), dict):  # the builders' settings from the app (permsapi.py)
         out["breaker"] = {**(raw.get("breaker") or {}), **custom["breaker"]}
+    if isinstance(custom.get("chat"), dict):  # the chat's allowance (shared settings, or the app's Settings)
+        was = raw.get("chat")
+        was = was if isinstance(was, dict) else {"enabled": was} if isinstance(was, bool) else {}
+        out["chat"] = {**was, **custom["chat"]}
     if isinstance(custom.get("sound"), dict):  # the sound service and its cap chosen in the app (soundapi.py)
         out["sound"] = {**(raw.get("sound") or {}), **custom["sound"]}
     if "allow_shell" in (custom.get("workspace") or {}):
@@ -625,6 +655,9 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
     scout = raw.get("scout_role")
     if not (scout in roles and roles[scout].kind == "chat"):
         scout = "scout" if "scout" in roles and roles["scout"].kind == "chat" else planner
+    chat_role = raw.get("chat_role", "chat")
+    if not (chat_role in roles and roles[chat_role].kind == "chat"):
+        chat_role = None
     look_stage = raw.get("look_stage", "auto")
     look_stage = {False: "off", True: "auto"}.get(look_stage, str(look_stage).lower())  # YAML reads off as false
     if look_stage not in ("auto", "off"):
@@ -673,6 +706,8 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
         critic_role=critic,
         design_role=design,
         scout_role=scout,
+        chat_role=chat_role,
+        chat=_chat_settings(raw.get("chat")),
         look_stage=look_stage,
         show_it=show_it,
         prompts_dir=(base / prompts_dir) if prompts_dir else None,

@@ -225,7 +225,8 @@ def test_the_phones_words_seam():
 # -- the phone's new routes and the charter ---------------------------------------------------------------------
 def test_the_phone_narrowing_is_in_place():
     assert set(phone.PHONE_NARROW) == {("POST", "/api/asktimer"), ("POST", "/api/board/answer-several"),
-                                       ("POST", "/api/agents"), ("POST", "/api/chat/talk")}
+                                       ("POST", "/api/agents"), ("POST", "/api/chat/talk"),
+                                       ("POST", "/api/chats/tap")}  # 1.5.0's chat (tests/test_chat_seam.py)
     kt = (KT / "net/Api.kt").read_text(encoding="utf-8")
     for p in ("/api/asktimer", "/api/board/answer-several", "/api/plan/looks", "/api/documents", "/api/agents",
               "/api/chat/talk"):

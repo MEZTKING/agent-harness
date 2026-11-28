@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "opening": "",
+  "commands": [],
+  "reply_tokens": 700,
+  "history": 12,
+  "model": "deepseek-v4-flash"
+}

@@ -110,6 +110,10 @@ PHONE_ROUTES = {
     ("GET", "/api/todo/actions"), ("GET", "/api/hub/seats"),  # to-dos as actions and who listens (ui/todoapi.py)
     ("GET", "/api/proofrun"),  # how the proof run went (ui/proofrunapi.py); starting one stays on the PC
     ("GET", "/api/words"), ("POST", "/api/translate"),  # the app in the owner's language (ui/wordsapi.py)
+    # 1.5.0: the chat (ui/chatsapi.py); a tap is narrowed (PHONE_NARROW) and its route never runs a PC-only
+    # command (the PC's own app taps through /api/chats/tap/pc, never offered to the phone)
+    ("GET", "/api/chats"), ("GET", "/api/chats/read"), ("POST", "/api/chats/say"), ("POST", "/api/chats/tap"),
+    ("POST", "/api/chats/stop"), ("GET", "/api/chats/file"),
 }
 PC_ONLY_ASKS = ("shipoffer", "officeart")  # cards answered only on the PC (a download onto the PC, the office art)
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
@@ -179,6 +183,20 @@ def _narrow_talk(body: dict[str, Any]) -> dict[str, Any]:
     return {"path": body.get("path", ""), "text": text}
 
 
+def _narrow_chat_tap(body: dict[str, Any]) -> dict[str, Any]:
+    """Only {chat, card, button?, confirmed?}: which card, which of its buttons, and the owner's yes."""
+    _only(body, {"chat", "card", "button", "confirmed"})
+    if not str(body.get("chat") or "") or not str(body.get("card") or ""):
+        raise NarrowRefused("Choose a card first.")
+    from .chatstore import BUTTONS
+
+    button = str(body.get("button") or "do")
+    if button not in BUTTONS:
+        raise NarrowRefused()
+    return {"chat": str(body["chat"]), "card": str(body["card"]), "button": button,
+            "confirmed": body.get("confirmed") is True}
+
+
 # (method, path) -> what a phone's body may be for that route: the narrowed body, or NarrowRefused (403).
 # Applied after phone_allowed and before the desktop's dispatch.
 PHONE_NARROW: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]] = {
@@ -186,6 +204,7 @@ PHONE_NARROW: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]] 
     ("POST", "/api/board/answer-several"): _narrow_answer_several,
     ("POST", "/api/agents"): _narrow_agents,
     ("POST", "/api/chat/talk"): _narrow_talk,
+    ("POST", "/api/chats/tap"): _narrow_chat_tap,
 }
 
 

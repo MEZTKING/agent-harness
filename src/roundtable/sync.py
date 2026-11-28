@@ -49,7 +49,8 @@ MACHINE_EVERY_S = 300  # a machine's heartbeat file is written this often (or wh
 MACHINE_OFF_S = 900  # no heartbeat for this long: the machine is off
 MAX_LINES = 3000  # lines kept in one run's session file (the start line and the newest)
 SHARED_FILE = "settings/shared.yaml"
-SHARED_LIMITS = ("max_cost_usd", "max_real_usd_per_run", "max_usd_per_day")
+SHARED_LIMITS = ("max_cost_usd", "max_real_usd_per_run", "max_usd_per_day", "chat_usd_per_day")
+CHAT_LIMIT = "chat_usd_per_day"  # the chat's daily allowance (harness.yaml's chat.max_usd_per_day), shared
 APPLIED_FILE = "shared-settings.json"  # in the app home: what this machine last took from or gave the hub
 
 
@@ -710,7 +711,8 @@ def local_snapshot(harness_path: Path | None, home: Path) -> dict[str, Any]:
             cfg = load_config(str(harness_path))
             out["limits"] = {"max_cost_usd": cfg.limits.max_cost_usd,
                              "max_real_usd_per_run": cfg.limits.max_real_usd_per_run,
-                             "max_usd_per_day": cfg.limits.max_usd_per_day}
+                             "max_usd_per_day": cfg.limits.max_usd_per_day,
+                             CHAT_LIMIT: cfg.chat.max_usd_per_day}
             out["default_profile"] = cfg.default_profile
             from .improve import wallet
 
@@ -831,7 +833,12 @@ def apply_shared(shared: dict[str, Any], harness_path: Path | None, home: Path, 
         custom = load_custom(Path(harness_path))
         before = json.dumps(custom, sort_keys=True, default=str)
         if "limits" in values:
-            custom["limits"] = {**(custom.get("limits") or {}), **values["limits"]}
+            lim = dict(values["limits"])
+            chat_cap = lim.pop(CHAT_LIMIT, None)  # lives in chat: (ChatSettings), not limits:
+            if lim:
+                custom["limits"] = {**(custom.get("limits") or {}), **lim}
+            if chat_cap is not None:
+                custom["chat"] = {**(custom.get("chat") or {}), "max_usd_per_day": chat_cap}
         if "roles" in values:
             roles = {r: dict(s or {}) for r, s in (custom.get("roles") or {}).items()}
             for r, spec in values["roles"].items():
