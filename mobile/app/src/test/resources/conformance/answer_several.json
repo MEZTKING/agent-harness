@@ -1,0 +1,12 @@
+{
+ "answered": [],
+ "jobs": [],
+ "left": [
+  {
+   "id": "no-such-card",
+   "path": "/home/owner/lab/proj",
+   "why": "That question has been answered already or has changed. Look again for what's waiting."
+  }
+ ],
+ "reply": "Nothing answered; 1 left for you to answer on their own."
+}

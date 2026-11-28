@@ -63,6 +63,7 @@ from . import streamlog
 from .charterstage import CharterStage
 from .recallstage import RecallStage
 from .skillstage import SkillStage
+from .soundstage import SoundStage
 from ..improve.canary import WatchStage
 from .gate import Gate
 from ..plugins.host import begin_run as plugins_begin_run, notify as plugins_notify
@@ -85,6 +86,7 @@ class Task:
     depends_on: list[str] = field(default_factory=list)
     output_path: str = ""
     image_options: dict[str, Any] = field(default_factory=dict)  # per-task style/size for image roles
+    sound_options: dict[str, Any] = field(default_factory=dict)  # wave 9: {kind, seconds, loop, format, seed}
     status: str = "pending"
     summary: str = ""
     attempts: list[dict[str, Any]] = field(default_factory=list)
@@ -253,6 +255,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
                 depends_on=[str(d) for d in t.get("depends_on") or []],
                 output_path=str(t.get("output_path") or ""),
                 image_options=dict(t.get("image_options") or {}),
+                sound_options=dict(t.get("sound_options") or {}) if isinstance(t.get("sound_options"), dict) else {},
                 section=str(t.get("section") or ""),
                 files=[str(f) for f in t.get("files") or [] if str(f).strip()],
                 stage=str(t.get("stage") or ""),
@@ -290,7 +293,8 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
 class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
                    MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
                    DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
-                   WatchStage, CharterStage, SkillStage, RecallStage, BoardStage, FollowStage):
+                   WatchStage, CharterStage, SkillStage, RecallStage, BoardStage, FollowStage, SoundStage):
+    # wave 9: the sound job (soundstage.py), run for a role of kind "sound"
     # wave 8: the board (move a task by hand, its order, the archive) and follow-ups on a finished task
     # wave 7: the watch after a learned change, the charter's fixed lines and the house style, skills, look_up
     # the wave 5 stages (money, the done list, stages and parts, unsticking, finishing, playing, shipping)
@@ -692,7 +696,9 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             if r.name in self._not_for_tasks() or r.name == self.cfg.reviewer_role:
                 continue
             kind = (" (image generation: description = the visual prompt; set output_path, and image_options "
-                    "for style/size when the role description lists choices)") if r.kind == "image" else ""
+                    "for style/size when the role description lists choices)") if r.kind == "image" else (
+                " (sound generation: description = what the sound is, named by what happens in the game; set "
+                "output_path, and sound_options {kind: effect or music, seconds, loop})") if r.kind == "sound" else ""
             lines.append(f"- {r.name}{kind}: {r.description or 'general work'}")
         return "\n".join(lines)
 
@@ -876,6 +882,17 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             },
             ["id", "title", "role", "description", "acceptance", "depends_on"],
         )
+        if any(r.kind == "sound" for r in roles.values()):  # wave 9: only offered when a sound role exists
+            schema["properties"]["sound_options"] = {
+                "type": "object",
+                "description": "sound tasks only: {kind: effect or music, seconds, loop, format, seed}",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["effect", "music"]}, "seconds": {"type": "number"},
+                    "loop": {"type": "boolean"}, "format": {"type": "string", "enum": ["mp3", "wav"]},
+                    "seed": {"type": "integer"},
+                },
+                "additionalProperties": False,
+            }
         schema["required"] = ["id", "title", "role", "description", "acceptance", "depends_on"]
         return schema
 
@@ -1565,6 +1582,8 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         self._require_models(role)
         if role.kind == "image":
             return self._run_image_task(task, role)
+        if role.kind == "sound":  # wave 9 (soundstage.py)
+            return self._run_sound_task(task, role)
         got = self._hook("_rivals_run", task, tasks)  # several builders at once (wave 6); None: the usual way
         if got is not None:
             return bool(got)

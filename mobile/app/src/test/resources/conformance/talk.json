@@ -1,0 +1,5 @@
+{
+ "action": null,
+ "cost_usd": 0.00012,
+ "reply": "T1 failed because the provider was down; T3 waits on it."
+}

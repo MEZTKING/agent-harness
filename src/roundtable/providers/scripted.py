@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from .base import ChatResponse, ImageProvider, Provider, ProviderError, ToolCall, Usage
+from .base import ChatResponse, ImageProvider, Provider, ProviderError, SoundProvider, ToolCall, Usage
 
 Script = Callable[[str, str, list[dict[str, Any]], list], ChatResponse | dict]
 
@@ -76,3 +76,39 @@ class ScriptedImages(ImageProvider):
             "0000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"
         )
         return png, "png", Usage(output_tokens=1)
+
+
+class ScriptedSoundProvider(SoundProvider):
+    """A fake sound service (wave 9): plays back ``sounds`` (``(audio bytes, extension, cost in dollars)``) in
+    turn, quotes ``price`` for every sound and answers ``licence``. Counts its calls, so a test can prove that a
+    refused quote made none."""
+
+    def __init__(self, name: str = "scripted-sounds", sounds: list[tuple[bytes, str, float]] | None = None,
+                 price: float | None = 0.01, licence: dict[str, Any] | None = None, balance: float | None = None):
+        self.name = name
+        self.sounds = list(sounds or [])
+        self.price = price
+        self._licence = dict(licence or {"commercial": True, "words": "Made-up licence for tests.", "link": "",
+                                         "read_on": ""})
+        self._balance = balance
+        self.prompts: list[str] = []
+        self.quotes: list[str] = []
+        self.calls = 0
+
+    def quote(self, model, prompt, options=None):
+        self.quotes.append(prompt)
+        return self.price
+
+    def generate(self, model, prompt, options=None):
+        self.calls += 1
+        self.prompts.append(prompt)
+        if not self.sounds:
+            raise ProviderError(f"{self.name}: no sounds left")
+        data, ext, cost = self.sounds.pop(0)
+        return data, ext, Usage(cost_usd=cost)
+
+    def licence(self):
+        return dict(self._licence)
+
+    def balance(self):
+        return self._balance

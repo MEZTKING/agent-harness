@@ -28,7 +28,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, quote, urlparse
 
 from roundtable import discovery
@@ -97,10 +97,90 @@ PHONE_ROUTES = {
     ("GET", "/api/browser"),
     # CI, the services list and who is listening, read only (ui/reachapi.py); never /hooks
     ("GET", "/api/ci"), ("GET", "/api/integrations"), ("GET", "/api/listening"),
+    # wave 9, what wave 8's Part B left: each narrowed below (PHONE_NARROW), so the phone can only do the safe part
+    ("POST", "/api/asktimer"),  # hold a question's timer while the owner types; setting or clearing stays on the PC
+    ("POST", "/api/board/answer-several"),  # Answer these with the recommended answers (never a PC-only card)
+    ("GET", "/api/plan/looks"),  # the look's pictures, as data addresses
+    ("GET", "/api/documents"),  # your documents, read only; adding or removing a folder stays on the PC
+    ("POST", "/api/agents"),  # give a job to an agent that already exists; making or renaming one stays on the PC
+    ("POST", "/api/chat/talk"),  # Talk through the PC: the answer may name an action, never done by this route
 }
 PC_ONLY_ASKS = ("shipoffer",)  # cards answered only on the PC (a download onto the PC itself)
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))
+
+
+PC_ONLY = "That can only be done on the PC itself."
+
+
+class NarrowRefused(PermissionError):
+    """A body the phone may not send to that route (answered 403, with this sentence)."""
+
+    def __init__(self, words: str = PC_ONLY):
+        super().__init__(words)
+
+
+def _only(body: dict[str, Any], keys: set[str]) -> None:
+    if set(body) - keys:
+        raise NarrowRefused()
+
+
+def _narrow_timer(body: dict[str, Any]) -> dict[str, Any]:
+    """Only {path, id, hold: true}: setting or clearing a timer stays on the PC."""
+    _only(body, {"path", "id", "hold"})
+    if body.get("hold") is not True or not str(body.get("id") or ""):
+        raise NarrowRefused()
+    return {"path": body.get("path", ""), "id": body["id"], "hold": True}
+
+
+def _narrow_answer_several(body: dict[str, Any]) -> dict[str, Any]:
+    """Each item {path, id, stamp}; a PC-only card is refused. The server's own rule already leaves out any
+    card whose recommended answer has ``confirm`` (it spends or deletes)."""
+    _only(body, {"items"})
+    items = body.get("items")
+    if not isinstance(items, list):
+        raise NarrowRefused("Tick the cards to answer first.")
+    out = []
+    for it in items:
+        if not isinstance(it, dict) or set(it) - {"path", "id", "stamp"} or not str(it.get("id") or ""):
+            raise NarrowRefused()
+        if str(it["id"]).startswith(PC_ONLY_ASKS):
+            raise NarrowRefused("One of the ticked cards can only be answered on the PC itself.")
+        out.append({k: it[k] for k in ("path", "id", "stamp") if k in it})
+    return {"items": out}
+
+
+def _narrow_agents(body: dict[str, Any]) -> dict[str, Any]:
+    """Only {id, job, hire: true} for an agent that already exists (agents.save refuses an unknown id); never
+    a name, words about it, notes or traits, and never a new one."""
+    _only(body, {"id", "job", "hire"})
+    if body.get("hire") is not True or not str(body.get("id") or "") or not str(body.get("job") or ""):
+        raise NarrowRefused()
+    return {"id": str(body["id"]), "job": str(body["job"]), "hire": True}
+
+
+TALK_MAX = 2000
+
+
+def _narrow_talk(body: dict[str, Any]) -> dict[str, Any]:
+    """Only {path, text}, the text at most 2,000 characters."""
+    _only(body, {"path", "text"})
+    text = body.get("text")
+    if not isinstance(text, str):
+        raise NarrowRefused("Nothing was heard. Try again, a little closer to the microphone.")
+    if len(text) > TALK_MAX:
+        raise NarrowRefused("That's too long to send from the phone: say it in under 2,000 characters.")
+    return {"path": body.get("path", ""), "text": text}
+
+
+# (method, path) -> what a phone's body may be for that route: the narrowed body, or NarrowRefused (403).
+# Applied after phone_allowed and before the desktop's dispatch.
+PHONE_NARROW: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]] = {
+    ("POST", "/api/asktimer"): _narrow_timer,
+    ("POST", "/api/board/answer-several"): _narrow_answer_several,
+    ("POST", "/api/agents"): _narrow_agents,
+    ("POST", "/api/chat/talk"): _narrow_talk,
+}
 
 
 def phone_allowed(method: str, path: str) -> bool:
@@ -457,6 +537,12 @@ def make_phone_handler(phone: PhoneAccess):
                     return self._json(403, {"error": "That can only be done on the PC itself."})
                 if (method, path) == ("POST", "/api/asks") and str(body.get("id", "")).startswith(PC_ONLY_ASKS):
                     return self._json(403, {"error": "That can only be done on the PC itself."})
+                narrow = PHONE_NARROW.get((method, path))
+                if narrow is not None:
+                    try:
+                        body = narrow(body)
+                    except NarrowRefused as e:
+                        return self._json(403, {"error": str(e)})
                 data = app.dispatch(method, path, q, body)
                 if (method, path) == ("GET", "/api/asks") and isinstance(data, dict):  # PC-only cards stay there
                     data = {**data, "asks": [a for a in data.get("asks") or [] if not a.get("pc_only")]}

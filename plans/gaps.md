@@ -8,10 +8,23 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
-- **Wave 8's phone screens (p1-phone Part B) aren't built** (27 November, 1.4.0): words as they are written,
-  `/` commands, follow-ups, the queue, question timers, the board, git history, CI and "when the PC last
-  listened" all answer the phone (read only where it matters) and are in the phone's conformance test, but the
-  phone has no screens for them yet. → 1.4.x, p1-phone Part B.
+- **What wave 8's phone Part B left** (28 November, wave 9 step 0): Part B (commit 4d0e2e6, on the session
+  branch after 1.4.0) built words as they are written, the `/` menu, the queue, follow-ups, the new-project
+  cards, the team, documents, previews and Talk. Left: the countdown and the hold while typing on a card with a
+  timer, Answer these, the look's pictures on its card, the documents list, hiring from the Team screen and Talk
+  through the PC. Their six routes answer the phone since step 0, each narrowed to its safe part
+  (`phone.PHONE_NARROW`: a timer is only held, an agent only hired, never a PC-only card, Talk only the words
+  heard), with fixtures in the conformance test. → wave 9, helper 4 (w9-phone), Part A.
+- **Sound and music aren't made** (28 November, wave 9 step 0): the owner said yes, up to $2 a project, once a
+  service is chosen. The seams are in (`providers/base.py` `SoundProvider`, `harness/soundprice.py`,
+  `harness/soundstage.py`, a role's `kind: sound`, the estimate); the two adapters raise "not built yet"; the
+  prices read on the day are in `docs/sound.md`. Which service is the owner's question 1. → wave 9, helper 1
+  (w9-sound).
+- **The office, other languages, local counts and traces, the iPhone page, to-dos as actions and the proof run
+  are stubs** (28 November, wave 9 step 0): `office.py`, `officeart.py` (helper 2), `words.py`, `translate.py`,
+  `ui/static/words.js` (helper 3), `localcounts.py`, `otel.py` (helper 5), `todoactions.py` (helper 6),
+  `proofrun.py` (helper 7). Each does nothing until filled; a bare run is byte for byte as before
+  (`tests/test_wave9_seam.py`). → wave 9.
 - **Wave 8 untried on real machines** (27 November, 1.4.0): a real EXE's window picture (`winshot`), an
   emulator started, an APK opened and pictured; links into a task's copy on a real `node_modules` (Windows
   junctions); the editor, Open as PDF and Talk in the frozen app's window; engines installing themselves; the
@@ -41,7 +54,8 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   nothing; there is no embeddings call to price yet. The owner's answer (27 November): leave it off; offer it
   later as a switch with its price shown. (A PDF's text is read since 1.4.0: see Fixed.)
 - **Documents and the memory picture aren't on the phone** (27 November, wave 7): the phone has What it
-  learned (with Undo) only. → wave 8, p1-phone (part B).
+  learned (with Undo), and Find and Ask since Part B. The documents list (`GET /api/documents`, read only, open
+  to the phone since wave 9 step 0) → wave 9, helper 4 (w9-phone).
 
 
 - **"Ask me first" on the phone is wired but untried on a real phone** (26 November; re-checked 27 November):
@@ -57,7 +71,7 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   to-dos like "paste these lines into Settings > Environments", "pip install on each PC", "set the default
   branch on GitHub". Each must become an action Roundtable does itself (GitHub tools, the cloud
   environment tools, Remote Control on the PC) or a one-tap card in the app. Three such to-dos were
-  dropped by hand today. → with the rebuilt desktop app.
+  dropped by hand today. → wave 9, helper 6 (w9-gaps): `todoactions.action_for` (stub in place).
 
 - **A project run elsewhere is half-visible on the desktop** (26 November, the owner's screenshot): MSE
   Studio's plan, made in a cloud session, shows only as a "harness" to-do "the plan is ready: approve it"
@@ -110,7 +124,7 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 - **The phone app's release build fails** (26 November): `./gradlew assembleRelease` stops in R8
   (code shrinking: "Compilation failed to complete"); test builds (debug) work. Fix the keep rules
-  before the phone release (release 4).
+  before the phone release → wave 9, helper 4 (w9-phone), Part A item 9.
 
 - **Question cards: no "Are you sure?" for deleting** (26 November): no card deletes anything yet, so
   only spending asks twice. A card that removes something (a reference, a don't) should set
@@ -163,19 +177,20 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **References: a repository's size is checked after it is copied.** git can't stop a
   clone at a size, so a huge repository is downloaded (within 120 seconds) before it is
   refused and deleted. A size check through the GitHub API first would avoid that. →
-  release 3.
+  wave 9, helper 6 (w9-gaps).
 - **References: a reference that couldn't be read isn't tried again by itself.** Remove
   it and add it again. No real run of the scout has been made yet (it costs credit). →
-  release 2.
+  wave 9, helper 6 (w9-gaps).
 - **The estimate's defaults are guesses.** With no history it assumes 60,000 input and
   8,000 output tokens per attempt. In real money the music player's estimate was about
   right once the cost count was fixed (below), but the defaults should come from real
-  runs (steps × context) and be checked after each one. → release 2.
+  runs (steps × context) and be checked after each one. → wave 9, helper 6 (w9-gaps).
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
   stops after two hours; with the desktop app closed, nothing answers. Since 1.4.0 the PC says when it last
-  listened (`reach.py` `beat`, `GET /api/listening`); the phone's line for it is p1-phone Part B.
+  listened (`reach.py` `beat`, `GET /api/listening`), and the phone shows it since Part B (`data/Team.kt`
+  `listening`). A hub project's seat on the desktop saying the same → wave 9, helper 6 (w9-gaps).
 - **The critique can be about an older version.** It's now labelled with its version;
-  the critic should look again after a revision that changes many tasks. → release 2.
+  the critic should look again after a revision that changes many tasks. → wave 9, helper 6 (w9-gaps).
 
 ## Fixed
 

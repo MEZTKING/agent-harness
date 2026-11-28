@@ -17,6 +17,7 @@ import { viewSearch, mountSearch } from "./search.js";
 import { viewAutomations } from "./automation.js";
 import { viewGallery } from "./gallery.js";
 import { pounds } from "./pounds.js";
+import * as words from "./words.js";
 
 const ROOMS = { tools: viewTools, automations: viewAutomations, hall: viewHall, needs: viewNeeds, projects: viewProjects, new: viewNew, p: viewProject, letters: viewLetters,
   activity: viewActivity, models: viewModels, settings: viewSettings, setup: viewSetup, search: viewSearch,
@@ -45,7 +46,7 @@ function route() {
   return translate(raw);
 }
 
-let generation = 0, setupChecked = false;
+let generation = 0, setupChecked = false, wordsLoaded = null;
 async function render() {
   const gen = ++generation;
   const [room, ...args] = route();
@@ -57,6 +58,8 @@ async function render() {
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
   try {
+    if (!wordsLoaded) wordsLoaded = words.load().catch(() => null);  // lang and dir on <html> before the first draw
+    await wordsLoaded;
     if (!S.ov) S.ov = await get("/api/overview");
     if (!setupChecked) {
       setupChecked = true;

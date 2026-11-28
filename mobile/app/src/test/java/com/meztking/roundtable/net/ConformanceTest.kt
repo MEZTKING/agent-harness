@@ -260,6 +260,15 @@ class ConformanceTest {
         val pv = com.meztking.roundtable.data.Preview.parse(api.feature("GET", com.meztking.roundtable.data.Preview.url(project, "README.md")))
         assertEquals("", pv.preview)
 
+        // wave 9, step 0: the six routes Part B left, each narrowed by the PC; the screens' decoders come next
+        fun keys(text: String) = ApiJson.parseToJsonElement(text).jsonObject.keys
+        assertTrue("timer" in keys(api.holdTimer(project, "plan-q1")))
+        assertTrue(keys(api.answerSeveral(listOf(Triple(project, "no-such-card", "s")))).containsAll(listOf("answered", "left", "reply")))
+        assertTrue("pictures" in keys(api.planLooks(project)))
+        assertTrue("documents" in keys(api.documents()))
+        assertTrue("agent" in keys(api.hireAgent("maelin", "planner")))
+        assertTrue("reply" in keys(api.talk(project, "how is the bakery site going?")))
+
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }
         assertTrue("calls.json lists calls this test doesn't make: $missed", missed.isEmpty())

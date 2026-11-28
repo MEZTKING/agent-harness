@@ -1052,6 +1052,80 @@
     "preview",
     "name"
    ]
+  },
+  {
+   "name": "timer_hold",
+   "method": "POST",
+   "path": "/api/asktimer",
+   "body": {
+    "path": "{project}",
+    "id": "plan-q1",
+    "hold": true
+   },
+   "needs": [
+    "timer"
+   ]
+  },
+  {
+   "name": "answer_several",
+   "method": "POST",
+   "path": "/api/board/answer-several",
+   "body": {
+    "items": [
+     {
+      "path": "{project}",
+      "id": "no-such-card",
+      "stamp": "s"
+     }
+    ]
+   },
+   "needs": [
+    "answered",
+    "left",
+    "reply"
+   ]
+  },
+  {
+   "name": "plan_looks",
+   "method": "GET",
+   "path": "/api/plan/looks",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "pictures"
+   ]
+  },
+  {
+   "name": "documents",
+   "method": "GET",
+   "path": "/api/documents"
+  },
+  {
+   "name": "agent_hire",
+   "method": "POST",
+   "path": "/api/agents",
+   "body": {
+    "id": "maelin",
+    "job": "planner",
+    "hire": true
+   },
+   "needs": [
+    "agent",
+    "reply"
+   ]
+  },
+  {
+   "name": "talk",
+   "method": "POST",
+   "path": "/api/chat/talk",
+   "body": {
+    "path": "{project}",
+    "text": "how is the bakery site going?"
+   },
+   "needs": [
+    "reply"
+   ]
   }
  ]
 }

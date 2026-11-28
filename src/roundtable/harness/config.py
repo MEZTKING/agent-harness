@@ -17,7 +17,7 @@ from typing import Any
 
 import yaml
 
-from ..providers.base import ImageProvider, Provider, ProviderError
+from ..providers.base import ImageProvider, Provider, ProviderError, SoundProvider
 from .saver import SaverConfig
 from ..brand import NAME
 
@@ -73,7 +73,8 @@ DEFAULT_PRICING: dict[str, dict] = {
 }
 
 PROVIDER_TYPES = ("anthropic", "openai_compat", "openai_images", "chat_images", "retrodiffusion", "plugin", "scripted",
-                  "scripted_images", "cli")
+                  "scripted_images", "cli", "elevenlabs_sound", "stable_audio")  # the last two: sound (wave 9)
+ROLE_KINDS = ("chat", "image", "sound")
 CLIENT_OPTS = ("auth_header", "auth_prefix", "headers", "query")  # extra openai_compat settings
 
 
@@ -97,7 +98,7 @@ class ModelRef:
 class RoleSpec:
     name: str
     models: list[ModelRef]  # primary first, then fallbacks
-    kind: str = "chat"  # chat | image
+    kind: str = "chat"  # chat | image | sound
     description: str = ""
     prompt: str = ""  # prompt file name (without .md) or inline text; defaults to role name
     max_tokens: int = 16000
@@ -115,7 +116,10 @@ FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compact
                     "sandbox", "style", "skills", "market", "recall", "documents", "selfrepair", "learning",
                     # wave 8 (the parity sweep)
                     "board", "editor", "stream", "slash", "voice", "perms", "builders", "standup", "hooks",
-                    "integrations", "winshot", "emulator")
+                    "integrations", "winshot", "emulator",
+                    # wave 9 (sound, the office, languages, the rows once declined, the proof run)
+                    "sound", "office", "language", "translate", "counts", "otel", "webphone", "proofrun",
+                    "todo_actions")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:
@@ -248,7 +252,7 @@ class HarnessConfig:
         )
 
     # -- providers -------------------------------------------------------
-    def provider(self, name: str) -> Provider | ImageProvider:
+    def provider(self, name: str) -> Provider | ImageProvider | SoundProvider:
         if name in self._instances:
             return self._instances[name]
         if name not in self.providers:
@@ -283,6 +287,16 @@ class HarnessConfig:
 
             inst = RetroDiffusionProvider(name, api_key_env=spec.get("api_key_env", "RETRODIFFUSION_API_KEY"),
                                           base_url=spec.get("base_url"))
+        elif kind == "elevenlabs_sound":  # sound effects and music (wave 9)
+            from ..providers.elevenlabs_sound import ElevenLabsSoundProvider
+
+            inst = ElevenLabsSoundProvider(name, api_key_env=spec.get("api_key_env", "ELEVENLABS_API_KEY"),
+                                           base_url=spec.get("base_url"))
+        elif kind == "stable_audio":  # sound effects and music, pay as you go (wave 9)
+            from ..providers.stable_audio import StableAudioProvider
+
+            inst = StableAudioProvider(name, api_key_env=spec.get("api_key_env", "STABILITY_API_KEY"),
+                                       base_url=spec.get("base_url"))
         elif kind == "cli":  # Claude Code or Codex on this computer, the owner's own subscriptions
             from ..providers.cli_engine import CliEngine
 
@@ -310,20 +324,20 @@ class HarnessConfig:
             cls = load_object(target, file_dirs=[plugins_dir], module_alias=f"roundtable_plugin_{name}")
         except Exception as e:
             raise ProviderError(f"provider {name!r}: could not load plugin {target!r} ({type(e).__name__}: {e})") from e
-        if not (isinstance(cls, type) and issubclass(cls, (Provider, ImageProvider))):
-            raise ProviderError(f"provider {name!r}: {clsname} must subclass roundtable.providers.base.Provider "
-                                "or ImageProvider")
+        if not (isinstance(cls, type) and issubclass(cls, (Provider, ImageProvider, SoundProvider))):
+            raise ProviderError(f"provider {name!r}: {clsname} must subclass roundtable.providers.base.Provider, "
+                                "ImageProvider or SoundProvider")
         try:
             inst = cls(name, **(spec.get("options") or {}))
         except Exception as e:
             raise ProviderError(f"provider {name!r}: plugin {clsname} failed to start ({type(e).__name__}: {e})") from e
-        if not isinstance(inst, (Provider, ImageProvider)):
-            raise ProviderError(f"provider {name!r}: {clsname} must subclass roundtable.providers.base.Provider "
-                                "or ImageProvider")
+        if not isinstance(inst, (Provider, ImageProvider, SoundProvider)):
+            raise ProviderError(f"provider {name!r}: {clsname} must subclass roundtable.providers.base.Provider, "
+                                "ImageProvider or SoundProvider")
         inst.name = name
         return inst
 
-    def register(self, name: str, instance: Provider | ImageProvider) -> None:
+    def register(self, name: str, instance: Provider | ImageProvider | SoundProvider) -> None:
         """Inject a provider instance (tests, custom adapters)."""
         self.providers.setdefault(name, {"type": "scripted"})
         self._instances[name] = instance
@@ -571,8 +585,8 @@ def parse_config(raw: dict[str, Any], path: Path | None = None) -> HarnessConfig
             if providers and m.provider not in providers:
                 raise ValueError(f"role {name!r}: unknown provider {m.provider!r}")
         kind = spec.get("kind", "chat")
-        if kind not in ("chat", "image"):
-            raise ValueError(f"role {name!r}: kind must be 'chat' or 'image'")
+        if kind not in ROLE_KINDS:
+            raise ValueError(f"role {name!r}: kind must be 'chat', 'image' or 'sound'")
         mcp = _str_list(spec.get("mcp") or [], f"role {name!r}: mcp")
         for server in mcp:
             if server not in mcp_servers:

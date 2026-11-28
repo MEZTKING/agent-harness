@@ -6,6 +6,69 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-28 – Wave 9, step 0: the seams
+
+Asked: step 0 of the wave 9 plan (→ 1.5.0): stubs with frozen signatures for the seven helpers, the six phone
+routes Part B left with a narrowing filter, a check that This phone answers like the PC, `tests/test_wave9_seam.py`,
+and `plans/gaps.md`, `plans/parity.md` and HANDOFF.md brought up to date (1.3.0 and 1.4.0 released from `main`;
+the session branch also holds the phone's Part B, 4d0e2e6). Nothing may change what a bare run sends.
+
+Done, by file:
+- `providers/base.py`: `SoundProvider` (`name`, `kinds`, `quote`, `generate`, `licence`, `balance`).
+  `providers/scripted.py`: `ScriptedSoundProvider(sounds=[(bytes, ext, cost)], price, licence, balance)`, counting
+  its calls. `providers/elevenlabs_sound.py` `ElevenLabsSoundProvider`, `providers/stable_audio.py`
+  `StableAudioProvider`: stubs whose `generate` raises "not built yet". `providers/catalog.py`: presets
+  `elevenlabs_sound` and `stable_audio` (category `sound`, `ELEVENLABS_API_KEY`, `STABILITY_API_KEY`).
+- `harness/config.py`: provider types `elevenlabs_sound`, `stable_audio` (built in `provider()`); `ROLE_KINDS`
+  with `sound`; a plug-in may be a `SoundProvider`; `FEATURE_SECTIONS` += sound, office, language, translate,
+  counts, otel, webphone, proofrun, todo_actions.
+- `harness/soundprice.py` (stub: `CAP_DEFAULT`, `SoundCapReached`, `cap`, `spent`, `reserve` – always refuses,
+  so the stub can never spend –, `settle`, `release`, `per_sound` → None), `harness/soundstage.py` (`SoundStage.
+  _run_sound_task` → False, "sound isn't set up").
+- `harness/orchestrator.py`: `SoundStage` last in the bases; `Task.sound_options`, kept by `_validate_plan`;
+  `_run_task` sends a `sound` role to `_run_sound_task`; the planner's role line for a sound role; the schema's
+  `sound_options` **only when a sound role exists**, so the golden of `tests/test_sweep_seam.py` passes unchanged
+  (the plan said to write the golden again; not needed this way).
+- `harness/plandoc.py` `estimate`: a sound task priced through `soundprice.per_sound` (its kind and seconds),
+  unpriced when None; `_sound_price`; the "retries" factor now reads `kind == "chat"` (the same for chat and
+  image as before).
+- `words.py` (`LANGS`, `language`, `catalogue`, `rtl`, `t` – English with its holes filled), `translate.py`,
+  `office.py`, `officeart.py`, `localcounts.py`, `otel.py` (`span`, a context manager that does nothing),
+  `todoactions.py`, `proofrun.py`: stubs with the plan's signatures.
+- `ui/static/words.js` (stub: `t`, `auto` = identity, `lang`, `dir`, `locale`, `load`). `core.js`: `h` and `fill`
+  pass string kids and `title`/`tip`, `placeholder`, `aria-label`, `alt` through `words.auto`; `{ raw: true }` on
+  `h` keeps a node's text as it is (for names, plans, model words); `clock` takes `words.locale()`; `when`, `ago`
+  and `money` keep exactly today's output in British English and use the chosen locale otherwise. `app.js`:
+  `words.load()` once before the first draw (sets `lang` and `dir` on `<html>`); a comment in `index.html`.
+- `improve/charter.py`: sound, office, language, webphone, proofrun in `PROTECTED_KEYS`; a NEVER row "wave9";
+  `harness/soundprice.py` and `officeart.py` in `NO_TOUCH_FILES`.
+- `phone.py`: six routes (`POST /api/asktimer`, `POST /api/board/answer-several`, `GET /api/plan/looks`,
+  `GET /api/documents`, `POST /api/agents`, `POST /api/chat/talk`) and `PHONE_NARROW` (applied after
+  `phone_allowed`, before `dispatch`; a refusal is `NarrowRefused`, answered 403): a timer only held; an agent
+  only hired (`{id, job, hire: true}`, an unknown id refused by `agents.save`); Answer these only `{path, id,
+  stamp}` items and never a `PC_ONLY_ASKS` card; Talk only `{path, text}`, at most 2,000 characters; documents
+  GET only. `tests/test_wave8_safety.py` now expects the timer route open (held only).
+- Phone: `data/Words.kt` (stub `Words.t`, `rtl`, `use`); `MainActivity.kt` sets `LocalLayoutDirection` from
+  `Words.rtl` (so the app is left to right until a right-to-left table is in use, even on a phone set to
+  Arabic: today's English text was being mirrored there); the manifest already had `supportsRtl`. `net/Api.kt`:
+  `holdTimer`, `answerSeveral`, `planLooks`, `documents`, `hireAgent`, `talk` and three feature prefixes.
+  `tests/conformance/calls.json`: the six calls; their fixtures written; `charter.json` written again (the new
+  row); `ConformanceTest.kt` makes the six calls.
+- Tests: `tests/test_wave9_seam.py`, `tests/test_phone_partb_routes.py`, `tests/test_onphone_same_answers.py`
+  (This phone and the PC's dispatch give the same shape for a preview, Ask, usage and agents: they did, so
+  `onphone.py` needed no fix). `tests/test_providers.py` knows the two sound types.
+- `docs/sound.md`: the two services as read on 28 November. Changed from the plan: ElevenLabs Starter is $6 a
+  month and its API is priced by the minute of sound ($0.12 effects, $0.15 music); Stable Audio 2.5 is 8 credits
+  (about $0.08) a clip, not 20.
+- `plans/parity.md`: DS-13, DS-16, DS-31, DS-83 to Have (Part B); DS-44 stays Partly; each Planned row names its
+  wave 9 helper. `plans/gaps.md`: Part B's leftovers, sound, the stubs; old items given to their helper.
+  HANDOFF.md rewritten for wave 9.
+
+Decided: the planner only sees `sound_options` when a project has a sound role (no golden change); the proof run's
+files should live in `templates/proofrun/` rather than `src/roundtable/proofrun/` (a folder of that name beside
+`proofrun.py` is confusing for imports and packaging). Open: every helper's work; `SoundStage` joins
+`tests/test_stage_hooks.py` `STAGES` at the wrap-up.
+
 ## 2026-11-27 – 1.4.0: wave 8 put together ("the parity sweep")
 
 Asked: merge the seven wave 8 branches in order (p1-board, p1-editor, p1-chat, p1-perms, p1-reach, p1-phone,

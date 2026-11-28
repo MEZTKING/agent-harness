@@ -1,30 +1,38 @@
 // Shared helpers: elements, the API, polling, dialogs and the words the owner reads.
 // Every node is built with h() (text, never HTML): journal entries, letters and logs hold model output.
+import * as words from "./words.js";
 
 /** The name the owner reads (brand.py's twin). Names machines read stay "roundtable". */
 export const BRAND = Object.freeze({ name: "Darkness Harness", short: "Darkness", legacy: "Roundtable Hold" });
 
+// Words the owner reads pass through words.auto (wave 9: their language); { raw: true } keeps a node's own text
+// and attributes as they are (a project's name, a plan, a model's words, code).
+const WORDY = new Set(["title", "placeholder", "aria-label", "alt"]);
+const say = (raw, v) => (raw || typeof v !== "string" ? v : words.auto(v));
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
+  const raw = !!(attrs && attrs.raw === true);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
+    if (k === "raw") continue;
     if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
-    else if (k === "tip") el.title = v;
+    else if (k === "tip") el.title = say(raw, v);
     else if (v === true) el.setAttribute(k, "");
-    else el.setAttribute(k, v);
+    else el.setAttribute(k, WORDY.has(k) ? say(raw, v) : v);
   }
-  add(el, kids);
+  add(el, kids, raw);
   return el;
 }
-function add(el, kids) {
+function add(el, kids, raw = false) {
   for (const kid of kids.flat(Infinity)) {
     if (kid === null || kid === undefined || kid === false || kid === "") continue;
-    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    el.append(kid instanceof Node ? kid : document.createTextNode(raw ? String(kid) : textOf(kid)));
   }
 }
+const textOf = (kid) => (typeof kid === "string" ? words.auto(kid) : String(kid));
 export const clean = (list) => [list].flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false && x !== "");
-export function fill(el, ...kids) { el.replaceChildren(...clean(kids).map((k) => (k instanceof Node ? k : document.createTextNode(String(k))))); return el; }
+export function fill(el, ...kids) { el.replaceChildren(...clean(kids).map((k) => (k instanceof Node ? k : document.createTextNode(textOf(k))))); return el; }
 
 // ---------- the API ----------
 export async function api(method, path, body) {
@@ -153,7 +161,12 @@ export const readable = (id) => String(id || "").split(/[-_.\s]+/).filter(Boolea
 export const projectHref = (id, tab) => `#/p/${encodeURIComponent(id)}${tab ? "/" + tab : ""}`;
 
 // ---------- words ----------
-export const money = (x) => { const n = Number(x) || 0; return "$" + (n > 0 && n < 0.01 ? n.toFixed(4) : n.toFixed(2)); };
+export const money = (x) => {
+  const n = Number(x) || 0, d = n > 0 && n < 0.01 ? 4 : 2, loc = words.locale();
+  return "$" + (loc === "en-GB" ? n.toFixed(d) : n.toLocaleString(loc, { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: false }));
+};
+// the browser's own way for British English (as before wave 9), the chosen language's otherwise
+const dateLocale = () => (words.lang() === "en-GB" ? undefined : words.locale());
 export function ago(ts) {
   if (!ts) return "";
   const s = Math.floor((Date.now() - Date.parse(ts)) / 1000);
@@ -162,10 +175,10 @@ export function ago(ts) {
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   if (s < 86400) { const n = Math.floor(s / 3600); return `${n} hour${n > 1 ? "s" : ""} ago`; }
   const d = Math.floor(s / 86400);
-  return d === 1 ? "yesterday" : d < 30 ? `${d} days ago` : new Date(ts).toLocaleDateString();
+  return d === 1 ? "yesterday" : d < 30 ? `${d} days ago` : new Date(ts).toLocaleDateString(dateLocale());
 }
-export function clock(ts) { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }); }
-export const when = (ts) => h("time", { datetime: ts, title: ts ? new Date(ts).toLocaleString() : "" }, ago(ts));
+export function clock(ts) { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString(words.locale(), { hour: "2-digit", minute: "2-digit" }); }
+export const when = (ts) => h("time", { datetime: ts, title: ts ? new Date(ts).toLocaleString(dateLocale()) : "" }, ago(ts));
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
 export function fileSize(n) { const u = ["bytes", "KB", "MB", "GB"]; let i = 0; n = Number(n) || 0; while (n >= 1024 && i < 3) { n /= 1024; i++; } return i ? `${n.toFixed(1)} ${u[i]}` : `${n} bytes`; }
 

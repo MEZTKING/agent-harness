@@ -91,6 +91,9 @@ import com.meztking.roundtable.work.Watch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import com.meztking.roundtable.data.Words
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.meztking.roundtable.data.FailureAction
@@ -123,7 +126,11 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             RoundtableTheme {
-                CompositionLocalProvider(LocalHingeSource provides hinges) { Root(openProject) }
+                // wave 9: right to left for Arabic, Hebrew, Persian and Urdu (data/Words.kt)
+                CompositionLocalProvider(
+                    LocalHingeSource provides hinges,
+                    LocalLayoutDirection provides if (Words.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+                ) { Root(openProject) }
             }
         }
     }
