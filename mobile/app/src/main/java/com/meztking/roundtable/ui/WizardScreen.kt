@@ -78,7 +78,8 @@ fun WizardContent(f: WizardFlow, notice: String?, onBack: () -> Unit, onAnswer: 
                 box()
             }
             else -> AskCard(a.copy(options = a.options.filter { o -> o.id !in disabled(a) }), { r -> onAnswer(a, r) },
-                showProject = false, hint = if (a.id == WizardFlow.LIKE) "Paste links or names, one per line. It makes something similar, never a copy." else "")
+                showProject = false, pictures = com.meztking.roundtable.data.Looks.forCard(a, emptyMap()),
+                hint = if (a.id == WizardFlow.LIKE) "Paste links or names, one per line. It makes something similar, never a copy." else "")
         }
         if (notice != null) Text(notice, color = Hall.bad)
     }

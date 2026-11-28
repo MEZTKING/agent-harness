@@ -239,7 +239,14 @@ fun ProjectSettingsContent(id: String, load: Load<ProjectSettingsView>, saving: 
         if (v == null) { if (load.loading) Loading("Reading the settings…"); return@Column }
         v.errors.forEach { Text(it, color = Hall.bad, style = MaterialTheme.typography.bodySmall) }
         val drafts = remember(v) { mutableStateMapOf<String, String>().apply { v.items.forEach { put(it.key, ProjectSettings.draft(it)) } } }
-        v.items.forEach { s -> SettingField(s, drafts[s.key].orEmpty()) { drafts[s.key] = it } }
+        // the money and the checking first; the rest behind More (short first, details on request)
+        val (first, rest) = remember(v) { ProjectSettings.split(v) }
+        first.forEach { s -> SettingField(s, drafts[s.key].orEmpty()) { drafts[s.key] = it } }
+        if (rest.isNotEmpty()) Fold(com.meztking.roundtable.data.Words.t("More ({n})", "n" to rest.size)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                rest.forEach { s -> SettingField(s, drafts[s.key].orEmpty()) { drafts[s.key] = it } }
+            }
+        }
         Button(onClick = { onSave(drafts.toMap()) }, enabled = !saving, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Hall.gold, contentColor = Hall.onAccent)) {
             if (saving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Save")

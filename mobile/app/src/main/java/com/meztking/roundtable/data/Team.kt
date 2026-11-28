@@ -98,6 +98,15 @@ object Team {
             if (v.reached.isNotEmpty()) ". ${v.reached.size} reached a limit." else "."
     }
 
+    /** Hiring: the PC's answer to "Give this job to…": its own sentence ("Saved Maelin.") and the agent as it is now. */
+    @Serializable
+    data class Hired(val reply: String = "", val agent: Agent? = null)
+
+    fun hired(json: String): Hired = ApiJson.decodeFromString(Hired.serializer(), json)
+
+    /** The agents who could take [job]: those not doing it now (making a new agent stays on the PC). */
+    fun canTake(v: AgentsView, job: String): List<Agent> = v.agents.filter { !(it.job == job && it.hired) }
+
     private fun e(s: String) = URLEncoder.encode(s, "UTF-8")
 }
 

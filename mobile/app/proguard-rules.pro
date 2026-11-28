@@ -18,3 +18,6 @@
 -dontwarn org.tukaani.xz.**
 # Tink (inside security-crypto) refers to compile-only Error Prone annotations
 -dontwarn com.google.errorprone.annotations.**
+# Readable crash reports from the release build (data/Crash.kt keeps the stack): line numbers, no file names
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

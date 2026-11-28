@@ -62,6 +62,8 @@ interface ChatSource {
     suspend fun ask(text: String): String
     suspend fun command(line: String, confirmed: Boolean): SlashReply
     suspend fun stream(task: String, since: Long): StreamRead
+    /** Talk through the PC: what was heard; the answer is read aloud and may propose an action, which waits for a tap. */
+    suspend fun talk(text: String): com.meztking.roundtable.data.TalkReply = com.meztking.roundtable.data.TalkReply(reply = ask(text))
 }
 
 class ApiChat(private val api: Api, private val path: String) : ChatSource {
@@ -74,6 +76,7 @@ class ApiChat(private val api: Api, private val path: String) : ChatSource {
     override suspend fun command(line: String, confirmed: Boolean) =
         Slash.parseReply(api.slowFeature("POST", Slash.RUN, Slash.body(path, line, confirmed)))
     override suspend fun stream(task: String, since: Long) = Stream.parse(api.feature("GET", Stream.url(path, task, since)))
+    override suspend fun talk(text: String) = Talk.parseReply(api.talk(path, text))
 }
 
 /**
@@ -92,6 +95,7 @@ fun ChatTab(source: ChatSource, running: String? = null) {
     var notice by remember { mutableStateOf<String?>(null) }
     var confirm by remember { mutableStateOf<SlashReply?>(null) }
     var spokenAsk by remember { mutableStateOf<String?>(null) }  // a command line waiting for a spoken yes
+    var proposed by remember { mutableStateOf<com.meztking.roundtable.data.TalkAction?>(null) }  // from Talk: waits for a tap
     val voice = rememberVoice()
 
     suspend fun load() {
@@ -128,6 +132,23 @@ fun ChatTab(source: ChatSource, running: String? = null) {
         }
     }
 
+    // Talk through the PC: the words go to /api/chat/talk, the answer is read aloud, and an action it proposes is shown
+    // as a card that needs a tap (it is never done by speaking or by the PC on its own; "Are you sure?" still applies)
+    fun talk(heard: String) {
+        val w = heard.trim()
+        if (w.isEmpty() || sending) return
+        scope.launch {
+            sending = true
+            try {
+                val r = source.talk(w)
+                notice = null
+                voice.say(Talk.forSpeaking(r.reply))
+                proposed = r.action?.takeIf { it.line.startsWith("/") }
+                load()
+            } catch (e: CancellationException) { throw e } catch (e: Exception) { notice = friendly(e) } finally { sending = false }
+        }
+    }
+
     val listenYes = rememberListener("Say yes or no", onHeard = { heard ->
         val line = spokenAsk
         spokenAsk = null
@@ -138,7 +159,7 @@ fun ChatTab(source: ChatSource, running: String? = null) {
         val line = Talk.commandFrom(heard, commands)
         val c = line?.let { Talk.commandOf(it, commands) }
         when {
-            line == null -> send(heard, aloud = true)
+            line == null -> talk(heard)
             Talk.mayStartBySaying(c) -> { spokenAsk = line; voice.say(Talk.askAloud(c!!)) { listenYes() } }
             else -> { text = line; notice = "This one asks first: read it, then tap Send." }
         }
@@ -156,6 +177,13 @@ fun ChatTab(source: ChatSource, running: String? = null) {
         onRefresh = { scope.launch { load() } },
         stream = { t, since -> source.stream(t, since) },
     )
+    proposed?.let { p ->
+        TalkActionCard(p, onDo = {
+            proposed = null
+            // a tap: the command runs as if typed, so one that spends or deletes still asks "Are you sure?" (below)
+            run(p.line, confirmed = false)
+        }, onNot = { proposed = null; notice = "Not done." })
+    }
     confirm?.let { c ->
         AlertDialog(
             onDismissRequest = { confirm = null },
@@ -284,4 +312,21 @@ fun QueueCard(v: QueueView, onQueue: (action: String, item: QueueItem, text: Str
             }
         }
     }
+}
+
+/** What Talk proposes to do, as a card: what it does, and Do it or Not now. Nothing happens without a tap. */
+@Composable
+fun TalkActionCard(a: com.meztking.roundtable.data.TalkAction, onDo: () -> Unit, onNot: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onNot,
+        title = { Text(com.meztking.roundtable.data.Words.t("The planner suggests")) },
+        text = {
+            Column {
+                Text(Talk.actionLine(a))
+                Text(a.line, Modifier.padding(top = 6.dp), fontFamily = Mono, color = Hall.muted)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDo) { Text(com.meztking.roundtable.data.Words.t("Do it")) } },
+        dismissButton = { TextButton(onClick = onNot) { Text(com.meztking.roundtable.data.Words.t("Not now")) } },
+    )
 }

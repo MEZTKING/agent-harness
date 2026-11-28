@@ -641,8 +641,17 @@ fun NeedsList(
     needs: List<NeedView>, mode: Mode?, busy: Set<String>, onAct: (NeedView, String) -> Unit, onOpen: (NeedView) -> Unit,
     modifier: Modifier = Modifier, onClose: (() -> Unit)? = null, onAnswer: (NeedView, AskReply) -> Unit = { _, _ -> },
     onMarkAllRead: (List<NeedView>) -> Unit = {},
+    /** The machine (the PC or this phone) a need came through, for Answer these and a card's timer; null in Hub mode. */
+    machineFor: (String) -> com.meztking.roundtable.net.Api? = rememberMachines(),
 ) {
     val projects = remember(needs) { NeedsOrder.organise(needs) }
+    // Answer these: the cards that came from one machine (the one with the most), each with its folder and stamp
+    val several = remember(needs) {
+        needs.filter { it.ask != null }.groupBy { it.source }.maxByOrNull { it.value.size }?.let { (src, ns) ->
+            src to ns.map { n -> n.ask!!.copy(project = n.project, path = n.ask.path ?: n.path) }
+        }
+    }
+    val severalApi = several?.first?.let(machineFor)
     var folded by rememberSaveable { mutableStateOf(setOf<String>()) }
     var opened by rememberSaveable { mutableStateOf(setOf<String>()) }
     val letters = needs.filter { it.kind == "message" && it.message != null }
@@ -656,6 +665,10 @@ fun NeedsList(
                 if (letters.isNotEmpty()) TextButton(onClick = { onMarkAllRead(letters) }) { Text("Mark all read") }
                 if (onClose != null) TextButton(onClick = onClose) { Text("Handle later") }
             }
+        }
+        if (severalApi != null && several != null && com.meztking.roundtable.data.AnswerThese.shown(several.second)) item(key = "answer-these") {
+            AnswerTheseBar(several.second, send = { severalApi.answerSeveral(it) },
+                onAlone = { c -> needs.firstOrNull { it.ask?.id == c.id }?.let(onOpen) })
         }
         if (needs.isEmpty()) item {
             Text("Nothing waits for you. The Table will tell you when something does.", color = Hall.muted,
@@ -685,7 +698,10 @@ fun NeedsList(
                     items(shown, key = { it.key }) { n ->
                         val ask = n.ask
                         if (ask != null) Column {
-                            AskCard(ask.copy(project = n.project), { onAnswer(n, it) }, busy = n.key in busy, showProject = false)
+                            val help = remember(n.source) { machineFor(n.source)?.let { ApiCardHelp(it) } }
+                            val placed = ask.copy(project = n.project, path = ask.path ?: n.path)
+                            AskCard(placed, { onAnswer(n, it) }, busy = n.key in busy, showProject = false,
+                                onTyping = rememberHold(help)?.let { h -> { h(placed) } })
                             if (n.asks > 1) TextButton({ onOpen(n) }) { Text("${n.asks - 1} more on the plan") }
                         } else NeedCard(n, mode, n.key in busy, onAct, onOpen)
                     }
@@ -769,4 +785,17 @@ fun whereWords(s: SeatView): String {
     val head = s.building.ifBlank { s.lives.replaceFirstChar { it.uppercase() } }
     val also = s.seenIn.mapNotNull { com.meztking.roundtable.data.Source.of(it)?.words }
     return head + if (also.isNotEmpty()) " · also seen through ${also.joinToString(" and ")}" else ""
+}
+
+/** The API of the machine a need came through (Source.key), from the app's connections; null for the hub or in tests. */
+@Composable
+fun rememberMachines(): (String) -> com.meztking.roundtable.net.Api? {
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.meztking.roundtable.RoundtableApp
+    return remember(app) {
+        { key: String ->
+            val src = com.meztking.roundtable.data.Source.of(key)
+            if (app == null || src == null || src == com.meztking.roundtable.data.Source.HUB) null
+            else runCatching { (app.backend()?.parts?.get(src) as? com.meztking.roundtable.data.PcBackend)?.api }.getOrNull()
+        }
+    }
 }
