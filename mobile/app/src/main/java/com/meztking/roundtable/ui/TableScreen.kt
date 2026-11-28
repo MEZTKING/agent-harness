@@ -58,6 +58,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -109,6 +112,9 @@ class TablePins(
     val away: Set<String> = emptySet(),
     val pin: (String, Boolean) -> Unit = { _, _ -> },
     val putAway: (String, Boolean) -> Unit = { _, _ -> },
+    /** The owner's own order (DS-19), and where a press, hold and drag saves it; null: no dragging. */
+    val order: List<String> = emptyList(),
+    val reorder: ((List<String>) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,8 +147,32 @@ fun TableScreen(
     var showAutopilot by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     val all = data?.seats.orEmpty()
-    val (seats, awaySeats) = remember(all, pins?.pinned, pins?.away) {
-        com.meztking.roundtable.data.Comfort.arrange(all, { it.id }, pins?.pinned.orEmpty(), pins?.away.orEmpty())
+    val (seats, awaySeats) = remember(all, pins?.pinned, pins?.away, pins?.order) {
+        com.meztking.roundtable.data.Comfort.arrange(all, { it.id }, pins?.pinned.orEmpty(), pins?.away.orEmpty(), pins?.order.orEmpty())
+    }
+    // Order by hand (DS-19): the list as it stands mid-drag, saved when the finger lifts.
+    var arranging by rememberSaveable { mutableStateOf(false) }
+    var live by remember(seats) { mutableStateOf(seats) }
+    var dragged by remember { mutableStateOf<String?>(null) }
+    var dragY by remember { mutableStateOf(0f) }
+    val stepPx = with(androidx.compose.ui.platform.LocalDensity.current) { 78.dp.toPx() }
+    val reorder = pins?.reorder
+    fun handleFor(s: SeatView): Modifier = if (reorder == null) Modifier else Modifier.pointerInput(s.id) {
+        detectDragGesturesAfterLongPress(
+            onDragStart = { dragged = s.id; dragY = 0f },
+            onDragEnd = { dragged = null; reorder(live.map { it.id } + awaySeats.map { it.id }) },
+            onDragCancel = { dragged = null; live = seats },
+            onDrag = { change, amount ->
+                change.consume()
+                dragY += amount.y
+                val from = live.indexOfFirst { it.id == s.id }
+                if (from >= 0 && kotlin.math.abs(dragY) >= stepPx) {
+                    val to = from + if (dragY > 0) 1 else -1
+                    live = com.meztking.roundtable.data.Comfort.moved(live, from, to)
+                    dragY -= if (dragY > 0) stepPx else -stepPx
+                }
+            },
+        )
     }
     val needs = data?.needs.orEmpty()
     // what waits on each seat, in words ("2 questions, 1 to-do"), for its badge and its card
@@ -165,9 +195,17 @@ fun TableScreen(
                                 style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-                    seats.size > TABLE_MAX -> {
-                        if (needs.isNotEmpty()) item { CentreBanner(needs.size) { onShowNeeds(true) } }
-                        items(seats, key = { it.id }) { SeatRow(it, waits[it.id], pins) { onOpen(it) } }
+                    seats.size > TABLE_MAX || arranging -> {
+                        if (arranging && seats.size <= TABLE_MAX) item {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Press, hold and drag a project to move it.", Modifier.weight(1f), color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = { arranging = false }) { Text("Done") }
+                            }
+                        }
+                        if (needs.isNotEmpty() && !arranging) item { CentreBanner(needs.size) { onShowNeeds(true) } }
+                        items(live, key = { it.id }) {
+                            SeatRow(it, waits[it.id], pins, lifted = dragged == it.id, handle = if (reorder != null) handleFor(it) else null) { onOpen(it) }
+                        }
                     }
                     else -> {
                         item {
@@ -180,6 +218,11 @@ fun TableScreen(
                             if (s != null) SeatSummary(s, waits[s.id], pins) { onOpen(s) }
                             else Text("Tap a light to see where a project stands. Tap it again to open it.", color = Hall.muted,
                                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        }
+                        if (reorder != null && seats.size > 1) item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                TextButton(onClick = { arranging = true }) { Text("Arrange the table", color = Hall.gold) }
+                            }
                         }
                     }
                 }
@@ -234,13 +277,23 @@ private fun Header(where: String, mode: Mode?, loading: Boolean, onRefresh: () -
     }
 }
 
+/**
+ * What a named failure's button does, for screens that can do more than retry (pair again, open Settings…).
+ * Returns false when it can't, and the button retries instead. MainActivity provides it.
+ */
+val LocalFailureActions = androidx.compose.runtime.staticCompositionLocalOf<(com.meztking.roundtable.data.FailureAction) -> Boolean> { { false } }
+
 @Composable
 fun ErrorLine(text: String, onRetry: () -> Unit) {
+    val failure = com.meztking.roundtable.data.Failure.ofSentence(text)
+    val act = LocalFailureActions.current
     Row(Modifier.fillMaxWidth().background(Hall.bad.copy(alpha = 0.10f), RoundedCornerShape(6.dp))
         .border(1.dp, Hall.bad.copy(alpha = 0.5f), RoundedCornerShape(6.dp)).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Text(text, Modifier.weight(1f).padding(vertical = 6.dp), color = Hall.bad, style = MaterialTheme.typography.bodyMedium)
-        TextButton(onClick = onRetry) { Text("Try again") }
+        TextButton(onClick = { if (failure == null || failure.action == com.meztking.roundtable.data.FailureAction.TRY_AGAIN || !act(failure.action)) onRetry() }) {
+            Text(failure?.button ?: "Try again")
+        }
     }
 }
 
@@ -452,15 +505,21 @@ fun SeatSummary(s: SeatView, waits: String? = null, pins: TablePins? = null, onO
 /** B's roll call: one row per project, for when there are too many seats for the table. */
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-fun SeatRow(s: SeatView, waits: String? = null, pins: TablePins? = null, onOpen: () -> Unit) {
+fun SeatRow(
+    s: SeatView, waits: String? = null, pins: TablePins? = null, lifted: Boolean = false,
+    /** The hold-and-drag handle's gesture (DS-19); null: no handle. */
+    handle: Modifier? = null,
+    onOpen: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     val buzz = com.meztking.roundtable.ui.theme.rememberHaptics()
     Box {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Hall.panel)
-        .border(if (s.status == "waiting") 2.dp else 1.dp, if (s.status == "waiting") Hall.candle else Hall.line, RoundedCornerShape(10.dp))
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (lifted) Hall.line else Hall.panel)
+        .border(if (s.status == "waiting" || lifted) 2.dp else 1.dp, if (lifted) Hall.gold else if (s.status == "waiting") Hall.candle else Hall.line, RoundedCornerShape(10.dp))
         .combinedClickable(onClick = onOpen, onLongClickLabel = if (pins != null) "Pin or put away" else null,
             onLongClick = if (pins != null) ({ buzz(); menu = true }) else null)
         .padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (handle != null) Icon(Icons.Filled.DragIndicator, "Press, hold and drag to move ${s.id}", handle.size(28.dp), tint = Hall.muted)
         SeatRing(s, false, 46.dp, waits)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

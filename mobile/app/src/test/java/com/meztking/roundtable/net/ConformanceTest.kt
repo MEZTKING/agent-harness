@@ -215,6 +215,13 @@ class ConformanceTest {
             assertTrue(path, ApiJson.parseToJsonElement(api.feature("GET", path)).jsonObject.isNotEmpty())
         }
 
+        // wave 8, read only for now (the phone's screens for them come next): every answer is a JSON object
+        for (path in listOf("/api/board?path=$project", "/api/stream?path=$project&task=T1&since=0", "/api/commands?path=$project",
+                "/api/follow?path=$project&task=T1", "/api/queue?path=$project", "/api/perms", "/api/ci?path=$project",
+                "/api/integrations", "/api/listening", "/api/git/log?path=$project")) {
+            assertTrue(path, ApiJson.parseToJsonElement(api.feature("GET", path)).jsonObject.isNotEmpty())
+        }
+
         synchronized(problems) { assertTrue(problems.joinToString("\n"), problems.isEmpty()) }
         val missed = calls.map { it.name }.filter { it !in served }
         assertTrue("calls.json lists calls this test doesn't make: $missed", missed.isEmpty())

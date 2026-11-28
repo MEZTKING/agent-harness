@@ -75,6 +75,8 @@ class Comfort(private val prefs: SharedPreferences) {
     var detail by mutableStateOf(Detail.of(prefs.getString(K_DETAIL, null))); private set
     var pinned by mutableStateOf(prefs.getStringSet(K_PINNED, null).orEmpty().toSet()); private set
     var putAway by mutableStateOf(prefs.getStringSet(K_AWAY, null).orEmpty().toSet()); private set
+    /** The owner's own order of the Table's projects (DS-19), kept on the phone; projects not in it follow in the hub's order. */
+    var order by mutableStateOf(prefs.getString(K_ORDER, null).orEmpty().split('\n').filter { it.isNotBlank() }); private set
     /** Bumps when the sent history changes, so screens that read it redraw. */
     var sentVersion by mutableStateOf(0); private set
 
@@ -98,6 +100,12 @@ class Comfort(private val prefs: SharedPreferences) {
         putAway = if (on) putAway + id else putAway - id
         if (on && id in pinned) pinned = pinned - id
         save()
+    }
+
+    /** The Table's order after a press, hold and drag: [ids] as they now stand. */
+    fun reorder(ids: List<String>) {
+        order = ids.distinct().filter { it.isNotBlank() && '\n' !in it }.take(ORDER_MAX)
+        prefs.edit().putString(K_ORDER, order.joinToString("\n")).apply()
     }
 
     private fun save() { prefs.edit().putStringSet(K_PINNED, pinned.toSet()).putStringSet(K_AWAY, putAway.toSet()).apply() }
@@ -134,6 +142,8 @@ class Comfort(private val prefs: SharedPreferences) {
         private const val K_DETAIL = "detail"
         private const val K_PINNED = "pinned"
         private const val K_AWAY = "put_away"
+        private const val K_ORDER = "table_order"
+        const val ORDER_MAX = 500
         private const val K_SENT = "sent:"
         private val LIST = ListSerializer(SentItem.serializer())
         private val json = Json { ignoreUnknownKeys = true }
@@ -152,13 +162,27 @@ class Comfort(private val prefs: SharedPreferences) {
             }
         }
 
+        /** [list] with the item at [from] moved to [to] (both clamped): one step of a drag. */
+        fun <T> moved(list: List<T>, from: Int, to: Int): List<T> {
+            if (list.isEmpty() || from !in list.indices) return list
+            val m = list.toMutableList()
+            val item = m.removeAt(from)
+            m.add(to.coerceIn(0, m.size), item)
+            return m
+        }
+
         /** Forgets the cached one (tests, to read the file again as after a restart). */
         fun reset() { shared = null }
 
-        /** Pinned first (in the Table's order), then the rest; put-away projects apart. Never drops one. */
-        fun <T> arrange(items: List<T>, id: (T) -> String, pinned: Set<String>, putAway: Set<String>): Pair<List<T>, List<T>> {
-            val away = items.filter { id(it) in putAway }
-            val shown = items.filterNot { id(it) in putAway }
+        /**
+         * Pinned first, then the rest, each in the owner's [order] (projects it doesn't name keep the hub's order,
+         * after the ones it does); put-away projects apart. Never drops one.
+         */
+        fun <T> arrange(items: List<T>, id: (T) -> String, pinned: Set<String>, putAway: Set<String>, order: List<String> = emptyList()): Pair<List<T>, List<T>> {
+            val rank = order.withIndex().associate { it.value to it.index }
+            val sorted = if (rank.isEmpty()) items else items.withIndex().sortedWith(compareBy({ rank[id(it.value)] ?: Int.MAX_VALUE }, { it.index })).map { it.value }
+            val away = sorted.filter { id(it) in putAway }
+            val shown = sorted.filterNot { id(it) in putAway }
             return (shown.filter { id(it) in pinned } + shown.filterNot { id(it) in pinned }) to away
         }
     }

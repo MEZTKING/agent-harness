@@ -67,6 +67,8 @@ DAY_WORDS = {"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thur
 KINDS = ("schedule", "issues", "ci")
 WHATS = ("idea", "goal", "health", "backup")
 WHATS += ("learn",)  # wave 7: learning within its weekly allowance (improve/wallet.py)
+KINDS += ("events", "poll", "local")  # wave 8: work that starts from outside, no open door (reach.py)
+WHATS += ("standup",)  # wave 8: the stand-up, a look at every project with no model (reach.py)
 CATCH_UP_H = 6.0  # a slot missed while the computer was off still fires this long after
 EARLY_S = 5  # a wake this close before a slot was that slot's
 POLL_MINUTES = 5.0
@@ -412,7 +414,8 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     a: dict[str, Any] = {"id": str(raw.get("id") or _random.token_hex(4)), "kind": kind,
                          "name": " ".join(str(raw.get("name") or "").split())[:80],
                          "on": raw.get("on", True) is not False,
-                         "start_by_itself": bool(raw.get("start_by_itself")),
+                         # outside text (a local program, events, an address) always waits for the owner's OK
+                         "start_by_itself": bool(raw.get("start_by_itself")) and kind not in _HOOKS,
                          "cap_usd": round(max(0.0, float(raw.get("cap_usd") or 0)), 2),
                          "created_at": raw.get("created_at") or iso(utcnow())}
     if a["start_by_itself"] and a["cap_usd"] <= 0:
@@ -433,6 +436,15 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
             if not do.get("project"):
                 raise AutomationError("Pick the project the goal is for.")
             a["do"]["project"] = str(do["project"])
+    elif kind in _HOOKS:
+        from . import reach
+
+        try:
+            a = reach.normalise_hook(raw, a)
+        except AutomationError:
+            raise
+        except ValueError as e:
+            raise AutomationError(str(e)) from e
     else:
         repo = str(raw.get("repo") or "").strip().removeprefix("https://github.com/").strip("/")
         repo = repo.removesuffix(".git")
@@ -460,6 +472,11 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     return a
 
 
+_HOOKS = ("events", "poll", "local")
+_HOOK_WHEN = {"poll": "Looks at the address you named every few minutes",
+              "local": "Starts when a program on this computer sends it something"}
+
+
 def _project_name(path: Any) -> str:
     return Path(str(path or "")).name or "a project"
 
@@ -469,9 +486,15 @@ def default_name(a: dict[str, Any]) -> str:
         return f"Issues labelled {a['label']} in {a['repo']}"
     if a["kind"] == "ci":
         return f"Fix failed checks on {a['repo']} {a['branch']}"
+    if a["kind"] in _HOOKS:
+        from . import reach
+
+        return reach.hook_words(a).rstrip(".")[:80]
     what = a["do"]["what"]
     if what == "health":
         return "Health check"
+    if what == "standup":
+        return "Stand-up"
     if what == "backup":
         return "Backup"
     first = re.split(r"(?<=[.!?])\s", a["do"]["text"])[0][:60]
@@ -486,6 +509,10 @@ def what_words(a: dict[str, Any]) -> str:
     if a["kind"] == "ci":
         return (f"A failed check on {a['branch']} in {a['repo']} becomes a fix task for "
                 f"{_project_name(a.get('project'))}.")
+    if a["kind"] in _HOOKS:
+        from . import reach
+
+        return reach.hook_words(a)
     what = a["do"]["what"]
     if what == "health":
         return "Checks that your models are working."
@@ -493,6 +520,8 @@ def what_words(a: dict[str, Any]) -> str:
         return "Backs up your settings and plans."
     if what == "learn":
         return "Learns from your past runs, within its weekly allowance."
+    if what == "standup":
+        return "Looks at every project and writes one line on how each is doing (no model, no cost)."
     if what == "idea":
         return f"Plans a new project: “{a['do']['text'][:140]}”."
     return f"Plans the next goal for {_project_name(a['do']['project'])}: “{a['do']['text'][:140]}”."
@@ -535,8 +564,10 @@ def next_run(a: dict[str, Any], st: dict[str, Any], now: datetime) -> str | None
 def view(a: dict[str, Any], st: dict[str, Any], now: datetime | None = None, cfg: Any = None) -> dict[str, Any]:
     """An automation as the page shows it."""
     now = now or utcnow()
+    if isinstance(a.get("hook"), dict):  # a local hook's secret is kept hashed and never shown again
+        a = {**a, "hook": {k: v for k, v in a["hook"].items() if k not in ("secret_hash", "secret")}}
     return {**a, "what": what_words(a), "when_words": when_words(a["when"]) if a["kind"] == "schedule" else
-            "Looks at GitHub every few minutes", "money": money_words(a, st, cfg),
+            _HOOK_WHEN.get(a["kind"], "Looks at GitHub every few minutes"), "money": money_words(a, st, cfg),
             "last_run": st.get("last_run"), "last_result": st.get("last_result") or "",
             "last_ok": st.get("last_ok", True), "next_run": next_run(a, st, now),
             "made": list(reversed(st.get("made") or []))[:10], "waiting": st.get("waiting") or [],
@@ -861,7 +892,8 @@ def _plan_job(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], root: Path, new
             est_words = f" Its estimate: about ${est:.2f}." if est is not None else ""
             text = f"Planned “{title}” in {root.name}.{est_words}"
             left = _left(a, ctx.home, ctx.machine) - (float(Project(root).meta().get("spent_usd") or 0) - before)
-            if status == "awaiting_approval" and a["start_by_itself"] and est is not None and est <= left:
+            by_itself = a["start_by_itself"] and a.get("kind") not in _HOOKS  # outside text never starts alone
+            if status == "awaiting_approval" and by_itself and est is not None and est <= left:
                 orch = Orchestrator(cfg, root, on_event=on_event)
                 orch.approve()
                 orch.budget.limit_usd = min(orch.budget.limit_usd, orch.budget.spent_usd + left)
@@ -871,7 +903,7 @@ def _plan_job(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], root: Path, new
                 text += f" Started building by itself (it had ${left:.2f} of its limit left); the run ended as: {status}."
             elif status == "awaiting_approval":
                 why = ""
-                if a["start_by_itself"]:
+                if by_itself:
                     why = (f" Its estimate is more than what's left of this automation's limit (${max(left, 0):.2f})."
                            if est is not None else " It has no estimate, so it won't start by itself.")
                 text += f"{why} It waits for your OK in Needs you."
@@ -978,6 +1010,13 @@ def act(ctx: Ctx, a: dict[str, Any], item: dict[str, Any], approved: bool = Fals
             return None
         ctx.start("improve", "learning", "improve", job(ctx, a))
         return {"id": a["id"], "name": a["name"], "text": "Learning started.", "ok": True}
+    if what == "standup":
+        from . import reach
+
+        done = reach.standup(ctx) or {}  # filled in by wave 8 (p1-reach); until then: nothing done, nothing recorded
+        if not done:
+            return None
+        return _record(ctx, a, str(done.get("text") or "Stand-up written."), bool(done.get("ok", True)))
     return None
 
 
@@ -1064,6 +1103,36 @@ def _run_github(ctx: Ctx, a: dict[str, Any], st: dict[str, Any], s: dict[str, An
     return out
 
 
+def _run_hooks(ctx: Ctx, a: dict[str, Any], st: dict[str, Any], s: dict[str, Any]) -> list[dict[str, Any]]:
+    """Work from outside (``events``, ``poll``, ``local``): reach.py says what is new (and when to ask); each new
+    item is claimed once across machines and acted on, as an issue is."""
+    from . import reach
+
+    items = reach.poll_hooks(ctx, a) or []
+    seen = set(st.get("seen") or [])
+    out: list[dict[str, Any]] = []
+    for it in [it for it in items if it.get("key") and it["key"] not in seen][:s["max_new_per_poll"]]:
+        root = _target(ctx, it) if it.get("what") == "goal" else None
+        if root and _is_busy(ctx, root):
+            break  # its project is busy: the rest wait for the next look
+        if not claim(ctx.hub, a["id"], it["key"], _me(ctx.machine), ctx.lock):
+            _mark_seen(ctx, a, it["key"])
+            continue
+        _mark_seen(ctx, a, it["key"])
+        r = act(ctx, a, it)
+        if r:
+            out.append(r)
+    return out
+
+
+def _run_one(ctx: Ctx, a: dict[str, Any], st: dict[str, Any], s: dict[str, Any], force: bool = False) -> list:
+    if a["kind"] == "schedule":
+        return _run_schedule(ctx, a, st, s)
+    if a["kind"] in _HOOKS:
+        return _run_hooks(ctx, a, st, s)
+    return _run_github(ctx, a, st, s, force=force)
+
+
 def _mark_seen(ctx: Ctx, a: dict[str, Any], key: str) -> None:
     _update_state(ctx.home, a["id"], lambda x: x.__setitem__("seen", ((x.get("seen") or []) + [key])[-500:]),
                   ctx.machine)
@@ -1085,7 +1154,7 @@ def tick(cfg, hub=None, home: str | Path | None = None, now: datetime | None = N
         if not a["on"] or st.get("off"):
             continue
         try:
-            out += _run_schedule(ctx, a, st, s) if a["kind"] == "schedule" else _run_github(ctx, a, st, s)
+            out += _run_one(ctx, a, st, s)
         except Exception as e:  # one broken automation never stops the others
             out.append(_record(ctx, a, f"Something went wrong: {e}", False))
     return out
@@ -1104,10 +1173,12 @@ def run_now(ctx: Ctx, aid: str) -> dict[str, Any]:
             raise AutomationError("Its project is busy right now. Try again when that job has finished.")
         r = act(ctx, a, item, approved=True)
         return r or {"id": aid, "text": "Nothing to do now.", "ok": True}
+    if a["kind"] in _HOOKS:  # Run now looks at once, whatever the next look was set to
+        _update_state(ctx.home, aid, lambda x: x.pop("next_look", None), ctx.machine)
     st = load_state(ctx.home, ctx.machine).get(aid) or {}
-    done = _run_github(ctx, a, st, settings(ctx.cfg), force=True)
+    done = _run_one(ctx, a, st, settings(ctx.cfg), force=True)
     st = load_state(ctx.home, ctx.machine).get(aid) or {}
-    return {"id": aid, "text": "; ".join(r["text"] for r in done) or st.get("last_result") or "Asked GitHub.",
+    return {"id": aid, "text": "; ".join(r["text"] for r in done) or st.get("last_result") or ("Looked: nothing new." if a["kind"] in _HOOKS else "Asked GitHub."),
             "ok": all(r.get("ok", True) for r in done)}
 
 

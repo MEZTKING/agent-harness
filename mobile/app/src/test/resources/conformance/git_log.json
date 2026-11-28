@@ -1,0 +1,54 @@
+{
+ "branch": "master",
+ "commits": [
+  {
+   "at": "2026-11-27T23:33:07+00:00",
+   "author": "agent-harness",
+   "kind": "task",
+   "parents": [
+    "814071b5e822510006ada14568b751ee06294934"
+   ],
+   "sha": "5a564abd2f12d75b80fbdc7e7cd96af4153876a9",
+   "short": "5a564ab",
+   "subject": "[T3] tests",
+   "task": "T3"
+  },
+  {
+   "at": "2026-11-27T23:33:07+00:00",
+   "author": "agent-harness",
+   "kind": "task",
+   "parents": [
+    "4bbd2d5abbf9aef3aae1b0bbfa68334b4fbd042a"
+   ],
+   "sha": "814071b5e822510006ada14568b751ee06294934",
+   "short": "814071b",
+   "subject": "[T2] logo",
+   "task": "T2"
+  },
+  {
+   "at": "2026-11-27T23:33:07+00:00",
+   "author": "agent-harness",
+   "kind": "task",
+   "parents": [
+    "61954faa67c5d11501857400884d80f65592e7a4"
+   ],
+   "sha": "4bbd2d5abbf9aef3aae1b0bbfa68334b4fbd042a",
+   "short": "4bbd2d5",
+   "subject": "[T1] hello module",
+   "task": "T1"
+  },
+  {
+   "at": "2026-11-27T23:33:07+00:00",
+   "author": "agent-harness",
+   "kind": "other",
+   "parents": [],
+   "sha": "61954faa67c5d11501857400884d80f65592e7a4",
+   "short": "61954fa",
+   "subject": "harness: snapshot before task",
+   "task": ""
+  }
+ ],
+ "more": false,
+ "path": "/home/owner/lab/proj",
+ "skip": 0
+}

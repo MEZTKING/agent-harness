@@ -15,7 +15,10 @@ stays on the same provider, which some APIs require inside tool loops.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Callable
+
+# A piece of a reply as it is written: (kind, piece), kind "text" or "thinking" (wave 8, streaming).
+OnDelta = Callable[[str, str], None]
 
 
 @dataclass
@@ -94,7 +97,12 @@ class Provider:
         tools: list[ToolSpec] | None = None,
         max_tokens: int = 16000,
         options: dict[str, Any] | None = None,
+        *,
+        on_delta: OnDelta | None = None,
     ) -> ChatResponse:
+        """One model call. ``on_delta``, when given, is told each piece of the reply as it is written
+        (``on_delta("text" | "thinking", piece)``); the returned response is the same either way. A provider
+        that can't stream ignores it and behaves exactly as without it."""
         raise NotImplementedError
 
 

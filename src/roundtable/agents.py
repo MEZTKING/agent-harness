@@ -469,11 +469,12 @@ def make_face(cfg: Any, agent: Agent, home: Path | str) -> dict[str, Any]:
     data, _ext, usage = provider.generate(ref.model, prompt, opts)
     cost = cfg.cost(ref, usage)
     try:
+        from .harness import imageprice  # one whole line at a time, safe when several pictures finish at once
+
         p = _spend_file(home)
         p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"at": utcnow(), "model": str(ref), "cost_usd": round(cost or 0.0, 6),
-                                "outcome": "face", "agent": agent.id}) + "\n")
+        imageprice.record(p, {"at": utcnow(), "model": str(ref), "cost_usd": round(cost or 0.0, 6),
+                              "outcome": "face", "agent": agent.id})
     except OSError:
         pass
     small = shrink_face(data)

@@ -241,7 +241,11 @@ def test_extend_adds_goal_and_tasks(tmp_path):
     orch.extend("goal two")
     assert orch.run() == "done"
     tasks = orch.project.tasks()
-    assert [t.id for t in tasks] == ["T1", "T2", "T3", "T4"]
+    # wave 8: goal one's finished tasks go to the archive, except those a remaining task still needs
+    from roundtable.harness import boardstage
+
+    assert [t.id for t in tasks] == ["T1", "T3", "T4"]
+    assert [r["id"] for r in boardstage.archived(orch.project.root)] == ["T2"]
     assert tasks[-1].goal_index == 1
 
 
@@ -396,7 +400,9 @@ def test_planner_image_options_reach_provider(tmp_path):
     img.generate = spy
     orch.start("goal")
     assert orch.run() == "done"
-    assert seen == {"width": 48, "height": 64, "style": "rd_core__platformer", "remove_bg": True}
+    # "record" is where a provider says how it made a picture see-through (wave 8); the rest are the options
+    assert {k: v for k, v in seen.items() if k != "record"} == {"width": 48, "height": 64,
+                                                               "style": "rd_core__platformer", "remove_bg": True}
 
 
 def test_missing_claude_key_gives_a_clear_error(monkeypatch):

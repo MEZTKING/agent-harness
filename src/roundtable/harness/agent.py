@@ -7,6 +7,7 @@ steps, or the budget is exhausted.
 
 from __future__ import annotations
 
+import inspect
 import threading
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -77,6 +78,19 @@ class AgentResult:
     other_ms: int = 0  # the rest: plugins, saving, everything between
 
 
+def _delta_kw(provider: Any, on_delta: Callable[[str, str], None] | None) -> dict[str, Any]:
+    """``{"on_delta": on_delta}`` when there is one and the provider's ``chat`` takes it, else nothing: with no
+    ``on_delta`` the call is the one made before streaming existed, and an older provider still works."""
+    if on_delta is None:
+        return {}
+    try:
+        params = inspect.signature(provider.chat).parameters
+    except (TypeError, ValueError):
+        return {}
+    takes = "on_delta" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    return {"on_delta": on_delta} if takes else {}
+
+
 def run_agent(
     cfg: HarnessConfig,
     ref: ModelRef,
@@ -93,6 +107,7 @@ def run_agent(
     role: str | None = None,
     project_root: Path | None = None,
     breaker: Breaker | None = None,
+    on_delta: Callable[[str, str], None] | None = None,
 ) -> AgentResult:
     """Drive one model through a tool loop.
 
@@ -114,6 +129,10 @@ def run_agent(
 
     Every ``model_turn`` and ``tool_call`` event carries ``ms`` (how long it took); the closing
     ``agent_done`` event carries the totals (``model_ms``, ``tool_ms``, ``other_ms``).
+
+    ``on_delta`` (wave 8): told each piece of every reply as it is written (``"text"`` or ``"thinking"``, then the
+    piece), when the provider can stream. ``None`` (the default) makes exactly the call made before it existed;
+    so does a provider that doesn't take it. A coding CLI's own loop doesn't use it.
     """
     provider = cfg.provider(ref.provider)
     from ..providers.cli_engine import CliEngine, run_cli_agent
@@ -153,7 +172,8 @@ def run_agent(
         budget.check()
         sys_sent, msgs_sent = plugins.before_model_call(str(ref), system, messages)
         m0 = clock()
-        resp = provider.chat(ref.model, sys_sent, msgs_sent, toolbox.specs(), max_tokens=max_tokens, options=options)
+        resp = provider.chat(ref.model, sys_sent, msgs_sent, toolbox.specs(), max_tokens=max_tokens, options=options,
+                             **_delta_kw(provider, on_delta))
         took = clock() - m0
         model_s += took
         plugins.after_model_call(str(ref), resp, resp.usage)

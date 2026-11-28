@@ -6,6 +6,135 @@ Newest first. What was asked, what was done (files and functions, so the next se
 finds them), what was decided and why, and what's still open. The plan is
 [PLAN.md](PLAN.md); how to run things is in [README.md](README.md).
 
+## 2026-11-27 – 1.4.0: wave 8 put together ("the parity sweep")
+
+Asked: merge the seven wave 8 branches in order (p1-board, p1-editor, p1-chat, p1-perms, p1-reach, p1-phone,
+p1-proof, on step 0), do every hook-up line from the helpers' reports and the plan's wrap-up, the six safety fixes
+from Fable's review, version 1.4.0 with its notes, parity and gaps. No push, no release.
+
+Done (merged without conflicts; then, by file):
+- `harness/orchestrator.py`: `BoardStage` and `FollowStage` in the bases (no method-name clash in the whole MRO;
+  the two old overlaps, `_look_wanted` and `_shots_wanted`, are RepoStage's on purpose); `perms.apply` before
+  every `run_agent` (one-shot roles in `_run_with_fallback`, workers in `_run_task`); `_words_sink` gives the
+  worker, the reviewer and the planner ("plan") a `streamlog.sink` unless `stream: {enabled: false}`;
+  `streamlog.clear` with the other live files at the end of a run; `_run` returns `waiting_answer` while a timed
+  question pauses the project (`asktimer.paused`); `_board_archive` after `_prepare_run`, `_board_order` after
+  `_stage_ready`, `_board_stop` after the money gate; earlier goals' archived tasks in `_project_context`;
+  `MCPPool(prereq.with_project(...))`; `_run_image_task` passes `from_image` as a full path and a `record` dict,
+  and a see-through picture's way goes in its metric row; `Task.needs_net` and its schema field (the planner
+  golden written again from inside the tests with `UPDATE_GOLDENS=1`; the only change is that field).
+- `harness/worktrees.py`: `_board_order` and `_board_stop` in the parallel loop and `_launch_stop`; `links_out` and
+  `Worktrees.remove` keeps a lane that still holds a link leading out of it.
+- `harness/tools.py`: `run_command` runs `perms.boxed(command)`. `harness/config.py` `merge_custom`: `breaker`
+  merged key by key, `workspace.allow_shell`. `harness/projectsettings.py`: the `perms` setting (job names may
+  hold `-`); `perms._project_job` fails closed (ask every time) on a wrong `perms` value.
+- `asks.py`: the quiet card, timers stamped and swept, `command_ask` says what a waiting tool wants to do (`tool`,
+  `box`), decisions and questions may carry a `timer`; the test-phone offer card (`ship_offer_ask`, PC only,
+  `pc_only`; Make it runs `emulator.make_avd` as a job, `then: "emulator"`); a task that stopped for a missing
+  coding helper carries `engine` so its card offers Install it and carry on (then the task is tried again,
+  `ui/reachapi.py` `engine_install` `task`). `harness/shipstage.py` keeps the offer in `.harness/ship-offer.json`.
+- `ui/server.py`: the editor's patch (`/raw/officepdf`, byte ranges); `chatapi`, `permsapi`, `boardapi`,
+  `reachapi` in `FEATURE_APIS`; `/hooks/` read first in `do_POST` from `self.client_address`; answers go through
+  `asktimer.answer` (also `remote._answer`); the quiet card may be answered while busy. `phone.py`: the read-only
+  routes of stream, commands, follow, queue, perms, board, git log/commit/diff, previews, browser, CI,
+  integrations and listening; `/hooks/` is never served; PC-only cards are left out of the phone's list and
+  refused if answered there. `onphone.py`: the phone's projects routes and the git key.
+  `ui/roundtable.py`: `reach.on_sync` after each auto-sync. `automation.py`: Run now clears `next_look`;
+  `view` never shows a hook's `secret_hash`; outside kinds never start by themselves.
+- `prereq.py`: the LibreOffice and Android emulator rows; `godot-mcp-server@0.6.1` and `mcp-for-blender@2.3.3`
+  pinned (npm and PyPI read today; `docs/godot.md` too). `agents.make_face` records its cost through
+  `imageprice.record`.
+- The screens (`ui/static/`): watch.js (words under a running task, follow-ups under a finished one, Focus, paths
+  linked; `stepNode` and `changedFiles` exported for focus.js); project.js (Board tab, CI chip, task copies,
+  keep the place, Talk, the composer's `onOpen`, a project's own job choices); needs.js (answer several);
+  hall.js (state words, the owner's order with up and down); models.js (`permsCell` per job); settings.js (a
+  Builders section: `permsDefaultBox`, `buildersCard`; Move my data under Advanced); tools.js (services and
+  the tool-server catalogue); asks.js (the engine offer, More for a card's commands); automation.js (no
+  "start by itself" for outside kinds). Every changed file passes `node --check`.
+- Phone: `build.gradle.kts` `androidx.window:window:1.3.0`; `MainActivity.kt` the hinge source
+  (`WindowInfoTracker`), `rememberFolded`, the Table's order, the Browser route inside `ProvideBrowserTab`,
+  `LocalFailureActions`; `Api.kt` feature prefixes for projects and wave 8's read-only routes;
+  `ConformanceTest.kt` calls them.
+- Safety (Fable's six fixes; `plans/notes-for-owner.md`): `ui/filesapi.py` `writable_file` (no link anywhere on
+  the path, nothing hidden or key-like where it really is) for saves, Undo and `gitview.undo_edit`;
+  `editapi._checkout_block` also waits for the project's own status, unfinished tasks and kept task copies;
+  `rewindapi.elsewhere` says "can't tell" when the hub can't be read; outside automations never start by
+  themselves; one answer for a missing hook and a wrong secret; `perms.own_copy_first` takes a lane's links
+  away before an install.
+- Tests: `tests/test_wave8_safety.py` (the six fixes, the phone's refusals), `tests/test_sweep_e2e.py` (one
+  scripted project: checker Read only, builder Careful, words streamed, a delete refused, a card left out on the
+  board, a hand edit put back, a local hook starting an idea that waits, the stand-up's one journal line);
+  `tests/test_stage_hooks.py` STAGES and hooks; `tests/test_sweep_seam.py` (streamlog is filled); the
+  conformance calls for board, stream, commands, follow, queue, perms, ci, integrations, listening and git log,
+  and the fixtures written again; `tests/test_reach.py` and `tests/test_prereq.py` follow the changes.
+- `pyproject.toml`: `pypdf>=4`, `mcp_catalogue.json` in the package data, version 1.4.0 (and `__version__`);
+  `packaging/roundtable.spec` collects pypdf (the catalogue comes with `collect_data_files`). README's What's new,
+  `docs/phone-security.md`, `docs/kinds.md` (window and phone pictures, `winshot` and `emulator` settings),
+  `plans/parity.md` (36 rows to Have with their files; none Missing), `plans/gaps.md`, `THIRD_PARTY_NOTICES.md`.
+
+Borrowed code (credited in `THIRD_PARTY_NOTICES.md`): from DSH Mobile (MIT) –
+`core/src/commonMain/kotlin/com/labteto/dshmobile/core/browser/BrowserAddress.kt` (copied),
+`BrowserReach.kt` and `MentionedAddresses.kt` (adapted), `core/src/commonTest/.../BrowserAddressTest.kt` and
+`WebLinkTest.kt` (ported), `app/src/main/java/com/labteto/dshmobile/ui/screens/main/browser/BrowserView.kt`
+(the WebView's settings), `app/src/main/java/com/labteto/dshmobile/runtime/RuntimeInstaller.kt` and
+`RuntimeLayout.kt` (the update trial and rollback). From Munder Difflin (MIT) – `src/shared/mcpCatalog.ts`
+(package names and pinned versions only, in `mcp_catalogue.json`). pypdf (BSD-3-Clause) is a dependency.
+
+Decided: a link inside a task's copy that stays inside it doesn't stop the copy being removed; only one leading
+out does (removing it can't reach the project). A branch switch waits for any unfinished task. DSH rows whose
+phone screens are Part B stay Partly in parity.md rather than Have.
+
+Open: p1-phone Part B (the phone's screens for wave 8); everything in the plan's "owner's PC or phone" table
+(window pictures, the emulator, junctions, the editor, PDF and Talk in the frozen app, engines installing
+themselves, the phone's runtime update, one real streamed call per provider); a model-written stand-up
+sentence; the first CI run fetching `androidx.window`.
+
+## 2026-11-27 – wave 8, step 0: the re-audit and the seams before branching (1.4.0 to come)
+
+Asked: the one coordinator commit before the seven wave 8 helpers branch: parity and gaps from the re-audit, the
+streaming seam, guards on every tool call, the stubs with frozen signatures, and tests proving nothing changes
+until something uses them.
+
+Done:
+- `plans/parity.md`: MD-11, MD-55, MD-58, DS-09, DS-36, DS-45 to Have (built earlier, the list was stale); MD-66
+  Missing to Partly (`prereq.py` has Install rows). Four new rows from the two projects' unreleased notes (still
+  0.6.0 and 0.24.0): MD-93 task ids on cards, DS-81 a Browser tab, DS-82 keep your place in the transcript, DS-83
+  slow `/` commands. The once Not wanted rows are now Planned (wave 8 or 9) or Not wanted by the owner's own answer
+  of 27 November (MD-81, MD-82, DS-05). Every open row names its wave 8 helper. New count: 176 rows, 122 have,
+  31 partly, 9 missing, 11 planned, 3 not wanted. Section 5 carries the owner's answers.
+- `plans/gaps.md`: compaction and "Just the next task" moved to Fixed (both built); the phone's Ask me first is
+  wired end to end in code and waits only for a real-phone check; each open picture, phone and listening gap names
+  its wave 8 helper.
+- Streaming seam: `providers/base.py` `Provider.chat(..., *, on_delta=None)` (`OnDelta`: kind `"text"` or
+  `"thinking"`, then the piece); the four chat providers take it and ignore it for now; `ScriptedProvider(chunks=)`
+  (a number: the text in pieces that long; a list: one list of `(kind, piece)` per call). `harness/agent.py`
+  `run_agent(..., on_delta=None)` passes it at the one `provider.chat` call, and only when given and the provider
+  takes it (`_delta_kw`), so the call is the old one otherwise.
+- `harness/tools.py` `Toolbox.guards`: asked before any handler; a sentence back is the refusal (an error result),
+  and a guard that raises refuses too (a permission check never fails open). Empty by default.
+- Stubs, signatures frozen: `harness/perms.py` (`PRESETS`, `preset_for` maps today's gate mode, `guard` allows
+  everything), `harness/streamlog.py` (`sink`, `tail`), `reach.py` (`standup`, `poll_hooks`, `beat`, and two more
+  so p1-reach never needs `automation.py`: `normalise_hook`, `hook_words`), `harness/winshot.py`
+  (`window_picture`), `harness/emulator.py` (`ready`, `start`, `Running`, `EmulatorError`).
+- `automation.py`: kinds `events`, `poll`, `local` (checked by `reach.normalise_hook`, run by `_run_hooks`: each
+  new item claimed once and acted on as issues are) and the schedule's `standup` work (`reach.standup`; nothing
+  recorded while it returns nothing). Old automations are saved exactly as before.
+- `config.FEATURE_SECTIONS` gains board, editor, stream, slash, voice, perms, builders, standup, hooks,
+  integrations, winshot, emulator; the phone's `Api.kt` `FEATURE_PREFIXES` gains `/api/board`, `/api/stream`,
+  `/api/commands`, `/api/ci`, `/api/documents` (`/api/market` was there); `improve/charter.py`: `perms` and
+  `builders` are protected keys, `harness/perms.py` a file no self-made fix may touch, and a "What each job may
+  do" line on the Learning page.
+- `tests/test_sweep_seam.py`: a bare scripted plan-and-run sends byte for byte the requests recorded from the code
+  before the seams (`tests/data/sweep_seam_requests.json.gz`, dates and the folder masked; `UPDATE_GOLDENS=1`
+  writes it again after a deliberate prompt change); guards that allow everything and an `on_delta` sink change
+  no request; an older provider without `on_delta` still works; the stubs' signatures and do-nothing answers.
+
+Noticed: a scripted run outside pytest reads and writes this machine's real app home (a named agent's memory, the
+usage ledger), so the golden must be written from inside the tests; the 36 stray ledger lines from doing it by
+hand were taken out again.
+
+Open: everything the stubs stand for is the helpers' work (the plan's briefs).
+
 ## 2026-11-27 – 1.3.0: wave 7 put together ("it learns")
 
 Asked: merge the seven wave 7 branches in the plan's order, do every hook-up line from the helpers' reports and

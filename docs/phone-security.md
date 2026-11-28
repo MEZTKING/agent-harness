@@ -40,6 +40,13 @@ deletes all of it.
 The PC's phone server lets a phone do only what's on its list: the Hall, projects, chat,
 messages, files to read, the hub. Settings, API keys, providers and updates stay on the PC.
 
+Since 1.4.0 the phone can also **see** (never change) what each job may do (Careful, Free and the rest), the
+board, a project's git history and file previews, CI and the services list. Choosing **Free**, saving or
+putting back a file, switching branch, moving a card on the board, making a PDF and making a test phone are
+done on the PC only (Free asks "Are you sure?" there). A program on the PC can start work through a local
+hook (`/hooks/<id>`): that address is only on the desktop app, only from the PC itself (127.0.0.1), needs the
+hook's secret, and is never served by the phone server.
+
 ## Pairing
 
 1. On the PC: **Settings → Your phone → Pair a phone**. A code shows for 5 minutes; five wrong

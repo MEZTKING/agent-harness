@@ -55,6 +55,11 @@ from .showstage import ShowStage
 from .stages import StagesStage
 from .unstick import UnstickStage, wasted_words
 from .worktrees import ParallelStage, Worktrees
+from .boardstage import BoardStage
+from .followstage import FollowStage
+from . import boardstage
+from . import perms
+from . import streamlog
 from .charterstage import CharterStage
 from .recallstage import RecallStage
 from .skillstage import SkillStage
@@ -103,6 +108,8 @@ class Task:
     hard: bool = False  # the planner expects it to be hard: more builders and checkers when the dial allows
     risky: bool = False  # a mistake here would be costly (money, data, security): more checkers
     why_hard: str = ""  # the planner's words for why it is hard or risky
+    # wave 8: False when the planner says the task needs no internet (its commands then run with it off, perms.py)
+    needs_net: bool | None = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Task":
@@ -254,6 +261,7 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
                 hard=t.get("hard") is True,
                 risky=t.get("risky") is True,
                 why_hard=str(t.get("why_hard") or "").strip()[:300],
+                needs_net=t.get("needs_net") if isinstance(t.get("needs_net"), bool) else None,
             )
         )
     for t in new:
@@ -282,7 +290,8 @@ def _validate_plan(raw_tasks: Any, roles: dict[str, RoleSpec], existing: list[Ta
 class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
                    MoneyStage, KindStage, ParallelStage, RepoStage, LookStage, ReferenceStage, ShowStage,
                    DoneStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
-                   WatchStage, CharterStage, SkillStage, RecallStage):
+                   WatchStage, CharterStage, SkillStage, RecallStage, BoardStage, FollowStage):
+    # wave 8: the board (move a task by hand, its order, the archive) and follow-ups on a finished task
     # wave 7: the watch after a learned change, the charter's fixed lines and the house style, skills, look_up
     # the wave 5 stages (money, the done list, stages and parts, unsticking, finishing, playing, shipping)
     # each add their part through the hooks below; with no done list, stages or kind a run is as before
@@ -449,7 +458,9 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         if self._mcp is None:
             from .mcp_tools import MCPPool
 
-            self._mcp = MCPPool(self.cfg.mcp_servers, self.emit)
+            from .. import prereq
+
+            self._mcp = MCPPool(prereq.with_project(self.cfg.mcp_servers, self.project.root), self.emit)
         for tool in self._mcp.tools_for(role.mcp):
             if tool.spec.name not in box.tools:
                 box.add(tool)
@@ -692,7 +703,9 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
     def _project_context(self, tasks: list[Task], upto: Task | None = None) -> str:
         meta = self.project.meta()
         goals = "\n".join(f"{i + 1}. {g}" for i, g in enumerate(meta.get("goals", [])))
-        done = [f"- [{t.id}] {t.title} ({t.role}): {t.summary}" for t in tasks if t.status == "done"]
+        done = ([f"- [{r.get('id')}] {r.get('title')} ({r.get('role')}): {r.get('summary', '')}"
+                 for r in boardstage.archived(self.project.root)]  # earlier goals' tasks, archived (boardstage.py)
+                + [f"- [{t.id}] {t.title} ({t.role}): {t.summary}" for t in tasks if t.status == "done"])
         board = "\n".join(f"- [{t.id}] {t.status:8} {t.title} ({t.role})" for t in tasks)
         parts = [f"# Project goals\n{goals}"]
         plan_text = plandoc.context_text(self.project.plan_doc())
@@ -847,6 +860,9 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 "risky": {"type": "boolean",
                           "description": "optional: true when a mistake would be costly (money, data, security)"},
                 "why_hard": {"type": "string", "description": "optional: one short sentence on why it is hard or risky"},
+                "needs_net": {"type": "boolean",
+                              "description": "optional: false when the task's commands need no internet (they then "
+                                             "run with it off); leave it out when unsure"},
                 "image_options": {
                     "type": "object",
                     "description": "image tasks only: e.g. {style, width, height, remove_bg, tile_x, tile_y}",
@@ -907,7 +923,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         self.emit("planning", {"model": str(role.models[0])})
         result = self._run_with_fallback(
             role, self.cfg.prompt_text(role.prompt), prompt, box, require="submit_plan",
-            done=lambda: "tasks" in captured,
+            done=lambda: "tasks" in captured, stream="plan",
         )
         if "tasks" not in captured:
             raise HarnessError(f"planner did not produce a valid plan ({'; '.join(last_error[-1:]) or result.stop})")
@@ -1311,6 +1327,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
     def _run_with_fallback(
         self, role: RoleSpec, system: str, prompt: str, box: Toolbox,
         require: str | None = None, done: Callable[[], bool] | None = None, max_steps: int | None = None,
+        stream: str | None = None,
     ) -> AgentResult:
         """Run a one-shot role job (planning / summary), trying fallback models on provider errors."""
         last: Exception | None = None
@@ -1320,10 +1337,11 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 last = last or ProviderError(f"{ref} was skipped: no credit or its limit is reached")
                 continue
             try:
+                perms.apply(box, self.project.root, self.cfg, role.name, self.ws.gate)  # what this job may do
                 res = run_agent(self.cfg, ref, self._system(system, role.prompt), prompt, box, self.budget,
                                 max_steps=max_steps or self.cfg.limits.max_steps_per_task, max_tokens=role.max_tokens,
                                 options=role.options, require_terminal=require, on_event=self.emit,
-                                saver=self._saver(), role=role.name)
+                                saver=self._saver(), role=role.name, on_delta=self._words_sink(stream))
                 self._save_spend()
                 if done is None or done() or res.stop != "refusal":
                     return res
@@ -1331,6 +1349,12 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 last = e
                 self.emit("provider_error", {"model": str(ref), "error": str(e)})
         raise HarnessError(f"all models for role {role.name!r} failed: {last}")
+
+    def _words_sink(self, task_id: str | None):
+        """Where a reply's words go as they are written (streamlog.py), or None: off, or not a task's call."""
+        if not task_id or not streamlog.enabled(self.cfg):
+            return None
+        return streamlog.sink(self.project.root, task_id)
 
     def _saver(self) -> TokenSaver:
         """A fresh token saver for one conversation; originals spill into .harness/spill."""
@@ -1451,7 +1475,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             + (f"\n\n{note}" if note else "")
         )
         res = self._run_with_fallback(reviewer, self.cfg.prompt_text(reviewer.prompt), prompt, box,
-                                      require="submit_review", done=lambda: bool(verdict))
+                                      require="submit_review", done=lambda: bool(verdict), stream=task.id)
         if not verdict:
             return False, f"reviewer gave no verdict ({res.stop}): {res.text[:500]}", res, verdict
         return bool(verdict.get("approved")), str(verdict.get("feedback", "")), res, verdict
@@ -1498,10 +1522,14 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             if not isinstance(provider, ImageProvider):
                 raise HarnessError(f"{ref} is not an image provider")
             t0 = time.monotonic()
+            opts = {**role.options, **task.image_options}
+            if isinstance(opts.get("from_image"), str) and not opts["from_image"].startswith("data:"):
+                opts["from_image"] = str(self.ws.path(opts["from_image"]))  # a file of the project, as a full path
+            info: dict[str, Any] = {}
+            opts["record"] = info  # the provider says how it made the picture see-through, if it did
             try:
                 self.budget.check()
-                data, ext, usage = provider.generate(ref.model, task.description,
-                                                     {**role.options, **task.image_options})
+                data, ext, usage = provider.generate(ref.model, task.description, opts)
             except ProviderError as e:
                 last = e
                 self.emit("provider_error", {"model": str(ref), "error": str(e)})
@@ -1524,6 +1552,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 "at": utcnow(), "task": task.id, "role": task.role, "model": str(ref), "outcome": "approved",
                 "steps": 1, "seconds": round(time.monotonic() - t0, 2), "input_tokens": usage.input_tokens,
                 "output_tokens": usage.output_tokens, "cost_usd": cost or 0,
+                **({"transparent": info["transparent"]} if info.get("transparent") else {}),
             }))
             return True
         task.summary = f"image generation failed: {last}"
@@ -1606,12 +1635,14 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                     box.add(game)
             box.add(Tool(ToolSpec("finish_task", "Call when the task is complete.",
                                   _obj({"summary": {"type": "string"}}, ["summary"])), finish_task, terminal=True))
+            perms.apply(box, self.project.root, self.cfg, task.role, self.ws.gate)  # what this job may do (perms.py)
             try:
                 res = run_agent(self.cfg, ref, self._system(self.cfg.prompt_text(role.prompt), role.prompt),
                                 self._worker_prompt(task, tasks, feedback),
                                 box, self.budget, max_steps=self.cfg.limits.max_steps_per_task,
                                 max_tokens=role.max_tokens, options=role.options, require_terminal="finish_task",
-                                on_event=self.emit, saver=self._saver(), role=task.role)
+                                on_event=self.emit, saver=self._saver(), role=task.role,
+                                on_delta=self._words_sink(task.id))
                 self._save_spend()
             except ProviderError as e:
                 if getattr(e, "out_of_credit", False):
@@ -1684,6 +1715,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             finally:
                 self._close_mcp()
                 livecmd.stop_strays(self.project.root)  # no command a task started outlives the run
+                streamlog.clear(self.project.root)  # the words as they were written go with the run
                 if start:
                     end = self._note_balance("end", start)
             if status == "done":  # one Gallery record for the finished goal (kinds/gallery.py; never fails the run)
@@ -1887,6 +1919,10 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
         if after:
             meta["start_after"] = None
             self.project.save_meta(meta)
+        from .. import asktimer
+
+        if asktimer.paused(self.project.root):  # a question with a timer is waiting: nothing starts meanwhile
+            return "waiting_answer"
         self._register_with_lab()
         try:
             if meta.get("status") == "planning":
@@ -1905,6 +1941,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
             stop = self._prepare_run()  # the project's settings, setup and the checks' baseline
             if stop:
                 return stop
+            self._hook("_board_archive")  # earlier goals' finished tasks go to the archive (boardstage.py)
             if self._parallel_width() > 1:  # several tasks at once, each in its own worktree (worktrees.py)
                 self._git_commit("harness: snapshot before task")  # worktrees branch from a commit
                 if self._head():
@@ -1920,6 +1957,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 ready = [t for t in tasks if t.status == "pending"
                          and all(by_id[d].status == "done" for d in t.depends_on)]
                 ready = self._hook("_stage_ready", ready, tasks, set(), default=ready)  # a working slice first
+                ready = self._hook("_board_order", ready, default=ready)  # the order the owner set on the board
                 if not ready:
                     if any(t.status == "failed" for t in tasks):
                         self._set_status("blocked")
@@ -1955,6 +1993,9 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                                              "credit, the limit you set; run again to carry on")
                     return "paused"
                 stop = self._hook("_money_gate")
+                if stop:
+                    return stop
+                stop = self._hook("_board_stop")  # the owner pressed Stop on the board
                 if stop:
                     return stop
                 if max_tasks is not None and executed >= max_tasks:

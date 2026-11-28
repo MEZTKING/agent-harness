@@ -1,0 +1,220 @@
+{
+ "commands": [
+  {
+   "args": "[what to change]",
+   "confirm": true,
+   "kind": "command",
+   "name": "plan",
+   "pc_only": false,
+   "slow": false,
+   "words": "Update the plan (say what to change after it)"
+  },
+  {
+   "args": "",
+   "confirm": true,
+   "kind": "command",
+   "name": "run",
+   "pc_only": false,
+   "slow": false,
+   "words": "Build: carry on with the plan's tasks"
+  },
+  {
+   "args": "",
+   "confirm": true,
+   "kind": "command",
+   "name": "next",
+   "pc_only": false,
+   "slow": false,
+   "words": "Build only the next task, then stop"
+  },
+  {
+   "args": "",
+   "confirm": false,
+   "kind": "command",
+   "name": "stop",
+   "pc_only": false,
+   "slow": false,
+   "words": "Stop what a task is running now (a command, the app it started)"
+  },
+  {
+   "args": "[task id]",
+   "confirm": false,
+   "kind": "command",
+   "name": "retry",
+   "pc_only": false,
+   "slow": false,
+   "words": "Try a task again"
+  },
+  {
+   "args": "<task id>",
+   "confirm": false,
+   "kind": "command",
+   "name": "skip",
+   "pc_only": false,
+   "slow": false,
+   "words": "Leave a task out and carry on"
+  },
+  {
+   "args": "[task id]",
+   "confirm": true,
+   "kind": "command",
+   "name": "undo",
+   "pc_only": false,
+   "slow": false,
+   "words": "Undo the newest finished task's changes"
+  },
+  {
+   "args": "<what to build next>",
+   "confirm": true,
+   "kind": "command",
+   "name": "goal",
+   "pc_only": false,
+   "slow": false,
+   "words": "Add something new to build"
+  },
+  {
+   "args": "",
+   "confirm": true,
+   "kind": "command",
+   "name": "compact",
+   "pc_only": false,
+   "slow": true,
+   "words": "Sum up this chat in a few lines, so the planner reads less each time"
+  },
+  {
+   "args": "[setting]",
+   "confirm": false,
+   "kind": "command",
+   "name": "model",
+   "pc_only": false,
+   "slow": false,
+   "words": "Which set of models does the work (Budget, Balanced, Quality)"
+  },
+  {
+   "args": "",
+   "confirm": false,
+   "kind": "command",
+   "name": "test",
+   "pc_only": true,
+   "slow": true,
+   "words": "Run the project's own tests"
+  },
+  {
+   "args": "<words>",
+   "confirm": false,
+   "kind": "command",
+   "name": "search",
+   "pc_only": false,
+   "slow": false,
+   "words": "Look for something in every project and the journal"
+  },
+  {
+   "args": "",
+   "confirm": false,
+   "kind": "command",
+   "name": "board",
+   "pc_only": false,
+   "slow": false,
+   "words": "Open the board of tasks"
+  },
+  {
+   "args": "",
+   "confirm": false,
+   "kind": "command",
+   "name": "help",
+   "pc_only": false,
+   "slow": false,
+   "words": "List these commands"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "accessible-forms",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Accessible forms”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "android-compose",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Android apps with Compose”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "bug-fixing",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Fixing a bug”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "canvas-games",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Canvas browser games”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "godot4-scenes",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Godot 4 scenes”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "java-mods",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Java game mods”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "pytest-basics",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Pytest basics”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "python-package",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Small Python packages”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "responsive-css",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Responsive pages with CSS”"
+  },
+  {
+   "args": "[anything to add]",
+   "confirm": false,
+   "kind": "skill",
+   "name": "sqlite-data",
+   "pc_only": false,
+   "slow": false,
+   "words": "Ask the next tasks to use the skill “Saving data with SQLite”"
+  }
+ ]
+}

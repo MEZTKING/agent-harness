@@ -3,13 +3,16 @@
 // The API: ui/automationapi.py. The "in 5 hours" / "2 minutes late" words follow DSH Mobile's AutomationPresentation.kt
 // (MIT, Copyright (c) 2026 DSH Mobile contributors).
 import { h, fill, get, post, act, ago, money, page, card, empty, seg, dialog } from "./core.js";
+import { HOOK_KINDS, hookParts, addLocalHook, hookRowExtras } from "./hooks.js";
 
 const DAYS = [["mon", "M", "Monday"], ["tue", "T", "Tuesday"], ["wed", "W", "Wednesday"], ["thu", "T", "Thursday"],
   ["fri", "F", "Friday"], ["sat", "S", "Saturday"], ["sun", "S", "Sunday"]];
 const KINDS = [["schedule", "At a time", "Starts at the times you pick"],
   ["issues", "GitHub issues", "Open issues with a label you choose become work"],
-  ["ci", "A failed check", "When a check fails on GitHub, a task to fix it is made"]];
-const WHATS = [["idea", "Plan a new idea"], ["goal", "Plan a project's next goal"], ["health", "Check my models work"], ["backup", "Back up my settings"]];
+  ["ci", "A failed check", "When a check fails on GitHub, a task to fix it is made"], ...HOOK_KINDS];
+const HOOKS = HOOK_KINDS.map((k) => k[0]);
+const WHATS = [["idea", "Plan a new idea"], ["goal", "Plan a project's next goal"], ["health", "Check my models work"], ["backup", "Back up my settings"],
+  ["standup", "Look at every project (stand-up, no cost)"]];
 const zone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } };
 
 // "in 5 hours", "due now", "2 minutes late"
@@ -35,13 +38,13 @@ export async function viewAutomations() {
 
 function body(d, draw) {
   const send = (b, btn) => act(btn, () => post("/api/automations", b), (r) => r.done, draw);
-  const needsKey = !d.github.set && d.automations.some((a) => a.kind !== "schedule");
+  const needsKey = !d.github.set && d.automations.some((a) => ["issues", "ci", "events"].includes(a.kind));
   return [
     d.message ? h("p", { class: "banner" }, d.message) : null,
     needsKey ? keyCard(send) : null,
     card("Your automations", d.automations.length ? h("ul", { class: "plain auto-list" }, d.automations.map((a) => row(a, d, send, draw)))
       : empty("None yet. Add one below: for example, plan the next goal of a project every weekday at 9:00.")),
-    card("Add an automation", form(null, d, send)),
+    card("Add an automation", form(null, d, send, draw)),
     d.github.set ? h("details", { class: "fold" }, h("summary", {}, "Your GitHub key"),
       h("p", { class: "small muted" }, `The harness reads GitHub with ${d.github.which}. It asks GitHub every few minutes; nothing on the internet can reach this computer.`),
       keyForm(send, "Change it")) : null,
@@ -74,8 +77,9 @@ function row(a, d, send, draw) {
       h("button", { type: "button", onclick: (ev) => send({ action: "dismiss", id: a.id, key: w.key }, ev.currentTarget) }, "Not now"))),
     h("div", { class: "row" },
       h("button", { type: "button", title: "Do it now. Building still waits for your OK.", onclick: (ev) => send({ action: "run", id: a.id }, ev.currentTarget) }, "Run now"),
-      a.editable ? h("button", { type: "button", onclick: () => { edit.hidden = !edit.hidden; if (!edit.firstChild) fill(edit, form(a, d, send)); } }, "Edit")
+      a.editable ? h("button", { type: "button", onclick: () => { edit.hidden = !edit.hidden; if (!edit.firstChild) fill(edit, form(a, d, send, draw)); } }, "Edit")
         : h("span", { class: "small muted", title: "Written in the harness's settings file (automation: list:)" }, "Set in the harness's settings")),
+    hookRowExtras(a, async () => draw(await get("/api/automations"))),
     edit,
     h("details", {}, h("summary", { class: "small" }, "More"),
       h("p", { class: "small" }, a.money, a.spent_usd ? ` Spent so far: ${money(a.spent_usd)}.` : ""),
@@ -89,7 +93,7 @@ function row(a, d, send, draw) {
 }
 
 // the add (or edit) form, in plain words with a schedule picker
-function form(a, d, send) {
+function form(a, d, send, draw) {
   const v = a ? JSON.parse(JSON.stringify(a)) : { kind: "schedule", do: { what: "goal" }, when: { kind: "weekly", days: ["mon", "tue", "wed", "thu", "fri"], time: "09:00" }, make: "idea", branch: "main" };
   let kind = v.kind;
   const parts = h("div", { class: "stack" });
@@ -125,10 +129,17 @@ function form(a, d, send) {
   const cap = h("input", { type: "number", min: "0.5", step: "0.5", value: Number(v.cap_usd || 2).toFixed(2), class: "ap-cap", "aria-label": "Spending limit in dollars",
     title: "The most it may spend by itself, in all. When it gets there it asks you first again." });
   const capRow = h("span", { class: "row" }, "up to $", cap, h("span", { class: "small muted" }, "in all, then it asks you again"));
-  const showCap = () => { capRow.hidden = !self.checked; };
+  const selfRow = h("label", { class: "row", title: "Off: it plans, and building waits for your OK. On: it builds by itself while the plan's estimate fits what's left of the limit." },
+    self, "Let it start building by itself");
+  // what comes from outside (a program on this computer, events, an address) always waits for your OK
+  const showCap = () => { const outside = HOOKS.includes(kind); selfRow.hidden = outside; capRow.hidden = outside || !self.checked; };
   self.addEventListener("change", showCap); showCap();
 
+  let hook = null;
   const drawParts = () => {
+    hook = null;
+    showCap();
+    if (HOOKS.includes(kind)) { hook = hookParts(kind, v, projects); fill(parts, hook.nodes); return; }
     const goalPart = () => { goal.hidden = !["idea", "goal"].includes(what.value); sProject.hidden = what.value !== "goal"; };
     what.onchange = goalPart; goalPart();
     if (kind === "schedule") fill(parts, h("label", { class: "stack" }, h("span", { class: "label" }, "What it does"), what), goal, sProject,
@@ -142,7 +153,9 @@ function form(a, d, send) {
   };
   drawParts();
   const collect = () => {
-    const out = { kind, name: name.value, start_by_itself: self.checked, cap_usd: self.checked ? Number(cap.value) : 0 };
+    const outside = HOOKS.includes(kind);
+    const out = { kind, name: name.value, start_by_itself: !outside && self.checked, cap_usd: !outside && self.checked ? Number(cap.value) : 0 };
+    if (hook) return { ...out, ...hook.collect(), start_by_itself: false, cap_usd: 0 };
     if (kind === "schedule") {
       const set = { daily: DAYS.map((x) => x[0]), weekdays: ["mon", "tue", "wed", "thu", "fri"], weekends: ["sat", "sun"], some: [...days] }[often];
       const offset = -new Date().getTimezoneOffset();
@@ -157,10 +170,12 @@ function form(a, d, send) {
   return h("div", { class: "stack auto-form" },
     a ? null : seg(KINDS, kind, (x) => { kind = x; drawParts(); }, "What starts it"),
     parts,
-    h("label", { class: "row", title: "Off: it plans, and building waits for your OK. On: it builds by itself while the plan's estimate fits what's left of the limit." },
-      self, "Let it start building by itself"), capRow,
+    selfRow, capRow,
     h("label", { class: "stack" }, h("span", { class: "label" }, "Name"), name),
-    h("div", { class: "row" }, h("button", { class: "primary", type: "button", onclick: (ev) =>
-      send(a ? { action: "edit", id: a.id, changes: collect() } : { action: "add", automation: collect() }, ev.currentTarget) }, a ? "Save" : "Add")));
+    h("div", { class: "row" }, h("button", { class: "primary", type: "button", onclick: (ev) => {
+      const c = collect();
+      if (c.local) { delete c.local; if (a) { delete c.hook; send({ action: "edit", id: a.id, changes: c }, ev.currentTarget); }
+        else addLocalHook(ev.currentTarget, c, async () => { if (draw) draw(await get("/api/automations")); }); return; }
+      send(a ? { action: "edit", id: a.id, changes: c } : { action: "add", automation: c }, ev.currentTarget); } }, a ? "Save" : "Add")));
 }
 

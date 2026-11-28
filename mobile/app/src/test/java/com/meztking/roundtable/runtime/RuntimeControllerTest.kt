@@ -35,7 +35,7 @@ class RuntimeControllerTest {
     @get:Rule val tmp = TemporaryFolder()
     private lateinit var fx: RuntimeFixture
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val roundtable = MockWebServer()
+    private var roundtable = MockWebServer()
     private var launched: List<String> = emptyList()
     private var launchEnv: Map<String, String> = emptyMap()
 
@@ -43,9 +43,24 @@ class RuntimeControllerTest {
     @After fun tearDown() { scope.cancel(); fx.close(); runCatching { roundtable.shutdown() } }
 
     /** A "proot" that serves Roundtable's API on the port in its argv, checking the token from its environment. */
+    /** Releases whose start fails at once (a made-up bad release). */
+    private var broken: Set<String> = emptySet()
+    private var starts = 0
+
     private val launcher = ProcessLauncher { argv, environment, _, _ ->
+        starts++
+        if (broken.any { b -> argv.any { "roundtable-roundtable-$b-" in it } }) {
+            val exit = CompletableDeferred(3)
+            return@ProcessLauncher object : HarnessProcess {
+                override suspend fun readLine(): String? = null
+                override suspend fun awaitExit(): Int = exit.await()
+                override val isAlive: Boolean get() = false
+            }
+        }
         launched = argv
         launchEnv = environment
+        runCatching { roundtable.shutdown() }
+        roundtable = MockWebServer()
         val token = environment.getValue(ProotCommand.TOKEN_ENV)
         roundtable.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse = when {
@@ -105,5 +120,27 @@ class RuntimeControllerTest {
         assertEquals(0, api.roundtable().seats.size)
         assertFalse(File(fx.layout.logs, "roundtable.log").readText().contains(token))
         assertTrue(File(fx.layout.run, "resolv.conf").readText().contains("nameserver 10.0.2.3"))
+    }
+
+    @Test
+    fun `a bad update is tried twice, the previous release comes back with one line, and it is not retried by itself`() = runBlocking {
+        val base = fx.baseLayer()
+        fx.publish(base, fx.roundtableLayer("0.8.0"), sequence = 1)
+        val c = controller()
+        c.install()
+        assertTrue(withTimeout(30_000) { c.state.first { it is RuntimeState.Running || it is RuntimeState.Failed } } is RuntimeState.Running)
+        broken = setOf("0.8.1")
+        fx.publish(base, fx.roundtableLayer("0.8.1"), sequence = 2)
+        starts = 0
+        c.check()
+        c.install()
+        val notice = withTimeout(60_000) { c.notice.first { it != null } }!!
+        val after = withTimeout(30_000) { c.state.first { it is RuntimeState.Running || it is RuntimeState.Failed } }
+        assertTrue("got $after", after is RuntimeState.Running)
+        assertEquals("0.8.0", c.installed!!.version)
+        assertEquals(3, starts) // two tries of the new one, then the old one
+        assertTrue(notice.plain().contains("didn't start"))
+        assertFalse(notice.plain().contains("Exception"))
+        assertTrue(c.check() is RuntimeInstaller.CheckResult.HeldBack)
     }
 }

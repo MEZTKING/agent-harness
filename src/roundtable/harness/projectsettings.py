@@ -75,6 +75,8 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("documents", "choice", "all", "Which of your documents this project's agents may look up: all, or none.",
             ("all", "none")),
     Setting("notes", "text", "", "Anything the planner should know about this project, in your own words."),
+    Setting("perms", "map", {}, "What each job may do on this project: ask_all, careful, free or read_only for a job "
+            "such as coder or ui-designer. Empty: this computer's choice (Careful).", example="coder: careful"),
 )
 BY_KEY = {s.key: s for s in SETTINGS}
 
@@ -141,7 +143,8 @@ def coerce(key: str, value: Any, where: str = "", profiles: list[str] | None = N
         for k, v in value.items():
             k = str(k).strip()
             if s.type == "map":
-                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", k):
+                name_ok = r"[A-Za-z_][A-Za-z0-9_-]*" if key == "perms" else r"[A-Za-z_][A-Za-z0-9_]*"  # job names have -
+                if not re.fullmatch(name_ok, k):
                     raise ValueError(f"{at}{k!r} can't be a variable name in {key} (letters, digits and _ only)")
                 out_map[k] = "" if v is None else str(v).lower() if isinstance(v, bool) else str(v)
             else:

@@ -25,6 +25,7 @@ hidden = (
     + collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
     + collect_submodules("mcp_types")
     + collect_submodules("tzdata")  # schedules keep summer time on Windows
+    + collect_submodules("pypdf")  # the text of a PDF (documents.py imports it only when it reads one)
     # the app's own Python (--python, roundtable/pyexec.py) runs the yardstick's checks and self-repair's tests
     # with pytest; the plug-in box's child (--plugin-box)
     + collect_submodules("pytest") + collect_submodules("_pytest") + collect_submodules("pluggy")

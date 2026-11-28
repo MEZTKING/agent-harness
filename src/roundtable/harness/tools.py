@@ -51,6 +51,10 @@ class Toolbox:
     tools: dict[str, Tool] = field(default_factory=dict)
     captured: dict[str, Any] = field(default_factory=dict)  # args of terminal tools
     source: Any = None  # the Workspace its file tools write through (for take_change)
+    # Asked before any tool's handler runs (wave 8: what each job may do, harness/perms.py): each gets the tool's
+    # name and arguments; a sentence back is the refusal the model is told, and the tool isn't run. Empty by
+    # default, so nothing changes until something adds one.
+    guards: list[Callable[[str, dict[str, Any]], str | None]] = field(default_factory=list)
 
     def add(self, tool: Tool) -> None:
         self.tools[tool.spec.name] = tool
@@ -64,6 +68,9 @@ class Toolbox:
             return f"unknown tool {name!r}; available: {sorted(self.tools)}", True
         if "_invalid_json" in args:
             return "your tool arguments were not valid JSON; try again", True
+        refusal = self._refused(name, args)
+        if refusal:
+            return refusal, True
         try:
             out = tool.fn(args)
             if tool.terminal:
@@ -73,6 +80,17 @@ class Toolbox:
             return str(e), True
         except Exception as e:  # tool bugs shouldn't kill the run
             return f"{type(e).__name__}: {e}", True
+
+    def _refused(self, name: str, args: dict[str, Any]) -> str | None:
+        """The first guard's refusal, or None. A guard that breaks refuses: a permission check never fails open."""
+        for g in self.guards:
+            try:
+                answer = g(name, args)
+            except Exception as e:
+                return f"The check of what this job may do failed ({type(e).__name__}), so {name} wasn't run."
+            if isinstance(answer, str) and answer:
+                return answer
+        return None
 
     def done(self) -> bool:
         return any(self.tools[n].terminal for n in self.captured if n in self.tools)
@@ -186,7 +204,8 @@ class Workspace:
         for dirpath, dirnames, filenames in os.walk(base):
             dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
             for f in sorted(filenames):
-                rel = os.path.relpath(os.path.join(dirpath, f), self.root)
+                # "/" on every computer: the same brief on Windows as elsewhere (and the learned replays match)
+                rel = os.path.relpath(os.path.join(dirpath, f), self.root).replace(os.sep, "/")
                 if fnmatch.fnmatch(f, pattern) or fnmatch.fnmatch(rel, pattern):
                     out.append(rel)
                 if len(out) >= 500:
@@ -230,8 +249,10 @@ class Workspace:
         # the orchestrator sets ``live`` to (project folder, task id), else it is this folder's "run" log
         live_root, live_task = getattr(self, "live", None) or (self.root, "run")
         try:
+            from . import perms  # a job told it needs no network gets none (Linux, bwrap)
+
             res = livecmd.run_streaming(
-                a["command"], self.root, clean_env(),  # never the owner's keys or git login (safeenv.py)
+                perms.boxed(str(a["command"])), self.root, clean_env(),  # never the owner's keys or git login (safeenv.py)
                 timeout, livecmd.slot(live_root, live_task), root=live_root,
             )
         except subprocess.TimeoutExpired:

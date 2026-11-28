@@ -53,6 +53,26 @@ class RuntimeViewModel(app: Application) : AndroidViewModel(app) {
         if (was.isNotBlank() && was != choice && runtime.state.value is RuntimeState.Running) runtime.restart()
     }
 
+    /** "The new version didn't start, so the one before it is back." (DS-08), or null. */
+    val updateNotice: StateFlow<com.meztking.roundtable.runtime.UpdateNotice?> get() = runtime.notice
+
+    /** Try the release that went back once more, by the owner's choice. */
+    fun tryNewAgain() {
+        _check.value = null
+        runtime.retryHeldBack()
+    }
+
+    /** Projects on this phone (DS-55): clone, import, share, through This phone's own API. */
+    val phoneProjects: com.meztking.roundtable.data.PhoneProjects
+        get() = com.meztking.roundtable.data.PhoneProjects { m, p, b -> localApi().feature(m, p, b) }
+
+    fun projectNames(): List<String> = runtime.projectNames()
+
+    private fun localApi() = Api.thisPhone(object : LocalAccess {
+        override fun port() = runtime.port()
+        override suspend fun token() = runtime.token()
+    })
+
     private val _check = MutableStateFlow<RuntimeCheck?>(null)
     /** The answer to Check for a newer Roundtable. */
     val check: StateFlow<RuntimeCheck?> = _check.asStateFlow()

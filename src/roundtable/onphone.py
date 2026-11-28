@@ -214,6 +214,7 @@ class LocalAccess:
         for pid, p in (cfg.providers.items() if cfg else []):
             if p.get("api_key_env"):
                 names.setdefault(pid, p["api_key_env"])
+        names.setdefault("git", "ROUNDTABLE_PROJECT_GIT_TOKEN")  # cloning a private repository (phoneprojects.py)
         return names
 
     def keys_list(self) -> dict[str, Any]:
@@ -255,6 +256,12 @@ class LocalAccess:
             self.seat_error = f"The phone isn't in the hub's list yet ({e}); it tries again at the next sync."[:300]
 
     def local_api(self, method: str, path: str, q: dict, body: dict) -> tuple[bool, Any]:
+        from .phoneprojects import routes as _projects  # clone, import from Files, share (wave 8)
+
+        done, data = _projects(self.paths.home, workspaces_dir(self.paths.home),
+                               lambda name: vault.get(name) or self.keys.get(name), method, path, q, body)
+        if done:
+            return True, data
         if (method, path) == ("GET", "/api/keys"):
             return True, self.keys_list()
         if (method, path) == ("POST", "/api/keys"):

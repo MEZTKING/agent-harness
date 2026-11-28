@@ -5,6 +5,7 @@ import { strengthsTab } from "./strengths.js";
 import { jobCaps } from "./usage.js";
 import { learnedTab } from "./learned.js";
 import { walletCard } from "./wallet.js";
+import { permsCell } from "./perms.js";
 
 export async function viewModels(tab = "jobs") {
   if (!S.ov.harness) return page("Models", null, card("The harness can't build on this computer yet",
@@ -67,6 +68,8 @@ function jobRow(R, j, set, redraw) {
       inherited ? h("small", { class: "muted", title: "This set doesn't name this job, so the base choice is used" }, " · base choice") : null),
     h("span", { role: "cell", class: "jt-backups" }, backups.length ? backups.map((m) => modelChip(R, m, true)) : h("span", { class: "muted small" }, "No backup")),
     h("span", { role: "cell" }, h("button", { class: "small", title: `Choose who does the ${j.name} job`, onclick: () => row.replaceWith(editor(R, j, set, redraw)) }, "Change")));
+  // what this job may do (perms.js): filled in when it's known, nothing on an older app
+  permsCell(j.role).then((el) => { if (el) row.querySelector(".jt-job").append(el); }).catch(() => {});
   return row;
 }
 function modelChip(R, m, small = false) {

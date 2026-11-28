@@ -90,7 +90,10 @@ class AnthropicProvider(Provider):
         except TypeError as e:
             raise ProviderError("anthropic: no credentials - set ANTHROPIC_API_KEY") from e
 
-    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None) -> ChatResponse:
+    def chat(self, model, system, messages, tools=None, max_tokens=16000, options=None, *,
+             on_delta=None) -> ChatResponse:
+        """One call. Given ``on_delta`` (and unless the role's options say ``stream: false``) the reply is
+        streamed, each piece of words or thinking told as it is written; the response is the same either way."""
         a = self._anthropic
         options = options or {}
         params: dict[str, Any] = {
@@ -109,7 +112,12 @@ class AnthropicProvider(Provider):
 
         fallback = options.get("refusal_fallback", "default")
         try:
-            if fallback:
+            resp = None
+            if on_delta is not None and options.get("stream", True) is not False:
+                resp = self._streamed(params, fallback, on_delta)
+            if resp is not None:
+                pass
+            elif fallback:
                 resp = self.client.beta.messages.create(betas=[FALLBACK_BETA], fallbacks=fallback, **params)
             else:
                 resp = self.client.messages.create(**params)
@@ -130,6 +138,44 @@ class AnthropicProvider(Provider):
                 raise ProviderError("anthropic: no credentials - set ANTHROPIC_API_KEY (or log in with `ant auth login`)") from e
             raise
 
+        return self._response(resp)
+
+    def _streamed(self, params: dict[str, Any], fallback, on_delta):
+        """The same call streamed (``messages.stream``), each text or thinking piece told to ``on_delta``; the
+        final message is the one a plain call returns, usage included. None when it failed before any piece was
+        shown: the caller then asks once more the old way. A failure after that is raised as usual."""
+        shown = False
+
+        def tell(kind: str, piece: str) -> None:
+            nonlocal shown
+            if piece:
+                shown = True
+                try:
+                    on_delta(kind, piece)
+                except Exception:  # noqa: BLE001 - whoever watches must never break the reply
+                    pass
+
+        try:
+            if fallback:
+                manager = self.client.beta.messages.stream(betas=[FALLBACK_BETA], fallbacks=fallback, **params)
+            else:
+                manager = self.client.messages.stream(**params)
+            with manager as stream:
+                for event in stream:
+                    if getattr(event, "type", "") != "content_block_delta":
+                        continue
+                    d = event.delta
+                    if d.type == "text_delta":
+                        tell("text", d.text)
+                    elif d.type == "thinking_delta":
+                        tell("thinking", d.thinking)
+                return stream.get_final_message()
+        except Exception:
+            if shown:
+                raise
+            return None
+
+    def _response(self, resp) -> ChatResponse:
         text_parts, calls = [], []
         for block in resp.content:
             if block.type == "text":

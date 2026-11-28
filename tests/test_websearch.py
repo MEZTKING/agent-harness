@@ -295,6 +295,10 @@ def test_a_scripted_task_searches_reads_and_finishes(tmp_path, monkeypatch):
         "args") or {}, str(d.get("result") or ""))} if d.get("tool") in ws.STEP_WORDS else real_step(d))
 
     orch.start("an orders page")
+    from roundtable.harness import perms
+
+    # under Careful (the default) the first page on a new website waits for a tap (wave 8): allowed earlier
+    perms.allow(orch.project.root, "hosts", "docs.example-bakery.test")
     assert orch.run() == "done"
     root = orch.project.root
     assert (root / "orders.py").is_file()

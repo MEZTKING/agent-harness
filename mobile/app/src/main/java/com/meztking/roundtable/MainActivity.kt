@@ -87,6 +87,20 @@ import com.meztking.roundtable.ui.theme.hallBackground
 import com.meztking.roundtable.update.AppUpdater
 import com.meztking.roundtable.work.Watch
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.window.layout.FoldingFeature
+import androidx.window.layout.WindowInfoTracker
+import com.meztking.roundtable.data.FailureAction
+import com.meztking.roundtable.data.browser.BrowserConnection
+import com.meztking.roundtable.data.browser.mentionedLocalAddresses
+import com.meztking.roundtable.ui.LocalFailureActions
+import com.meztking.roundtable.ui.adaptive.Hinge
+import com.meztking.roundtable.ui.adaptive.HingeSource
+import com.meztking.roundtable.ui.adaptive.LocalHingeSource
+import com.meztking.roundtable.ui.adaptive.rememberFolded
+import com.meztking.roundtable.ui.browser.BrowserScreen
+import com.meztking.roundtable.ui.browser.ProvideBrowserTab
 
 class MainActivity : ComponentActivity() {
     /** A project to open, from a tapped notification. */
@@ -96,7 +110,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) openProject.value = intent?.getStringExtra(Watch.EXTRA_PROJECT)
-        setContent { RoundtableTheme { Root(openProject) } }
+        // the window's folds, from Jetpack WindowManager (a foldable opened like a book splits the shell there)
+        val hinges = HingeSource {
+            WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this).map { info ->
+                info.displayFeatures.filterIsInstance<FoldingFeature>().map { f ->
+                    Hinge(vertical = f.orientation == FoldingFeature.Orientation.VERTICAL,
+                        halfOpen = f.state == FoldingFeature.State.HALF_OPENED, separating = f.isSeparating)
+                }
+            }
+        }
+        setContent {
+            RoundtableTheme {
+                CompositionLocalProvider(LocalHingeSource provides hinges) { Root(openProject) }
+            }
+        }
     }
 
     override fun onStart() {
@@ -123,8 +150,28 @@ private fun Root(openProject: MutableStateFlow<String?>) {
         if (app.store.configured) nav.navigate("project/${android.net.Uri.encode(p)}")
         openProject.value = null
     }
+    // a failure's button does what it says (pair again, a new key, the phone's clock), wherever it shows
+    val failureActions: (FailureAction) -> Boolean = { a ->
+        when (a) {
+            FailureAction.PAIR_AGAIN -> { nav.navigate("setup"); true }
+            FailureAction.NEW_KEY, FailureAction.FIX_KEY_ACCESS, FailureAction.CHECK_REPO -> { nav.navigate("connect"); true }
+            FailureAction.RESTART_PHONE -> { nav.navigate("harness"); true }
+            FailureAction.CHECK_TIME -> runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_DATE_SETTINGS)) }.isSuccess
+            else -> false
+        }
+    }
     Box(Modifier.fillMaxSize().hallBackground()) {
+      CompositionLocalProvider(LocalFailureActions provides failureActions) {
+      // a local address an agent printed opens in the Browser tab (DS-81), anything else in the phone's browser
+      ProvideBrowserTab({ u -> nav.navigate("browser?url=" + android.net.Uri.encode(u)) }) {
         NavHost(nav, startDestination = start) {
+            composable("browser?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType; nullable = true; defaultValue = null })) { entry ->
+                val hall by main.hall.collectAsState()
+                val connection = remember(hall.data) { browserConnection(app) }
+                val texts = hall.data?.seats.orEmpty().flatMap { listOf(it.statusText, it.leftOff) + it.nextSteps }
+                BrowserScreen(entry.arguments?.getString("url"), connection, mentionedLocalAddresses(texts),
+                    onBack = { nav.popBackStack() })
+            }
             composable("setup") {
                 SetupScreen(onDone = {
                     main.reset()
@@ -228,7 +275,16 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 }
             }
         }
+      }
+      }
     }
+}
+
+/** What `localhost` means in the Browser tab: this phone, the paired PC, or nothing known (Hub mode). */
+private fun browserConnection(app: RoundtableApp): BrowserConnection {
+    if (app.usingThisPhone()) return BrowserConnection.ThisPhone
+    val pc = app.backend()?.parts?.values?.firstNotNullOfOrNull { it as? com.meztking.roundtable.data.PcBackend }
+    return pc?.api?.let { BrowserConnection.Pc(it.activeHost, it.link.port) } ?: BrowserConnection.Hub
 }
 
 @Composable
@@ -274,7 +330,8 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
     val myUnread = hall.data?.seats?.firstOrNull { it.id == identity }?.unread ?: 0
     val where = remember(hall.data, backend) { whereLabel(backend) }
     val comfort = remember(ctx) { Comfort.get(ctx) }
-    val pins = TablePins(comfort.pinned, comfort.putAway, pin = comfort::pin, putAway = comfort::putAwayProject)
+    val pins = TablePins(comfort.pinned, comfort.putAway, pin = comfort::pin, putAway = comfort::putAwayProject,
+        order = comfort.order, reorder = comfort::reorder)
     val openNeed: (com.meztking.roundtable.data.NeedView) -> Unit = { n ->
         showNeeds = false
         when {
@@ -295,6 +352,7 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
         selected = tab, onSelect = { tab = it },
         snackbarHost = { SnackbarHost(snack) },
         beside = needsPane,
+        folded = rememberFolded(),
     ) {
         val twoPanes = LocalShellPlan.current.twoPanes
         Box {

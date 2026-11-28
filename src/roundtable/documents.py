@@ -11,8 +11,8 @@ Kept in ``<app home>/documents/``, on this computer only (never synced):
 to a model (``for_models`` leaves it out; ``recall`` checks again).
 
 Reading, with the standard library only: text, Markdown, HTML (tags taken out), CSV, JSON and Word (.docx,
-the text of ``word/document.xml``). A PDF is kept and found by its name: ``attachments.py`` only recognises a
-PDF, it does not read its text, and no PDF reader is added here.
+the text of ``word/document.xml``). A PDF's text is read with ``pypdf`` (pure Python, BSD licence) when it is
+installed; without it, or for a PDF with no text in it (a scan), the PDF is kept and found by its name.
 """
 
 from __future__ import annotations
@@ -40,7 +40,8 @@ MAX_TEXT = 400 * 1024  # text read from one file
 MAX_FOLDER_FILES = 400  # files read from one linked folder
 TEXT_TYPES = {".txt": "Text", ".md": "Markdown", ".markdown": "Markdown", ".html": "Web page", ".htm": "Web page",
               ".csv": "Table", ".json": "Data", ".docx": "Word", ".pdf": "PDF"}
-UNREAD = {".pdf"}  # kept and found by name; its text isn't read (see the module's notes)
+UNREAD = {".pdf"}  # found by name only when its text can't be read (no pypdf, or a scan)
+PDF_PAGES = 300  # pages of one PDF read
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
 _LOCK = threading.RLock()
 
@@ -270,14 +271,50 @@ def docx_text(data: bytes | Path) -> str:
     return "\n".join(paras).strip()
 
 
+def pdf_reader():
+    """pypdf's PdfReader when it is installed, else None."""
+    try:
+        from pypdf import PdfReader
+    except Exception:  # noqa: BLE001 - not installed (or broken): PDFs are found by name
+        return None
+    return PdfReader
+
+
+def pdf_text(data: bytes | Path) -> str:
+    """The words of a PDF, page by page ("" without pypdf, for a scan, or for a PDF that can't be read)."""
+    import io
+    import logging
+
+    reader = pdf_reader()
+    if reader is None:
+        return ""
+    logging.getLogger("pypdf").setLevel(logging.ERROR)
+    try:
+        pdf = reader(io.BytesIO(data) if isinstance(data, bytes) else str(data))
+        if getattr(pdf, "is_encrypted", False):
+            return ""
+        out, size = [], 0
+        for i, page in enumerate(pdf.pages):
+            if i >= PDF_PAGES or size > MAX_TEXT:
+                break
+            t = page.extract_text() or ""
+            out.append(t)
+            size += len(t)
+    except Exception:  # noqa: BLE001 - a damaged PDF: found by name
+        return ""
+    return "\n\n".join(x.strip() for x in out if x.strip())[:MAX_TEXT]
+
+
 def read_text(path: Path) -> str:
-    """The text of one file ("" for a PDF, a file too big or one that can't be read)."""
+    """The text of one file ("" for a file too big, one that can't be read, or a PDF without words)."""
     suffix = path.suffix.lower()
-    if suffix not in TEXT_TYPES or suffix in UNREAD:
+    if suffix not in TEXT_TYPES:
         return ""
     try:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
             return ""
+        if suffix == ".pdf":
+            return pdf_text(path)
         if suffix == ".docx":
             return docx_text(path.read_bytes())[:MAX_TEXT]
         raw = path.read_bytes()[:MAX_TEXT]
@@ -330,13 +367,15 @@ def view(home: str | Path | None, doc: dict[str, Any], names: dict[str, str] | N
            ", ".join(names.get(x, "a project no longer here") for x in p) if p else "No projects")
     kind = "Folder" if doc.get("kind") == "folder" else TEXT_TYPES.get(Path(doc.get("name", "")).suffix.lower(), "File")
     files = files_of(home, doc)
-    unread = [n for n, f in files if f.suffix.lower() in UNREAD]
-    note = ("Its words can't be read yet (PDF), so it's found by its name only." if unread and len(unread) == len(files)
+    unread = [n for n, f in files if f.suffix.lower() in UNREAD
+              and (pdf_reader() is None or (doc.get("kind") == "file" and not read_text(f)))]
+    note = ("Its words can't be read (a PDF with no text, or a scan), so it's found by its name only."
+            if unread and len(unread) == len(files)
             else f"{len(files)} files" if doc.get("kind") == "folder" else "")
     return {**doc, "kind_words": kind, "who": who, "note": note,
             "private_words": "Never leaves this computer" if doc.get("private") else ""}
 
 
 __all__ = ["DocumentError", "add_file", "add_upload", "all_documents", "change", "docx_text", "files_of",
-           "for_models", "for_project", "get", "home_of", "html_text", "link_folder", "read_text", "remove", "removed",
+           "for_models", "for_project", "get", "home_of", "html_text", "pdf_text", "link_folder", "read_text", "remove", "removed",
            "stamp", "view"]

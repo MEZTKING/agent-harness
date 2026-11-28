@@ -1,0 +1,64 @@
+{
+ "box": {
+  "can": true,
+  "words": "Under Careful and Ask every time, a task that doesn't need the internet runs its commands with the internet off."
+ },
+ "default": "",
+ "free_sure": "Free means nothing waits for you: every command and every change runs straight away, risky ones too. Are you sure?",
+ "jobs": [
+  {
+   "computer": "",
+   "job": "orchestrator",
+   "preset": "careful",
+   "project": "",
+   "source": "the default",
+   "title": "Careful"
+  },
+  {
+   "computer": "",
+   "job": "coder",
+   "preset": "careful",
+   "project": "",
+   "source": "the default",
+   "title": "Careful"
+  },
+  {
+   "computer": "",
+   "job": "reviewer",
+   "preset": "careful",
+   "project": "",
+   "source": "the default",
+   "title": "Careful"
+  },
+  {
+   "computer": "",
+   "job": "designer",
+   "preset": "careful",
+   "project": "",
+   "source": "the default",
+   "title": "Careful"
+  }
+ ],
+ "presets": [
+  {
+   "id": "ask_all",
+   "title": "Ask every time",
+   "words": "Every command, and every change outside the task's planned files, waits for your tap."
+  },
+  {
+   "id": "careful",
+   "title": "Careful",
+   "words": "Only risky commands wait for your tap (deleting outside the project, sending code, installing…)."
+  },
+  {
+   "id": "free",
+   "title": "Free",
+   "words": "Nothing waits: commands and changes run straight away."
+  },
+  {
+   "id": "read_only",
+   "title": "Read only",
+   "words": "It can only read: no writing and no commands at all."
+  }
+ ]
+}

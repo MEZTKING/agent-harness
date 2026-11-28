@@ -8,6 +8,12 @@ import { rewindButton } from "./rewind.js";
 import { proofCard } from "./proof.js";
 import { liveOutput } from "./terminal.js";
 import { appStartCard } from "./appstart.js";
+import { streamUnder, followBox } from "./stream.js";
+import { openFocus } from "./focus.js";
+import { pathLinker } from "./files.js";
+
+// paths in a step's output link to Files, local addresses to the Browser (files.js); plain text until it's known
+let LINK = (t) => [t];
 
 const rawUrl = (kind, path, name, task) => `/raw/${kind}?` + new URLSearchParams({ path, name, ...(task ? { task } : {}) });
 const shotUrl = (path, rec, kind) => rawUrl("shot", path, (rec.pictures || {})[kind] || `${kind}.png`, rec.dir || rec.task);
@@ -27,17 +33,21 @@ export async function watchTab(seat, now) {
     h("section", { class: "card term-card" }, h("div", { class: "card-head" }, h("h2", {}, "The work, step by step"), status), term),
     outs, details);
   const path = seat.path;
+  if (path) pathLinker(seat).then((f) => { LINK = f; }).catch(() => {});
   // kept per task, so each redraw moves the same node: a command's output keeps flowing, the proof isn't fetched again
-  const liveNodes = new Map(), proofNodes = new Map();
+  const liveNodes = new Map(), proofNodes = new Map(), wordNodes = new Map(), followNodes = new Map();
   const [canLive, canRewind] = path ? await Promise.all([has("/api/terminal/task"), has("/api/rewind")]) : [false, false];
   const kept = (map, id, make) => { if (!map.has(id)) map.set(id, make()); return map.get(id); };
   const taskEnd = (t) => {
     if (!path || !t.id) return null;
-    if (t.status === "running") return canLive ? kept(liveNodes, t.id, () => liveOutput(path, t.id)) : null;
+    if (t.status === "running") return [kept(wordNodes, t.id, () => streamUnder(path, t.id)),  // its words as written
+      canLive ? kept(liveNodes, t.id, () => liveOutput(path, t.id)) : null];
     liveNodes.delete(t.id);
-    if (t.status !== "done") return null;
+    wordNodes.delete(t.id);
+    const follow = ["done", "failed"].includes(t.status) ? kept(followNodes, t.id, () => followBox(path, t.id, t.title)) : null;
+    if (t.status !== "done") return follow;
     return h("div", { class: "t-end" }, kept(proofNodes, t.id, () => proofCard(path, t.id)),
-      canRewind && seat.status !== "running" ? h("div", { class: "row" }, rewindButton(seat, t, () => refreshHall())) : null);
+      canRewind && seat.status !== "running" ? h("div", { class: "row" }, rewindButton(seat, t, () => refreshHall())) : null, follow);
   };
   return every(box, async () => {
     const s = now();
@@ -61,7 +71,8 @@ export async function watchTab(seat, now) {
     fill(outs, (d.outputs || []).length ? card("What it made", h("p", { class: "muted small" }, "Pictures and files the project made, newest first."), outputList(path, d.outputs)) : null);
     fill(term, (d.tasks || []).length ? d.tasks.map((t, i) => h("div", { class: "t-task" },
       h("div", { class: "t-head" }, h("span", { class: "t-prompt" }, "▶"), h("b", {}, t.title || t.id), h("span", { class: "t-meta" }, ` · ${jobName(t.role)}`),
-        h("span", { class: "spacer" }), taskPill(t.status), t.cost ? h("span", { class: "t-cost", title: "What this task cost" }, money(t.cost)) : null),
+        h("span", { class: "spacer" }), taskPill(t.status), t.cost ? h("span", { class: "t-cost", title: "What this task cost" }, money(t.cost)) : null,
+        path && t.id ? h("button", { class: "small", type: "button", title: "See this one task full screen", onclick: () => openFocus(seat, t.id) }, "Focus") : null),
       taskSummary(t, `${i}:sum`, open),
       t.steps.map((st, j) => stepNode(path, st, `${i}:${j}`, open)),
       changedFiles(t, `${i}:files`, open),
@@ -125,7 +136,7 @@ function taskSummary(t, key, open) {
   det.addEventListener("toggle", () => (det.open ? open.add(key) : open.delete(key)));
   return det;
 }
-function changedFiles(t, key, open) {
+export function changedFiles(t, key, open) {
   const list = t.changes || [];
   if (!list.length) return null;
   const add = list.reduce((a, c) => a + c.added, 0), del = list.reduce((a, c) => a + c.removed, 0);
@@ -192,10 +203,10 @@ function remoteSteps(events) {
   return out;
 }
 
-function stepNode(path, s, key, open) {
+export function stepNode(path, s, key, open) {
   const cost = s.cost ? h("span", { class: "t-cost", title: "What this model turn cost" }, money(s.cost)) : null;
   if (s.kind === "say") return h("div", { class: "t-say" + (s.who === "reviewer" ? " rev" : "") }, h("span", { class: "t-dot" }, "⏺"),
-    h("div", {}, s.who === "reviewer" ? h("b", {}, "Reviewer  ") : null, s.text), cost);
+    h("div", {}, s.who === "reviewer" ? h("b", {}, "Reviewer  ") : null, LINK(s.text)), cost);
   if (s.kind === "attempt") { const n = (String(s.text).match(/Attempt (\d+)/) || [])[1]; return h("div", { class: "t-meta" }, n && n !== "1" ? `Try ${n}, with ${modelName(s.model)}` : `Working with ${modelName(s.model)}`); }
   if (s.kind === "review") return h("div", { class: "t-review " + (s.approved ? "ok" : "no") }, s.approved ? "✓ Approved" : "✗ Sent back", h("span", {}, "  " + (s.text || "")));
   if (s.kind === "finish") return h("div", { class: "t-meta" }, "✓ Finished: ", s.text);
@@ -205,7 +216,7 @@ function stepNode(path, s, key, open) {
     return h("div", { class: "t-shots" }, h("div", { class: "t-meta" }, s.pictures.length ? `Pictures of the app${s.errors ? ` · the page reported ${s.errors} error${s.errors > 1 ? "s" : ""}` : ""}` : `No pictures: ${s.note}`),
       s.pictures.length && path ? h("div", { class: "strip" }, s.pictures.map((k) => picture(shotUrl(path, rec, k), `${SHOT_NAMES[k] || k} · after this task`))) : null);
   }
-  const body = s.diff ? diffView(s.diff) : s.output ? h("pre", { class: "t-out" }, s.output) : null;
+  const body = s.diff ? diffView(s.diff) : s.output ? h("pre", { class: "t-out" }, LINK(s.output)) : null;
   const line = [h("span", { class: "t-dot" + (s.error ? " bad" : "") }, "●"), h("b", {}, s.label), s.detail ? h("span", { class: "t-detail" + (s.error ? " bad" : "") }, " · " + s.detail) : null, cost];
   if (!body) return h("div", { class: "t-tool" }, line);
   const det = h("details", { class: "t-tool", open: open.has(key) }, h("summary", { title: "Show what it did" }, line), body);

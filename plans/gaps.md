@@ -8,6 +8,27 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Wave 8's phone screens (p1-phone Part B) aren't built** (27 November, 1.4.0): words as they are written,
+  `/` commands, follow-ups, the queue, question timers, the board, git history, CI and "when the PC last
+  listened" all answer the phone (read only where it matters) and are in the phone's conformance test, but the
+  phone has no screens for them yet. → 1.4.x, p1-phone Part B.
+- **Wave 8 untried on real machines** (27 November, 1.4.0): a real EXE's window picture (`winshot`), an
+  emulator started, an APK opened and pictured; links into a task's copy on a real `node_modules` (Windows
+  junctions); the editor, Open as PDF and Talk in the frozen app's window; engines installing themselves; the
+  phone's runtime update and a forced bad one, import from Files, the fold; one real streamed call per
+  provider (a few cents, estimate first). All beta until tried on the owner's PC and phone through Remote
+  Control. → 1.4.x.
+- **The stand-up has no sentence written by a model** (27 November, p1-reach): its one line is put together
+  from the projects' states, with no model call (so it costs nothing); a model-written summary needs a
+  priced place in autopilot's allowance first. → later.
+- **Android: `androidx.window` comes from Google's Maven** (27 November, 1.4.0): the hinge needs Jetpack
+  WindowManager; the cloud build fetched it through the Maven mirror init script, and an offline build with an
+  empty cache can't. CI fetches it. → watch the first CI run.
+- **Branch switch from the app refuses while any task is unfinished** (27 November, 1.4.0, the safety
+  review): pending or running tasks, a project that says it is planning or building, or a kept task copy all
+  stop it, so nothing is built on the wrong branch. Finish, skip or pause first. → by design; revisit if it
+  gets in the way.
+
 - **Learning's real cost is unmeasured** (27 November, wave 7): the weekly learning allowance ($2, the
   owner's figure) and the yardstick were only run with scripted models. One small real cycle (balance before
   and after, the real cost of one prompt test beside the guesses in DEVLOG) is the next check. → 1.3.x.
@@ -17,25 +38,16 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   Control. On Windows "no internet" and "only its own folder" are held inside Python (it stops a plug-in that
   tries, not one written to break out); a kernel-level box needs Windows Sandbox or WSL. → 1.3.x, then later.
 - **Search by meaning uses no maker's embeddings** (27 November, wave 7): `recall.embeddings` is read and does
-  nothing; there is no embeddings call to price yet. PDFs are found by their name only (the standard library
-  can't read their text). → later.
+  nothing; there is no embeddings call to price yet. The owner's answer (27 November): leave it off; offer it
+  later as a switch with its price shown. (A PDF's text is read since 1.4.0: see Fixed.)
 - **Documents and the memory picture aren't on the phone** (27 November, wave 7): the phone has What it
-  learned (with Undo) only. → next phone slice.
+  learned (with Undo) only. → wave 8, p1-phone (part B).
 
-- **Pictures: no editing of an earlier picture** (27 November, the Eclipse art for 1.0.0): the image route
-  (`providers/chat_images.py`, ChatImagesProvider) can only make new pictures. The ring had to be cut out of
-  the backdrop by hand with Pillow. It should take an earlier picture and an instruction. → 1.1.0.
-- **Pictures: no see-through output** (27 November, same job): there's no transparent background option, so
-  the ring and wordmark were made on black and their transparency worked out from brightness by hand. The
-  image route should ask for transparency where the model can do it, and do the cut-out itself where it
-  can't. → 1.1.0.
-- **Pictures: spending isn't counted safely in parallel** (27 November, same job): two pictures made at once
-  overwrote each other's cost line, so the art's spending had to be added up by hand ($0.89 in all,
-  `docs/art.md`). Picture spending must be counted safely when several run at once. → 1.1.0 (money).
 
-- **"Ask me first" for commands on the phone isn't wired** (26 November): the phone stores the choice and
-  passes `ROUNDTABLE_ASK_FIRST=1`, but `run_command` can't yet stop mid-task for an allow/deny card.
-  → next phone slice.
+- **"Ask me first" on the phone is wired but untried on a real phone** (26 November; re-checked 27 November):
+  the phone passes `ROUNDTABLE_ASK_FIRST=1` (`RoundtableApp.kt` `askFirstEnv`), This phone's harness turns it
+  into `ROUNDTABLE_GATE=all` (`onphone.py`), and the gate makes every command wait for a card (`harness/gate.py`).
+  Only a check on the owner's phone through the PC remains. → wave 8 (coordinator, through Remote Control).
 - **The phone and PC sync hasn't met real machines** (26 November): seats, claims, live sessions, shared
   settings, carry-on and pairing are built and tested with made-up hubs; a real PC + phone run (through
   Remote Control and USB) is the next check.
@@ -58,8 +70,7 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **The phone has no screen for a project's settings yet** (26 November): the desktop's project page has
   it and the phone's routes serve `/api/project/settings`; the phone screen comes with slice 2.
 - **This phone: only x86_64 was built and smoke-tested** (26 November); arm64 (the owner's phone) is built
-  by the runtime workflow and must be tried on the phone through the PC. "Ask me first" for commands is
-  stored but not used yet. The runtime workflow doesn't link `previous` releases yet; Docker Hub limits can
+  by the runtime workflow and must be tried on the phone through the PC. The runtime workflow doesn't link `previous` releases yet; Docker Hub limits can
   stop a local build (use the `BASE_IMAGE` mirror).
 - **A repository's machine set-up is by hand** (26 November): MSE Studio's tests needed Qt's system
   libraries (`libegl1` and others) and its add-on repositories cloned next to it, done by hand. A project's
@@ -106,10 +117,10 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   `confirm` on its option the same way. → release 2.
 - **Question cards: the phone can't run the new-project wizard** (26 November): the wizard's cards
   are served by `/api/asks?wizard=1` and work on the PC; the phone still uses its plain form in PC
-  mode and has no way to start a project in Hub mode. → release 4 (the phone).
+  mode and has no way to start a project in Hub mode. → wave 8, p1-phone (part B).
 - **Question cards: the look's pictures aren't on the phone's card** (26 November): the card names
   each look and its mood; the pictures are in the hub (`plans/looks/...`) but the phone doesn't
-  load them into the card yet. → release 4.
+  load them into the card yet. → wave 8, p1-phone (part B).
 - **Question cards: a reworded question loses its typed answer only in Hub mode** (26 November):
   a card answered from the phone is refused when the question changed since (its `stamp`); the
   reply says so, but the phone doesn't fetch the new card until the next refresh. → release 4.
@@ -141,7 +152,7 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 - **References: the phone can't add one from its own screen yet.** The hub command works
   (`reference_add` with `text`, `reference_remove` with `id`), but Roundtable Mobile has no
-  "Make it like this" box or "Like these" view. → release 4.
+  "Make it like this" box or "Like these" view. → wave 8, p1-phone (part B).
 - **References: sites that refuse automated readers stay unread.** Reddit and others answer
   403 to a plain reader; the scout says so and works from the rest. A real browser (the
   Playwright the Look step uses) or the site's own API would read more. → release 2.
@@ -156,30 +167,36 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 - **References: a reference that couldn't be read isn't tried again by itself.** Remove
   it and add it again. No real run of the scout has been made yet (it costs credit). →
   release 2.
-- **Long tasks have no compaction; the token saver's "compact at 120k" needs it.** The
-  token saver (26 November) slims tool results as they arrive, but a long task's
-  conversation still grows without limit; the plugin it comes from asks the harness to
-  summarise old turns once a conversation passes about 120,000 tokens. → release 5.
 - **The estimate's defaults are guesses.** With no history it assumes 60,000 input and
   8,000 output tokens per attempt. In real money the music player's estimate was about
   right once the cost count was fixed (below), but the defaults should come from real
   runs (steps × context) and be checked after each one. → release 2.
-- **Pictures of Android and desktop apps, and the Live frame from another computer.** What's left of
-  "Nothing proves the work runs" (fixed in 1.1.0, see Fixed): no window pictures of a running EXE and no
-  emulator started by the harness (an APK is only built, checked and installed on an emulator that is
-  already running); the app's own server listens on 127.0.0.1, so `roundtable ui --host` from another
-  machine shows only the pictures. → wave 6.
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
-  stops after two hours; with the desktop app closed, nothing answers. → release 3 (say
-  on the phone when no Roundtable is listening, and when it last was).
-- **Running one task, or until a point, isn't in the app.** `run(max_tasks=1)` exists in
-  code; the app and the phone can only run everything. → release 2 (a "do one task"
-  button, useful while costs are being checked).
+  stops after two hours; with the desktop app closed, nothing answers. Since 1.4.0 the PC says when it last
+  listened (`reach.py` `beat`, `GET /api/listening`); the phone's line for it is p1-phone Part B.
 - **The critique can be about an older version.** It's now labelled with its version;
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
 
+- **Pictures: no editing of an earlier picture, no see-through output, spending not counted safely in
+  parallel** → fixed in 1.4.0 (wave 8, p1-proof): `providers/chat_images.py` takes an earlier picture
+  (`from_image`) and asks for transparency where the model can, cutting it out itself where it can't
+  (`transparent`); `harness/imageprice.py` `record` writes each cost line whole under a lock, also for agents'
+  faces (`agents.make_face`).
+- **Pictures of Android and desktop apps** → fixed in 1.4.0 (wave 8, p1-proof; beta until tried on the owner's
+  PC): an EXE's window is pictured when it starts and an empty window gets one fix task (`harness/winshot.py`,
+  `shipstage._ship_smoke`); an APK is installed, opened and pictured on an emulator the harness starts and always
+  stops (`harness/emulator.py`), and with no test phone a one-tap card offers to make one (PC only). The Live
+  frame on the phone stays wave 9.
+- **A PDF's text isn't read** → fixed in 1.4.0 (wave 8, p1-editor): `documents.pdf_text` reads it with pypdf, for
+  search and the Files tab.
+
+- **Long tasks have no compaction** → fixed (found built at the 1.4.0 re-audit, 27 November): a conversation past
+  the threshold has its older steps summed up by a cheap model, keeping the task, the files changed and the last
+  steps (`plugins/builtin/compactor.py`, called from `harness/agent.py` `run_agent` each step).
+- **Running one task isn't in the app** → fixed (found built at the 1.4.0 re-audit): "Just the next task" on the
+  project's card (`ui/static/project.js`, `run` with `max_tasks: 1`).
 - **Plugins can't be held to their permissions** → fixed in 1.3.0: every installed plugin runs in its own box
   (plugins/sandbox.py); Trusted ones and built-ins run in the app. (Was: a plugin was Python running inside the app, so its permissions were what it said, not what it was allowed.)
 - **No plugin catalogue** → fixed in 1.3.0: Tools → Plug-ins and skills (plugins/market.py, catalogue.json),

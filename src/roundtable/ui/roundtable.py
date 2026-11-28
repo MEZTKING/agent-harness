@@ -593,6 +593,9 @@ class AutoSync:
                 from ..remote import process
 
                 process(cfg, self.app.hub, background=True, log=lambda s: None)  # commands from the phone
+            from ..reach import on_sync
+
+            on_sync(self.app)  # the stand-up, the hourly look and who is listening (reach.py)
         except Exception as e:  # offline etc.: keep the app working on its local copy
             self.app.auto_sync_error = str(e)[:300]
         time.sleep(0)

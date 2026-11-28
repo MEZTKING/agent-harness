@@ -187,10 +187,15 @@ def todo_done(orch, kw: dict[str, Any]) -> str:
 
 def _answer(orch, kw: dict[str, Any]) -> str:
     """A card answered from the phone or another machine: the same as tapping it on the PC."""
-    from .asks import answer_ask, finish
+    from . import asktimer
+    from .asks import finish
 
-    r = answer_ask(orch, str(kw.get("id", "")), kw.get("chosen"), str(kw.get("other") or ""),
-                   confirmed=bool(kw.get("confirmed")), stamp=kw.get("stamp") or None, skip=bool(kw.get("skip")))
+    if str(kw.get("id", "")).startswith("shipoffer"):  # a download onto the PC itself: answered there only
+        return "That can only be answered on the PC itself."
+
+    r = asktimer.answer(orch, str(kw.get("id", "")), kw.get("chosen"), str(kw.get("other") or ""),
+                        confirmed=bool(kw.get("confirmed")), stamp_seen=kw.get("stamp") or None,
+                        skip=bool(kw.get("skip")))
     return " ".join(x for x in (r["reply"], finish(orch, r)) if x)
 
 

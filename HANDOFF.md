@@ -1,4 +1,4 @@
-# Handoff – 27 November 2026 (late night, after wave 7)
+# Handoff – 27 November 2026 (late night, after wave 8)
 
 For the next agent (any model, any tool). Read this first, then `AGENTS.md` (short
 rules), `CLAUDE.md` (the same rules in full), `PLAN.md`, the newest entries of
@@ -32,7 +32,9 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
 | Beta in 1.2.0 | Only scripted so far: the real cost of the extra checking against the estimate, how often a checker must be asked again, real pickers and councils, OpenRouter's picture size, the phone's checking buttons on a real phone. The six starter faces are not made yet (initials show) |
 | Wave 7 → **1.3.0** | **Ready, not released**, on branch `d4-integrate` (on top of 1.2.0 and wave 7's step 0): it learns – learning's own weekly allowance (the owner chose $2), the yardstick of practice tasks, the watch that undoes a clear drop, What it learned with Undo (desktop and phone), the charter and the house style, plug-ins in their own box, Make one and the list of plug-ins and skills, search by meaning and your documents, Who knows what, sharing between machines, self-repair as a draft pull request. All tests green; DEVLOG has every hook-up |
 | Beta in 1.3.0 | Only scripted so far: the real cost of a cycle on $2, the frozen `--python` and `--plugin-box` starts and the Job Object on Windows, real sharing between the PC and the phone, a real self-repair |
-| Waves 8–9 | Planned (PLAN.md's table): the parity sweep, the rows once declined |
+| Wave 8 → **1.4.0** | **Ready, not released**, on branch `p1-integrate` (on top of 1.3.0 and wave 8's step 0): the board, Focus and answering several; words as they are written, `/` commands, follow-ups, timers, the queue, Talk; what each job may do (Careful by default) and shared dependency folders; changing a file, git history, richer previews, the Browser; work from outside (always waiting for the OK), the stand-up, CI, services, the tool-server catalogue, Move my data; window and phone pictures; the phone's rollback, named failures, projects, Browser tab and fold. Fable's six safety fixes in. All tests green; DEVLOG has every hook-up |
+| Beta in 1.4.0 | Untried on real machines: window pictures, the emulator, junctions, the editor/PDF/Talk in the frozen app, engines installing themselves, the phone's new parts; the phone's screens for wave 8 are p1-phone Part B |
+| Wave 9 | Planned, with the owner's answers (`plans/parity.md` section 5, `plans/notes-for-owner.md`) |
 | Phone ↔ PC sync, This phone | Built and tested with made-up hubs; **never run on real machines** |
 | Engines | MCP tool servers (Unreal, Godot, Blender), the Godot checker – not yet tried with the real programs |
 
@@ -60,8 +62,9 @@ AppId, the phone's applicationId `com.meztking.roundtable`, the `roundtable://pa
    (`test_windows_job_object_allows_one_process`) and one boxed plug-in trying the internet; one small real
    learning cycle on the $2 (balance before and after; write the real cost of one test in DEVLOG); the
    LearnedCard and its Undo on the phone by USB.
-7. Wave 8: the parity sweep (`plans/parity.md`: 9 missing, 32 partly), plus window pictures of an EXE and an
-   emulator the harness starts, sound and music. Wave 9: the rows once declined.
+7. Wave 8 / 1.4.0 (branch `p1-integrate`): release after 1.3.0. Then p1-phone Part B (the phone's screens for
+   wave 8), and on the owner's PC and phone the table in DEVLOG's 1.4.0 entry ("Open"). Wave 9 next: sound and
+   music ($2 a project, Fable compares two services first), the animated office (art up to $10), languages.
 8. `plans/gaps.md`: the picture gaps (editing, see-through, safe parallel spending), Ask me first on the phone,
    owner to-dos that leave the app, and wave 7's open items (real cost, frozen modes, embeddings and PDFs, the
    phone's documents).

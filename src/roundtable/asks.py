@@ -75,9 +75,14 @@ def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
     doc = orch.project.plan_doc()
     tasks = orch.project.tasks()
     from .harness import donestage  # here, not at the top: the harness imports this module
+    from . import asktimer
 
     asks = command_asks(orch.project.root) + _money_asks(orch, meta) + _failed_asks(orch, meta, tasks)
     asks += [a for a in [donestage.not_finished_ask(orch, meta)] if a]  # the done gate stopped it
+    from .harness import quiet
+
+    asks += [a for a in [quiet.quiet_ask(orch, meta)] if a]  # a run gone quiet: wait, or stop it (quiet.py)
+    asks += [a for a in [ship_offer_ask(orch)] if a]  # make a test phone on this PC (shipstage.py, emulator.py)
     if doc and not meta.get("plan_approved"):  # once building, the plan's questions are settled
         asks += _plan_asks(orch, doc, meta)
     name = orch.project.root.name
@@ -89,8 +94,66 @@ def open_asks(orch, answered: bool = False) -> list[dict[str, Any]]:
         if a["answer"] is not None and not answered:
             continue
         a["project"], a["path"] = name, str(orch.project.root)
+        asktimer.stamp(a, orch.project.root)  # a card with a timer says when it runs out (asktimer.py)
         out.append(a)
+    out = asktimer.sweep(orch, out)  # the cards whose time ran out are answered as they said
     return out
+
+
+def _ship_offer_path(orch) -> Path:
+    from .harness.shipstage import SHIP_OFFER_FILE
+
+    return orch.project.root / ".harness" / SHIP_OFFER_FILE
+
+
+def ship_offer_ask(orch) -> dict[str, Any] | None:
+    """The one-tap card when an APK could not be tried on a phone: make a test phone on this computer?
+    The download's size and what it gives first; the exact commands only behind More. PC only."""
+    try:
+        d = json.loads(_ship_offer_path(orch).read_text(encoding="utf-8"))
+        offer = d["offer"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not offer.get("can"):
+        return None
+    opts = [{"id": "yes", "label": "Make it", "description": f"Downloads {offer.get('size') or 'the test phone'} "
+                                                          "and makes it. Then your app is opened and pictured."},
+            {"id": "no", "label": "Not now", "description": "Nothing is downloaded. It asks again next time."}]
+    commands = "\n".join(" ".join(str(x) for x in c) for c in offer.get("commands") or [])
+    ask = _ask("shipoffer", "ship_offer", "Test phone", f"{offer.get('title') or 'Make a test phone'}?", opts,
+               recommended="yes", detail=str(offer.get("words") or ""), source={"ship_offer": d.get("target", "")},
+               pc_only=True, more=commands)
+    ask["allow_other"] = False
+    return ask
+
+
+def _apply_ship_offer(orch, ask, picked, other):
+    path = _ship_offer_path(orch)
+    if (picked or ["no"])[0] != "yes":
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return {"reply": "Left for now: no test phone is made.", "then": None}
+    return {"reply": "Making the test phone (a big download: this takes a while)…", "then": "emulator"}
+
+
+def _make_test_phone(orch) -> str:
+    """The long step of "Make it": download the system image and make the virtual phone."""
+    from .harness import emulator
+
+    path = _ship_offer_path(orch)
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "The offer has gone: try the build again."
+    r = emulator.make_avd(Path(d.get("sdk") or ""), str(d.get("os") or ""))
+    if r.get("ok"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    return str(r.get("words") or "")
 
 
 def command_asks(root: Path) -> list[dict[str, Any]]:
@@ -119,14 +182,17 @@ def command_ask(w: dict[str, Any]) -> dict[str, Any]:
             {"id": "always", "label": "Always allow in this project",
              "description": f"It runs now, and {remember} runs without asking in this project from now on."},
             {"id": "deny", "label": "Don't allow", "description": "It doesn't run. The builder is told and carries on without it."}]
-    ask = _ask(f"command:{w['id']}", "command", "Command", f"{who} wants to run a command. Allow it?", opts,
+    doing = str(w.get("doing") or "")  # a tool that waits (perms.py): what it wants to do, in plain words
+    question = (f"{who} wants to {doing[:1].lower() + doing[1:]}. Allow it?" if doing
+                else f"{who} wants to run a command. Allow it?")
+    ask = _ask(f"command:{w['id']}", "command", "Command", question, opts,
                detail=f"Why it asks: {why}" if why else "",
                other_hint="Don't allow, and tell it what to do instead",
                source={"command": w["id"]})
     ask.update({"command": w.get("command", ""), "preview": w.get("preview", ""), "folded": bool(w.get("folded")),
                 "lines": w.get("lines", 1), "size": w.get("size", 0), "reasons": list(w.get("reasons") or []),
                 "task": task, "remember": remember, "asked_at": w.get("asked_at", ""),
-                "expires_at": w.get("expires_at", "")})
+                "expires_at": w.get("expires_at", ""), "tool": w.get("tool", ""), "box": w.get("box", "")})
     return ask
 
 
@@ -169,7 +235,8 @@ def _decision_ask(d: dict[str, Any]) -> dict[str, Any]:
              "description": " · ".join(x for x in (o.get("detail"), o.get("cost")) if x)} for o in d["options"]]
     return _ask(f"choose:{d['id']}", "decision", d.get("header") or "Choice", d["question"], opts,
                 recommended=d.get("recommended"), detail=f"Recommended because: {d['why']}" if d.get("why") else "",
-                other_hint="Something else? Say what you want", source={"decision": d["id"]}) \
+                other_hint="Something else? Say what you want", source={"decision": d["id"]},
+                **({"timer": d["timer"]} if d.get("timer") else {})) \
         | {"answer": {"chosen": [d["chosen"]], "other": ""} if d.get("chosen") else None}
 
 
@@ -177,7 +244,8 @@ def _question_ask(q: dict[str, Any]) -> dict[str, Any]:
     opts = [{"id": o["id"], "label": o["label"], "description": o.get("detail", "")} for o in q.get("options") or []]
     return _ask(f"answer:{q['id']}", "question", q.get("header") or "Question", q["text"], opts,
                 recommended=q.get("recommended") or None, multi=bool(q.get("multi")), detail=q.get("why") or "",
-                other_hint="Type your answer" if not opts else OTHER_HINT, source={"question": q["id"]}) \
+                other_hint="Type your answer" if not opts else OTHER_HINT, source={"question": q["id"]},
+                **({"timer": q["timer"]} if q.get("timer") else {})) \
         | {"answer": _question_answer(q)}
 
 
@@ -292,8 +360,18 @@ def _failed_asks(orch, meta: dict[str, Any], tasks) -> list[dict[str, Any]]:
                         f"{t.id} “{t.title}” didn't pass after {len(t.attempts)} tr{'ies' if len(t.attempts) != 1 else 'y'}."
                         " What now?", opts, recommended="retry", detail=f"Last note: {why[:300]}" if why else "",
                         other_hint="Tell it what to do differently, then it tries again",
-                        source={"task": t.id, "attempts": len(t.attempts)}))
+                        source={"task": t.id, "attempts": len(t.attempts)},
+                        **({"engine": eng} if (eng := _missing_engine(last)) else {})))
     return out
+
+
+def _missing_engine(attempt: dict[str, Any]) -> str:
+    """The coding helper (claude-code, codex) a task stopped for because it isn't installed, else "": its card
+    then offers "Install it and carry on" (prereq.engine_offer, ui/reachapi.py)."""
+    model, error = str(attempt.get("model") or ""), str(attempt.get("error") or "")
+    if not model.startswith("cli/") or "isn't installed on this computer" not in error:
+        return ""
+    return model.split("/", 1)[1].split("@", 1)[0]
 
 
 def _money_asks(orch, meta: dict[str, Any]) -> list[dict[str, Any]]:
@@ -540,7 +618,8 @@ def _apply_kind(orch, ask, picked, other):
 APPLY = {"kind": _apply_kind, "command": _apply_command, "decision": _apply_decision, "question": _apply_question, "idea": _apply_idea, "look": _apply_look,
          "profile": _apply_profile, "approve": _apply_approve, "failed": _apply_failed, "money": _apply_money,
          "not_finished": lambda *a: _lazy("donestage", "apply_not_finished")(*a),
-         "stuck": lambda *a: _lazy("unstick", "apply_stuck")(*a)}
+         "stuck": lambda *a: _lazy("unstick", "apply_stuck")(*a),
+         "quiet": lambda *a: _lazy("quiet", "apply_quiet")(*a), "ship_offer": _apply_ship_offer}
 
 
 def _lazy(module: str, name: str):
@@ -557,6 +636,8 @@ def finish(orch, result: dict[str, Any]) -> str:
         return f"The run ended as: {orch.run().replace('_', ' ')}."
     if then == "revise":
         return orch.revise_plan()["summary"] + "."
+    if then == "emulator":
+        return _make_test_phone(orch)
     if then == "looks":
         r = orch.look(result.get("text", ""))
         return "New looks: " + ", ".join(f"{x['id']} {x['name']}" for x in r["looks"]) + "."

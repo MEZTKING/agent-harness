@@ -4,6 +4,7 @@
 import { h, fill, get, post, act, toast, dialog, page, card, empty, jobName, has } from "./core.js";
 import { webSearchCard } from "./websearch.js";
 import { marketPage } from "./market.js";
+import { integrationsCard, mcpCatalogue } from "./integrations.js";
 
 const ROW = "padding: 10px 0; border-top: 1px solid var(--color-line)";  // no stylesheet change: style.css isn't this page's
 const STATE = { found: ["Found", "good"], old: ["Too old", "warn"], broken: ["Didn't start", "bad"], missing: ["Not found", ""] };
@@ -18,7 +19,10 @@ export async function viewTools() {
     const web = await has("/api/websearch") ? await webSearchCard().catch(() => null) : null;  // look things up on the web
     // the list of plug-ins and skills, and Make one (plugins/market.py, ui/marketapi.py)
     const market = await has("/api/market") ? card("Plug-ins and skills", await marketPage().catch((e) => h("p", { class: "muted" }, e.message))) : null;
-    fill(body, summary(t, draw), groups(t, draw), web, market, servers(t, draw));
+    // one list of every service it can reach, and the pinned tool servers to add with a tick (ui/reachapi.py)
+    const [svc, cat] = await Promise.all([has("/api/integrations"), has("/api/mcp/catalogue")]);
+    fill(body, summary(t, draw), groups(t, draw), svc ? integrationsCard() : null, web, market, servers(t, draw),
+      cat ? mcpCatalogue(() => draw()) : null);
   };
   await draw();
   return page("Tools", "What this computer has for building apps and games.", body);

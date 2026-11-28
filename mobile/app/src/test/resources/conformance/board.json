@@ -1,0 +1,108 @@
+{
+ "busy": false,
+ "can_move": true,
+ "columns": [
+  {
+   "cards": [],
+   "id": "todo",
+   "title": "To do"
+  },
+  {
+   "cards": [],
+   "id": "building",
+   "title": "Building"
+  },
+  {
+   "cards": [],
+   "id": "waiting",
+   "title": "Waiting for you"
+  },
+  {
+   "cards": [],
+   "id": "stuck",
+   "title": "Stuck"
+  },
+  {
+   "cards": [
+    {
+     "column": "done",
+     "id": "T1",
+     "line": "T1 done by coder",
+     "more": {
+      "built_by": "a/coder",
+      "role": "coder",
+      "tries": 1
+     },
+     "moves": [
+      {
+       "confirm": true,
+       "label": "Do it again",
+       "to": "todo"
+      }
+     ],
+     "number": "T1",
+     "status": "done",
+     "title": "hello module"
+    },
+    {
+     "column": "done",
+     "id": "T2",
+     "line": "generated image assets/logo.png with img/pic",
+     "more": {
+      "built_by": "img/pic",
+      "role": "designer",
+      "tries": 1
+     },
+     "moves": [
+      {
+       "confirm": true,
+       "label": "Do it again",
+       "to": "todo"
+      }
+     ],
+     "number": "T2",
+     "status": "done",
+     "title": "logo"
+    },
+    {
+     "column": "done",
+     "id": "T3",
+     "line": "T3 done by coder",
+     "more": {
+      "after": [
+       "T1"
+      ],
+      "built_by": "a/coder",
+      "role": "coder",
+      "tries": 1
+     },
+     "moves": [
+      {
+       "confirm": true,
+       "label": "Do it again",
+       "to": "todo"
+      }
+     ],
+     "number": "T3",
+     "status": "done",
+     "title": "tests"
+    }
+   ],
+   "id": "done",
+   "title": "Done"
+  }
+ ],
+ "earlier": {
+  "cards": [],
+  "count": 0,
+  "title": "Earlier work (0)"
+ },
+ "state": {
+  "last_at": "2026-11-27T23:33:07Z",
+  "line": "Finished",
+  "quiet_for": 1,
+  "state": "resting",
+  "word": "Resting"
+ },
+ "why_not": ""
+}

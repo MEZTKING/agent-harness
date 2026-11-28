@@ -116,7 +116,7 @@ def test_three_of_the_same_fault_make_one_card(tmp_path, monkeypatch):
     assert len(cards) == 1 and cards[0]["question"] == "The harness found a fault in itself. Try a fix for up to $1.50?"
     rows = [json.loads(x) for x in (tmp_path / "faults.jsonl").read_text().splitlines()]
     blob = json.dumps(rows) + json.dumps(cards)
-    for secret in ("Moonbakery", "someone", "file.py", "42"):
+    for secret in ("Moonbakery", "someone", "file.py", "line 42"):  # not a bare 42: a timestamp may hold it
         assert secret not in blob
     assert rows[0]["count"] == 3 and rows[0]["where"] == "roundtable.tidy.tidy:2"
     assert cards[0]["options"][0]["confirm"]  # the price is confirmed before anything is spent

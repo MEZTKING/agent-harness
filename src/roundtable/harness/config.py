@@ -112,7 +112,10 @@ FEATURE_SECTIONS = ("breaker", "gate", "notify", "automation", "tools", "compact
                     "terminal", "money", "discovery", "prep", "finish", "unstick", "stages", "playtest", "ship",
                     "tandem", "router", "panel", "rivals", "council", "usage", "agents",
                     # wave 7 (it learns)
-                    "sandbox", "style", "skills", "market", "recall", "documents", "selfrepair", "learning")
+                    "sandbox", "style", "skills", "market", "recall", "documents", "selfrepair", "learning",
+                    # wave 8 (the parity sweep)
+                    "board", "editor", "stream", "slash", "voice", "perms", "builders", "standup", "hooks",
+                    "integrations", "winshot", "emulator")
 
 
 def section(cfg: Any, name: str) -> dict[str, Any]:
@@ -425,6 +428,10 @@ def merge_custom(raw: dict[str, Any], custom: dict[str, Any]) -> dict[str, Any]:
         out["improve"] = {**(raw.get("improve") or {}), **mine}
     if custom.get("plugins"):
         out["plugins"] = merge_plugin_state(raw.get("plugins") or {}, custom["plugins"])
+    if isinstance(custom.get("breaker"), dict):  # the builders' settings from the app (permsapi.py)
+        out["breaker"] = {**(raw.get("breaker") or {}), **custom["breaker"]}
+    if "allow_shell" in (custom.get("workspace") or {}):
+        out["workspace"] = {**(raw.get("workspace") or {}), "allow_shell": bool(custom["workspace"]["allow_shell"])}
     if custom.get("default_profile") and custom["default_profile"] in (raw.get("profiles") or {}):
         out["default_profile"] = custom["default_profile"]  # the profile chosen in the app (shared settings)
     from ..prereq import merge_custom_tools  # tool servers added in the app, and which jobs use them

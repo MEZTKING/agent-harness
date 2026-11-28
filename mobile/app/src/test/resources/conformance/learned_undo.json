@@ -5,7 +5,7 @@
   "undone": 1,
   "waiting": 0
  },
- "id": "P827313",
+ "id": "Pa20557",
  "lines": [
   {
    "before_after": {
@@ -16,13 +16,13 @@
    "by": "you",
    "can_put_back": true,
    "can_undo": false,
-   "id": "P827313",
+   "id": "Pa20557",
    "kind": "options",
    "numbers": {},
    "role": "orchestrator",
    "state": "undone",
    "what": "Planner now temperature 0.3",
-   "when": "2026-11-27T21:44:09Z",
+   "when": "2026-11-27T23:33:03Z",
    "why": "you undid it",
    "words": "Planner now temperature 0.3: you undid it."
   }
@@ -34,6 +34,7 @@
   "Money",
   "Who may see a project",
   "Plug-ins' permissions",
+  "What each job may do",
   "Your house style",
   "What it may apply by itself, and this list",
   "The fixed rules every agent gets"
