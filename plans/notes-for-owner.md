@@ -7,6 +7,14 @@ and is noted here – the question, Fable's advice, and what was done. Newest fi
 The harness's own model switches are in the hub journal as decisions ("Switched by the harness:
 … Why: …", each with its undo command; older ones say "Switched by Roundtable:").
 
+
+## 28 November 2026 – what 1.5 will spend, and your three answers
+
+**Question:** which sound service, may the test build spend money, and may the app be translated?
+**Fable's advice:** ElevenLabs for sound (better and far cheaper per effect; about $5 a month), with Stable Audio kept as the no-subscription choice; a real test build of a small game on the cheap DeepSeek model, up to $3; eleven machine-translated languages, labelled as such, about $1 once. The whole of 1.5 spends at most about $14.60 (likely about $7), plus the ElevenLabs plan.
+**Your answers:** ElevenLabs; yes to the test build up to $3; yes to eleven languages.
+**What was done:** 1.5's groundwork is merged and seven parts are being built. Nothing is spent until each part is merged and priced first. The office art waits for you to approve a sample sheet.
+
 ## 2026-11-27
 
 - **Wave 8 (1.4.0): are saving files from the app, switching branch, the local hook and shared folders safe?**
