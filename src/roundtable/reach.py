@@ -31,6 +31,13 @@ per problem. ``hourly`` runs it every hour while any project is building (``stan
 **Is a harness listening** (``beat``): ``plans/listening.json`` in the hub (this machine's name and the time,
 nothing else), written at each sync at most every two minutes, so the phone can say "Your PC last listened
 3 minutes ago" (``listening``).
+
+**Who reads a project's letters** (``read_beat``, ``no_reader``, ``readers``): every machine or session that reads a
+project's letters (``remote.process``) writes ``plans/readers/<project>.json`` – {project, agent, folder, machine,
+machine_id, kind (pc, phone or session), at, state (reading or no_reader), note} – at most every two minutes per
+project. A cloud session's end (``connect.py``'s SessionEnd hook) marks its projects ``no_reader``. ``listening``
+adds ``projects``: for each, who last read its letters and when, a plain sentence when nobody has for
+``NO_READER_MIN`` minutes, and what can be done (``offers``: run it on this phone, or on the owner's PC).
 """
 
 
@@ -61,6 +68,11 @@ POLL_DEFAULT_MINUTES = 15.0
 EVENTS_MINUTES = 5.0
 BEAT_EVERY_S = 120.0
 LISTENING_FILE = "plans/listening.json"
+READERS_DIR = "plans/readers"
+NO_READER_MIN = 15  # nobody has read a project's letters for this long: say so
+NOBODY = ("Nobody is reading this project's letters right now: the computer or session that runs it is off. "
+          "They'll be done when it's back.")
+SESSION_ENV = ("CLAUDE_CODE_REMOTE", "CLAUDE_CODE_SESSION_ID")  # set inside a Claude Code session
 STANDUP_ID = "standup-hourly"
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 QUIET_MINUTES = 30.0  # a building project with nothing in its events for this long has gone quiet
@@ -541,7 +553,7 @@ def listening(hub, now: datetime | None = None) -> dict[str, Any]:
             data = None
     if not isinstance(data, dict) or not _parse(data.get("at")):
         return {"machine": "", "at": None, "minutes": None,
-                "words": f"No harness has listened yet. Open {NAME} on your PC."}
+                "words": f"No harness has listened yet. Open {NAME} on your PC.", "projects": readers(hub, now)}
     at = _parse(data["at"])
     mins = max(0, int(((now or utcnow()) - at).total_seconds() // 60))
     who = "Your PC" if str(data.get("machine", "")).startswith("PC") else (data.get("machine") or "A computer")
@@ -550,7 +562,126 @@ def listening(hub, now: datetime | None = None) -> dict[str, Any]:
     words = f"{who} last listened {ago}."
     if mins >= 15:
         words += f" Nothing will start until {NAME} is open there again."
-    return {"machine": data.get("machine") or "", "at": data["at"], "minutes": mins, "words": words}
+    return {"machine": data.get("machine") or "", "at": data["at"], "minutes": mins, "words": words,
+            "projects": readers(hub, now)}
+
+
+# -- who reads each project's letters -----------------------------------------------------------------------
+def reader_kind(machine: dict | None, env: dict | None = None) -> str:
+    """pc, phone, or session (a Claude Code session in the cloud or on a PC, which ends with the session)."""
+    import os
+
+    env = os.environ if env is None else env
+    kind = str((machine or {}).get("kind") or "pc")
+    if kind != "phone" and any(env.get(k) for k in SESSION_ENV):
+        return "session"
+    return kind
+
+
+def _reader_path(project: str) -> str:
+    return f"{READERS_DIR}/{re.sub(r'[^A-Za-z0-9_.-]', '_', str(project))[:120]}.json"
+
+
+def read_beat(hub, project: str, machine: dict | None = None, agent: str = "", folder: str = "",
+              env: dict | None = None, force: bool = False) -> bool:
+    """Say this machine (or session) reads ``project``'s letters: ``plans/readers/<project>.json``, at most every
+    ``BEAT_EVERY_S`` per project. Never raises; True when it wrote."""
+    if hub is None or not project:
+        return False
+    machine = machine or {}
+    name = str(machine.get("name") or machine.get("id") or "A computer")[:80]
+    kind = reader_kind(machine, env)
+    key = f"{id(hub)}:{project}:{machine.get('id')}"
+    now = time.monotonic()
+    with _lock:
+        if not force and now - _last_beat.get(key, -1e9) < BEAT_EVERY_S:
+            return False
+        _last_beat[key] = now
+    data = {"project": project, "agent": agent or project, "folder": folder or project, "machine": name,
+            "machine_id": str(machine.get("id") or ""), "kind": kind, "at": iso(utcnow()), "state": "reading",
+            "note": ""}
+    try:
+        hub.store.write_json({_reader_path(project): data}, f"reader({project}): {name}")
+        return True
+    except Exception:  # noqa: BLE001 - offline: the next pass tries again
+        with _lock:
+            _last_beat.pop(key, None)
+        return False
+
+
+def no_reader(hub, machine_id: str, note: str = "") -> list[str]:
+    """Mark every project whose letters ``machine_id`` was reading as read by nobody (a session ended). Returns
+    the projects marked. Never raises."""
+    if hub is None or not machine_id:
+        return []
+    from .core.store import iter_json
+
+    try:
+        hub.store.sync()
+        writes = {}
+        for rel, data in iter_json(hub.store, READERS_DIR):
+            if isinstance(data, dict) and data.get("machine_id") == machine_id and data.get("state") != "no_reader":
+                writes[rel] = {**data, "state": "no_reader", "at": iso(utcnow()),
+                               "note": note or "The session that ran it has ended."}
+        if writes:
+            hub.store.write_json(writes, f"readers: {machine_id} stopped reading {len(writes)} project(s)")
+        with _lock:
+            for k in [k for k in _last_beat if k.endswith(f":{machine_id}")]:
+                _last_beat.pop(k, None)
+        return sorted(str(d["project"]) for d in writes.values())
+    except Exception:  # noqa: BLE001 - offline: the next reader's beat says the truth anyway
+        return []
+
+
+def _ago(mins: int) -> str:
+    return ("just now" if mins < 1 else f"{mins} minute{'s' if mins != 1 else ''} ago" if mins < 120 else
+            f"{mins // 60} hours ago" if mins < 48 * 60 else f"{mins // 1440} days ago")
+
+
+def readers(hub, now: datetime | None = None) -> list[dict[str, Any]]:
+    """For each project with letters: {project, agent, folder, machine, machine_id, kind, at, minutes, reading,
+    state, words, offers}. ``reading`` is False when nobody has read them for ``NO_READER_MIN`` minutes or the
+    reader said it stopped; ``words`` then says so, and ``offers`` lists [{id: phone | pc, label, machine}]."""
+    if hub is None:
+        return []
+    from .core.store import iter_json
+
+    now = now or utcnow()
+    try:
+        files = [d for _, d in iter_json(hub.store, READERS_DIR) if isinstance(d, dict) and d.get("project")]
+    except Exception:  # noqa: BLE001
+        return []
+    pcs: list[dict[str, Any]] = []
+    try:
+        from .sync import machines
+
+        pcs = [m for m in machines(hub) if m.get("kind") == "pc"]
+    except Exception:  # noqa: BLE001
+        pcs = []
+    out = []
+    for d in sorted(files, key=lambda d: str(d["project"])):
+        at = _parse(d.get("at"))
+        mins = max(0, int((now - at).total_seconds() // 60)) if at else None
+        reading = d.get("state") != "no_reader" and mins is not None and mins < NO_READER_MIN
+        who = {"session": "A cloud session", "phone": "Your phone"}.get(
+            d.get("kind"), "Your PC" if str(d.get("machine", "")).startswith("PC") else d.get("machine") or "A computer")
+        if reading:
+            words = f"{who} reads this project's letters (last {_ago(mins)})."
+        else:
+            words = NOBODY + (f" {who} last read them {_ago(mins)}." if mins is not None else "")
+        offers: list[dict[str, Any]] = []
+        if not reading:
+            offers.append({"id": "phone", "label": "Run it on This phone", "machine": ""})
+            for m in pcs:
+                if m.get("id") != d.get("machine_id"):
+                    offers.append({"id": "pc", "label": "Run it on my PC", "machine": m.get("id")})
+                    break
+        out.append({"project": d["project"], "agent": d.get("agent") or d["project"],
+                    "folder": d.get("folder") or d["project"], "machine": d.get("machine") or "",
+                    "machine_id": d.get("machine_id") or "", "kind": d.get("kind") or "pc", "at": d.get("at"),
+                    "minutes": mins, "reading": reading, "state": "reading" if reading else "no_reader",
+                    "note": d.get("note") or "", "words": words, "offers": offers})
+    return out
 
 
 # -- the stand-up ---------------------------------------------------------------------------------------------
