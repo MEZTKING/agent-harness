@@ -126,7 +126,7 @@ fun MdBlocks(blocks: List<Md>, modifier: Modifier = Modifier) {
             }
             is Md.Code -> Box(Modifier.fillMaxWidth().background(Hall.code, RoundedCornerShape(5.dp))
                 .border(1.dp, Hall.line, RoundedCornerShape(5.dp)).horizontalScroll(rememberScrollState()).padding(10.dp)) {
-                Text(b.text, fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, color = Hall.text)
+                Text(coloured(b.text, b.lang), fontFamily = com.meztking.roundtable.ui.theme.Mono, fontSize = 12.sp, color = Hall.text)
             }
             is Md.Table -> Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 b.rows.forEachIndexed { i, row ->

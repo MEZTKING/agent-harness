@@ -19,7 +19,14 @@ data class AskOption(
     /** Set when choosing it spends beyond the estimate or can't be undone: ask "Are you sure?" first. */
     val confirm: String? = null,
     val picture: String? = null,
+    /** A kind marked "Coming" on the PC: shown greyed there, left off here. */
+    val disabled: Boolean = false,
+    val group: String = "",
 )
+
+/** What happened when a question's time ran out (asktimer.py): it took the recommended answer, did nothing, or paused. */
+@Serializable
+data class AskTimedOut(val at: String = "", val did: String = "nothing", val label: String = "")
 
 /** The task a waiting command comes from ("Ask me first"). */
 @Serializable
@@ -58,6 +65,10 @@ data class Ask(
     val task: AskTask? = null,
     val remember: String = "",
     val expires_at: String = "",
+    // a timer on the question (asktimer.py): what happens when it runs out, and whether the clock is stopped
+    val on_expire: String = "",
+    val held: Boolean = false,
+    val timed_out: AskTimedOut? = null,
 ) {
     /** What the card shows of the command: all of it, or the first lines of a long one until Show all. */
     fun commandShown(all: Boolean): String = if (folded && !all) preview.ifBlank { command.take(1200) } else command
@@ -159,6 +170,32 @@ object Asks {
             else -> "Tap an answer, or Other… to type your own."
         }
     }
+
+    private val RUNS_OUT = mapOf("recommended" to "it takes the recommended answer", "nothing" to "it keeps waiting and nothing is done",
+        "pause" to "the project waits for your answer")
+
+    /** The timer's line on a card (asktimer.py), as the PC says it; "" for none. A command card has its own line. */
+    fun timerLine(ask: Ask, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+        if (ask.kind == "command") return ""
+        ask.timed_out?.let { t ->
+            val at = clock(t.at, zone)
+            val did = when (t.did) {
+                "recommended" -> "it took the recommended answer" + (if (t.label.isNotBlank()) " (${t.label})" else "") + ". You can still change it"
+                "pause" -> "the project is paused until you answer"
+                else -> "nothing was done. It still waits for you"
+            }
+            return "The time ran out" + (if (at.isNotBlank()) " at $at" else "") + ": $did."
+        }
+        val words = RUNS_OUT[ask.on_expire] ?: return ""
+        if (ask.expires_at.isBlank()) return ""
+        if (ask.held) return "The clock is stopped while you write."
+        val at = clock(ask.expires_at, zone).ifBlank { return "" }
+        return "If nobody answers by $at, $words."
+    }
+
+    private fun clock(iso: String, zone: java.time.ZoneId): String = runCatching {
+        java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone).format(java.time.Instant.parse(iso))
+    }.getOrDefault("")
 
     /** The hub command's fields for the `answer` action (remote.py). */
     fun commandFields(ask: Ask, r: AskReply): Map<String, Any?> = mapOf(

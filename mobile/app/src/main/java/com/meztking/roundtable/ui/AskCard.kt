@@ -80,6 +80,9 @@ fun AskCard(ask: Ask, onAnswer: (AskReply) -> Unit, modifier: Modifier = Modifie
         Text(ask.question, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 26.sp, color = Hall.ink)
         if (ask.detail.isNotBlank()) Text(ask.detail, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
         if (ask.kind == "command") CommandBlock(ask)
+        Asks.timerLine(ask).takeIf { it.isNotBlank() && sent == null }?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft)
+        }
         if (sent == null && hint.isNotBlank()) Text(hint, style = MaterialTheme.typography.bodySmall, color = Hall.inkSoft, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(8.dp))
         if (sent != null) {

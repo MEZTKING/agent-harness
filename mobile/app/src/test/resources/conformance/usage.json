@@ -1,0 +1,79 @@
+{
+ "fields": {
+  "jobs": [
+   "tokens_per_project",
+   "usd_per_project"
+  ],
+  "services": [
+   "usd_per_day",
+   "usd_per_month",
+   "tokens_per_day"
+  ]
+ },
+ "jobs": [
+  {
+   "caps": {},
+   "name": "Planner",
+   "role": "orchestrator"
+  },
+  {
+   "caps": {},
+   "name": "Coder",
+   "role": "coder"
+  },
+  {
+   "caps": {},
+   "name": "Reviewer",
+   "role": "reviewer"
+  },
+  {
+   "caps": {},
+   "name": "Designer",
+   "role": "designer"
+  }
+ ],
+ "note": "Darkness Harness counts what it sent from this computer. The coding helpers on your own subscriptions don't say what's left: their line is what was used.",
+ "services": [
+  {
+   "balance": null,
+   "balance_words": "a doesn't say what's left in the account",
+   "caps": {},
+   "id": "a",
+   "left": {},
+   "name": "a",
+   "reached": "",
+   "subscription": false,
+   "unpriced_words": "",
+   "used": {
+    "calls": 11,
+    "day_tokens": 1320,
+    "day_usd": 0.00132,
+    "month_tokens": 1320,
+    "month_usd": 0.00132,
+    "unpriced": 0
+   },
+   "words": "a: $0.0013 this month, no limit set"
+  },
+  {
+   "balance": null,
+   "balance_words": "img doesn't say what's left in the account",
+   "caps": {},
+   "id": "img",
+   "left": {},
+   "name": "img",
+   "reached": "",
+   "subscription": false,
+   "unpriced_words": "1 call had no price, so the money count is low",
+   "used": {
+    "calls": 1,
+    "day_tokens": 1,
+    "day_usd": 0.0,
+    "month_tokens": 1,
+    "month_usd": 0.0,
+    "unpriced": 1
+   },
+   "words": "img: $0 this month, no limit set"
+  }
+ ],
+ "words": "No limits set: each project's own money limit still holds."
+}

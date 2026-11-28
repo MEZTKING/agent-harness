@@ -47,7 +47,7 @@ import com.meztking.roundtable.work.Watch
 
 @Composable
 fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() -> Unit)? = null, onComputers: () -> Unit = {}, onShared: () -> Unit = {},
-                   onComfort: (() -> Unit)? = null) {
+                   onComfort: (() -> Unit)? = null, onTeam: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as RoundtableApp
     val store = app.store
@@ -80,6 +80,15 @@ fun SettingsScreen(onConnect: () -> Unit, onChanged: () -> Unit, onHarness: (() 
                 Button(onClick = onComputers) { Text("Open") }
                 OutlinedButton(onClick = onConnect) { Text(if (hasHub || link != null) "Add the hub or a PC" else "Set up") }
             }
+        }
+
+        if (onTeam != null) Panel(Modifier.fillMaxWidth()) {
+            Text("YOUR TEAM", style = Label)
+            Spacer(Modifier.height(8.dp))
+            Text("Your agents, what they have used, when your PC last listened, and Find or Ask in your documents.",
+                style = MaterialTheme.typography.bodySmall, color = Hall.muted)
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onTeam) { Text("Open") }
         }
 
         Panel(Modifier.fillMaxWidth()) {

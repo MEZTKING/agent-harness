@@ -1,0 +1,46 @@
+{
+ "answer": "",
+ "cost_usd": 0.0,
+ "held": 0,
+ "model": "a/planner",
+ "model_label": "Planner (a)",
+ "name": "Search by meaning (on this computer)",
+ "pieces": [
+  {
+   "at": "",
+   "doc": "",
+   "kind": "plan",
+   "kind_words": "Plan",
+   "open": {
+    "path": "/home/owner/lab/projects/made-up-another-way",
+    "room": "project",
+    "tab": "plan"
+   },
+   "private": false,
+   "score": 1.1,
+   "text": "# Bakery site\n\nEstimate: about $0.41 and 19 minutes (some models have no price yet)\n\n## The builders' brief (version 1)\nbakery site\n\n## Done when\n- It opens with no errors {D1}\n- Its tests pass (nice to have) {D2}\n\n## Tasks\n- [T1] pending hello module (coder)\n- [T2] pending logo (designer)\n- [T3] pending tests (coder)",
+   "title": "Bakery site",
+   "where": "Made up another way · Plan"
+  },
+  {
+   "at": "",
+   "doc": "",
+   "kind": "plan",
+   "kind_words": "Plan",
+   "open": {
+    "path": "/home/owner/lab/proj",
+    "room": "project",
+    "tab": "plan"
+   },
+   "private": false,
+   "score": 1.1,
+   "text": "# Bakery site\n\nEstimate: about $0.41 and 19 minutes (some models have no price yet)\n\n## The builders' brief (version 1)\nbakery site\n\n## Done when\n- It opens with no errors {D1}\n- Its tests pass (nice to have) {D2}\n\n## Tasks\n- [T1] pending hello module (coder)\n- [T2] pending logo (designer)\n- [T3] pending tests (coder)",
+   "title": "Bakery site",
+   "where": "Proj · Plan"
+  }
+ ],
+ "price_usd": 0.001075,
+ "question": "what does the bakery sell?",
+ "quotes": [],
+ "words": "About $0.0011 to answer from 2 pieces."
+}

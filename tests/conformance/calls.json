@@ -963,6 +963,95 @@
    "query": {
     "path": "{project}"
    }
+  },
+  {
+   "name": "wizard_asks",
+   "method": "GET",
+   "path": "/api/asks",
+   "query": {
+    "wizard": "1"
+   },
+   "needs": [
+    "asks"
+   ]
+  },
+  {
+   "name": "command_help",
+   "method": "POST",
+   "path": "/api/commands",
+   "body": {
+    "path": "{project}",
+    "line": "/help",
+    "confirmed": false
+   },
+   "needs": [
+    "reply"
+   ]
+  },
+  {
+   "name": "command_confirm",
+   "method": "POST",
+   "path": "/api/commands",
+   "body": {
+    "path": "{project}",
+    "line": "/goal a made-up contact page",
+    "confirmed": false
+   },
+   "needs": [
+    "reply",
+    "confirm"
+   ]
+  },
+  {
+   "name": "follow_ask",
+   "method": "POST",
+   "path": "/api/follow",
+   "body": {
+    "path": "{project}",
+    "task": "T1",
+    "text": "why was it made this way?",
+    "mode": "ask",
+    "confirmed": false
+   },
+   "needs": [
+    "confirm"
+   ]
+  },
+  {
+   "name": "usage",
+   "method": "GET",
+   "path": "/api/usage"
+  },
+  {
+   "name": "agents",
+   "method": "GET",
+   "path": "/api/agents",
+   "needs": [
+    "agents",
+    "jobs"
+   ]
+  },
+  {
+   "name": "recall_ask",
+   "method": "POST",
+   "path": "/api/recall/ask",
+   "body": {
+    "question": "what does the bakery sell?",
+    "confirm": false
+   }
+  },
+  {
+   "name": "file_preview",
+   "method": "GET",
+   "path": "/api/files/preview",
+   "query": {
+    "path": "{project}",
+    "file": "{file}"
+   },
+   "needs": [
+    "preview",
+    "name"
+   ]
   }
  ]
 }

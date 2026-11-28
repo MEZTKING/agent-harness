@@ -11,7 +11,8 @@ sealed interface Md {
     /** A list item; [checked] is null for a plain bullet. [id] is a trailing `abc123` or {id} tag. */
     data class Item(val text: String, val checked: Boolean? = null, val depth: Int = 0, val number: Int? = null, val id: String? = null) : Md
     data class Quote(val text: String) : Md
-    data class Code(val text: String) : Md
+    /** A fenced block; [lang] from its opening line (```kotlin), coloured on screen. */
+    data class Code(val text: String, val lang: String = "") : Md
     data class Table(val rows: List<List<String>>) : Md
     data object Rule : Md
 }
@@ -47,10 +48,11 @@ object Markdown {
             when {
                 t.startsWith("```") -> {
                     flush()
+                    val lang = t.removePrefix("```").trim().substringBefore(' ').lowercase()
                     val code = StringBuilder()
                     i++
                     while (i < lines.size && !lines[i].trim().startsWith("```")) { code.appendLine(lines[i]); i++ }
-                    out += Md.Code(code.toString().trimEnd())
+                    out += Md.Code(code.toString().trimEnd(), lang)
                 }
                 t.isEmpty() -> flush()
                 t.startsWith("#") && t.trimStart('#').startsWith(" ") -> {

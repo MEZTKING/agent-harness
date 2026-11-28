@@ -69,7 +69,9 @@ import com.meztking.roundtable.ui.SettingsScreen
 import com.meztking.roundtable.ui.ThisPhoneSetupScreen
 import com.meztking.roundtable.ui.SetupScreen
 import com.meztking.roundtable.ui.TableScreen
-import com.meztking.roundtable.ui.NewIdeaScreen
+import com.meztking.roundtable.ui.WizardScreen
+import com.meztking.roundtable.ui.TeamScreen
+import com.meztking.roundtable.ui.composerApi
 import com.meztking.roundtable.ui.FilesScreen
 import com.meztking.roundtable.ui.ApiFiles
 import com.meztking.roundtable.ui.SearchScreen
@@ -219,6 +221,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
             composable("harness") { HarnessScreen(onBack = { nav.popBackStack() }, onSetUp = { nav.navigate("thisphone") }) }
             composable("home") { Home(main, nav) }
             composable("notes") { NotesScreen(onBack = { nav.popBackStack() }) }
+            composable("team") { TeamScreen(remember { composerApi(app) }, onBack = { nav.popBackStack() }) }
             composable("gallery") {
                 // everything finished, and what Roundtable can make; read from the PC (or this phone's Roundtable)
                 GalleryScreen(onBack = { nav.popBackStack() }, onOpenProject = { path ->
@@ -227,7 +230,7 @@ private fun Root(openProject: MutableStateFlow<String?>) {
                 }, onStart = { _, _ -> nav.navigate("newidea") })
             }
             composable("newidea") {
-                NewIdeaScreen(onBack = { nav.popBackStack() }, onStarted = { _ -> nav.popBackStack(); main.reset() })
+                WizardScreen(onBack = { nav.popBackStack() }, onStarted = { _ -> nav.popBackStack(); main.reset() })
             }
             composable("files/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()
@@ -405,7 +408,8 @@ private fun Home(main: MainViewModel, nav: NavHostController) {
                     onMarkAllRead = main::markAllRead,
                 )
                 else -> SettingsScreen(onConnect = { nav.navigate("connect") }, onHarness = { nav.navigate("harness") },
-                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onComfort = { nav.navigate("comfort") }, onChanged = {
+                    onComputers = { nav.navigate("connections") }, onShared = { nav.navigate("shared") }, onComfort = { nav.navigate("comfort") },
+                    onTeam = if (app.store.thisPhone || app.store.link != null) ({ nav.navigate("team") }) else null, onChanged = {
                     settingsTick++
                     if (!app.store.configured) nav.navigate("setup") { popUpTo(0) { inclusive = true } } else main.reset()
                 })
