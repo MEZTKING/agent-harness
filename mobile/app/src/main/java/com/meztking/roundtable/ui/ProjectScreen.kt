@@ -305,8 +305,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     }
     if (cards.isNotEmpty() && !top.finished) {
         val agreed = d?.let { !it.waitingForOwner && it.state.isNotBlank() } == true
-        items(cards, key = { "ask:" + it.id }) { c ->
-            AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false)
+        val placed = cards.map { it.copy(path = it.path ?: path) }
+        // Answer these: three or more waiting, the recommended answer for the ticked ones in one go (the PC only)
+        if (machine != null && com.meztking.roundtable.data.AnswerThese.shown(placed)) item(key = "answer-these") {
+            AnswerTheseBar(placed, send = { machine.answerSeveral(it) }, onDone = a.refresh)
+        }
+        items(placed, key = { "ask:" + it.id }) { c ->
+            val help = remember(machine) { machine?.let { ApiCardHelp(it) } }
+            val looks = rememberLooks(help, path, placed)
+            AskCard(c, { a.answer(c, it) }, sent = ui.sent["ask:${c.id}"], hint = Asks.hint(c, planAgreed = agreed && c.local), showProject = false,
+                onTyping = rememberHold(help)?.let { h -> { h(c) } },
+                pictures = if (c.kind == "look") com.meztking.roundtable.data.Looks.forCard(c, looks) else emptyList())
         }
     }
     if (hub && top.waiting) item(key = "actions") {
@@ -323,6 +332,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.calmPlan(p: PlanView,
     if (machine != null && !path.isNullOrBlank() && top.tasks.isNotEmpty()) item(key = "board") {
         BoardFold(path) { machine.feature("GET", com.meztking.roundtable.data.Team.boardUrl(path)) }
     }
+    // the sounds bought or made for it, Play and what they cost (nothing for a project without sounds)
+    if (machine != null && !path.isNullOrBlank()) item(key = "sounds") { SoundsCard(machine, path) }
     if (top.tasks.isNotEmpty()) {
         item(key = "tasks-head") {
             SectionTitle("Tasks · ${top.tasks.count { it.status == "done" }} of ${top.tasks.size} done")

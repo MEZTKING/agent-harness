@@ -1,5 +1,16 @@
 package com.meztking.roundtable.data
 
+import com.meztking.roundtable.net.ApiJson
+import kotlinx.serialization.Serializable
+
+/** What the PC proposes after a spoken question (POST /api/chat/talk): a command line, what it does, and whether it asks first. */
+@Serializable
+data class TalkAction(val line: String = "", val words: String = "", val confirm: Boolean = false)
+
+/** The PC's answer to something said: the words to read aloud, and maybe an action, which always waits for a tap. */
+@Serializable
+data class TalkReply(val reply: String = "", val action: TalkAction? = null, val cost_usd: Double? = null)
+
 /**
  * Talk on the phone: Android's own speech recogniser hears the owner, the words go to the planner as a question, and
  * the phone's own voice reads the answer. A command can be spoken too ("slash stop", "command retry T2"): one that
@@ -7,6 +18,19 @@ package com.meztking.roundtable.data
  * started by a spoken "yes".
  */
 object Talk {
+    /** Talk through the PC: what was heard goes here; the answer is read aloud and an action shows as a card. */
+    const val URL = "/api/chat/talk"
+
+    fun parseReply(json: String): TalkReply = ApiJson.decodeFromString(TalkReply.serializer(), json)
+
+    /** The action card's line: what it does, and that it waits for a tap ("Are you sure?" too when it spends or deletes). */
+    fun actionLine(a: TalkAction): String = (a.words.ifBlank { a.line }) + ". " +
+        if (a.confirm) Words.t("Tap Do it, then say you're sure: it spends or can't be undone.") else Words.t("Tap Do it to start it.")
+
+    /** Never done by speaking or by the route itself: only a tap on the card ([tapped]) runs it, and one that asks first
+     *  needs the "Are you sure?" too ([sure]). */
+    fun mayRun(a: TalkAction?, tapped: Boolean, sure: Boolean): Boolean = a != null && a.line.startsWith("/") && tapped && (!a.confirm || sure)
+
     /** What the speech recogniser heard, as a command line ("/retry T2"), when it names one of [commands]. */
     fun commandFrom(heard: String, commands: List<SlashCommand>): String? {
         val words = heard.trim().lowercase().replace(Regex("[.,!?]"), "").split(Regex("\\s+")).filter { it.isNotEmpty() }

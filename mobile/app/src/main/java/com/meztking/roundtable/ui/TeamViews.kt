@@ -127,7 +127,10 @@ fun UsageCard(v: UsageView) {
 /** The named agents, one per job: face, name and what they do. [onPick] (a job's agent chosen) only where the machine
  * lets the phone choose; otherwise "Changed on your PC". */
 @Composable
-fun AgentsCard(v: AgentsView, onPick: ((Agent) -> Unit)? = null) {
+fun AgentsCard(v: AgentsView, onPick: ((Agent) -> Unit)? = null,
+               /** "Give this job to…": an agent that already exists takes [job] (POST /api/agents {id, job, hire}); null: on the PC only. */
+               onHire: ((agent: Agent, job: String) -> Unit)? = null, hiring: Boolean = false, hireSaid: String? = null) {
+    var choosing by remember { mutableStateOf<String?>(null) }
     Panel(Modifier.fillMaxWidth()) {
         Text("YOUR TEAM", style = Label, color = Hall.muted)
         if (v.words.isNotBlank()) Text(v.words, color = Hall.muted, style = MaterialTheme.typography.bodySmall)
@@ -142,13 +145,23 @@ fun AgentsCard(v: AgentsView, onPick: ((Agent) -> Unit)? = null) {
                         overflow = TextOverflow.Ellipsis)
                 }
                 if (onPick != null && a != null) TextButton({ onPick(a) }) { Text("Pick") }
+                if (onHire != null && Team.canTake(v, job.job).isNotEmpty())
+                    TextButton({ choosing = if (choosing == job.job) null else job.job }, enabled = !hiring) {
+                        Text(com.meztking.roundtable.data.Words.t("Give this job to…"))
+                    }
+            }
+            if (onHire != null && choosing == job.job) Column(Modifier.fillMaxWidth().padding(start = 50.dp)) {
+                for (who in Team.canTake(v, job.job)) TextButton({ choosing = null; onHire(who, job.job) }, enabled = !hiring) {
+                    Text(who.name + if (who.hired && who.job_name.isNotBlank()) " (" + com.meztking.roundtable.data.Words.t("now {job}", "job" to who.job_name) + ")" else "")
+                }
             }
         }
+        hireSaid?.let { Text(it, Modifier.padding(top = 6.dp), color = Hall.text, style = MaterialTheme.typography.bodySmall) }
         val spare = v.agents.filter { !it.hired }
         if (spare.isNotEmpty()) Fold("Not doing a job (${spare.size})") {
             for (a in spare) Text("${a.name} · ${a.job_name}", color = Hall.text, style = MaterialTheme.typography.bodySmall)
         }
-        if (onPick == null) Text("Who does which job is changed on your PC.", Modifier.padding(top = 6.dp), color = Hall.muted,
+        if (onPick == null && onHire == null) Text("Who does which job is changed on your PC.", Modifier.padding(top = 6.dp), color = Hall.muted,
             style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -235,6 +248,25 @@ fun DocumentsView(words: String, found: RecallFound?, price: RecallAnswer?, answ
     }
 }
 
+/** Your documents, read only: each with what it is and who may use it. Adding or removing a folder stays on the PC. */
+@Composable
+fun DocumentsListCard(v: com.meztking.roundtable.data.DocumentsList) {
+    Panel(Modifier.fillMaxWidth()) {
+        Text(com.meztking.roundtable.data.Words.t("YOUR DOCUMENTS"), style = Label, color = Hall.muted)
+        if (v.words.isNotBlank()) Text(v.words, color = Hall.text, style = MaterialTheme.typography.bodyMedium)
+        for (d in v.documents.take(40)) Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            Text(d.heading, color = Hall.text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (d.line.isNotBlank()) Text(d.line, color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+            if (d.note.isNotBlank()) Text(d.note, color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+        }
+        if (v.documents.size > 40) Text(com.meztking.roundtable.data.Words.t("And {n} more.", "n" to v.documents.size - 40),
+            color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+        Text(com.meztking.roundtable.data.Words.t(com.meztking.roundtable.data.Documents.ADD_ON_PC), Modifier.padding(top = 6.dp),
+            color = Hall.muted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 /** Your team, what it has used, who last listened, and your documents: read from the PC (or this phone). */
 @Composable
 fun TeamScreen(api: Api?, onBack: () -> Unit) {
@@ -242,8 +274,13 @@ fun TeamScreen(api: Api?, onBack: () -> Unit) {
     var usage by remember { mutableStateOf<UsageView?>(null) }
     var listening by remember { mutableStateOf<Listening?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var documents by remember { mutableStateOf<com.meztking.roundtable.data.DocumentsList?>(null) }
+    var hiring by remember { mutableStateOf(false) }
+    var hireSaid by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(api) {
         if (api == null) return@LaunchedEffect
+        documents = runCatching { com.meztking.roundtable.data.Documents.parse(api.documents()) }.getOrNull()
         try {
             agents = Team.agents(api.feature("GET", Team.AGENTS))
             usage = runCatching { Team.usage(api.feature("GET", Team.USAGE)) }.getOrNull()
@@ -256,8 +293,21 @@ fun TeamScreen(api: Api?, onBack: () -> Unit) {
         if (api == null) { Text("Connect your PC or start the harness on this phone to see your team.", color = Hall.warn); return@Column }
         listening?.let { ListeningLine(it) }
         problem?.let { ErrorLine(it) {} }
-        agents?.let { AgentsCard(it) }
+        agents?.let { v ->
+            AgentsCard(v, onHire = { who, job ->
+                scope.launch {
+                    hiring = true; hireSaid = null
+                    // the PC's own sentence either way: "Saved Maelin.", or why it can't be done from the phone
+                    hireSaid = try {
+                        val r = Team.hired(api.hireAgent(who.id, job))
+                        agents = runCatching { Team.agents(api.feature("GET", Team.AGENTS)) }.getOrDefault(agents)
+                        r.reply.ifBlank { com.meztking.roundtable.data.Words.t("Done.") }
+                    } catch (e: CancellationException) { throw e } catch (e: Exception) { friendly(e) } finally { hiring = false }
+                }
+            }, hiring = hiring, hireSaid = hireSaid)
+        }
         usage?.let { UsageCard(it) }
+        documents?.let { DocumentsListCard(it) }
         val recall = remember(api) { ApiRecall(api) }
         DocumentsCard(recall)
         Spacer(Modifier.height(24.dp))

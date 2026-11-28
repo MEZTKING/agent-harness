@@ -1,0 +1,21 @@
+{
+ "count": 1,
+ "entries": [
+  {
+   "folder": false,
+   "name": "bread.txt",
+   "packed": 14,
+   "size": 14,
+   "unsafe": false
+  }
+ ],
+ "file": "menu.zip",
+ "format": "zip",
+ "more": 0,
+ "name": "menu.zip",
+ "preview": "archive",
+ "size": 130,
+ "total": 14,
+ "unsafe": 0,
+ "words": ""
+}

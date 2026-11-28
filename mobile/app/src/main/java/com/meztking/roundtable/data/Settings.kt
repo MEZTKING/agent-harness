@@ -142,7 +142,19 @@ object ProjectSettings {
         "branch" to "Where the work goes", "rules_files" to "Rule files", "rules_budget" to "Most rules sent (characters)",
         "providers_allowed" to "Allowed AI makers", "profile" to "Set of models", "limits" to "Money and effort limits",
         "look" to "Choose a look first", "show_it" to "Pictures after each task", "notes" to "Notes for the planner",
+        "checking" to "How carefully it's checked", "makers_allowed" to "Allowed model makers", "agent_memory" to "What agents remember",
+        "stage_stop" to "Stop after each stage", "ask_first" to "Ask me first", "web_search" to "Search the web",
+        "documents" to "Your documents", "perms" to "What each job may do",
     )
+
+    /** Shown first on the phone: the money and the checking. Everything else waits behind "More". */
+    val FIRST = listOf("limits", "checking")
+
+    /** The settings shown first (in [FIRST]'s order) and the rest (in the PC's order). */
+    fun split(view: ProjectSettingsView): Pair<List<ProjectSetting>, List<ProjectSetting>> {
+        val first = FIRST.mapNotNull { k -> view.items.firstOrNull { it.key == k } }
+        return first to view.items.filter { it.key !in FIRST }
+    }
 
     fun parse(text: String): ProjectSettingsView {
         val o = ApiJson.parseToJsonElement(text) as JsonObject
