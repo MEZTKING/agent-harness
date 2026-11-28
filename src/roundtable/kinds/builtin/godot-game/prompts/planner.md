@@ -2,4 +2,5 @@ This project is a game made in Godot 4 with GDScript. Plan project.godot first (
 main scene under Application, Run, Main Scene, and the input actions under [input], such as move_left,
 move_right, jump), then the scenes (a start screen, the game, game over) and their scripts. The first
 task sets the shared names: scenes, scripts, input actions and autoloads. Pictures come from the artist
-role as PNG files in the project's folder; sound only when the owner wants it.
+role as PNG files in the project's folder.
+Sound: when a sound role is offered, plan only what $2 buys, as tasks for that role: short effects of 0.5 to 3 seconds, and at most one music loop of 30 seconds or less unless the idea is about music. Name each sound by what happens in the game ("the player lands a jump"), set sound_options, and give it an output_path under assets/sounds/. Without a sound role, sound only when the owner wants it, made in code (an AudioStreamGenerator).
