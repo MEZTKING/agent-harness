@@ -207,6 +207,24 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### DSH Mobile: the Browser tab and the runtime update's trial (wave 8, 1.4.0)
+
+- `mobile/app/src/main/java/com/meztking/roundtable/data/browser/BrowserAddress.kt` – copied unchanged but its
+  package from `core/src/commonMain/kotlin/com/labteto/dshmobile/core/browser/BrowserAddress.kt`.
+- `mobile/app/src/main/java/com/meztking/roundtable/data/browser/BrowserReach.kt` – adapted from
+  `core/src/commonMain/kotlin/com/labteto/dshmobile/core/browser/BrowserReach.kt` and `MentionedAddresses.kt`
+  (the connections are This phone, a paired PC and Hub mode; the words are the app's).
+- `mobile/app/src/test/java/com/meztking/roundtable/data/browser/BrowserAddressTest.kt` and `WebLinkTest.kt` –
+  ported from `core/src/commonTest/kotlin/com/labteto/dshmobile/core/browser/BrowserAddressTest.kt` and
+  `WebLinkTest.kt`, run through the app's `KotlinTestShim.kt`.
+- `mobile/app/src/main/java/com/meztking/roundtable/ui/browser/BrowserScreen.kt` – the WebView's settings and the
+  refusal of other apps' links follow `app/src/main/java/com/labteto/dshmobile/ui/screens/main/browser/BrowserView.kt`;
+  the screen is the app's own.
+- `mobile/app/src/main/java/com/meztking/roundtable/runtime/RuntimeInstaller.kt` and `RuntimeLayout.kt` – the
+  update trial and its rollback (`commitTrial`, `rollbackTrial`) follow DSH Mobile's same files.
+
+MIT License, Copyright (c) 2026 DSH Mobile contributors (the licence text is above).
+
 ## proot and talloc (shipped as separate programs in the phone app)
 
 Roundtable Mobile ships `libproot.so` and `libproot-loader.so` for `arm64-v8a` and `x86_64` in
@@ -229,6 +247,13 @@ into the app.
 - XZ for Java 1.10 (`org.tukaani:xz`) unpacks the runtime's `.tar.xz` layers. https://tukaani.org/xz/java.html.
   Licence: 0BSD.
 
+## pypdf (a dependency of the desktop app, not vendored)
+
+- pypdf (`pypdf>=4`) reads the text of a PDF for search and the Files tab (`src/roundtable/documents.py`); the
+  Windows build bundles it. https://github.com/py-pdf/pypdf. Licence: BSD-3-Clause, Copyright (c) 2006-2008,
+  Mathieu Fenniak; some contributions copyright (c) 2007, Ashish Kulkarni; some contributions copyright (c) 2014,
+  Steve Witham; all rights reserved (the full text ships with the package, `pypdf-*.dist-info/licenses/LICENSE`).
+
 ## Munder Difflin (MEZTKING/munder-difflin), MIT, Copyright (c) 2026 Chaitanya Giri
 
 Ported to Python or used as the pattern, credited in each file's header:
@@ -238,6 +263,8 @@ Ported to Python or used as the pattern, credited in each file's header:
   "Weekdays at 09:00" summary) from `src/shared/weeklySchedule.ts`.
 - `src/roundtable/prereq.py` – the shape of the tools catalogue from `src/shared/toolCatalog.ts` and
   `src/main/toolsStatus.ts`.
+- `src/roundtable/mcp_catalogue.json` – the tool servers' package names and pinned versions (data only) from
+  `src/shared/mcpCatalog.ts`, checked there on 14 October 2026; the descriptions and wording are the harness's own.
 - `src/roundtable/memory.py` – the memory's design (rules never moved, capped pinned notes, recent notes moved
   word for word to an archive, the check that memory.md loses only whole lines) from `src/main/reflect.ts` and
   `src/shared/memoryShape.ts`; no code was copied.

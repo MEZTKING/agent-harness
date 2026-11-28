@@ -8,6 +8,27 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
 
 ## Open
 
+- **Wave 8's phone screens (p1-phone Part B) aren't built** (27 November, 1.4.0): words as they are written,
+  `/` commands, follow-ups, the queue, question timers, the board, git history, CI and "when the PC last
+  listened" all answer the phone (read only where it matters) and are in the phone's conformance test, but the
+  phone has no screens for them yet. → 1.4.x, p1-phone Part B.
+- **Wave 8 untried on real machines** (27 November, 1.4.0): a real EXE's window picture (`winshot`), an
+  emulator started, an APK opened and pictured; links into a task's copy on a real `node_modules` (Windows
+  junctions); the editor, Open as PDF and Talk in the frozen app's window; engines installing themselves; the
+  phone's runtime update and a forced bad one, import from Files, the fold; one real streamed call per
+  provider (a few cents, estimate first). All beta until tried on the owner's PC and phone through Remote
+  Control. → 1.4.x.
+- **The stand-up has no sentence written by a model** (27 November, p1-reach): its one line is put together
+  from the projects' states, with no model call (so it costs nothing); a model-written summary needs a
+  priced place in autopilot's allowance first. → later.
+- **Android: `androidx.window` comes from Google's Maven** (27 November, 1.4.0): the hinge needs Jetpack
+  WindowManager; the cloud build fetched it through the Maven mirror init script, and an offline build with an
+  empty cache can't. CI fetches it. → watch the first CI run.
+- **Branch switch from the app refuses while any task is unfinished** (27 November, 1.4.0, the safety
+  review): pending or running tasks, a project that says it is planning or building, or a kept task copy all
+  stop it, so nothing is built on the wrong branch. Finish, skip or pause first. → by design; revisit if it
+  gets in the way.
+
 - **Learning's real cost is unmeasured** (27 November, wave 7): the weekly learning allowance ($2, the
   owner's figure) and the yardstick were only run with scripted models. One small real cycle (balance before
   and after, the real cost of one prompt test beside the guesses in DEVLOG) is the next check. → 1.3.x.
@@ -17,21 +38,11 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   Control. On Windows "no internet" and "only its own folder" are held inside Python (it stops a plug-in that
   tries, not one written to break out); a kernel-level box needs Windows Sandbox or WSL. → 1.3.x, then later.
 - **Search by meaning uses no maker's embeddings** (27 November, wave 7): `recall.embeddings` is read and does
-  nothing; there is no embeddings call to price yet. PDFs are found by their name only (the standard library
-  can't read their text). → later; a PDF's text: wave 8, p1-editor.
+  nothing; there is no embeddings call to price yet. The owner's answer (27 November): leave it off; offer it
+  later as a switch with its price shown. (A PDF's text is read since 1.4.0: see Fixed.)
 - **Documents and the memory picture aren't on the phone** (27 November, wave 7): the phone has What it
   learned (with Undo) only. → wave 8, p1-phone (part B).
 
-- **Pictures: no editing of an earlier picture** (27 November, the Eclipse art for 1.0.0): the image route
-  (`providers/chat_images.py`, ChatImagesProvider) can only make new pictures. The ring had to be cut out of
-  the backdrop by hand with Pillow. It should take an earlier picture and an instruction. → wave 8, p1-proof.
-- **Pictures: no see-through output** (27 November, same job): there's no transparent background option, so
-  the ring and wordmark were made on black and their transparency worked out from brightness by hand. The
-  image route should ask for transparency where the model can do it, and do the cut-out itself where it
-  can't. → wave 8, p1-proof.
-- **Pictures: spending isn't counted safely in parallel** (27 November, same job): two pictures made at once
-  overwrote each other's cost line, so the art's spending had to be added up by hand ($0.89 in all,
-  `docs/art.md`). Picture spending must be counted safely when several run at once. → wave 8, p1-proof.
 
 - **"Ask me first" on the phone is wired but untried on a real phone** (26 November; re-checked 27 November):
   the phone passes `ROUNDTABLE_ASK_FIRST=1` (`RoundtableApp.kt` `askFirstEnv`), This phone's harness turns it
@@ -160,19 +171,26 @@ belongs. Newest first. Move an item to "Fixed" with the commit when it's done.
   8,000 output tokens per attempt. In real money the music player's estimate was about
   right once the cost count was fixed (below), but the defaults should come from real
   runs (steps × context) and be checked after each one. → release 2.
-- **Pictures of Android and desktop apps, and the Live frame from another computer.** What's left of
-  "Nothing proves the work runs" (fixed in 1.1.0, see Fixed): no window pictures of a running EXE and no
-  emulator started by the harness (an APK is only built, checked and installed on an emulator that is
-  already running); the app's own server listens on 127.0.0.1, so `roundtable ui --host` from another
-  machine shows only the pictures. → wave 8, p1-proof (window pictures, the emulator); the Live frame on the
-  phone, view only, through the paired link: wave 9 (the owner said yes, 27 November).
 - **Commands from the phone need a running Roundtable.** In a cloud session the watcher
-  stops after two hours; with the desktop app closed, nothing answers. → wave 8, p1-reach
-  and p1-phone (say on the phone when no Roundtable is listening, and when it last was).
+  stops after two hours; with the desktop app closed, nothing answers. Since 1.4.0 the PC says when it last
+  listened (`reach.py` `beat`, `GET /api/listening`); the phone's line for it is p1-phone Part B.
 - **The critique can be about an older version.** It's now labelled with its version;
   the critic should look again after a revision that changes many tasks. → release 2.
 
 ## Fixed
+
+- **Pictures: no editing of an earlier picture, no see-through output, spending not counted safely in
+  parallel** → fixed in 1.4.0 (wave 8, p1-proof): `providers/chat_images.py` takes an earlier picture
+  (`from_image`) and asks for transparency where the model can, cutting it out itself where it can't
+  (`transparent`); `harness/imageprice.py` `record` writes each cost line whole under a lock, also for agents'
+  faces (`agents.make_face`).
+- **Pictures of Android and desktop apps** → fixed in 1.4.0 (wave 8, p1-proof; beta until tried on the owner's
+  PC): an EXE's window is pictured when it starts and an empty window gets one fix task (`harness/winshot.py`,
+  `shipstage._ship_smoke`); an APK is installed, opened and pictured on an emulator the harness starts and always
+  stops (`harness/emulator.py`), and with no test phone a one-tap card offers to make one (PC only). The Live
+  frame on the phone stays wave 9.
+- **A PDF's text isn't read** → fixed in 1.4.0 (wave 8, p1-editor): `documents.pdf_text` reads it with pypdf, for
+  search and the Files tab.
 
 - **Long tasks have no compaction** → fixed (found built at the 1.4.0 re-audit, 27 November): a conversation past
   the threshold has its older steps summed up by a cheap model, keeping the task, the files changed and the last

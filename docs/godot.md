@@ -39,7 +39,7 @@ own undo instead.
 
 ## 3. Turn on the Blender plug-in
 
-In a terminal: `uvx mcp-for-blender install-addon`. Then in Blender:
+In a terminal: `uvx mcp-for-blender@2.3.3 install-addon`. Then in Blender:
 
 1. **Edit → Preferences → Add-ons**: tick **Interface: MCP for Blender**.
 2. In the 3D view press **N**, open the **MCP for Blender** tab, press **Start MCP Server**.
@@ -60,11 +60,11 @@ In `harness.yaml`:
 mcp_servers:
   godot:
     command: cmd                       # on Windows; on Mac or Linux: command: npx
-    args: ["/c", "npx", "-y", "godot-mcp-server"]   # Mac or Linux: ["-y", "godot-mcp-server"]
+    args: ["/c", "npx", "-y", "godot-mcp-server@0.6.1"]   # Mac or Linux: ["-y", "godot-mcp-server@0.6.1"]
     timeout: 180
   blender:
     command: uvx
-    args: ["mcp-for-blender"]
+    args: ["mcp-for-blender@2.3.3"]
     env: {DISABLE_TELEMETRY: "true"}
     timeout: 300
 
@@ -162,5 +162,5 @@ This is still in beta: it has been tried with a stand-in for Godot, not yet with
 
 ## Using Claude Code instead
 
-In the Godot project's folder: `claude mcp add godot -- npx -y godot-mcp-server` and
-`claude mcp add blender uvx mcp-for-blender`, then `claude`.
+In the Godot project's folder: `claude mcp add godot -- npx -y godot-mcp-server@0.6.1` and
+`claude mcp add blender uvx mcp-for-blender@2.3.3`, then `claude`.

@@ -27,6 +27,34 @@ The app's look is **Eclipse**: a dark ring of lights, one for each project, roun
 
 The app tells you when a new version is out (**Settings → Updates**, or the banner) and installs it for you. Your data lives in `%APPDATA%\DarknessHarness` (or `%APPDATA%\RoundtableHold` if you had the app before 1.0.0) and is kept if you uninstall.
 
+### What's new in 1.4.0
+
+It catches up: everything the two harnesses it was compared with can do, it can do too (the list is in
+`plans/parity.md`).
+
+- **A board for every project**: each task as a card – To do, Building, Waiting for you, Stuck, Done. Leave one
+  out or do one again by hand, put your projects in your own order, and open one task full screen (**Focus**).
+  Answer several questions at once with what's recommended.
+- **Words as they are written**: you see a model's reply (and its thinking) while it writes. Type `/` in the
+  message box for commands, ask a finished task a follow-up, see the messages waiting for the next task, and
+  **Talk** to the planner instead of typing.
+- **What each job may do**: Careful (the default), Ask every time, Free or Read only, for each job and each
+  project (Settings → Builders, Models, a project's Settings). Under Careful, a tool server's first use, the
+  first page on a new website and anything that deletes now wait for your tap.
+- **Change a file yourself** (Files): save, undo, the full history and its branches, Word, Excel and PowerPoint
+  previews, video, find in a file, and a **Browser** for the app you are building.
+- **Work that starts from outside**: GitHub events, an address you name, or a program on this computer can
+  start an idea – it always waits for your OK. A stand-up line each hour while something builds, CI beside
+  each project, one list of every service, more tool servers to add with a tick, and **Move my data**.
+- **Proof**: a picture of a Windows app's window when it starts, and Android apps opened and pictured on a test
+  phone the harness starts (it offers to make one first).
+- **The phone**: an update that fails puts the previous one back by itself, every failure says what to do,
+  clone or import projects on This phone, a Browser tab, and the fold of a foldable phone is used.
+
+Beta notes: the window pictures, the test phone, the phone's new parts and Talk in the Windows app are still to
+be tried on your own PC and phone. The phone shows the board, the words as they are written and the rest only
+from the next update.
+
 ### What's new in 1.3.0
 
 It learns: the harness gets better from its own work, within money you set, and you can undo anything it

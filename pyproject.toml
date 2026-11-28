@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roundtable-hold"
-version = "1.3.0"
+version = "1.4.0"
 description = "Roundtable Hold: the best AI models working together - a cross-repo hub with project journals, a role-routed multi-provider project harness, self-improvement and a web UI."
 requires-python = ">=3.10"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
   "cryptography>=42",  # phone access: the self-signed TLS certificate
   "segno>=1.5",        # phone access: the pairing QR code
   "pillow>=10",        # named agents: a face shrunk to a small square webp (agents.py)
+  "pypdf>=4",          # the text of a PDF, for search and the Files tab (documents.py)
   "tzdata; sys_platform == 'win32'",  # Windows has no time-zone database: schedules keep summer time
 ]
 
@@ -34,7 +35,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 roundtable = ["templates/*.yaml", "prompts/*.md", "ui/static/*", "ui/static/agents/*", "kinds/builtin/**/*",
-              "improve/yardsticks/**/*", "plugins/catalogue.json", "skills/builtin/**/*"]
+              "improve/yardsticks/**/*", "plugins/catalogue.json", "skills/builtin/**/*",
+              "mcp_catalogue.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

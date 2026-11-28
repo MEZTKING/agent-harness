@@ -18,9 +18,14 @@ code, for builders.
 
 | Project | Features | Have | Partly | Missing | Planned (was Not wanted) | Not wanted |
 |---|---|---|---|---|---|---|
-| Munder Difflin | 93 | 63 | 17 | 5 | 6 | 2 |
-| DSH Mobile + the DeepSeek Harness | 83 | 59 | 14 | 4 | 5 | 1 |
-| **Both** | **176** | **122** | **31** | **9** | **11** | **3** |
+| Munder Difflin | 93 | 87 | 0 | 0 | 4 | 2 |
+| DSH Mobile + the DeepSeek Harness | 83 | 71 | 6 | 0 | 5 | 1 |
+| **Both** | **176** | **158** | **6** | **0** | **9** | **3** |
+
+*After wave 8 (1.4.0, 27 November 2026): 36 rows to Have, each naming the file that does it, and nothing is
+Missing. Still Partly: DS-13, DS-16, DS-31, DS-44 and DS-83, built on the desktop and open to the phone, whose
+phone screens are p1-phone's Part B; and DS-47 (no command line from the phone, the owner's answer). Planned:
+the wave 9 rows, each with the owner's answer.*
 
 *Re-audited for 1.4.0 (27 November 2026, before wave 8), row by row against the code: MD-11, MD-55, MD-58,
 DS-09, DS-36 and DS-45 to Have (built earlier, the list was out of date); MD-66 from Missing to Partly. Four
@@ -60,17 +65,17 @@ it's first in the ranking below.
 | MD-09 | Prefer an agent that already fits | Routes to an existing agent by name or fit before hiring | CHANGELOG "Orchestrator delegates opportunistically" | **Have**: tasks go to roles by kind of job (`harness/config.py` roles) |
 | MD-10 | Agent-to-agent mail | Agents ask and tell each other things | `src/main/hive.ts` (outbox → inbox) | **Have**: hub messages (`hub/service.py`, MCP `hub_send`, `hub_reply`) |
 | MD-11 | Message types, threads, hop cap, bounce | Stops two agents ping-ponging; mail to nobody comes back | `HIVE.md` §4, `src/shared/broadcast.ts`, test `hive-hop-cap` | **Have**: kinds and threads, a hop cap of 12 and mail to nobody bounced back to the sender (`hub/service.py` `HOP_CAP`, `_bounce`, `_hops_after`) |
-| MD-12 | Broadcast to everyone | One message to all agents | `src/shared/broadcast.ts` | **Partly**: send to several agents at once (`/api/send`); no "everyone". Wave 8: p1-reach |
+| MD-12 | Broadcast to everyone | One message to all agents | `src/shared/broadcast.ts` | **Have** (1.4.0, wave 8): one message to every agent (`hub/service.py` `Hub.send(to="everyone")`, `EVERYONE`; MCP `hub_send` with `["everyone"]` gives its thread id) |
 | MD-13 | Shared board (blackboard) | One plan every agent reads and the orchestrator writes | `hive/board.md` | **Have**: the living plan (`harness/plandoc.py`) and project cards |
-| MD-14 | Task board with dependencies | Todo, doing, blocked, done; assignee, priority, depends on | `components/TasksKanban.tsx`, `src/shared/taskLedger.ts` | **Partly**: task list with depends-on and status (`ui/static/plan.js`, `project.js`); no board view, no moving a card by hand. Wave 8: p1-board |
+| MD-14 | Task board with dependencies | Todo, doing, blocked, done; assignee, priority, depends on | `components/TasksKanban.tsx`, `src/shared/taskLedger.ts` | **Have** (1.4.0, wave 8): the Board tab: every task as a card in To do, Building, Waiting for you, Stuck, Done and Left out, moved by hand with plain refusals (`harness/boardstage.py` `BoardStage.move_task`, `ui/boardapi.py`, `ui/static/board.js`) |
 | MD-15 | Task ids on every card | "bmt-12" to refer to | CHANGELOG "Tasks show their id" | **Have**: task numbers in the plan and Watch |
-| MD-16 | Task hygiene | Fields kept when an agent rewrites, done cards archived, waiting-on-you never "stale" | `src/shared/taskHygiene.ts` | **Partly**: tasks live in `.harness/tasks.json`, written only by the orchestrator; no archive of old goals' tasks. Wave 8: p1-board |
+| MD-16 | Task hygiene | Fields kept when an agent rewrites, done cards archived, waiting-on-you never "stale" | `src/shared/taskHygiene.ts` | **Have** (1.4.0, wave 8): earlier goals' finished tasks go to an archive and still reach the planner (`harness/boardstage.py` `archive_earlier`, `archived`; `.harness/tasks-archive/goal-N.json`) |
 | MD-17 | Agents carry on by themselves | An agent that finishes reads its mail and keeps working | `HIVE.md` §5 (Stop hook) | **Have**: the run goes task after task (`orchestrator.run`); connected Claude Code sessions get hub mail at start and stop (`connect.py` hooks) |
-| MD-18 | Idle agents sleep and wake | Saves resources; a Wake button | `components/SleepOverlay.tsx`, `src/main/workerWake.ts` | **Planned, wave 8** (was Not wanted; the owner's standing order to match everything overturns it): each project says working, resting or gone quiet, and a run that goes quiet is looked at (p1-board) |
-| MD-19 | Heartbeat and watchdog | Wakes an agent sitting on unread mail | `src/main/workerWake.ts`, `staleAgents.ts` | **Planned, wave 8** (was Not wanted): a watchdog for a run gone quiet (p1-board) and a heartbeat so the phone can say when the PC last listened (p1-reach) |
+| MD-18 | Idle agents sleep and wake | Saves resources; a Wake button | `components/SleepOverlay.tsx`, `src/main/workerWake.ts` | **Have** (1.4.0, wave 8): each project says Working, Resting, Waiting for you or Gone quiet, and a quiet run gets one card, Wait or Stop it (`harness/quiet.py` `state`, `quiet_ask`; `ui/static/board.js` `stateWord` on Home) |
+| MD-19 | Heartbeat and watchdog | Wakes an agent sitting on unread mail | `src/main/workerWake.ts`, `staleAgents.ts` | **Have** (1.4.0, wave 8): the watchdog for a run gone quiet (`harness/quiet.py`) and the heartbeat, so the phone can say when the PC last listened (`reach.py` `beat`, `plans/listening.json`, `GET /api/listening`) |
 | MD-20 | Each agent in its own git worktree | Agents on one repo never trip over each other's branches | `src/main/agentWorktree.ts`, `worktreeAdmin.ts` | **Have**: several tasks at once, each in its own git worktree (`harness/worktrees.py`, wave 1) |
 | MD-21 | Safe worktree clean-up | A worktree with uncommitted work is kept, and says why | `src/shared/worktreeFate.ts`, `worktreeList.ts` | **Have**: a worktree goes only when merged and clean, with its reason kept (wave 1; the daily tidy-up, wave 2) |
-| MD-22 | Dependencies linked into worktrees | A new worktree doesn't reinstall `node_modules` | `src/main/worktreeDeps.ts` | **Partly**: each worktree runs the project's setup (`worktrees._lane_baseline`, wave 1); nothing is linked in. Wave 8: p1-perms |
+| MD-22 | Dependencies linked into worktrees | A new worktree doesn't reinstall `node_modules` | `src/main/worktreeDeps.ts` | **Have** (1.4.0, wave 8): a task's copy links the project's node_modules, .venv, .gradle and .godot/imported when the lockfiles match and git ignores them, and skips the setup; an install in the copy takes the link away first (`harness/worktrees.py` `link_deps`, `unlink_deps`, `links_out`; `harness/perms.py` `own_copy_first`) |
 | MD-23 | Restore the team after a restart | One click brings every agent back where it was | `src/main/lastSessionSave.ts`, `src/shared/resumeStore.ts` | **Have**: a run resumes from `.harness/` exactly where it stopped (`orchestrator.py`) |
 | MD-24 | Handoff per piece of work | Each agent writes what it did, so the next one picks up | `src/shared/handoff.ts`, `src/main/handoffJob.ts` | **Have** (wave 5): every retry, split or re-plan of a stuck task gets a written handover (attempts, last review, files changed, what's left) that the next worker reads (`harness/handoff.py`, `unstick.py`); also the hub journal and the repo's HANDOFF as before |
 | MD-25 | A clean start when work changes | Handoff, then clear, when an agent switches to other work | `src/shared/switchClear.ts` | **Have** by design: each task starts a new conversation |
@@ -84,29 +89,29 @@ it's first in the ranking below.
 |---|---|---|---|---|
 | MD-29 | The office floor in pixel art | Agents walk to the shelf, the terminal, the mailbox | `src/renderer/src/scene/office`, LimeZu tiles | **Planned, wave 9** (was Not wanted). The owner said yes on 27 November 2026: our own pixel art from Retro Diffusion, up to $10, quoted first, the sheet approved by the owner; never Munder Difflin's tiles. Today the Hall says the same in words (`ui/static/hall.js`) |
 | MD-30 | What each agent is doing, at a glance | Thinking, working, blocked, done | `SPEC.md` §4, `components/AgentCard.tsx` | **Have**: seat status in words (`ui/hall.py`, `ui/roundtable.py`) |
-| MD-31 | "Looping" and "compacting" states | The floor shows when the safety layer steps in | CHANGELOG "New avatar states" | **Partly**: the breaker (wave 1) and compaction (wave 2) exist; Watch has no line for "compacted" yet. Wave 8: p1-board |
+| MD-31 | "Looping" and "compacting" states | The floor shows when the safety layer steps in | CHANGELOG "New avatar states" | **Have** (1.4.0, wave 8): Watch has a line for each safety stop and each compaction (`session.py` step kind "guard", `guard_line`) |
 | MD-32 | Live terminal for every agent | Watch the real output byte for byte, type into it | `components/PtyTerminalView.tsx`, `src/main/pty.ts` | **Have** (beta on Windows): a project's Command line tab on the PC, and each task's command as it prints with a Stop (`terminal.py`, `harness/livecmd.py`, wave 3) |
 | MD-33 | Fleet grid | Every agent's state, tokens, cost in one grid | `src/core/fleet.ts`, `components/WorkersTab.tsx` | **Have**: the Hall and Today (`ui/roundtable.py`) |
 | MD-34 | Tool-span waterfall | Which tool calls ran, in what order, for how long | `components/ToolWaterfall.tsx` | **Have**: where each task's time went, and the time of every step (Watch, waves 1 and 2) |
 | MD-35 | Activity feed | Everything that happened, newest first | `hive/log.jsonl`, Activity tab | **Have**: `ui/static/activity.js`, `/api/activity`, `.harness/events.jsonl` |
 | MD-36 | Threaded messages per agent | Conversations with reply chains and a reply box | `components/ThreadsPanel.tsx` | **Have**: Letters (`ui/static/letters.js`, `/api/thread`) |
-| MD-37 | Clickable paths and markdown previews | A path in the output opens; plans read as formatted text | `src/shared/terminalPaths.ts`, `src/renderer/src/markdown` | **Partly**: markdown on the phone (`MarkdownView.kt`); paths in Watch don't open the file. Wave 8: p1-editor |
+| MD-37 | Clickable paths and markdown previews | A path in the output opens; plans read as formatted text | `src/shared/terminalPaths.ts`, `src/renderer/src/markdown` | **Have** (1.4.0, wave 8): paths and local addresses in Watch and the chat open the file in Files or the page in the Browser (`ui/static/files.js` `pathLinker`, `preview.js` `linkPaths`) |
 | MD-38 | Desktop notifications | A native pop-up when an agent finishes or needs you | CHANGELOG "Desktop notifications" | **Have**: the bell and pop-ups (`notify.py`, `static/notify.js`, wave 1) |
 | MD-39 | Top bar with version, auto mode, limits, theme | The state of the whole app in one line | CHANGELOG "A top bar" | **Have**: Today, Autopilot, theme, settings (`ui/static/app.js`) |
-| MD-40 | Focus and full-screen views | One agent's terminal full screen | `components/FullscreenTerminal.tsx` | **Partly**: a project page is full screen; no focus mode for one task. Wave 8: p1-board |
+| MD-40 | Focus and full-screen views | One agent's terminal full screen | `components/FullscreenTerminal.tsx` | **Have** (1.4.0, wave 8): Focus: one task full screen with its steps, its live command and its files, Stop and Esc (`ui/static/focus.js` `openFocus`, the Focus button in Watch) |
 
 ### Approvals and safety
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
 | MD-41 | "Ask me" queue | Questions with options, a recommendation and markdown, a bell and a badge | `components/AskMeTab.tsx`, `src/shared/askOptions.ts`, `humanAsk.ts` | **Have**: Needs you cards (`asks.py`, `ui/static/needs.js`, `mobile/.../ui/AskCard.kt`) |
-| MD-42 | Answer several asks at once | Clear a pile of questions in one go | `components/askMeBulk.ts` | **Partly**: autopilot answers with the recommended choice (`autopilot.py`); no "answer these five" by hand. Wave 8: p1-board |
+| MD-42 | Answer several asks at once | Clear a pile of questions in one go | `components/askMeBulk.ts` | **Have** (1.4.0, wave 8): Answer several at once with what's recommended, each shown first (`ui/static/bulk.js` `bulkBar` on Needs you, `POST /api/board/answer-several`) |
 | MD-43 | Only critical things reach you | Spend, deletion and scope changes ask; routine ones don't | `HIVE.md` §6 | **Have**: autopilot's rules and `confirm` on risky options (`autopilot.py`, `asks.py`) |
 | MD-44 | Mid-run control through the CLI's hooks | Pause, refuse a tool, steer, stop cleanly, without typing into the terminal | `src/main/control.ts` | **Have**: Ask me first holds one command until you say (`harness/gate.py`) and the breaker stops a task mid-run (wave 1); an instruction can reach the task working now (wave 2) |
 | MD-45 | Circuit breaker | Steer → limit → stop on loops, error storms, runaway spend | `src/main/breaker.ts` | **Have**: loops, error storms, huge output and no progress (`harness/breaker.py`, wave 1) |
 | MD-46 | Token cap per agent | One agent can't run up the bill | `src/shared/tokenCaps.ts`, `tokenLimits.ts` | **Have** (1.2.0): limits per job on one project (tokens or dollars) that pause with one card, and per service a day or a month (`harness/usage.py`, Models → Who does what, Settings → Spending), on top of the breaker's limit per task |
 | MD-47 | Usage limits per engine | How much of your subscription is left | `src/main/usageLimits.ts`, `components/limits` | **Have** (1.2.0): what each service has used today and this month against your limits, and the real balance where the service reports one (DeepSeek, OpenRouter). For the coding helpers on a subscription it shows what the harness used: the subscription's own limit can't be read |
-| MD-48 | Permission mode per agent | Default, accept edits, bypass, plan | `SPEC.md` §5, `src/shared/agentRole.ts` | **Partly**: Ask me first per project – off, risky or all (wave 1); not per job. Wave 8: p1-perms |
+| MD-48 | Permission mode per agent | Default, accept edits, bypass, plan | `SPEC.md` §5, `src/shared/agentRole.ts` | **Have** (1.4.0, wave 8): what each job may do: Ask every time, Careful (the default), Free or Read only, per job and per project, with the order of authority shown (`harness/perms.py`, `ui/permsapi.py`, `ui/static/perms.js`; Models → Who does what, Settings → Builders, a project's Settings) |
 | MD-49 | One committer, retries, stale lock | Git never corrupts under many writers | `src/core/gitSafe.ts`, `src/main/hiveCommitQueue.ts` | **Have**: `core/store.py` GitStore, `sync.py` settling clashes file by file |
 | MD-50 | One place that deletes | A retention sweep is the only thing that removes files | `src/main/retention.ts`, `src/shared/retention.ts` | **Have**: one daily tidy-up is the only thing that deletes (`retention.py`, wave 2; rewind's old ways back after 30 days, wave 3) |
 | MD-51 | Stray processes cleaned up | Agents left running by a crash are found and stopped | `src/main/staleAgents.ts`, `procKill.ts` | **Have**: a task's commands are listed while they run and stopped after the run or with Stop (`harness/livecmd.py`, wave 3) |
@@ -124,7 +129,7 @@ it's first in the ranking below.
 | MD-58 | Memory kept small without a model | Old notes move word for word to an archive that's searched | `src/main/reflect.ts`, `memoryIndex.ts` | **Have**: old lines move word for word to `memory-archive.md`, which search reads; no model involved (`memory.py`) |
 | MD-59 | Memory graph | Who talks to whom, who knows what, as a picture | `components/MemoryGraphPanel.tsx`, `MEMORY_GRAPH_SPEC.md` | **Have** (1.3.0, wave 7): Search → Who knows what: named agents, projects, documents and topics drawn as circles and lines, with one plain sentence on top and a list behind More (`recall.graph`, `static/recall.js` `memoryPicture`) |
 | MD-60 | Knowledge base of your own documents | Agents look up your facts instead of guessing | `src/main/knowledge.ts`, `kg-core.cjs` | **Have** (1.3.0, wave 7): Search → Your documents: drop files or link a folder (text, Markdown, HTML, CSV, JSON, Word; PDFs by name only), all projects or chosen ones, a "Never leaves this computer" tick; agents get `look_up` and use it before guessing (`documents.py`, `harness/recallstage.py`, project setting `documents`) |
-| MD-61 | Choose where the data lives | Pick the folder, with a safe move | CHANGELOG "Configurable hive/memory home folder" | **Partly**: choose the hub and the projects folder in Settings; no "move it there". Wave 8: p1-reach |
+| MD-61 | Choose where the data lives | Pick the folder, with a safe move | CHANGELOG "Configurable hive/memory home folder" | **Have** (1.4.0, wave 8): move the hub or the projects folder: copied, checked file by file, switched, and Switch back (`datamove.py`, Settings → Advanced → Move my data) |
 
 ### Models, providers and costs
 
@@ -134,7 +139,7 @@ it's first in the ranking below.
 | MD-63 | Real tokens and cost, for the app's lifetime | Per agent, per model | `src/main/costLifetime.ts`, `tokenUsage.ts` | **Have**: cost per step, spend, real balance, the cost log (`plugins/builtin/cost_log.py`) |
 | MD-64 | OpenTelemetry collector | Usage fed in by the CLIs' own telemetry | CHANGELOG "Live OTel telemetry" | **Planned, wave 9** (was Not wanted). Owner's answer, 27 November 2026: on this computer only (traces in a file the app shows; the coding helpers' own telemetry taken in on 127.0.0.1); an outside collector only if the owner types its address, with a warning |
 | MD-65 | Prerequisites page | Is git, Node, uv, each engine ready? Install buttons | `components/settings`, `src/main/cliReadiness.ts` | **Have**: the Tools page finds and installs what projects need (`prereq.py`, wave 1) |
-| MD-66 | Engines install themselves | A missing CLI or Node is installed, checked against its signature | `src/main/cliInstall.ts`, `nodeInstall.ts` | **Partly**: Claude Code and Codex have rows with Install on the Tools page (`prereq.py`), and a missing engine points there (`providers/cli_engine.py`); not offered at the moment a task needs it, and nothing says how the download was checked. Wave 8: p1-reach |
+| MD-66 | Engines install themselves | A missing CLI or Node is installed, checked against its signature | `src/main/cliInstall.ts`, `nodeInstall.ts` | **Have** (1.4.0, wave 8): a task that stops for a missing coding helper gets "Install it and carry on" (only a checked download), then the task is tried again (`prereq.py` `engine_offer`, `install_and_carry_on`; `ui/reachapi.py`; the card in `ui/static/asks.js`) |
 | MD-67 | Change a model and keep the session | Switch model without losing the conversation | CHANGELOG "Changing an agent's model within the same provider resumes" | **Have**: routing changes apply to the next call (`routing.py`) |
 
 ### Proof, tests and git
@@ -143,36 +148,36 @@ it's first in the ranking below.
 |---|---|---|---|---|
 | MD-68 | Before and after on every change | No merge without screenshots or a recording | `.github/workflows/pr-evidence.yml`, `test/pr-evidence-gate.test.cjs` | **Have**: pictures before and after, the tests before and after, and a model that can see as advice (`harness/proof.py`, wave 3) |
 | MD-69 | Tests with fake engines | The whole app tested without a paid key | `test/`, `test/fixtures` | **Have**: scripted provider (`providers/scripted.py`), `tests/` |
-| MD-70 | Git history in the app | Commit graph, diffs per file, branch compare, guarded checkout | `src/renderer/src/ide/GitPanes.tsx`, `components/GitTab.tsx` | **Partly**: a history of what each task changed, with Undo and Try another way (`harness/rewind.py`, wave 3); no full git log. Wave 8: p1-editor |
+| MD-70 | Git history in the app | Commit graph, diffs per file, branch compare, guarded checkout | `src/renderer/src/ide/GitPanes.tsx`, `components/GitTab.tsx` | **Have** (1.4.0, wave 8): the full git history with each commit's files and diff, branches and compare, and a guarded branch switch (`harness/gitview.py`, Files → History, `ui/static/gitlog.js`) |
 | MD-71 | GitHub issues become work | Pull open issues and give one to an agent in a click | `src/main/github.ts` (`gh issue list`) | **Have**: an issue with your label starts a plan (`automation.py`, wave 1) |
-| MD-72 | CI status | Live pass/fail of GitHub Actions for each repo | `src/main/github.ts` (`gh run list`) | **Partly**: a failed check can start work (automations, wave 1); CI status isn't shown. Wave 8: p1-reach |
-| MD-73 | Worktrees panel | Every worktree, its branch, what's uncommitted | `components/WorktreesPanel.tsx` | **Partly**: kept worktrees with their reason (wave 1); no panel. Wave 8: p1-board |
+| MD-72 | CI status | Live pass/fail of GitHub Actions for each repo | `src/main/github.ts` (`gh run list`) | **Have** (1.4.0, wave 8): CI's state beside the project's name, with the failing run's link (`ci.py`, `GET /api/ci`, `ui/static/ci.js` `ciChip`) |
+| MD-73 | Worktrees panel | Every worktree, its branch, what's uncommitted | `components/WorktreesPanel.tsx` | **Have** (1.4.0, wave 8): Task copies: every kept worktree with why it was kept and its files (`ui/boardapi.py` `/api/worktrees`, `ui/static/worktrees.js`) |
 
 ### Files, editor and composer
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
-| MD-74 | Files and an editor | Browse and edit an agent's folder (Monaco) | `components/FilesTab.tsx`, `src/renderer/src/ide/` | **Partly**: browse and open a project's files, save a copy (`ui/filesapi.py`, wave 2); no editor. Wave 8: p1-editor |
+| MD-74 | Files and an editor | Browse and edit an agent's folder (Monaco) | `components/FilesTab.tsx`, `src/renderer/src/ide/` | **Have** (1.4.0, wave 8): change a text file from the app: one commit per save, a stale copy refused, a warning while a task builds it, Undo; never through a link or into the harness's own files (`ui/editapi.py`, `ui/static/editor.js`) |
 | MD-75 | Attach files and pictures to a message | Paste or drop a picture into what you send | `components/pasteAttachments.ts`, `MessageQueueComposer.tsx` | **Have**: the message box takes pictures and files (`attachments.py`, wave 2) |
-| MD-76 | Message queue with "send now" | Your messages wait while the agent is busy; nothing overwrites a draft | `docs/message-queue.md`, `src/main/submitMessageFile.ts` | **Partly**: Next task or Now (wave 2); no queue you can see. Wave 8: p1-chat |
+| MD-76 | Message queue with "send now" | Your messages wait while the agent is busy; nothing overwrites a draft | `docs/message-queue.md`, `src/main/submitMessageFile.ts` | **Have** (1.4.0, wave 8): the queue: messages waiting for the next task, changed, removed or sent now (`ui/chatapi.py` `/api/queue`, `ui/static/queue.js`) |
 
 ### Scheduling, automation and integrations
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
 | MD-77 | Scheduled missions | "Every Monday at 9" or every hour, to an agent | `src/shared/weeklySchedule.ts`, `src/shared/triggers.ts` | **Have**: schedules (`automation.py`, wave 1) |
-| MD-78 | Hourly stand-up | The orchestrator checks every agent and tidies their context | CHANGELOG "Hourly ops standup" | **Missing**. Wave 8: p1-reach |
+| MD-78 | Hourly stand-up | The orchestrator checks every agent and tidies their context | CHANGELOG "Hourly ops standup" | **Have** (1.4.0, wave 8): the stand-up: one line in the journal and one card per real problem, hourly while something builds, with no model call (`reach.py` `standup`, `hourly`) |
 | MD-79 | Triggers page | Every schedule and webhook, last and next run | `components/triggers`, `src/main/triggerHistory.ts` | **Have**: Settings → Automations: schedules, issues and failed checks (wave 1) |
-| MD-80 | Inbound webhooks | GitHub, Linear, Telegram or your own start work | `src/main/webhook.ts`, `serviceWebhooks.ts` | **Missing**. Wave 8: p1-reach (from GitHub, from an address you name and from this PC; nothing on the internet can call in) |
+| MD-80 | Inbound webhooks | GitHub, Linear, Telegram or your own start work | `src/main/webhook.ts`, `serviceWebhooks.ts` | **Have** (1.4.0, wave 8): work starts from GitHub events, from an address you name and from programs on this PC through a local hook (loopback only, a secret, the same answer for a wrong secret and no hook; it always waits for your OK) (`reach.py` `poll_hooks`, `receive`; `ui/static/hooks.js`); nothing on the internet can call in |
 | MD-81 | A public tunnel | Webhooks reach your computer from the internet | `src/main/tunnel.ts` | **Not wanted** (owner, 27 November 2026: no public tunnel): an open door into the PC. Work starts from GitHub, from an address you name and from programs on this PC instead (MD-80) |
 | MD-82 | Slack | Send work from a thread, the answer comes back there | `src/main/slack*.ts` | **Not wanted** (owner, 27 November 2026: no Slack or Telegram): project names and questions would pass through an outside service; the phone and the hub reach the owner |
-| MD-83 | Integrations registry | Each service's settings in one list, used by every agent | `src/shared/integrations.ts`, `components/integrations` | **Missing** (comes with MD-52). Wave 8: p1-reach |
+| MD-83 | Integrations registry | Each service's settings in one list, used by every agent | `src/shared/integrations.ts`, `components/integrations` | **Have** (1.4.0, wave 8): one list of every service it reaches, its state and a Test button (`integrations.py`, `GET /api/integrations`, `ui/static/integrations.js` `integrationsCard`) |
 
 ### Plugins, skills and MCP
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
-| MD-84 | MCP servers per agent, from a catalog | Give an agent extra tools with a tick | `components/AgentMcpGrants.tsx`, `src/shared/mcpCatalog.ts` | **Partly**: the Tools page adds, tests and gives MCP servers to jobs (wave 1); no catalogue. Wave 8: p1-reach |
+| MD-84 | MCP servers per agent, from a catalog | Give an agent extra tools with a tick | `components/AgentMcpGrants.tsx`, `src/shared/mcpCatalog.ts` | **Have** (1.4.0, wave 8): a catalogue of nine pinned tool servers to add with a tick (`mcp_catalogue.json`, `prereq.py` `catalogue_servers`; Tools → More tool servers) |
 | MD-85 | Skills catalog | 227 skills to search, install and remove | `src/main/skills.ts`, `components/SkillsTab.tsx` | **Have** (1.3.0, wave 7), small: 10 skills written here (pytest, Python packages, accessible forms, canvas games, Godot 4 and more), to switch on and off and add from a file with the whole text shown first; a task gets at most two that match its kind of work (`skills.py`, `harness/skillstage.py`, Tools → Plug-ins and skills). The other harness lists 227 |
 | MD-86 | Hooks from the CLIs | The app hears every tool call and stop | `src/core/hookServer.ts` | **Have** for Claude Code sessions joined to the hub (`connect.py` hooks) |
 | MD-87 | Reach everything from the phone | `/remote-control` on the whole floor | `HIVE.md` §2 | **Have**: Roundtable Mobile and hub commands (`remote.py`, `phone.py`) |
@@ -181,12 +186,12 @@ it's first in the ranking below.
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
-| MD-88 | Talk to the orchestrator by voice | A spoken conversation that reads the floor and acts after you confirm | `src/renderer/src/realtime/`, `src/main/realtime*.ts` | **Missing** (decision below). Wave 8: p1-chat |
+| MD-88 | Talk to the orchestrator by voice | A spoken conversation that reads the floor and acts after you confirm | `src/renderer/src/realtime/`, `src/main/realtime*.ts` | **Have** (1.4.0, wave 8): Talk: say a question and hear the answer, through the computer's own speech (`ui/static/voice.js` `talkButton`, `POST /api/chat/talk`); a maker's paid live voice model is left off (owner, 27 November 2026) |
 | MD-89 | Light and dark | Follows the computer | `DESIGN.md`, `src/shared/grokTheme.ts` | **Have**: `ui/static/theme.js`, Candlelit Oak light and dark |
 | MD-90 | Chinese and Arabic | The whole app in other languages, right to left | `src/renderer/src/i18n` | **Planned, wave 9** (was Not wanted): a string table for the desktop and Android's own resources on the phone; English stays the default |
 | MD-91 | Anonymous usage counts | The makers learn what's used | `src/main/analytics.ts`, `TELEMETRY.md` | **Planned, wave 9** (was Not wanted). Owner's answer, 27 November 2026: counted on this computer only and shown to the owner ("what you use most"), never sent anywhere |
 | MD-92 | Release drops: "what's new" page | A designed page of what changed, on first start | `src/shared/releaseDrop.ts`, `components/ReleaseDrop.tsx` | **Have**: What's new shows once after an update (`ui/whatsnewapi.py`, wave 2); also "Updates" (**Have**: `updater.py`, the Windows installer) |
-| MD-93 | Tasks show their id on cards | "T12" on each card, so a task can be named in a message | CHANGELOG Unreleased | **Missing**: cards show the title only (`ui/static/project.js`). Wave 8: p1-board |
+| MD-93 | Tasks show their id on cards | "T12" on each card, so a task can be named in a message | CHANGELOG Unreleased | **Have** (1.4.0, wave 8): every card shows its task's id (T12) (`harness/boardstage.py` `card`) |
 
 (Setup wizard, one Save button, editable names and crash recovery are matched too: `ui/static/settings.js`
 welcome steps, Settings, hub titles, the phone's safe mode `Crash.kt`. They're folded into the rows above.)
@@ -212,23 +217,23 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-05 | Your own HTTPS reverse proxy | Use your own proxy's address | `harness/README.md` | **Not wanted** (owner, 27 November 2026: no public tunnel or own proxy): pinned TLS is built in |
 | DS-06 | Termux mode | Run the harness in Termux, started by the app | `app/termux/` | **Planned, wave 9** (was Not wanted): only as a second way to start This phone's harness, once it is checked that Termux does something This phone can't |
 | DS-07 | The harness on the phone itself | No computer needed: a small Linux in the app, signed download | `app/runtime/`, `harness/ON-DEVICE.md` | **Have**: This phone (beta) (`onphone.py`, `runtime/`, `mobile/.../runtime/`, borrowed and credited) |
-| DS-08 | Harness updates without an app update, with going back | A new version arrives on its own; a broken one rolls back | `app/runtime` (CHANGELOG 0.22.0) | **Partly**: runtime releases are found and installed (`ReleaseFinder.kt`); no automatic "previous one is back". Wave 8: p1-phone |
+| DS-08 | Harness updates without an app update, with going back | A new version arrives on its own; a broken one rolls back | `app/runtime` (CHANGELOG 0.22.0) | **Have** (1.4.0, wave 8): a runtime update is tried first and the previous one comes back by itself when it fails (`mobile/.../runtime/RuntimeInstaller.kt` trial and rollback) |
 | DS-09 | Keep connected in the background | A foreground service, plus a checklist for battery settings | `app/connection/ConnectionService.kt`, `KeepAliveWorker.kt` | **Have**: This phone runs as a foreground service (`HarnessRuntimeService.kt`), Needs you is checked every 15 minutes (`work/Watch.kt`), and a battery checklist (`ui/ComfortScreen.kt` `BatteryChecklist`) |
 | DS-10 | Several harnesses remembered | Recent hosts, reachable or not | `app/connection/HostsStore.kt` | **Have**, more: several connections at once (`data/MultiBackend.kt`) |
-| DS-11 | Every failure named, with one fix | "Pair again", "Not enough space…" | `harness/ON-DEVICE.md` troubleshooting | **Partly**: plain errors on the phone; not every failure has its own message and fix. Wave 8: p1-phone |
+| DS-11 | Every failure named, with one fix | "Pair again", "Not enough space…" | `harness/ON-DEVICE.md` troubleshooting | **Have** (1.4.0, wave 8): every failure has its own plain message and a button that does the fix (`mobile/.../data/Failure.kt` `FailureAction`, `LocalFailureActions` in `MainActivity.kt`) |
 | DS-12 | Sign-in stored encrypted | The token is never in plain text | `app/connection/RelayCredentialStore.kt` | **Have**: `mobile/.../data/Store.kt` (Android Keystore) |
 
 ### Chat and sessions
 
 | # | Feature | What it does for you | Theirs | Roundtable |
 |---|---|---|---|---|
-| DS-13 | Chat with streaming replies | Words appear as written, with reasoning and code blocks | `ui/screens/main/ChatTranscript.kt` | **Partly**: chat with a project's planner and the live Watch view; replies arrive whole, the thinking isn't shown. Wave 8: p1-chat |
+| DS-13 | Chat with streaming replies | Words appear as written, with reasoning and code blocks | `ui/screens/main/ChatTranscript.kt` | **Partly** (1.4.0, wave 8): the desktop shows a reply's words and thinking as they are written (`harness/streamlog.py`, `GET /api/stream`, `ui/static/stream.js`); the phone's screen for it is p1-phone Part B |
 | DS-14 | Attach photos and files | Send a picture with your message | `ui/screens/main/Composer.kt`, `fileUploads/upload` | **Have**: pictures and files with a message or an idea (wave 2) |
 | DS-15 | `@` references | Mention a file, folder or session in a message | `ui/screens/main/ReferencePicker.kt` | **Have**: @file in the message box (wave 2) |
-| DS-16 | `/` commands and skills menu | Run a command from the message box | `ui/screens/main/SheetCommands.kt`, `commands/execute` | **Missing**. Wave 8: p1-chat |
+| DS-16 | `/` commands and skills menu | Run a command from the message box | `ui/screens/main/SheetCommands.kt`, `commands/execute` | **Partly** (1.4.0, wave 8): `/` commands and skills from the message box on the desktop (`harness/slash.py`, `ui/static/slash.js`); the phone's menu for them is p1-phone Part B (the route is open to it) |
 | DS-17 | Press and hold for actions | Copy, edit and resend, mention a file | `ui/screens/main/HoldActions.kt` | **Have**: press and hold a sent message: copy, or edit and send again (wave 3) |
 | DS-18 | Starter prompts | An empty project offers ideas to tap | CHANGELOG "Starter prompts" | **Have**: the wizard's cards, and each kind's example ideas in the Gallery (wave 3) |
-| DS-19 | Sessions drawer: order, group, pin, archive, search | Keep the list your way | `ui/screens/main/ChatListDrawer.kt`, `SessionReorder.kt`, `SessionSearch.kt`, `ArchivedSessions.kt` | **Partly**: pin and put away projects (wave 3), search (wave 2); no reordering by hand. Wave 8: p1-board and p1-phone |
+| DS-19 | Sessions drawer: order, group, pin, archive, search | Keep the list your way | `ui/screens/main/ChatListDrawer.kt`, `SessionReorder.kt`, `SessionSearch.kt`, `ArchivedSessions.kt` | **Have** (1.4.0, wave 8): move projects up and down on Home (`ui/static/board.js` `orderButtons`, `POST /api/board/order`) and press, hold and drag on the phone (`mobile/.../data/Comfort.kt` `reorder`) |
 | DS-20 | History of what you sent | Jump back to any prompt | `ui/screens/main/SessionHistory.kt` | **Have**: the last 50 messages per project, on the phone (`ui/SentHistory.kt`, wave 3) |
 | DS-21 | Fork a session | Try another way from any point | `session/fork` | **Have**: Try another way: a separate copy from any task (`harness/rewind.py` `fork`, wave 3) |
 | DS-22 | Rewind | Undo to a message: the conversation only, or the code too, with the files it will restore | dsh-rewind-plugin, CHANGELOG "A rewind picker" | **Have**: Undo this task or go back to before it, files shown first, Put it back for 30 days (wave 3) |
@@ -240,7 +245,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-28 | Goals | A goal the agent works towards; done or blocked | `/goal`, Details panel | **Have**: a project's goal, and "extend with a new goal" (`orchestrator.py`) |
 | DS-29 | Plan mode and plan review | Read the plan before it starts; approve or decline | `ask_user_question` `plan-review` | **Have**, deeper: the living plan with choices, critique and estimate (`harness/plandoc.py`) |
 | DS-30 | Todo list | What the agent will do next | Details panel, "todo lists" | **Have**: the task board (`ui/static/plan.js`) |
-| DS-31 | Subagents: read them, send a follow-up | See what a helper did and tell it more | `ui/screens/main/SheetSubagents.kt`, `subagents/prompt` | **Partly**: every task's steps in Watch; no follow-up to one task's model. Wave 8: p1-chat |
+| DS-31 | Subagents: read them, send a follow-up | See what a helper did and tell it more | `ui/screens/main/SheetSubagents.kt`, `subagents/prompt` | **Partly** (1.4.0, wave 8): ask a finished task's model a follow-up, priced first, or turn it into a change (`harness/followstage.py`, `ui/static/stream.js` `followBox`); on the phone with Part B |
 | DS-32 | Agent teams (beta) | Teammates and a shared board: waits on, files each plans to change, who owns it, overlap warnings | `ui/screens/main/SheetAgentTeam.kt`, `docs/PROTOCOL.md` "Agent Teams" | **Have** (wave 5): each task names the files it plans to change; overlaps are warned about and run one after the other, files changed outside the plan are noted (`harness/stages.py`, `ui/stagesapi.py`, `static/stages.js`, the phone's `StageStrip.kt`) |
 | DS-33 | Background jobs: list, stop, follow | A long command runs apart; watch or stop it | `ui/screens/main/JobOutputSheet.kt`, `job/kill`, `job/follow` | **Have**: desktop Jobs with live logs, and a task's command followed and stopped (wave 3) |
 | DS-34 | Where a turn's time went | Waiting for the first word, writing, tools, waiting for you | `ui/screens/main/TrajectoryOverview.kt`, `TrajectoryTab.kt` | **Have**: where each task's time went (wave 2) |
@@ -256,9 +261,9 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 |---|---|---|---|---|
 | DS-40 | Approve or reject a command, shown in full | Nothing risky runs without you | `approval/request`, `ui/screens/main/ModernQuestions.kt` | **Have**: Ask me first cards show the whole command (wave 1) |
 | DS-41 | "Run it" or "Ask me first" | Choose per phone how commands run | `harness/ON-DEVICE.md` "Commands" | **Have**: off, risky or all (`harness/gate.py`, wave 1) |
-| DS-42 | Permission presets | Auto review, ask, allow; a sandbox where there is one | `permissionPresets/catalog`, `SheetPermission.kt` | **Partly**: off, risky or all, per project (wave 1); no presets per job. Wave 8: p1-perms |
+| DS-42 | Permission presets | Auto review, ask, allow; a sandbox where there is one | `permissionPresets/catalog`, `SheetPermission.kt` | **Have** (1.4.0, wave 8): the presets per job (`harness/perms.py`), as MD-48 |
 | DS-43 | Questions with options and your own words | Tap an answer or type one | `userQuestions/answer` | **Have**: `asks.py` (options, recommended, Other) |
-| DS-44 | Timed questions | A countdown; editing holds it; late answers still count | `userQuestions/attachWait` | **Partly**: answers are bound to the question's version (`stamp`); no timers. Wave 8: p1-chat |
+| DS-44 | Timed questions | A countdown; editing holds it; late answers still count | `userQuestions/attachWait` | **Partly** (1.4.0, wave 8): a question may carry a timer; when it runs out the recommended answer is taken, except for money, approval and other answers that must wait (`asktimer.py`, `ui/static/asks.js` `timerLine`); on the phone with Part B |
 | DS-45 | Too long to show means not run | A command over 256 KB isn't asked, so isn't run | `harness/ON-DEVICE.md` | **Have**: a command too long to show in full is refused, never asked about (`harness/gate.py` `MAX_COMMAND_BYTES`, `refusal_too_long`) |
 | DS-46 | Approval reasons in your language | Why it's asking, translated | `approval/request` `displayReason` | **Planned, wave 9** (was Not wanted): as DS-38 |
 
@@ -269,12 +274,12 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-47 | Terminal on the computer | A real shell, from the phone | `ui/screens/main/TerminalPanel.kt`, `terminal/attach` | **Partly**: a command line on the PC (wave 3); never from the phone (decided: the phone gets a task's output and a Stop). Owner's answer, 27 November 2026: no command line into the PC from the phone |
 | DS-48 | Browse the workspace | Folders and files of the project | `ui/screens/main/WorkspacePanels.kt`, `workspaceFiles/list` | **Have**: the Files screen on the desktop and the phone (wave 2) |
 | DS-49 | Search the workspace's files | Find a file by name or text | `ui/screens/main/WorkspaceSearch.kt` | **Have**: search covers the project's files (wave 2) |
-| DS-50 | Full-screen preview of many file types | CSV tables, JSON trees, notebooks, PDFs, pictures, video, audio, archives, find in file | `ui/screens/main/preview/` | **Partly**: pictures (pinch to zoom), markdown, downloads of apk/zip/exe (`LiveTab.kt`, `watch.js`). Wave 8: p1-editor and p1-phone |
-| DS-51 | Markdown drawn like GitHub | Tables, badges, code with colours | `ui/screens/main/DocumentFrontmatter.kt`, CHANGELOG 0.20.0 | **Partly**: `MarkdownView.kt`, `data/Markdown.kt`; plain tables and code. Wave 8: p1-editor and p1-phone |
+| DS-50 | Full-screen preview of many file types | CSV tables, JSON trees, notebooks, PDFs, pictures, video, audio, archives, find in file | `ui/screens/main/preview/` | **Have** (1.4.0, wave 8): notebooks, zip and tar listings, Word, Excel and PowerPoint previews, video and audio that can be wound on, Open as PDF (`preview.py`, `ui/editapi.py`, `ui/static/preview.js`) |
+| DS-51 | Markdown drawn like GitHub | Tables, badges, code with colours | `ui/screens/main/DocumentFrontmatter.kt`, CHANGELOG 0.20.0 | **Have** (1.4.0, wave 8): tables, task lists and code with colours (`ui/static/preview.js` `gfm`, `highlight.js`; the phone's `MarkdownView.kt`) |
 | DS-52 | Save a copy of any file | Put it on the phone | CHANGELOG "Save a copy" | **Have**: save a copy of any file (wave 2) |
 | DS-53 | Browser tab for local addresses | Open `localhost:5173` the agent started | `ui/screens/main/browser/` | **Have** (wave 5): the App tab starts an app that runs with a command, shows it in a frame on its local address and stops it (`harness/appserver.py`, `ui/appapi.py`, `static/appstart.js`); this PC only, never from the phone |
-| DS-54 | Office files to PDF | Open a Word or Excel file | `officeToPdf/render` | **Missing**. Wave 8: p1-editor |
-| DS-55 | Projects on the phone | New, clone a repo (private with a token), import a folder or zip, share as zip, Files app | `app/runtime/workspace/` | **Partly**: This phone builds projects from an idea and syncs the hub; no clone, import or share. Wave 8: p1-phone |
+| DS-54 | Office files to PDF | Open a Word or Excel file | `officeToPdf/render` | **Have** (1.4.0, wave 8): find in a file, with the next and the previous match (`ui/static/preview.js` `findBar`) |
+| DS-55 | Projects on the phone | New, clone a repo (private with a token), import a folder or zip, share as zip, Files app | `app/runtime/workspace/` | **Have** (1.4.0, wave 8): This phone clones a repository, imports a zip or a folder from Files and shares a project (`src/roundtable/phoneprojects.py`, `mobile/.../data/PhoneProjects.kt`) |
 
 ### Models, settings, plugins and automation
 
@@ -284,7 +289,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-57 | Provider account and balance | Sign in to DeepSeek; see the balance | `account/getState`, `ui/screens/main/BalanceEstimate.kt` | **Have**: real balance (`providers/balance.py`, `roundtable balance`) |
 | DS-58 | Pick the model and effort | Per session, with reasoning effort | `ui/screens/main/SheetModels.kt`, `session/selectModel` | **Have**: Models page per job and set, effort option (`routing.py`, `providers/anthropic_provider.py`) |
 | DS-59 | Agent presets, and what's in them | Ready-made agents; see their parts | `ui/screens/main/PresetCompositionPage.kt` | **Have**: Budget, Balanced and Quality, and kinds that say what they switch on (wave 3) |
-| DS-60 | The harness's own settings | Web search, shell, subagents, loop, log | `ui/screens/harnesssettings` | **Partly**: Settings, project settings and web search's own settings (wave 3); no subagent settings. Wave 8: p1-perms |
+| DS-60 | The harness's own settings | Web search, shell, subagents, loop, log | `ui/screens/harnesssettings` | **Have** (1.4.0, wave 8): the builders' settings – tasks at once, steps per task, web search, commands, summing up long tasks, the safety check's limits (`ui/permsapi.py` `/api/builders`, Settings → Builders, `ui/static/builders.js`) |
 | DS-61 | Web search for agents | The agent looks things up | Harness "Web search" setting | **Have**: web_search and web_read for the builders and the planner (`harness/websearch.py`, wave 3) |
 | DS-62 | Plugin manager | List, install, switch on and off, remove | `ui/screens/main/PluginManagerScreen.kt` | **Have**: `plugins/manage.py`, Settings → Plugins |
 | DS-63 | Plugin market | Browse and install from a list | `ui/screens/main/PluginMarketBrowser.kt` | **Have** (1.3.0, wave 7): Tools → Plug-ins and skills, a list shipped with the app (pinned to exact commits, permissions in plain words before anything is added, newer versions shown). Honest size: 10 skills and no outside plug-ins yet (`plugins/market.py`, `catalogue.json`) |
@@ -298,7 +303,7 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-66 | Notifications for each kind of news | Turn finished, goal done or blocked, waiting for you; separate channels; a tap opens it | `app/notify/DshNotifications.kt`, `NotificationObserver.kt` | **Have**: finished, needs you, failed, money, idle (`notify.py`, wave 1) |
 | DS-67 | Answer from the notification | Allow or reject without opening the app | inspiration.md (their four-line rule) | **Have**: answer buttons on the notification (wave 1) |
 | DS-68 | The app updates itself | Downloaded, checked against checksum and signature, installed | `app/update/` | **Have**: `mobile/.../update/` (borrowed and credited) |
-| DS-69 | Tablets, foldables, Chromebooks | The layout follows the window | `ui/adaptive/ShellPlan.kt`, `docs/ADAPTIVE.md` | **Partly** (beta): a rail or two panes by the screen's width (`ui/adaptive/`, wave 3); a foldable's hinge isn't read yet. Wave 8: p1-phone |
+| DS-69 | Tablets, foldables, Chromebooks | The layout follows the window | `ui/adaptive/ShellPlan.kt`, `docs/ADAPTIVE.md` | **Have** (1.4.0, wave 8): (beta) the shell splits at a foldable's hinge (`mobile/.../ui/adaptive/Hinge.kt`, Jetpack WindowManager in `MainActivity.kt`) |
 | DS-70 | iPhone | The same app on iOS | `iosApp/`, `docs/IOS.md` | **Planned, wave 9** (was Not wanted). Owner's answer, 27 November 2026: no real iPhone app; the phone's screens as a page an iPhone opens on the same Wi-Fi, through the paired, pinned link |
 | DS-71 | A theme you tune | Accent colour, true black, text size | `ui/screens/settings`, `PRODUCT.md` | **Have**: accent colour, true black and text size (phone Comfort, wave 3) |
 | DS-72 | Haptics | The phone confirms a tap | CHANGELOG "Haptic strength" | **Have**: off, light or strong (phone Comfort, wave 3) |
@@ -315,9 +320,9 @@ calls are in `docs/PROTOCOL.md` (`session/*`, `subagents/*`, `job/*`, `terminal/
 | DS-78 | A fake server for tests, and recorded traffic | Tests without a computer; real traffic kept as fixtures | `mock-harness/`, `tools/capture/` | **Have**: the real server's answers kept as fixtures the phone's tests read (`ConformanceTest.kt`, wave 3) |
 | DS-79 | Previews can't run code or reach the net | HTML and SVG drawn with no JavaScript or network | `docs/SECURITY.md` "Workspace Browser tab" | **Have**: the app runs on its own origin and can't reach Roundtable or the internet (`ui/live.py`) |
 | DS-80 | What's stored and what it connects to, written down | One page for the owner | `docs/SECURITY.md` | **Have**: `docs/phone-security.md` (wave 3) |
-| DS-81 | A Browser tab in the workspace | An address bar, back, forward, reload, open in the browser, copy the link, clear the site's data; local links the agent prints open there; says plainly when the computer's own address can't be reached from the phone and offers the computer's address | CHANGELOG Unreleased | **Partly**: the PC's App tab shows a running app in a frame (DS-53: `harness/appserver.py`, `ui/appapi.py`); no address bar or history, links in the output don't open it, nothing on the phone. Wave 8: p1-phone, and p1-editor on the desktop; view only, no new open port |
-| DS-82 | Keep your place in the transcript | The place is kept when the window's width changes, and the end of the newest message never hides under the message box | CHANGELOG Unreleased | **Missing** (not checked on a real phone). Wave 8: p1-chat and p1-phone |
-| DS-83 | Slow `/` commands don't time out | A command such as `/compact` may take longer than 30 seconds | CHANGELOG Unreleased | **Missing** (comes with DS-16). Wave 8: p1-chat |
+| DS-81 | A Browser tab in the workspace | An address bar, back, forward, reload, open in the browser, copy the link, clear the site's data; local links the agent prints open there; says plainly when the computer's own address can't be reached from the phone and offers the computer's address | CHANGELOG Unreleased | **Have** (1.4.0, wave 8): a Browser tab on the phone (address bar, back, forward, reload, local links the agent printed, plain words when the PC's own address can't be reached) and on the desktop (Files → Browser), view only, no new open port (`mobile/.../ui/browser/`, `ui/static/browser.js`, `GET /api/browser`) |
+| DS-82 | Keep your place in the transcript | The place is kept when the window's width changes, and the end of the newest message never hides under the message box | CHANGELOG Unreleased | **Have** (1.4.0, wave 8): the place is kept when the width changes (`ui/static/stream.js` `keepPlace`; the phone's transcript place, `mobile/...`) |
+| DS-83 | Slow `/` commands don't time out | A command such as `/compact` may take longer than 30 seconds | CHANGELOG Unreleased | **Partly** (1.4.0, wave 8): slow `/` commands such as `/compact` run as jobs and never time out on the desktop (`harness/slash.py`); on the phone with Part B |
 
 ---
 

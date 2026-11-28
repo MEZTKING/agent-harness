@@ -85,8 +85,13 @@ start: {command: npm start, port: 5173, ready: /}
 At the end of a run (`harness/shipstage.py`, after the finishing step) each target is built once, the file is
 checked (it is there, isn't empty, and starts with the right bytes: `PK` for apk, jar and zip, `MZ` for exe)
 and started once: an EXE must still be running after 10 seconds and is then ended with everything it started;
-an APK is checked with the SDK's own `aapt2` when it is there and installed only on an emulator that is
-already running; a mod jar must hold its mod file (`fabric.mod.json`, `mods.toml`…). A command of its own
+on Windows a picture of its window is taken first (`.harness/shots/ship-exe/window.png`, `harness/winshot.py`),
+and an empty, all-black or all-white window fails the check and gets one fix task (`winshot: {off: true}` in
+harness.yaml turns the picture off). An APK is checked with the SDK's own `aapt2` when it is there; when an
+emulator is running, or the SDK's emulator and a test phone are on the PC, it is installed, opened and pictured
+(`.harness/shots/ship-apk/phone.png`, `harness/emulator.py`), and the emulator is always stopped again. With no
+test phone yet, a one-tap card offers to make one (the download's size first, on the PC only).
+`emulator: {start: false, boot_seconds: 240}` in harness.yaml switches starting one off, or gives it longer; a mod jar must hold its mod file (`fabric.mod.json`, `mods.toml`…). A command of its own
 passes when it exits with 0 or is still running after 10 seconds. The result is the done-list item
 `ship:<target>`. A failed build gets one fix task per target; after that it is a failed item for the done
 gate. A target this machine can't build (no Windows here, Java missing) is "not checked", with the reason;
