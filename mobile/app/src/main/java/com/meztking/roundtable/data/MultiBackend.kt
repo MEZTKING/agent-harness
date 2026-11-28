@@ -79,7 +79,7 @@ class MultiBackend(
      * over /api/chats/…, falling to the phone itself after 5 seconds without an answer; in Hub mode the phone's
      * own brain with a DeepSeek key, else the waiting one.
      */
-    fun chatBrain(seat: SeatView?): ChatBrain = NoChatBrain
+    fun chatBrain(seat: SeatView?): ChatBrain = ChatBrains.choose(parts, seat, seen as? Store)
 
     fun modeFor(seat: SeatView?): Mode = if (Source.of(seat?.source) == Source.HUB) Mode.HUB else if (seat == null) mode else Mode.PC
 
