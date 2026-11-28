@@ -56,7 +56,7 @@ Hooked up, by file:
   hand (project names kept as they are, markdown and prose from models kept as written, `ago` in the chosen
   language, its two error sentences through `t`), `index.html` (`rtl.css`), `housestyle.block` (the owner's
   language line). Then `tools/words_sweep.py --css` (269 template strings to `t(…)`; style.css
-  and the modules' own styles to logical properties) and `tools/words_extract.py`: 2,372 sentences in
+  and the modules' own styles to logical properties) and `tools/words_extract.py`: 2,381 sentences in
   `lang/en-GB.json`, **17** places not through the table (`NOT_THROUGH_LIMIT` 287 → 17).
 - The phone: the Sounds card's shape was guessed; it now reads the PC's own (`data/Documents.kt` `SoundItem`
   {task, title, file, kind, service, made, usd, licence{…}}, `SoundsView` {sounds, spent, cap, owner_cap, words});
