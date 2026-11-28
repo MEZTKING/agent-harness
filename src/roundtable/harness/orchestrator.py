@@ -201,6 +201,21 @@ class Project:
         return sum(int(r.get("saved_tokens_est") or 0) for r in rows)
 
 
+def plan_state(meta: dict[str, Any]) -> str:
+    """How the hub's plan page heads a project: waiting for the owner, approved, building, paused, stopped or
+    done (from the project's own status, so a run that ended never reads as still building)."""
+    status = str(meta.get("status") or "")
+    if status == "done":
+        return "done"
+    if not meta.get("plan_approved"):
+        return "waiting for the owner"
+    if status.startswith("paused"):
+        return "paused"
+    if status in ("failed", "stopped", "blocked"):
+        return "stopped"
+    return "approved, building"
+
+
 def due_cheap_runs(cfg) -> list[Path]:
     """Lab projects that were approved to start when it's cheaper and whose time has come."""
     from ..remote import project_dirs
@@ -592,10 +607,14 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
 
             name = self._hub_name()
             meta = self.project.meta()
-            state = ("approved, building" if meta.get("plan_approved") and meta.get("status") != "done"
-                     else "done" if meta.get("status") == "done" else "waiting for the owner")
+            state = plan_state(meta)
             gi = doc.get("goal_index", 0)
-            md = (f"_Plan status: {state} · {plandoc.summary_line(doc)} · updated {utcnow()} by {NAME}_\n\n"
+            if meta.get("plan_approved"):  # once approved, the plan's questions are settled: say how far it got
+                mine = [t for t in self.project.tasks() if t.goal_index == gi]
+                line = f"{sum(t.status in ('done', 'skipped') for t in mine)} of {len(mine)} tasks done"
+            else:
+                line = plandoc.summary_line(doc)
+            md = (f"_Plan status: {state} · {line} · updated {utcnow()} by {NAME}_\n\n"
                   + plandoc.render_markdown(doc, [t for t in self.project.tasks() if t.goal_index == gi],
                                             image_base=f"looks/{name}/", waiting=not meta.get("plan_approved")))
             files: dict[str, Any] = {f"plans/{name}.md": TextFile(md + "\n"),
@@ -1741,6 +1760,7 @@ class Orchestrator(UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStag
                 self._gallery_record(self.project.tasks(), (end or {}).get("real_usd"))
         finally:
             self._let_go(status)
+            self._publish_plan()  # done, paused or failed: the hub's plan and cards always say how it ended
         if status != "awaiting_approval":
             self._learn_after_run()
         return status

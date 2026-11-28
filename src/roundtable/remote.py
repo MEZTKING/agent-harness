@@ -27,6 +27,9 @@ project picks it up. Commands without it go to the first project of that agent, 
 A command can also carry ``machine`` (a machine's seat, such as ``pc-desk`` or ``phone-1a2b3c``): only that
 machine does it, so the PC and the phone never both act on one command. ``carry_on`` continues a paused or
 stopped run on the machine that holds the project's files (the same as ``run``).
+
+Every pass also says who runs each project (``reach.read_beat``: ``plans/readers/<project>.json``), so the
+phone can tell the owner when nobody does.
 """
 
 from __future__ import annotations
@@ -209,13 +212,19 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
     # the owner's own machines (seats registered in the hub as role: machine) speak for the owner too,
     # so a command sent from the phone's own Roundtable reaches the PC
     allowed |= {a for a, spec in hub.config.agents.items() if getattr(spec, "role", None) == "machine"}
-    me = this_machine()["id"]
+    from . import reach
+
+    machine = this_machine()
+    me = machine["id"]
     done = 0
     hub.store.sync()
     for project in project_dirs(cfg):
-        agent = Orchestrator(cfg, project)._hub_agent() if cfg.hub else project.name
+        orch = Orchestrator(cfg, project)
+        agent = orch._hub_agent() if cfg.hub else project.name
         if agent not in hub.config.agents:
             continue
+        reach.read_beat(hub, orch._hub_name() if cfg.hub else project.name, machine, agent=agent,
+                        folder=project.name)  # who runs this project (the phone shows it)
         for msg in hub.inbox(agent, unread_only=True, limit=50):
             cmd = parse(msg)
             if cmd is None or msg.get("sender") not in allowed:
