@@ -73,7 +73,9 @@ const speech = () => window.SpeechRecognition || window.webkitSpeechRecognition 
 // onSend({text, mode, key, items}) -> resolves when sent (the box is then cleared), hint (a line under the box),
 // slash (default: on in a project's chat, i.e. with project and modes): a line starting with "/" is a command,
 // queue (default: the same): the messages waiting for the next task, above the box; onOpen(page): a command
-// asked for a page ("board")
+// asked for a page ("board"); enterSends: Enter sends and Shift+Enter starts a new line (the chat), else Ctrl+Enter;
+// slashSends: a "/" line goes to onSend like any message (the chat: the app turns it into a card) instead of running
+// here; cls: an extra class on the box
 export function composer(opts = {}) {
   style();
   const key = opts.key || "message";
@@ -95,11 +97,11 @@ export function composer(opts = {}) {
   const useSlash = opts.slash ?? inChat, useQueue = opts.queue ?? inChat;
   const said = useSlash ? replyLine() : null;
   const waiting = useQueue && opts.project ? queueList(opts.project) : null;
-  const root = h("div", { class: "compose" }, waiting, area, at, files,
+  const root = h("div", { class: "compose" + (opts.cls ? " " + opts.cls : "") }, waiting, area, at, files,
     h("div", { class: "compose-bar" }, attach, mic, modeRow, h("span", { class: "spacer" }), saved, send), said, input,
     opts.hint ? h("p", { class: "muted small" }, opts.hint) : null);
   const menu = useSlash && opts.project ? slashMenu(area, opts.project, root) : null;
-  if (menu) { area.placeholder = `${area.placeholder} (type / for commands)`; area.title = "Type / to see the commands, like /run or /goal"; }
+  if (menu && !opts.slashSends) { area.placeholder = `${area.placeholder} (type / for commands)`; area.title = "Type / to see the commands, like /run or /goal"; }
 
   function drawModes() {
     if (!modeRow) return;
@@ -196,7 +198,7 @@ export function composer(opts = {}) {
       if (ev.key === "Enter" || ev.key === "Tab") { ev.preventDefault(); pickAt(atList[atPick]); return; }
       if (ev.key === "Escape") { at.hidden = true; return; }
     }
-    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey) && send) { ev.preventDefault(); doSend(); }
+    if (ev.key === "Enter" && send && !ev.isComposing && ((ev.ctrlKey || ev.metaKey) || (opts.enterSends && !ev.shiftKey && !ev.altKey))) { ev.preventDefault(); doSend(); }
   });
   area.addEventListener("blur", () => setTimeout(() => { at.hidden = true; }, 150));
 
@@ -225,7 +227,7 @@ export function composer(opts = {}) {
     if (!area.value.trim() && !opts.textless) { toast("Write something first.", true); area.focus(); return; }
     clearTimeout(saveTimer);
     if (send) send.disabled = true;
-    if (menu && /^\/[^/]/.test(area.value.trim())) {  // a command, not a message
+    if (menu && !opts.slashSends && /^\/[^/]/.test(area.value.trim())) {  // a command, not a message
       const line = area.value.trim();
       try {
         clear();
