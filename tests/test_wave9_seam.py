@@ -183,7 +183,7 @@ def test_the_other_stubs_have_their_frozen_signatures_and_do_nothing(tmp_path):
         assert s is None
     assert list(tmp_path.iterdir()) == []
     assert _sig(todoactions.action_for) == "(todo: dict[str, Any], app) -> dict[str, Any] | None"
-    assert todoactions.action_for({"text": "add a key"}, None) is None
+    assert todoactions.action_for({"text": "add a key"}, None)["route"] == "#/settings/keys"  # filled by w9-gaps
     assert _sig(proofrun.prepare) == "(lab, idea: str, caps: dict[str, Any]) -> dict[str, Any]"
     assert _sig(proofrun.report) == "(lab) -> dict[str, Any]"
     with pytest.raises(NotImplementedError):

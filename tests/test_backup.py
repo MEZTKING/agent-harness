@@ -385,3 +385,40 @@ def test_command_line_where_and_settings(capsys, monkeypatch, tmp_path):
     assert bk.load_settings() == {**bk.DEFAULTS, "keep": 4, "daily": False}
     with pytest.raises(SystemExit, match="Google Drive"):
         main(["backup", "list"])
+
+
+# -- wave 9: the folder picker and backups in one tap ---------------------------------------------------------
+def test_browse_uses_the_windows_own_folder_dialog_and_says_so_without_one(tmp_path):
+    asked = []
+
+    class Window:
+        def create_file_dialog(self, kind, directory="", allow_multiple=False):
+            asked.append((kind, directory, allow_multiple))
+            return (str(tmp_path / "USB"),)
+
+    assert bk.pick_folder(str(tmp_path), window=Window()) == str(tmp_path / "USB")
+    assert asked == [("folder", str(tmp_path), False)]
+
+    class Cancelled:
+        def create_file_dialog(self, *a, **k):
+            return None
+
+    assert bk.pick_folder(window=Cancelled()) is None
+    with pytest.raises(bk.BackupError, match="only opens in the desktop app's own window"):
+        bk.pick_folder()  # no pywebview window in the tests: it says so, and what to do instead
+
+
+def test_backups_turned_on_in_one_tap(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    monkeypatch.setattr(bk, "find_drive_folders", lambda *a, **k: [])
+    got = bk.turn_on(home)
+    assert not got["ok"] and "Browse" in got["words"]
+    assert bk.load_settings(home)["to"] == "auto"  # nothing changed
+    drive = tmp_path / "My Drive"
+    drive.mkdir()
+    monkeypatch.setattr(bk, "find_drive_folders", lambda *a, **k: [drive])
+    got = bk.turn_on(home)
+    assert got["ok"] and got["destination"] == str(drive / bk.FOLDER_NAME)
+    assert bk.load_settings(home)["daily"] is True
+    got = bk.turn_on(home, str(tmp_path / "USB"))
+    assert got["ok"] and bk.load_settings(home)["to"] == str(tmp_path / "USB")
