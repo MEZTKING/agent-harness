@@ -190,8 +190,8 @@ def test_playwright_browser(tmp_path):
 def test_status_lists_everything_with_words_and_blocks(tmp_path):
     rows = prereq.status(posix(tmp_path))
     ids = [r["id"] for r in rows]
-    assert ids == ["git", "node", "python", "uv", "playwright", "java", "android", "godot", "unreal", "blender",
-                   "claude", "codex"]
+    assert ids == ["git", "node", "python", "uv", "playwright", "libreoffice", "java", "android", "emulator", "godot",
+                   "unreal", "blender", "claude", "codex"]
     by = {r["id"]: r for r in rows}
     assert all(r["state"] == "missing" and r["words"] == "Not found" for r in rows)
     assert by["claude"]["install"]["blocked"] == "Install Node.js first."
@@ -303,8 +303,8 @@ def lab(tmp_path):
 def test_known_servers_have_the_documented_commands():
     win = {k["id"]: k for k in prereq.known_servers("windows")}
     assert win["unreal"]["spec"]["url"] == "http://127.0.0.1:8000/mcp"
-    assert win["godot"]["spec"]["command"] == "cmd" and win["godot"]["spec"]["args"] == ["/c", "npx", "-y", "godot-mcp-server"]
-    assert win["blender"]["spec"] == {"command": "uvx", "args": ["mcp-for-blender"], "env": {"DISABLE_TELEMETRY": "true"},
+    assert win["godot"]["spec"]["command"] == "cmd" and win["godot"]["spec"]["args"] == ["/c", "npx", "-y", "godot-mcp-server@0.6.1"]
+    assert win["blender"]["spec"] == {"command": "uvx", "args": ["mcp-for-blender@2.3.3"], "env": {"DISABLE_TELEMETRY": "true"},
                                       "timeout": 300}
     mac = {k["id"]: k for k in prereq.known_servers("mac")}
     assert mac["godot"]["spec"]["command"] == "npx"

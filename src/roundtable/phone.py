@@ -85,7 +85,20 @@ PHONE_ROUTES = {
     ("GET", "/api/market"),  # the plug-ins and skills list; adding or removing stays on the PC
     ("GET", "/api/learned"), ("POST", "/api/learned/undo"),  # what it learned; the phone may only undo a line
     ("GET", "/api/recall"), ("POST", "/api/recall/ask"),  # search by meaning, and Ask (the price comes first)
+    # wave 8: words as they are written, / commands, follow-ups and the queue (ui/chatapi.py); the PC-only
+    # commands, the question timers and Talk stay on the PC
+    ("GET", "/api/stream"), ("GET", "/api/commands"), ("POST", "/api/commands"), ("GET", "/api/follow"),
+    ("POST", "/api/follow"), ("GET", "/api/queue"), ("POST", "/api/queue"),
+    ("GET", "/api/perms"),  # what each job may do: seen on the phone, changed on the PC (ui/permsapi.py)
+    ("GET", "/api/board"),  # the board, read only (ui/boardapi.py); moving a card stays on the PC
+    # git history and previews, read only (ui/editapi.py, harness/gitview.py, preview.py): never save, undo,
+    # make a PDF or switch branch from the phone
+    ("GET", "/api/git/log"), ("GET", "/api/git/commit"), ("GET", "/api/git/diff"), ("GET", "/api/files/preview"),
+    ("GET", "/api/browser"),
+    # CI, the services list and who is listening, read only (ui/reachapi.py); never /hooks
+    ("GET", "/api/ci"), ("GET", "/api/integrations"), ("GET", "/api/listening"),
 }
+PC_ONLY_ASKS = ("shipoffer",)  # cards answered only on the PC (a download onto the PC itself)
 PHONE_PREFIXES = (("GET", "/api/journal/"), ("POST", "/api/journal/"), ("GET", "/api/inbox/"),
                   ("POST", "/api/inbox/"), ("GET", "/api/jobs/"))
 
@@ -405,6 +418,8 @@ def make_phone_handler(phone: PhoneAccess):
             url = urlparse(self.path)
             path, q = url.path, parse_qs(url.query)
             dev = None
+            if path.startswith("/hooks/"):  # a local hook is only ever the desktop app's, on loopback (reach.py)
+                return self._json(404, {"error": "Not here."})
             if local:  # Roundtable on the phone itself (onphone.py): the launch token, before anything else
                 if (method, path) == ("GET", "/api/health"):
                     return self._json(200, phone.health())
@@ -440,7 +455,12 @@ def make_phone_handler(phone: PhoneAccess):
                     return self._json(200, wait_for_change(app, since, wait))
                 if not phone_allowed(method, path):
                     return self._json(403, {"error": "That can only be done on the PC itself."})
-                self._json(200, app.dispatch(method, path, q, body))
+                if (method, path) == ("POST", "/api/asks") and str(body.get("id", "")).startswith(PC_ONLY_ASKS):
+                    return self._json(403, {"error": "That can only be done on the PC itself."})
+                data = app.dispatch(method, path, q, body)
+                if (method, path) == ("GET", "/api/asks") and isinstance(data, dict):  # PC-only cards stay there
+                    data = {**data, "asks": [a for a in data.get("asks") or [] if not a.get("pc_only")]}
+                self._json(200, data)
             except Exception as e:  # same error shapes as the desktop API
                 from .ui.server import ApiError
 

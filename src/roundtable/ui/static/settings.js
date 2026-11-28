@@ -8,9 +8,13 @@ import { poundsSettings } from "./pounds.js";
 import { usageCard } from "./usage.js";
 import { walletCard } from "./wallet.js";
 import { houseStyleBox } from "./housestyle.js";
+import { buildersCard } from "./builders.js";
+import { permsDefaultBox } from "./perms.js";
+import { dataMoveCard } from "./datamove.js";
 
 const SECTIONS = [["keys", "Keys", "The keys that let the harness use each AI maker"], ["services", "AI services", "Which AI services the harness can use, and adding more"],
-  ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["writing", "How agents write", "The house style: how the agents write for you"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
+  ["recommended", "Recommended setup", "Who plans, codes and checks, in one click"], ["spending", "Spending", "How much may be spent, on every machine"], ["writing", "How agents write", "The house style: how the agents write for you"],
+  ["builders", "Builders", "What the builders may do without asking you, and how they work"], ["hub", "Hub", "Where your projects, journal and letters are kept and shared"],
   ["phone", "Your phone", "Use the harness from your phone"], ["backups", "Backups", "Copies of your settings and plans"],
   ["notifications", "Notifications", "Which news pops up on this computer"], ["plugins", "Plugins", "Extra abilities for the harness"], ["updates", "Updates", `The newest ${BRAND.name}`], ["look", "Look", "Eclipse, Pitch (true black) or Ash (light)"],
   ["advanced", "Advanced", "Folders, set-up and the settings files"]];
@@ -21,7 +25,7 @@ export async function viewSettings(section = "keys") {
   const nav = h("nav", { class: "side-nav", "aria-label": "Settings" }, SECTIONS.map(([k, t, tip]) =>
     h("a", { href: `#/settings/${k}`, class: k === section ? "on" : "", "aria-current": k === section ? "page" : null, title: tip }, t)),
     h("a", { href: "#/automations", title: "Work that starts by itself: schedules, GitHub issues, failed checks" }, "Automations"));
-  const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, writing: writingPart, hub: hubPart, phone: phonePart, backups: backupsPart,
+  const views = { spending: spendingPart, keys: keysPart, services: servicesPart, recommended: recommendedPart, writing: writingPart, builders: buildersPart, hub: hubPart, phone: phonePart, backups: backupsPart,
     notifications: notifySettings, plugins: pluginsPart, updates: updatesPart, look: lookPart, advanced: advancedPart };
   const body = await views[section](st);
   return page("Settings", `${BRAND.name} ${st.version}`, h("div", { class: "settings" }, nav, h("div", { class: "settings-body" }, body)));
@@ -142,6 +146,12 @@ async function spendingPart() { return [usageCard(), ...[await sharedSpending()]
 async function writingPart() {
   const box = await houseStyleBox();
   return box ? card(null, box) : card("How agents write", h("p", { class: "muted" }, "The house style can't be read right now."));
+}
+
+async function buildersPart() {  // what jobs may do (perms.js) and how the builders work (builders.js)
+  const [perms, builders] = await Promise.all([permsDefaultBox().catch(() => null), buildersCard().catch(() => null)]);
+  const out = [perms ? card(null, perms) : null, builders].filter(Boolean);
+  return out.length ? out : card("Builders", h("p", { class: "muted" }, "These settings can't be read right now. Restart the app, then look again."));
 }
 
 async function sharedSpending() {
@@ -387,6 +397,7 @@ async function advancedPart(st) {
     await editor("harness", "The harness's settings", "AI services, who does each job, prices and limits."),
     await editor("hub", "The hub's settings", "The projects in the hub, and who may read or write to whom.")));
   if (await has("/api/tidy")) parts.push(await tidyCard());
+  if (await has("/api/datamove")) parts.push(dataMoveCard());  // the hub or projects to a new place
   return parts;
 }
 

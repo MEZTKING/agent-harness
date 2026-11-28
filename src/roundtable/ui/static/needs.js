@@ -2,6 +2,7 @@
 // work → to-dos → letters, each answered on its card.
 import { h, fill, get, post, toast, act, S, onHall, refreshHall, projectName, projectHref, page, empty, dot, ago, plural, patch, q, dialog, seatOf } from "./core.js";
 import { askCard, answerHere, answerHub, skipHere, hubCommand } from "./asks.js";
+import { bulkBar } from "./bulk.js";
 
 const RANK_WORDS = ["Questions and decisions", "Money, commands and stopped work", "To-dos", "Letters"];
 const askRank = (a) => (a.kind === "money" || a.kind === "failed" || a.kind === "command" ? 1 : 0);
@@ -119,6 +120,7 @@ function lettersCard(n, done, opts, proj) {
 
 export async function viewNeeds() {
   const list = h("div", { class: "needs-page" });
+  const bulk = h("div");  // answer several at once with what's recommended (bulk.js)
   const head = h("p", { class: "sub" });
   let loading = false, again = false;
   const draw = async () => {
@@ -127,6 +129,7 @@ export async function viewNeeds() {
     try {
       const rt = S.rt;
       const items = await gather(rt);
+      fill(bulk, bulkBar(items, draw));
       const groups = new Map();
       for (const it of items) { if (!groups.has(it.project)) groups.set(it.project, []); groups.get(it.project).push(it); }
       const ordered = [...groups.entries()].sort((a, b) => Math.min(...a[1].map((x) => x.rank)) - Math.min(...b[1].map((x) => x.rank)));
@@ -152,7 +155,7 @@ export async function viewNeeds() {
       if (again) { again = false; draw(); }
     }
   };
-  const root = page("Needs you", null, head, list);
+  const root = page("Needs you", null, head, bulk, list);
   onHall(root, () => draw());
   return root;
 }

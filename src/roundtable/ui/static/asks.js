@@ -4,7 +4,7 @@
 // A command waiting for "Ask me first" shows the whole command (a long one folded, with Show all).
 // A question may carry a timer (asktimer.py): the card says what happens when it runs out, and typing an
 // answer holds the clock while you write.
-import { h, fill, post, toast, projectName } from "./core.js";
+import { h, fill, get, post, toast, projectName, q } from "./core.js";
 
 const AT = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
 const RUNS_OUT = { recommended: "it takes the recommended answer", nothing: "it keeps waiting and nothing is done", pause: "the project waits for your answer" };
@@ -126,6 +126,8 @@ export function askCard(ask, onAnswer, opts = {}) {
       h("h3", { class: "ask-q" }, ask.question),
       ask.detail ? h("p", { class: "ask-detail" }, ask.detail) : null,
       ask.kind === "command" ? commandBlock(ask) : null,
+      ask.engine && ask.path ? engineOffer(ask) : null,
+      ask.more ? h("details", { class: "ask-more" }, h("summary", { title: "The exact steps it would run" }, "More"), h("pre", { class: "small" }, ask.more)) : null,
       timerLine(ask),
       opts.hint !== false && HINTS[ask.kind] ? h("p", { class: "ask-hint" }, HINTS[ask.kind]) : null,
       textOnly ? null : h("div", { class: "ask-opts" + (Object.keys(opts.pictures || {}).length ? " pics" : "") }, optButtons, otherBtn),
@@ -138,6 +140,21 @@ export function askCard(ask, onAnswer, opts = {}) {
   }
   draw();
   return card;
+}
+
+// A task stopped because a coding helper isn't installed: install it (only a checked download) and carry on.
+function engineOffer(ask) {
+  const box = h("div", { class: "ask-engine" });
+  get(`/api/engines/offer?${q({ engine: ask.engine })}`).then((o) => {
+    fill(box, h("p", { class: "small" }, o.words),
+      o.auto ? h("button", { class: "primary", type: "button", title: o.checked || "",
+        onclick: async (ev) => {
+          ev.currentTarget.disabled = true;
+          try { await post("/api/engines/install", { engine: ask.engine, path: ask.path, task: (ask.source || {}).task || "" }); toast("Installing: it carries on by itself when it's done (Activity → Background work)."); }
+          catch (e) { toast(e.message, true); ev.currentTarget.disabled = false; }
+        } }, "Install it and carry on") : null);
+  }).catch(() => {});
+  return box;
 }
 
 // Answer a card of a project on this computer; a long step it starts (a run, a plan update) comes back as a job.

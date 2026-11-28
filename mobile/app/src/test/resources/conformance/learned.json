@@ -14,13 +14,13 @@
    "by": "you",
    "can_put_back": false,
    "can_undo": true,
-   "id": "P827313",
+   "id": "Pa20557",
    "kind": "options",
    "numbers": {},
    "role": "orchestrator",
    "state": "watching",
    "what": "Planner now temperature 0.3",
-   "when": "2026-11-27T21:44:09Z",
+   "when": "2026-11-27T23:33:03Z",
    "why": "",
    "words": "Planner now temperature 0.3."
   }
@@ -32,6 +32,7 @@
   "Money",
   "Who may see a project",
   "Plug-ins' permissions",
+  "What each job may do",
   "Your house style",
   "What it may apply by itself, and this list",
   "The fixed rules every agent gets"

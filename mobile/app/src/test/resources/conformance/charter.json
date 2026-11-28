@@ -27,6 +27,11 @@
    "words": "It never gives a plug-in a permission and never marks one as trusted. Tools it writes ask for no permission and are only ever offered."
   },
   {
+   "id": "perms",
+   "title": "What each job may do",
+   "words": "It never loosens what a job may do and never changes the builders' own settings (how many work at once, their steps, their commands). Only your tap loosens one."
+  },
+  {
    "id": "style",
    "title": "Your house style",
    "words": "Only you change how agents write for you."

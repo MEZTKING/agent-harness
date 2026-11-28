@@ -49,6 +49,7 @@ from .gate import Finding, Gate, normalise
 from .tools import ToolError
 
 STATE_FILE = "ship.json"
+SHIP_OFFER_FILE = "ship-offer.json"  # a test phone offered and not yet answered (its card in asks.py)
 BUILD_MINUTES = {"apk": 6.0, "exe": 5.0, "jar": 4.0}
 EMULATOR_MINUTES = 4.0  # starting an emulator, installing, opening and picturing the app, stopping it
 WINDOW_WAIT = 8.0  # seconds a started program's window is waited for
@@ -368,6 +369,16 @@ class ShipStage:
         return {"ok": True, "words": " ".join(words)}
 
     # -- an emulator the harness starts itself ------------------------------------------------------------------
+    def _ship_keep_offer(self, target: str, ready: dict[str, Any], os_name: str) -> None:
+        """Keep the offer of a test phone for its one-tap card (asks.ship_offer_ask), until it is answered."""
+        try:
+            p = self.project.root / ".harness" / SHIP_OFFER_FILE
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps({"target": target, "offer": ready["offer"], "sdk": ready.get("sdk", ""),
+                                     "os": os_name}, ensure_ascii=False), encoding="utf-8")
+        except (OSError, TypeError, ValueError):
+            pass
+
     def _ship_emulator_check(self, os_name: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         if section(self.cfg, "emulator").get("start") is False:
             return {"can": False, "why": "Starting an emulator is switched off in the settings.", "avds": []}
@@ -385,6 +396,7 @@ class ShipStage:
             words.append(f"No emulator was running, so it wasn't installed anywhere. {ready.get('why', '')}".strip())
             if ready.get("offer"):
                 self.emit("ship_offer", {"target": r["target"], "offer": ready["offer"]})
+                self._ship_keep_offer(r["target"], ready, os_name)
             return {"ok": True, "words": " ".join(words)}
         boot = float(section(self.cfg, "emulator").get("boot_seconds") or 240)
         try:

@@ -401,6 +401,11 @@ CATALOG: list[Tool] = [
     Tool("playwright", "Playwright's browser", "Basics", "Takes the pictures of your apps that you see in Live.",
          any_os=("npx", "-y", "playwright", "install", "chromium"), needs=("node",), finder=_find_playwright,
          version_args=(), size="about 150 MB"),
+    Tool("libreoffice", "LibreOffice", "Basics",
+         "Shows Word, Excel and PowerPoint files exactly as they look, as a PDF (Files tab).",
+         names=("soffice", "libreoffice"), winget="TheDocumentFoundation.LibreOffice", brew=("--cask", "libreoffice"),
+         linux="sudo apt install libreoffice", admin=True, size="about 350 MB",
+         places=lambda s: [d / "LibreOffice" / "program" / "soffice.exe" for d in _pf(s)] if s.os == "windows" else []),
     Tool("java", "Java (JDK 17 or newer)", "Phone apps", "Builds Android apps (APKs).",
          names=("java",), version_args=("-version",), min_version="17", winget="EclipseAdoptium.Temurin.17.JDK",
          brew=("--cask", "temurin@17"), linux="sudo apt install openjdk-17-jdk", admin=True, places=_java_places),
@@ -409,6 +414,10 @@ CATALOG: list[Tool] = [
          linux="Install Android Studio from developer.android.com, or the command-line tools into ~/Android/Sdk",
          admin=True, finder=_find_android, version_args=(), size="about 3 GB",
          note="Open Android Studio once after it installs: it downloads the SDK the first time."),
+    Tool("emulator", "Android emulator", "Phone apps",
+         "Starts a test phone on this computer, so the harness can open your Android apps and picture them.",
+         needs=("android",), finder=lambda s, t: __import__("roundtable.harness.emulator", fromlist=["x"]).find_emulator_tool(s, t),
+         version_args=(), size="about 1.5 GB", note="The harness makes the test phone itself after you say yes on its card."),
     Tool("godot", "Godot", "Games and 3D", "Makes 2D and 3D games; the harness starts the game itself to check it.",
          names=("godot", "godot4", "Godot"), min_version="4.4", winget="GodotEngine.GodotEngine",
          brew=("--cask", "godot"), linux="flatpak install flathub org.godotengine.Godot (or download it from godotengine.org)",
@@ -799,9 +808,13 @@ def known_servers(os_name: str) -> list[dict[str, Any]]:
                                       if x["id"] not in ("unreal", "godot", "blender")]
 
 
+GODOT_MCP = "godot-mcp-server@0.6.1"  # pinned to the version read (npm, 27 November 2026)
+BLENDER_MCP = "mcp-for-blender@2.3.3"  # pinned to the version read (PyPI, 27 November 2026)
+
+
 def _engine_servers(os_name: str) -> list[dict[str, Any]]:
-    godot = ({"command": "cmd", "args": ["/c", "npx", "-y", "godot-mcp-server"]} if os_name == "windows"
-             else {"command": "npx", "args": ["-y", "godot-mcp-server"]})
+    godot = ({"command": "cmd", "args": ["/c", "npx", "-y", GODOT_MCP]} if os_name == "windows"
+             else {"command": "npx", "args": ["-y", GODOT_MCP]})
     return [
         {"id": "unreal", "name": "Unreal MCP", "about": "Lets helpers work inside the open Unreal editor (5.8 or newer).",
          "spec": {"url": "http://127.0.0.1:8000/mcp", "timeout": 300}, "needs": ["unreal"],
@@ -812,8 +825,8 @@ def _engine_servers(os_name: str) -> list[dict[str, Any]]:
          "steps": "In Godot: Asset Store, search Godlink, install Godlink MCP, then Project → Project Settings → "
                   "Plugins and tick Godot MCP. Keep the editor open."},
         {"id": "blender", "name": "MCP for Blender", "about": "Lets helpers make and change 3D models in Blender.",
-         "spec": {"command": "uvx", "args": ["mcp-for-blender"], "env": {"DISABLE_TELEMETRY": "true"}, "timeout": 300},
-         "needs": ["uv", "blender"], "prepare": ["uvx", "mcp-for-blender", "install-addon"],
+         "spec": {"command": "uvx", "args": [BLENDER_MCP], "env": {"DISABLE_TELEMETRY": "true"}, "timeout": 300},
+         "needs": ["uv", "blender"], "prepare": ["uvx", BLENDER_MCP, "install-addon"],
          "steps": "Press Put it in Blender once. Then in Blender: Edit → Preferences → Add-ons, tick MCP for Blender; "
                   "in the 3D view press N, open the MCP for Blender tab and press Start MCP Server. Save your work "
                   "first: it can run anything inside Blender."},

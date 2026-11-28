@@ -18,9 +18,16 @@ import { doneLine } from "./donelist.js";
 import { stagesStrip } from "./stages.js";
 import { tandemFor, tandemRow } from "./tandem.js";
 import { seenList } from "./usage.js";
+import { boardTab } from "./board.js";
+import { worktreesPanel } from "./worktrees.js";
+import { keepPlace } from "./stream.js";
+import { talkButton } from "./voice.js";
+import { projectPermsBox } from "./perms.js";
+import { ciChip } from "./ci.js";
 
 const TABS = [["overview", "Overview", "What waits for you, the tasks, the money and the planner"],
   ["plan", "Plan", "The plan: what it will build, its choices and its tasks"],
+  ["board", "Board", "Every task as a card: move one by hand"],
   ["watch", "Watch", "Every step the models take, as it happens"],
   ["app", "App", "The app itself, running, and pictures after each task"],
   ["files", "Files", "The project's folder: open any file, and every command its tasks ran"],
@@ -38,7 +45,7 @@ export async function viewProject(id, tab = "overview") {
   const local = !!seat.path;
   const hubAgent = (S.ov.agents || []).some((a) => a.id === seat.id);
   const shown = TABS.filter(([k]) => k === "overview" || (k === "plan" && (local || seat.hub_name)) || (k === "watch" && (local || seat.hub_name))
-    || (k === "app" && (local || seat.hub_name)) || (k === "files" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local)
+    || (k === "app" && (local || seat.hub_name)) || (k === "files" && (local || seat.hub_name)) || (k === "journal" && (hubAgent || seat.brief)) || (k === "settings" && local) || (k === "board" && local)
     || (k === "terminal" && local && FEAT.has("/api/terminal/open")));
   if (!shown.some(([k]) => k === tab)) tab = "overview";
   const head = h("header", { class: "project-head" });
@@ -49,7 +56,7 @@ export async function viewProject(id, tab = "overview") {
       h("div", { class: "ph-top" },
         s.shot ? picture(s.shot.url, `${s.name}: the newest picture`, "ph-shot") : null,
         h("div", { class: "grow" },
-          h("h1", {}, dot(s.id), s.name),
+          h("h1", {}, dot(s.id), s.name, s.path ? ciChip(s.path) : null),
           h("p", { class: "ph-state" }, h("span", { class: "state " + s.status }, h("i", { class: "sdot" }), builtBy(s) || s.state || "No news yet"),
             builtBy(s) ? null : h("span", { class: "muted" }, " · ", whereWords(s)), s.spent_usd ? h("span", { class: "muted", title: "Spent on this project so far" }, " · ", money(s.spent_usd), " spent") : null),
           goal ? h("p", { class: "ph-goal" }, goal) : null),
@@ -61,7 +68,7 @@ export async function viewProject(id, tab = "overview") {
     tabs(shown.map(([k, label, tip]) => [k, label, tip, k === "watch" && seat.status === "running" ? h("i", { class: "pulse-dot", title: "Working now" }) : null]), tab, (k) => projectHref(seat.id, k === "overview" ? "" : k)),
     body);
   onHall(root, (rt) => { const s = rt.seats.find((x) => x.id === id); if (s) { seat = s; drawHead(s); } });
-  const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab, terminal: terminalTab };
+  const views = { overview: overview, plan: planTab, watch: watchTab, app: appTab, files: filesTab, journal: journalTab, settings: settingsTab, terminal: terminalTab, board: boardTab };
   fill(body, await views[tab](seat, () => seatOf(id) || seat));
   return root;
 }
@@ -141,6 +148,8 @@ async function overview(seat, now) {
     fill(report, d.summary ? card("The final report", prose(d.summary)) : null);
     if (!chat.firstChild) fill(chat, chatCard(seat));
   }, () => (now().status === "running" ? 3000 : 15000));
+  const lanes = await worktreesPanel(seat).catch(() => null);  // what each worktree lane is doing (worktrees.js)
+  if (lanes) grid.querySelector(".ov-main").append(lanes);
   return grid;
 }
 
@@ -195,6 +204,7 @@ function moneyCard(d, plan) {
 let steer = false;  // Ask or Instruct, kept between visits
 function chatCard(seat) {
   const log = h("div", { class: "chat", role: "log", "aria-live": "polite" });
+  keepPlace(log);  // the place in the conversation stays when the window's width changes (stream.js)
   let pending = null, history = [];
   const draw = () => {
     const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -207,6 +217,7 @@ function chatCard(seat) {
     m.steer && m.who === "owner" ? h("div", { class: "steer-note" }, "The next tasks follow this") : null);
   // the message box (compose.js): pictures, files, @, Speak; an instruction can reach the task working now
   const box = composer({ key: `chat:${seat.path}`, project: seat.path, rows: 2, label: "Your message", modes: true,
+    onOpen: (p) => { location.hash = projectHref(seat.id, p); },
     placeholder: "A question about this project, or an instruction for the next tasks",
     onSend: async ({ text, key, mode }) => {
       if (pending) return;
@@ -224,6 +235,8 @@ function chatCard(seat) {
   const form = h("div", { class: "stack" }, mode, box);
   const load = async () => { try { history = await get(`/api/chat?${q({ path: seat.path })}`); } catch { history = history || []; } draw(); };
   load();
+  const talk = talkButton(seat.path, { onDone: load });  // talk instead of typing (voice.js; none where it can't)
+  if (talk) form.append(talk);
   return card("Talk to the planner", log, form);
 }
 
@@ -311,6 +324,7 @@ async function settingsTab(seat) {
       await act(ev.currentTarget, () => post("/api/project/settings", { project: seat.path, changes }), "Saved", load);
     };
     const never = ((S.rt.autopilot || {}).never || []).includes(seat.id);
+    const perms = await projectPermsBox(seat.path).catch(() => null);  // this project's own choices (perms.js)
     fill(box, (st.warnings || []).concat(st.errors || []).map((w) => h("p", { class: "warn" }, w)),
       GROUPS.map(([title, keys], i) => {
         const fields = keys.filter((k) => by[k]).map((k) => field(by[k]));
@@ -318,6 +332,7 @@ async function settingsTab(seat) {
         const c = card(title, fields);
         return i === GROUPS.length - 1 ? h("details", { class: "card fold" }, h("summary", {}, title), fields) : c;
       }),
+      perms ? card("What each job may do", perms) : null,
       card("Autopilot", h("label", { class: "check", title: "When on, every question on this project waits for you, even while autopilot is on" },
         h("input", { type: "checkbox", checked: never, onchange: (ev) => act(null, () => post("/api/autopilot", { action: "never", project: seat.id, never: ev.target.checked }),
           ev.target.checked ? "Autopilot leaves this project to you" : "Autopilot may answer here again", () => refreshHall()) }),

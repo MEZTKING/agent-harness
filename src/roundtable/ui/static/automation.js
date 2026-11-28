@@ -129,12 +129,16 @@ function form(a, d, send, draw) {
   const cap = h("input", { type: "number", min: "0.5", step: "0.5", value: Number(v.cap_usd || 2).toFixed(2), class: "ap-cap", "aria-label": "Spending limit in dollars",
     title: "The most it may spend by itself, in all. When it gets there it asks you first again." });
   const capRow = h("span", { class: "row" }, "up to $", cap, h("span", { class: "small muted" }, "in all, then it asks you again"));
-  const showCap = () => { capRow.hidden = !self.checked; };
+  const selfRow = h("label", { class: "row", title: "Off: it plans, and building waits for your OK. On: it builds by itself while the plan's estimate fits what's left of the limit." },
+    self, "Let it start building by itself");
+  // what comes from outside (a program on this computer, events, an address) always waits for your OK
+  const showCap = () => { const outside = HOOKS.includes(kind); selfRow.hidden = outside; capRow.hidden = outside || !self.checked; };
   self.addEventListener("change", showCap); showCap();
 
   let hook = null;
   const drawParts = () => {
     hook = null;
+    showCap();
     if (HOOKS.includes(kind)) { hook = hookParts(kind, v, projects); fill(parts, hook.nodes); return; }
     const goalPart = () => { goal.hidden = !["idea", "goal"].includes(what.value); sProject.hidden = what.value !== "goal"; };
     what.onchange = goalPart; goalPart();
@@ -149,8 +153,9 @@ function form(a, d, send, draw) {
   };
   drawParts();
   const collect = () => {
-    const out = { kind, name: name.value, start_by_itself: self.checked, cap_usd: self.checked ? Number(cap.value) : 0 };
-    if (hook) return { ...out, ...hook.collect() };
+    const outside = HOOKS.includes(kind);
+    const out = { kind, name: name.value, start_by_itself: !outside && self.checked, cap_usd: !outside && self.checked ? Number(cap.value) : 0 };
+    if (hook) return { ...out, ...hook.collect(), start_by_itself: false, cap_usd: 0 };
     if (kind === "schedule") {
       const set = { daily: DAYS.map((x) => x[0]), weekdays: ["mon", "tue", "wed", "thu", "fri"], weekends: ["sat", "sun"], some: [...days] }[often];
       const offset = -new Date().getTimezoneOffset();
@@ -165,8 +170,7 @@ function form(a, d, send, draw) {
   return h("div", { class: "stack auto-form" },
     a ? null : seg(KINDS, kind, (x) => { kind = x; drawParts(); }, "What starts it"),
     parts,
-    h("label", { class: "row", title: "Off: it plans, and building waits for your OK. On: it builds by itself while the plan's estimate fits what's left of the limit." },
-      self, "Let it start building by itself"), capRow,
+    selfRow, capRow,
     h("label", { class: "stack" }, h("span", { class: "label" }, "Name"), name),
     h("div", { class: "row" }, h("button", { class: "primary", type: "button", onclick: (ev) => {
       const c = collect();

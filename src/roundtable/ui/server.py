@@ -52,7 +52,11 @@ FEATURE_APIS: tuple[str, ...] = ("toolsapi", "automationapi", "notifyapi", "file
                                 "usageapi", "strengthsapi", "agentsapi", "tandemapi",
                                 # wave 7: the learning wallet, the house style and charter, plug-ins and skills,
                                 # what it learned, search by meaning and the owner's documents
-                                "walletapi", "styleapi", "marketapi", "learnedapi", "recallapi")
+                                "walletapi", "styleapi", "marketapi", "learnedapi", "recallapi",
+                                # wave 8: change a file, git history, richer previews, the Browser; words as they
+                                # are written, / commands, follow-ups, the queue; what each job may do; the board;
+                                # work that starts from outside, one list of services, CI, moving the data
+                                "editapi", "chatapi", "permsapi", "boardapi", "reachapi")
 
 
 def _feature_routes(app) -> dict:
@@ -491,6 +495,10 @@ class UIApp:
                 raise ApiError(str(e), 404) from None
             ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
             return p.read_bytes(), ctype, {"Cache-Control": "no-cache"}
+        if kind == "officepdf":  # a Word, Excel or PowerPoint file made into a PDF (editapi.py)
+            from .editapi import raw_office_pdf
+
+            return raw_office_pdf(self, q)
         if kind == "pfile":  # any file of a project, for the Files tab (filesapi.py)
             from .filesapi import raw_file
 
@@ -697,7 +705,7 @@ class UIApp:
     def asks_post(self, body):
         """Answer a card: {path, id, chosen, other, confirmed, stamp, skip}; or start a project from the
         wizard's answers: {wizard: {kind, idea, like, profile, look}} (each {chosen, other})."""
-        from ..asks import answer_ask
+        from .. import asktimer
         from ..harness.orchestrator import HarnessError, Orchestrator
 
         cfg = self.need_cfg()
@@ -711,12 +719,12 @@ class UIApp:
             except ValueError as e:
                 raise ApiError(str(e))
         proj = self.project(cfg, body.get("path", ""))
-        if self._busy(proj.root) and not str(body.get("id", "")).startswith("command:"):  # a command waits on its own run
+        if self._busy(proj.root) and not str(body.get("id", "")).startswith(("command:", "quiet")):  # these wait on their own run
             raise ApiError("Wait for the job running on this project to finish (Activity → Background work), then try again.", 409)
         try:
-            r = answer_ask(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
-                           str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
-                           stamp=body.get("stamp") or None, skip=bool(body.get("skip")))
+            r = asktimer.answer(Orchestrator(cfg, proj.root), str(body.get("id", "")), body.get("chosen"),
+                                str(body.get("other") or ""), confirmed=bool(body.get("confirmed")),
+                                stamp_seen=body.get("stamp") or None, skip=bool(body.get("skip")))
         except HarnessError as e:
             raise ApiError(str(e))
         if not r.get("then"):
@@ -728,7 +736,8 @@ class UIApp:
         from ..asks import finish
 
         kind = "run" if r["then"] == "run" else "plan"
-        title = {"run": "run", "revise": "update the plan of", "looks": "new looks for"}[r["then"]]
+        title = {"run": "run", "revise": "update the plan of", "looks": "new looks for",
+                 "emulator": "make a test phone for"}[r["then"]]
 
         def run(job: Job):
             job.line(r["reply"])
@@ -1567,7 +1576,7 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
                 return
             if url.path.startswith("/api/"):
                 return self._api("GET", url.path, q, {})
-            if url.path in ("/raw/shot", "/raw/file", "/raw/hubshot", "/raw/pfile"):
+            if url.path in ("/raw/shot", "/raw/file", "/raw/hubshot", "/raw/pfile", "/raw/officepdf"):
                 return self._raw(url.path[5:], q)
             name = "index.html" if url.path in ("/", "/index.html") else url.path.lstrip("/")
             if "/" in name or name.startswith("."):
@@ -1580,6 +1589,12 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
 
         def do_POST(self):
             url = urlparse(self.path)
+            if url.path.startswith("/hooks/"):  # a program on this computer starting work (reach.py, "local")
+                from .. import reach
+
+                # the socket's own address, never a forwarded header: only this computer may send
+                status, data = reach.receive_for_app(app, url.path, self.client_address[0], self.headers, self.rfile)
+                return self._json(status, data)
             if not self._authorized() or self.headers.get("X-Agent-Hub") != "1":
                 return self._send(403, b"forbidden", "text/plain")
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
@@ -1594,11 +1609,13 @@ def make_handler(app: UIApp, token: str | None, allow_remote: bool):
             self._api("POST", url.path, {}, body if isinstance(body, dict) else {})
 
         def _raw(self, kind, q):
+            q = {**q, "_range": [self.headers.get("Range") or ""]}  # a video wound on asks for part of the file
             try:
                 body, ctype, headers = app.raw(kind, q)
             except (ApiError, FileNotFoundError, ValueError) as e:
                 return self._send(404, str(e).encode(), "text/plain; charset=utf-8")
-            self._send(200, body, ctype, headers)
+            headers = dict(headers or {})
+            self._send(int(headers.pop("_status", 200)), body, ctype, headers)
 
         def _api(self, method, path, q, body):
             try:

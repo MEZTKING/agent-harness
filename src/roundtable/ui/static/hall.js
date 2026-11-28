@@ -6,6 +6,7 @@ import { h, get, S, onHall, patch, projectHref, money, ago, plural, every, dot, 
 import { gather, needCard } from "./needs.js";
 import { whereWords, builtBy, machinesStrip, loadMachines } from "./machines.js";
 import { feedLine } from "./activity.js";
+import { loadStates, stateWord, orderSeats, orderButtons } from "./board.js";
 
 const RING_MAX = 10;   // lights on the ring; more and the ring becomes a heading over a grid
 
@@ -18,7 +19,7 @@ function probe(key, src) {
 
 const needsYou = (s) => s.status === "waiting" || (s.waiting_for_you || 0) > 0;
 
-function ringCard(s) {
+function ringCard(s, shown = [], redraw = null) {
   const p = s.progress || { done: 0, total: 0 };
   const waiting = s.waiting_for_you || 0;
   const lit = needsYou(s);
@@ -28,13 +29,14 @@ function ringCard(s) {
   return h("a", { class: `ring-card ${s.status}${lit ? " lit" : ""}`, href: projectHref(s.id), title: tip, "data-project": s.id },
     s.shot ? h("img", { class: "ring-card-shot", src: s.shot.url, alt: "", loading: "lazy" }) : null,
     h("span", { class: "ring-card-name" }, dot(s.id), h("b", {}, s.name)),
-    h("span", { class: "ring-card-state" }, h("i", { class: "sdot", "aria-hidden": "true" }), state),
+    h("span", { class: "ring-card-state" }, h("i", { class: "sdot", "aria-hidden": "true" }), state, " ", stateWord(s)),
     p.total ? h("span", { class: "bar", title: `${p.done} of ${p.total} tasks done` },
       h("i", { style: `width:${(100 * p.done) / p.total}%` }), s.status === "running" && p.done < p.total ? h("i", { class: "run", style: `width:${100 / p.total}%` }) : null,
       s.failed_task ? h("i", { class: "fail", style: `width:${100 / p.total}%` }) : null) : null,
     h("span", { class: "ring-card-foot" },
       waiting ? h("span", { class: "waits" }, `${waiting} for you`) : h("span", { class: "muted" }, p.total ? `${Math.round((100 * p.done) / p.total)}% done` : s.where === "here" ? "This computer" : ""),
-      s.spent_usd ? h("b", { title: "Spent on this project so far" }, money(s.spent_usd)) : null));
+      s.spent_usd ? h("b", { title: "Spent on this project so far" }, money(s.spent_usd)) : null,
+      shown.length > 1 ? orderButtons(s, shown, redraw) : null));
 }
 
 function ringLight(s) {  // the project's point of light on the ring; its state is also in words on its card
@@ -85,20 +87,23 @@ export async function viewHall() {
   async function draw(rt) {
     if (!rt) return;
     await Promise.all([loadMachines(), probe("ring", "ring.webp"), probe("wordmark", "wordmark.webp")]);
-    const seats = [...rt.seats].sort((a, b) => needsYou(b) - needsYou(a));  // what needs you goes to the top of the ring
+    const states = await loadStates();  // working, resting, gone quiet, and the owner's order (board.js)
+    const seats = orderSeats(rt.seats, needsYou);  // what needs you goes to the top of the ring, then the owner's order
+    const redraw = () => { table._sig = undefined; draw(S.rt); };
+    const card_ = (s) => ringCard(s, seats, redraw);
     const waiting = seats.filter(needsYou).length;
     const ring = seats.length <= RING_MAX && wide;
-    patch(table, JSON.stringify([ring, ART, seats.map((s) => [s.id, s.name, s.state, s.status, s.progress, s.waiting_for_you, s.spent_usd, s.shot && s.shot.url, builtBy(s), s.where])]), () => {
+    patch(table, JSON.stringify([ring, ART, seats.map((s) => [s.id, s.name, s.state, s.status, s.progress, s.waiting_for_you, s.spent_usd, s.shot && s.shot.url, builtBy(s), s.where]), states]), () => {
       const disc = (small) => h("div", { class: "ring-disc" }, ringWords(seats, waiting, small));
       const art = ART.ring ? " art" : "";
       if (!seats.length) return [h("div", { class: `ring empty-ring${art}` }, disc(false)), empty("No projects yet. Write your first idea and the planner makes a plan for you to check.",
         h("a", { class: "btn primary", href: "#/new" }, "+ New idea"))];
       if (ring) {
-        const r = h("div", { class: `ring${art}`, role: "group", "aria-label": "Your projects" }, disc(false), seats.map(ringLight), seats.map(ringCard), newIdea());
+        const r = h("div", { class: `ring${art}`, role: "group", "aria-label": "Your projects" }, disc(false), seats.map(ringLight), seats.map(card_), newIdea());
         setTimeout(() => placeRing(r), 0);
         return r;
       }
-      return [h("div", { class: `ring ring-band${art}` }, h("div", { class: "ring-disc", "aria-hidden": "true" }), ringWords(seats, waiting, true)), h("div", { class: "rows", role: "list", "aria-label": "Your projects" }, seats.map(ringCard), newIdea())];
+      return [h("div", { class: `ring ring-band${art}` }, h("div", { class: "ring-disc", "aria-hidden": "true" }), ringWords(seats, waiting, true)), h("div", { class: "rows", role: "list", "aria-label": "Your projects" }, seats.map(card_), newIdea())];
     });
     table.querySelectorAll(".ring:not(.ring-band):not(.empty-ring)").forEach((r) => placeRing(r));
 

@@ -5,7 +5,10 @@
   "/api/changes",
   "/api/pair/claim",
   "/api/health",
-  "/api/keys"
+  "/api/keys",
+  "/api/projects/clone",
+  "/api/projects/import",
+  "/api/projects/share"
  ],
  "calls": [
   {
@@ -869,6 +872,96 @@
    "path": "/api/recall",
    "query": {
     "q": "bakery"
+   }
+  },
+  {
+   "name": "board",
+   "method": "GET",
+   "path": "/api/board",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "columns"
+   ]
+  },
+  {
+   "name": "stream",
+   "method": "GET",
+   "path": "/api/stream",
+   "query": {
+    "path": "{project}",
+    "task": "T1",
+    "since": "0"
+   },
+   "needs": [
+    "text",
+    "thinking",
+    "at",
+    "done"
+   ]
+  },
+  {
+   "name": "commands",
+   "method": "GET",
+   "path": "/api/commands",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "commands"
+   ]
+  },
+  {
+   "name": "follow",
+   "method": "GET",
+   "path": "/api/follow",
+   "query": {
+    "path": "{project}",
+    "task": "T1"
+   }
+  },
+  {
+   "name": "queue",
+   "method": "GET",
+   "path": "/api/queue",
+   "query": {
+    "path": "{project}"
+   }
+  },
+  {
+   "name": "perms",
+   "method": "GET",
+   "path": "/api/perms"
+  },
+  {
+   "name": "ci",
+   "method": "GET",
+   "path": "/api/ci",
+   "query": {
+    "path": "{project}"
+   },
+   "needs": [
+    "state",
+    "words"
+   ]
+  },
+  {
+   "name": "integrations",
+   "method": "GET",
+   "path": "/api/integrations"
+  },
+  {
+   "name": "listening",
+   "method": "GET",
+   "path": "/api/listening"
+  },
+  {
+   "name": "git_log",
+   "method": "GET",
+   "path": "/api/git/log",
+   "query": {
+    "path": "{project}"
    }
   }
  ]

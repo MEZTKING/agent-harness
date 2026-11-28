@@ -226,6 +226,31 @@ def linked_folders(root: str | Path) -> list[str]:
     return sorted({rel for v in _read_links(Path(root).resolve()).values() for rel in v})
 
 
+def links_out(lane: Path) -> list[str]:
+    """Every link (or junction) anywhere in ``lane`` that leads outside it, never following one. A link that
+    stays inside the lane is harmless to remove; one that leads out could take the project's own files with it.
+    An unreadable folder counts as a link out (can't tell: keep the lane)."""
+    lane = Path(lane)
+    try:
+        base = lane.resolve()
+    except OSError:
+        return [lane.name]
+    out: list[str] = []
+    for top, dirs, files in os.walk(lane, followlinks=False, onerror=lambda e: out.append(str(e.filename or "?"))):
+        for name in [*dirs, *files]:
+            p = Path(top) / name
+            if not _is_link(p):
+                continue
+            try:
+                target = p.resolve()
+            except OSError:
+                target = None
+            if target is None or (target != base and base not in target.parents):
+                out.append(p.relative_to(lane).as_posix())
+        dirs[:] = [d for d in dirs if not _is_link(Path(top) / d)]
+    return out
+
+
 class Worktrees:
     """The project's task worktrees (plain git; no Roundtable state)."""
 
@@ -426,6 +451,9 @@ class Worktrees:
         stuck = self.unlink_deps(task_id)  # first, so removing the lane can never reach the project's own folders
         if stuck:
             return False, f"the link to {', '.join(stuck)} couldn't be taken away, so it was kept"
+        left = links_out(self.path(task_id))  # any other link that leads out of the lane: never removed through
+        if left:
+            return False, f"it still holds a link out of it ({', '.join(left[:3])}), so it was kept"
         res = _git(self.root, "worktree", "remove", str(self.path(task_id)))
         if res.returncode != 0:
             return False, f"git wouldn't remove it ({res.stderr.strip()[:200]}), so it was kept"
@@ -594,6 +622,7 @@ class ParallelStage:
                 ready = [t for t in tasks if t.status == "pending" and t.id not in running
                          and all(by_id[d].status == "done" for d in t.depends_on if d in by_id)]
                 ready = self._hook("_stage_ready", ready, tasks, set(running), default=ready)  # a working slice first
+                ready = self._hook("_board_order", ready, default=ready)  # the order the owner set on the board
                 if not running and not ready:
                     end = self._parallel_end(tasks)
                     if end == "again":  # the end steps added work: run that too
@@ -799,6 +828,8 @@ class ParallelStage:
         got = self._hook("_money_gate")  # past what the owner agreed to: the gate has paused it (moneystage.py)
         if got:
             return {"pause": "", "halt": False, "result": got}  # let the running ones finish, start no more
+        if self._hook("_board_stop"):  # the owner pressed Stop on the board: the running ones finish
+            return {"pause": "", "halt": False, "result": "paused"}
         return self._running_stop()
 
     def _running_stop(self) -> dict[str, Any] | None:

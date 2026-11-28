@@ -238,6 +238,15 @@
    "source": "default",
    "type": "text",
    "value": ""
+  },
+  {
+   "choices": [],
+   "default": {},
+   "description": "What each job may do on this project: ask_all, careful, free or read_only for a job such as coder or ui-designer. Empty: this computer's choice (Careful).",
+   "key": "perms",
+   "source": "default",
+   "type": "map",
+   "value": {}
   }
  ],
  "warnings": []

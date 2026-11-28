@@ -1,0 +1,64 @@
+{
+ "counts": {
+  "missing": 0,
+  "not_answering": 0,
+  "off": 0,
+  "ready": 3
+ },
+ "groups": [
+  "Models",
+  "GitHub",
+  "Web search"
+ ],
+ "rows": [
+  {
+   "can_test": true,
+   "group": "Models",
+   "id": "provider:img",
+   "name": "img",
+   "state": "ready",
+   "state_words": "Ready",
+   "tested_at": null,
+   "where": "Settings → Keys",
+   "who": [
+    "Designer"
+   ],
+   "words": "A key is saved."
+  },
+  {
+   "can_test": true,
+   "group": "GitHub",
+   "id": "github",
+   "name": "GitHub",
+   "needs": {
+    "label": "GitHub",
+    "saved": false,
+    "slot": "ROUNDTABLE_GITHUB_TOKEN"
+   },
+   "state": "ready",
+   "state_words": "Ready",
+   "tested_at": null,
+   "where": "Automations",
+   "who": [
+    "Automations",
+    "Checks on your projects"
+   ],
+   "words": "A GitHub key is saved."
+  },
+  {
+   "can_test": false,
+   "group": "Web search",
+   "id": "websearch",
+   "name": "Web search",
+   "state": "ready",
+   "state_words": "Ready",
+   "tested_at": null,
+   "where": "Settings → Web search",
+   "who": [
+    "Builders"
+   ],
+   "words": "Works without a key (a free search engine)."
+  }
+ ],
+ "words": "3 ready."
+}

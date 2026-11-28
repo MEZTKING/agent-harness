@@ -212,9 +212,7 @@ def test_the_stubs_do_nothing_yet(tmp_path):
     assert perms.preset_for(tmp_path, None, "coder") == "careful"
     # filled by p1-perms (tests/test_perms.py): a reading tool passes, a delete would wait for the owner
     assert perms.guard(tmp_path, None, "coder", None)("read_file", {"path": "x"}) is None
-    assert streamlog.sink(tmp_path, "T1")("text", "hi") is None
-    assert streamlog.tail(tmp_path, "T1") == {"text": "", "thinking": "", "at": 0, "done": True}
-    assert not (tmp_path / ".harness").exists()  # a stub writes nothing
+    # streamlog is filled (p1-chat; its own tests in tests/test_stream.py)
     # reach is filled (p1-reach; its own tests in tests/test_reach.py): with nothing to look at it does nothing
     assert reach.poll_hooks(None, {}) == [] and reach.beat(None, {}) is None
     shot = winshot.window_picture(1, tmp_path / "w.png")

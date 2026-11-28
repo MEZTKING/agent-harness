@@ -37,7 +37,9 @@ HOOKS = (*Orchestrator.PLAN_PARTS, *Orchestrator.SCHEMA_PARTS, *Orchestrator.DOC
          "_money_agreed", "_money_gate", "_money_charge",
          # wave 7: the system parts (charter, house style), the stages' tools, attempt and metric parts, the watch
          *Orchestrator.SYSTEM_PARTS, *Orchestrator.TOOL_PARTS, *Orchestrator.ATTEMPT_PARTS, *Orchestrator.METRIC_PARTS,
-         "_watch_after_run")
+         "_watch_after_run",
+         # wave 8: the board's order, its archive of earlier goals and its Stop
+         "_board_order", "_board_archive", "_board_stop")
 
 
 from roundtable.harness.agentstage import AgentStage  # noqa: E402
@@ -51,10 +53,13 @@ from roundtable.harness.charterstage import CharterStage  # noqa: E402
 from roundtable.harness.recallstage import RecallStage  # noqa: E402
 from roundtable.harness.skillstage import SkillStage  # noqa: E402
 from roundtable.improve.canary import WatchStage  # noqa: E402
+from roundtable.harness.boardstage import BoardStage  # noqa: E402
+from roundtable.harness.followstage import FollowStage  # noqa: E402
 # wave 6's stages (models in tandem) first, then wave 5's
 STAGES = (UsageStage, RouterStage, PanelStage, RivalsStage, CouncilStage, AgentStage, DialStage,
           MoneyStage, DoneStage, PrepStage, StagesStage, UnstickStage, FinishStage, PlayStage, ShipStage,
-          WatchStage, CharterStage, SkillStage, RecallStage)  # wave 7's
+          WatchStage, CharterStage, SkillStage, RecallStage,  # wave 7's
+          BoardStage, FollowStage)  # wave 8's: the board, follow-ups on a finished task
 # the Orchestrator's own methods over the stages that were there before wave 5 (it uses no zero-argument super)
 Seam = type("Seam", tuple(b for b in Orchestrator.__bases__ if b not in STAGES),
             {k: v for k, v in vars(Orchestrator).items() if k not in ("__dict__", "__weakref__")})

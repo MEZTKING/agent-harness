@@ -248,8 +248,10 @@ class Workspace:
         # the orchestrator sets ``live`` to (project folder, task id), else it is this folder's "run" log
         live_root, live_task = getattr(self, "live", None) or (self.root, "run")
         try:
+            from . import perms  # a job told it needs no network gets none (Linux, bwrap)
+
             res = livecmd.run_streaming(
-                a["command"], self.root, clean_env(),  # never the owner's keys or git login (safeenv.py)
+                perms.boxed(str(a["command"])), self.root, clean_env(),  # never the owner's keys or git login (safeenv.py)
                 timeout, livecmd.slot(live_root, live_task), root=live_root,
             )
         except subprocess.TimeoutExpired:

@@ -217,6 +217,11 @@ def test_worker_calls_an_mcp_tool_and_finishes(tmp_path):
 
     orch, _, events = _orch(tmp_path, raw, brain)
     orch.start("a door")
+    from roundtable.harness import perms
+
+    # under Careful (the default) a tool server's first use in a project waits for a tap (wave 8): the owner
+    # said "Always allow" for this one earlier
+    perms.allow(orch.project.root, "mcp", "mcp__editor__spawn_actor")
     assert orch.run() == "done"
     assert seen["result"] == "spawned Door at (1.0, 0.0)"
     assert "mcp__editor__spawn_actor" in seen["worker_tools"]
