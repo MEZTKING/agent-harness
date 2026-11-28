@@ -32,11 +32,11 @@ per problem. ``hourly`` runs it every hour while any project is building (``stan
 nothing else), written at each sync at most every two minutes, so the phone can say "Your PC last listened
 3 minutes ago" (``listening``).
 
-**Who reads a project's letters** (``read_beat``, ``no_reader``, ``readers``): every machine or session that reads a
-project's letters (``remote.process``) writes ``plans/readers/<project>.json`` – {project, agent, folder, machine,
+**Who runs a project** (``read_beat``, ``no_reader``, ``readers``): every machine or session that reads a
+project's commands from the hub (``remote.process``) writes ``plans/readers/<project>.json`` – {project, agent, folder, machine,
 machine_id, kind (pc, phone or session), at, state (reading or no_reader), note} – at most every two minutes per
 project. A cloud session's end (``connect.py``'s SessionEnd hook) marks its projects ``no_reader``. ``listening``
-adds ``projects``: for each, who last read its letters and when, a plain sentence when nobody has for
+adds ``projects``: for each, who last ran it and when, a plain sentence when nobody has for
 ``NO_READER_MIN`` minutes, and what can be done (``offers``: run it on this phone, or on the owner's PC).
 """
 
@@ -69,9 +69,9 @@ EVENTS_MINUTES = 5.0
 BEAT_EVERY_S = 120.0
 LISTENING_FILE = "plans/listening.json"
 READERS_DIR = "plans/readers"
-NO_READER_MIN = 15  # nobody has read a project's letters for this long: say so
-NOBODY = ("Nobody is reading this project's letters right now: the computer or session that runs it is off. "
-          "They'll be done when it's back.")
+NO_READER_MIN = 15  # nobody has run a project for this long: say so
+NOBODY = ("Nobody is running this project right now: the computer or session that runs it is off. "
+          "What you send it waits until it's back.")
 SESSION_ENV = ("CLAUDE_CODE_REMOTE", "CLAUDE_CODE_SESSION_ID")  # set inside a Claude Code session
 STANDUP_ID = "standup-hourly"
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -566,7 +566,7 @@ def listening(hub, now: datetime | None = None) -> dict[str, Any]:
             "projects": readers(hub, now)}
 
 
-# -- who reads each project's letters -----------------------------------------------------------------------
+# -- who runs each project -----------------------------------------------------------------------------------
 def reader_kind(machine: dict | None, env: dict | None = None) -> str:
     """pc, phone, or session (a Claude Code session in the cloud or on a PC, which ends with the session)."""
     import os
@@ -584,7 +584,7 @@ def _reader_path(project: str) -> str:
 
 def read_beat(hub, project: str, machine: dict | None = None, agent: str = "", folder: str = "",
               env: dict | None = None, force: bool = False) -> bool:
-    """Say this machine (or session) reads ``project``'s letters: ``plans/readers/<project>.json``, at most every
+    """Say this machine (or session) runs ``project`` (reads its commands): ``plans/readers/<project>.json``, at most every
     ``BEAT_EVERY_S`` per project. Never raises; True when it wrote."""
     if hub is None or not project:
         return False
@@ -610,7 +610,7 @@ def read_beat(hub, project: str, machine: dict | None = None, agent: str = "", f
 
 
 def no_reader(hub, machine_id: str, note: str = "") -> list[str]:
-    """Mark every project whose letters ``machine_id`` was reading as read by nobody (a session ended). Returns
+    """Mark every project ``machine_id`` was running as run by nobody (a session ended). Returns
     the projects marked. Never raises."""
     if hub is None or not machine_id:
         return []
@@ -639,7 +639,7 @@ def _ago(mins: int) -> str:
 
 
 def readers(hub, now: datetime | None = None) -> list[dict[str, Any]]:
-    """For each project with letters: {project, agent, folder, machine, machine_id, kind, at, minutes, reading,
+    """For each project someone has run: {project, agent, folder, machine, machine_id, kind, at, minutes, reading,
     state, words, offers}. ``reading`` is False when nobody has read them for ``NO_READER_MIN`` minutes or the
     reader said it stopped; ``words`` then says so, and ``offers`` lists [{id: phone | pc, label, machine}]."""
     if hub is None:
@@ -666,9 +666,9 @@ def readers(hub, now: datetime | None = None) -> list[dict[str, Any]]:
         who = {"session": "A cloud session", "phone": "Your phone"}.get(
             d.get("kind"), "Your PC" if str(d.get("machine", "")).startswith("PC") else d.get("machine") or "A computer")
         if reading:
-            words = f"{who} reads this project's letters (last {_ago(mins)})."
+            words = f"{who} runs this project (last seen {_ago(mins)})."
         else:
-            words = NOBODY + (f" {who} last read them {_ago(mins)}." if mins is not None else "")
+            words = NOBODY + (f" {who} last ran it {_ago(mins)}." if mins is not None else "")
         offers: list[dict[str, Any]] = []
         if not reading:
             offers.append({"id": "phone", "label": "Run it on This phone", "machine": ""})

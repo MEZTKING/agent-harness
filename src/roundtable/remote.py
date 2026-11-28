@@ -28,12 +28,7 @@ A command can also carry ``machine`` (a machine's seat, such as ``pc-desk`` or `
 machine does it, so the PC and the phone never both act on one command. ``carry_on`` continues a paused or
 stopped run on the machine that holds the project's files (the same as ``run``).
 
-Plain letters (anything from the owner that isn't a ``roundtable:`` command, such as "send me the apk") are never
-left unread and unanswered (``plain_letter``): "send me the apk / the exe / the build" puts the newest built files
-from the project's ``dist/`` in the hub (``plans/builds/<project>/``, with ``latest.json``) and the reply says where
-to open them; anything else goes on the project's Needs-you list and the reply says so.
-
-Every pass also says who reads each project's letters (``reach.read_beat``: ``plans/readers/<project>.json``), so the
+Every pass also says who runs each project (``reach.read_beat``: ``plans/readers/<project>.json``), so the
 phone can tell the owner when nobody does.
 """
 
@@ -49,14 +44,6 @@ PREFIX = "roundtable:"
 FOLDER = "project_folder"  # which project a command is for, when several share one hub agent (``harness``)
 MACHINE = "machine"  # which machine a command is for (sync.this_machine()["id"]); none: whichever runs it
 LONG = {"show_it", "revise", "approve", "run", "retry", "skip", "accept", "ask", "looks", "answer", "carry_on"}
-BUILDS_DIR = "plans/builds"  # the newest built files of each project, for the phone to download
-HUB_MAX_BYTES = 40 * 1024 * 1024  # a built file bigger than this stays on the computer (GitHub refuses 100 MB)
-BUILD_KINDS = {".apk": "Android app", ".exe": "Windows app", ".msi": "Windows app", ".appimage": "Linux app",
-               ".deb": "Linux app", ".dmg": "Mac app", ".zip": "app", ".gz": "app"}
-WANTS = {"apk": (".apk",), "android": (".apk",), "phone": (".apk",), "exe": (".exe", ".msi", ".zip"),
-         "windows": (".exe", ".msi", ".zip"), "linux": (".appimage", ".deb", ".gz"), "mac": (".dmg", ".zip")}
-SEND = re.compile(r"\b(send|give|share|where|download|get)\b.*\b(apk|exe|build|builds|app|apps|installer|zip|"
-                  r"android|windows|linux|mac|files?)\b", re.I | re.S)
 _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
@@ -215,86 +202,6 @@ def _answer(orch, kw: dict[str, Any]) -> str:
     return " ".join(x for x in (r["reply"], finish(orch, r)) if x)
 
 
-def _size(n: int) -> str:
-    return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{max(1, n // 1024)} KB"
-
-
-def built_files(project: Path, wants: tuple[str, ...] = ()) -> list[Path]:
-    """The newest built file of each kind in the project's ``dist/`` (two folders deep at most), newest first."""
-    dist = project / "dist"
-    if not dist.is_dir():
-        return []
-    found: dict[str, Path] = {}
-    for p in sorted([*dist.glob("*"), *dist.glob("*/*")], key=lambda p: p.stat().st_mtime, reverse=True):
-        ext = p.suffix.lower()
-        if not p.is_file() or ext not in BUILD_KINDS or (wants and ext not in wants):
-            continue
-        kind = BUILD_KINDS[ext] if ext != ".zip" else ("Windows app" if "win" in p.name.lower() else
-                                                        "Mac app" if "mac" in p.name.lower() else "app")
-        found.setdefault(f"{kind}{ext}", p)
-    return sorted(found.values(), key=lambda p: p.stat().st_mtime, reverse=True)
-
-
-def send_builds(hub, project: Path, hub_name: str, wants: tuple[str, ...] = ()) -> dict[str, Any]:
-    """Put the newest built files in the hub (``plans/builds/<hub_name>/``) with ``latest.json``: {project, at,
-    files: [{name, kind, size, built_at, in_hub, path}]}. A file over ``HUB_MAX_BYTES`` is listed, not copied."""
-    from datetime import datetime, timezone
-
-    from .core.store import BinaryFile
-
-    files = built_files(project, wants)
-    writes: dict[str, Any] = {}
-    listed = []
-    for p in files:
-        size = p.stat().st_size
-        ext = p.suffix.lower()
-        kind = BUILD_KINDS[ext] if ext != ".zip" else ("Windows app" if "win" in p.name.lower() else "app")
-        rel = f"{BUILDS_DIR}/{hub_name}/{p.name}"
-        fits = size <= HUB_MAX_BYTES
-        if fits:
-            writes[rel] = BinaryFile(p.read_bytes())
-        listed.append({"name": p.name, "kind": kind, "size": size, "in_hub": fits, "path": rel if fits else "",
-                       "built_at": datetime.fromtimestamp(p.stat().st_mtime, timezone.utc).strftime(
-                           "%Y-%m-%dT%H:%M:%SZ")})
-    out = {"project": hub_name, "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "files": listed}
-    if listed:
-        writes[f"{BUILDS_DIR}/{hub_name}/latest.json"] = out
-        hub.store.write_json(writes, f"builds({hub_name}): {', '.join(f['name'] for f in listed)}"[:200])
-    return out
-
-
-def plain_letter(cfg, project: Path, hub, msg: dict[str, Any]) -> str:
-    """The reply to a letter that isn't a command. Never leaves it unanswered."""
-    from .harness.orchestrator import Orchestrator
-
-    orch = Orchestrator(cfg, project, on_event=lambda k, d: None)
-    text = " ".join(f"{msg.get('subject') or ''} {msg.get('body') or ''}".split())
-    if SEND.search(text):
-        words = {w.lower() for w in re.findall(r"[A-Za-z]+", text)}
-        wants = tuple(dict.fromkeys(x for w in words for x in WANTS.get(w, ())))
-        sent = send_builds(hub, project, orch._hub_name(), wants)
-        if sent["files"]:
-            lines = []
-            for f in sent["files"]:
-                when = f["built_at"][:10]
-                if f["in_hub"]:
-                    lines.append(f"- {f['kind']}: {f['name']} ({_size(f['size'])}, built {when}). Open it from the "
-                                 f"project's Builds on the phone. [hub:{f['path']}]")
-                else:
-                    lines.append(f"- {f['kind']}: {f['name']} ({_size(f['size'])}, built {when}) is too big to send "
-                                 "through the hub. It stays in the project's dist folder on the computer that built it.")
-            return "Here are the newest built files:\n" + "\n".join(lines)
-        orch._attention(f"letter-{msg.get('id')}", f"Your letter: \"{text[:160]}\". There's no built app yet",
-                        details="Nothing was found in the project's dist folder.")
-        return ("There's no built app for this project yet, so there's nothing to send. Your letter is on Needs you; "
-                "once the project is built, ask again.")
-    orch._attention(f"letter-{msg.get('id')}", f"Your letter: \"{text[:160]}\"",
-                    details=f"A plain letter (not a command) sent to {orch._hub_name()}. Turn it into a change to the "
-                            "plan, a question or a task.")
-    return ("Got your letter. I can't act on a plain letter by myself, so it's on this project's Needs you list. "
-            "Tap it there to turn it into a change to the plan, a question or a task.")
-
-
 def process(cfg, hub, background: bool = False, log: Callable[[str], None] = print) -> int:
     """One pass: find owner commands for the projects this Roundtable runs, do them, reply."""
     from .harness.orchestrator import Orchestrator
@@ -311,50 +218,21 @@ def process(cfg, hub, background: bool = False, log: Callable[[str], None] = pri
     me = machine["id"]
     done = 0
     hub.store.sync()
-    sent_twice: dict[tuple, str] = {}  # the same command twice in one pass is done once
-    answered: set[str] = set()  # plain letters answered this pass (several projects can share one hub agent)
     for project in project_dirs(cfg):
         orch = Orchestrator(cfg, project)
         agent = orch._hub_agent() if cfg.hub else project.name
         if agent not in hub.config.agents:
             continue
         reach.read_beat(hub, orch._hub_name() if cfg.hub else project.name, machine, agent=agent,
-                        folder=project.name)  # who reads this project's letters (the phone shows it)
+                        folder=project.name)  # who runs this project (the phone shows it)
         for msg in hub.inbox(agent, unread_only=True, limit=50):
-            if msg.get("sender") not in allowed:
-                continue
             cmd = parse(msg)
-            if cmd is None:  # a plain letter: answered by the project that owns the hub agent, once
-                if msg["id"] in answered:
-                    continue
-                answered.add(msg["id"])
-                hub.mark_read(agent, [msg["id"]])
-                try:
-                    text = plain_letter(cfg, project, hub, msg)
-                except Exception as e:  # noqa: BLE001 - a plain letter still gets a reply
-                    text = f"Couldn't answer your letter here: {e}. It stays for the computer that runs the project."
-                try:
-                    hub.reply(agent, msg["id"], text)
-                except Exception as e:  # noqa: BLE001
-                    log(f"remote: couldn't reply: {e}")
-                done += 1
+            if cmd is None or msg.get("sender") not in allowed:
                 continue
             if cmd.get(FOLDER) and cmd[FOLDER] != project.name:
                 continue  # for another project that reports through the same hub agent: leave it for that one
             if cmd.get(MACHINE) and cmd[MACHINE] != me:
                 continue  # for another machine (the phone or another PC): leave it for that one
-            same = (agent, msg.get("sender"), json.dumps(cmd, sort_keys=True))
-            if same in sent_twice:  # the owner sent it again because nothing seemed to happen: done once
-                hub.mark_read(agent, [msg["id"]])
-                try:
-                    sent = hub.reply(agent, msg["id"], f"Done once already: this is the same as your letter of "
-                                                       f"{sent_twice[same][:16].replace('T', ' ')}.")
-                    hub.mark_read(msg["sender"], [sent["id"]])
-                except Exception as e:  # noqa: BLE001
-                    log(f"remote: couldn't reply: {e}")
-                done += 1
-                continue
-            sent_twice[same] = str(msg.get("created_at") or "")
             key = f"{project}:{msg['id']}"
             with _busy_lock:
                 if key in _busy:

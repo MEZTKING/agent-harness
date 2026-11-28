@@ -331,8 +331,8 @@ def session_end_note(agent: str, event: dict[str, Any]) -> dict[str, Any] | None
 
 
 def hand_over(hub=None) -> list[str]:
-    """When a session ends, every project whose letters it was reading is marked "no reader" in the hub
-    (reach.no_reader), so the phone says nobody reads them and the owner's PC or phone can take them over."""
+    """When a session ends, every project it was running is marked "no reader" in the hub (reach.no_reader), so
+    the phone says nobody runs them and the owner's PC or phone can take them over."""
     from . import reach
     from .sync import this_machine
 
@@ -352,7 +352,7 @@ def run_hook(name: str, agent: str, event: dict[str, Any]) -> int:
                 print(json.dumps(decision))
         elif name == "session-end":
             try:
-                hand_over()  # the projects this session read letters for: nobody reads them now
+                hand_over()  # the projects this session ran: nobody runs them now
             finally:
                 session_end_note(agent, event)
         else:

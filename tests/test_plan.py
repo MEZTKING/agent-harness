@@ -248,18 +248,17 @@ def test_commands_through_the_hub(tmp_path):
     send("me", json.dumps({"action": "choose", "decision": "C1", "option": "b"}))
     send("stranger", json.dumps({"action": "approve"}))  # not the owner: ignored
     send("me", "not json")
-    hub.send("me", "proj", "hello", "just a note")  # a plain letter: answered, and on Needs you
-    assert process(orch.cfg, hub, log=lambda s: None) == 3
+    hub.send("me", "proj", "hello", "just a note")  # a normal message stays for the humans
+    assert process(orch.cfg, hub, log=lambda s: None) == 2
     assert orch.project.plan_doc()["decisions"][0]["chosen"] == "b"
     assert not orch.project.meta()["plan_approved"]
     replies = hub.inbox("me", unread_only=False)
-    assert len(replies) == 3 and any("1 change waits for you to press Update plan" in r["body"] for r in replies)
+    assert len(replies) == 2 and any("1 change waits for you to press Update plan" in r["body"] for r in replies)
     assert any("isn't valid JSON" in r["body"] for r in replies)
-    # the receipt arrives read; the refusal and the answer to the letter wait for the owner
-    unread = [r["body"] for r in hub.inbox("me", unread_only=True)]
-    assert unread[0] == "Couldn't do that: the command isn't valid JSON." and "Needs you" in unread[1]
+    # the receipt arrives read; only the refusal waits for the owner
+    assert [r["body"] for r in hub.inbox("me", unread_only=True)] == ["Couldn't do that: the command isn't valid JSON."]
     left = {m["subject"] for m in hub.inbox("proj", unread_only=True)}
-    assert left == {"roundtable: command"}  # only the stranger's command
+    assert left == {"roundtable: command", "hello"}  # the stranger's command and the note
     send("me", json.dumps({"action": "revise"}))
     send("me", json.dumps({"action": "approve"}))
     assert process(orch.cfg, hub, log=lambda s: None) == 2
