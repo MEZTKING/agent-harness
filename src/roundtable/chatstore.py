@@ -122,8 +122,21 @@ def now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
+_ID_LOCK = threading.Lock()
+_last_id = ["", 0]  # the last millisecond used and how many ids it has had (this process)
+
+
 def new_id() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")[:-3] + "-" + secrets.token_hex(4)
+    """``<UTC millisecond>-<count><random>``: ids made here always sort in the order they were made, even
+    within one millisecond (lines are merged by time, then device, then id)."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")[:-3]
+    with _ID_LOCK:
+        if stamp <= _last_id[0]:  # the same millisecond (or the clock stepped back): keep counting
+            stamp, n = _last_id[0], _last_id[1] + 1
+        else:
+            n = 0
+        _last_id[0], _last_id[1] = stamp, n
+    return f"{stamp}-{n:02x}{secrets.token_hex(3)}"
 
 
 def day_path(chat: str, day: str, seat: str) -> str:
@@ -383,6 +396,7 @@ def lines_of(home, hub, chat: str) -> list[dict[str, Any]]:
     if not is_chat(chat):
         return []
     groups: dict[str, list[dict[str, Any]]] = {}
+    written = 0  # the order copies were read in: within one device's file, later means written later
     for name, text in _files_of(home, hub, chat).items():
         writer = _seat_of_file(name)
         for raw in text.splitlines():
@@ -391,6 +405,8 @@ def lines_of(home, hub, chat: str) -> list[dict[str, Any]]:
             except (ValueError, TypeError):
                 continue  # half written, or not a line: skipped
             line["_writer"] = writer
+            written += 1
+            line["_n"] = written
             groups.setdefault(str(line["id"]), []).append(line)
     out = []
     answered = set()
@@ -400,8 +416,11 @@ def lines_of(home, hub, chat: str) -> list[dict[str, Any]]:
                 answered.add(str(v["answers"]))
     for lid, versions in groups.items():
         first = min(str(v["at"]) for v in versions)
-        best = max(versions, key=lambda v: (CARD_RANK.get((v.get("card") or {}).get("state"), -1), str(v["at"])))
+        # the furthest card state, then the newest time, then (same millisecond) the copy written last
+        best = max(versions, key=lambda v: (CARD_RANK.get((v.get("card") or {}).get("state"), -1), str(v["at"]),
+                                            v["_n"]))
         line = dict(best)
+        line.pop("_n", None)
         line["_changed"] = max(str(v["at"]) for v in versions)
         line["at"] = first
         if line["who"] == "owner" and lid in answered:
