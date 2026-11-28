@@ -31,7 +31,7 @@ def _app(tmp_path, monkeypatch, run: bool):
     else:
         hd = orch.project.root / ".harness"
         hd.mkdir(parents=True, exist_ok=True)
-        (hd / "project.json").write_text('{"goals": ["a made-up bakery site"]}', encoding="utf-8")
+        (hd / "project.json").write_text('{"goals": ["a made-up bakery site"]}', encoding="utf-8", newline="")
     cfg = orch.cfg
     cfg.lab_dir = tmp_path / "lab"
     orch._register_with_lab()
@@ -71,8 +71,8 @@ def _save(app, root, file, text, base, **kw):
 
 def test_a_save_makes_exactly_one_commit_and_undo_restores_the_old_text(git_proj):
     app, root = git_proj
-    old = (root / "hello.py").read_text(encoding="utf-8")
-    (root / "test_hello.py").write_text("# the owner's own unsaved change\n", encoding="utf-8")
+    old = (root / "hello.py").read_bytes().decode("utf-8")
+    (root / "test_hello.py").write_text("# the owner's own unsaved change\n", encoding="utf-8", newline="")
     before = int(_git(root, "rev-list", "--count", "HEAD"))
     d = _open(app, root, "hello.py")
     assert d["text"] == old and d["git"] and d["warn"] == ""
@@ -84,18 +84,18 @@ def test_a_save_makes_exactly_one_commit_and_undo_restores_the_old_text(git_proj
     edits = app.dispatch("GET", "/api/files/edits", {"path": [str(root)]}, {})["edits"]
     assert edits[0]["file"] == "hello.py" and not edits[0]["undone"]
     back = app.dispatch("POST", "/api/files/undo_edit", {}, {"path": str(root), "id": edits[0]["id"]})
-    assert back["ok"] and (root / "hello.py").read_text(encoding="utf-8") == old
+    assert back["ok"] and (root / "hello.py").read_bytes().decode("utf-8") == old
     assert app.dispatch("GET", "/api/files/edits", {"path": [str(root)]}, {})["edits"][0]["undone"]
 
 
 def test_a_stale_base_is_refused_and_both_versions_come_back(git_proj):
     app, root = git_proj
     d = _open(app, root, "hello.py")
-    (root / "hello.py").write_text("changed by a task\n", encoding="utf-8")
+    (root / "hello.py").write_text("changed by a task\n", encoding="utf-8", newline="")
     res = _save(app, root, "hello.py", "mine\n", d["base"])
     assert res["ok"] is False and res["conflict"] and res["theirs"] == "changed by a task\n"
     assert "changed while you were editing" in res["words"]
-    assert (root / "hello.py").read_text(encoding="utf-8") == "changed by a task\n"
+    assert (root / "hello.py").read_bytes().decode("utf-8") == "changed by a task\n"
     assert _save(app, root, "hello.py", "mine\n", res["base"])["ok"]
 
 
@@ -103,14 +103,14 @@ def test_a_stale_base_is_refused_and_both_versions_come_back(git_proj):
                                  "server.pem", "/etc/passwd", "nope.txt"])
 def test_save_refuses_paths_outside_hidden_or_private(git_proj, rel):
     app, root = git_proj
-    (root / ".env").write_text("KEY=proxy-injected\n", encoding="utf-8")
-    (root / "server.pem").write_text("x", encoding="utf-8")
+    (root / ".env").write_text("KEY=proxy-injected\n", encoding="utf-8", newline="")
+    (root / "server.pem").write_text("x", encoding="utf-8", newline="")
     (root / "secrets").mkdir(exist_ok=True)
-    (root / "secrets" / "a.txt").write_text("x", encoding="utf-8")
+    (root / "secrets" / "a.txt").write_text("x", encoding="utf-8", newline="")
     with pytest.raises(ApiError) as e:
         _save(app, root, rel, "x", "y")
     assert e.value.status == 404
-    assert (root / ".env").read_text(encoding="utf-8") == "KEY=proxy-injected\n"
+    assert (root / ".env").read_bytes().decode("utf-8") == "KEY=proxy-injected\n"
 
 
 def test_save_refuses_a_binary_and_a_file_over_the_cap(git_proj):
@@ -135,14 +135,14 @@ def test_save_refuses_a_binary_and_a_file_over_the_cap(git_proj):
 
 def test_a_task_building_the_file_asks_first(git_proj):
     app, root = git_proj
-    tasks = json.loads((root / ".harness/tasks.json").read_text(encoding="utf-8"))
+    tasks = json.loads((root / ".harness/tasks.json").read_bytes().decode("utf-8"))
     tasks[0].update(status="running", files=["hello.py"])
     (root / ".harness/tasks.json").write_text(json.dumps(tasks), encoding="utf-8")
     d = _open(app, root, "hello.py")
     assert "is changing this file right now" in d["warn"]
     res = _save(app, root, "hello.py", "mine\n", d["base"])
     assert res["ok"] is False and res["needs_confirm"]
-    assert (root / "hello.py").read_text(encoding="utf-8") != "mine\n"
+    assert (root / "hello.py").read_bytes().decode("utf-8") != "mine\n"
     assert _save(app, root, "hello.py", "mine\n", d["base"], confirm=True)["ok"]
 
 
@@ -167,7 +167,7 @@ def test_undo_without_git_is_refused_when_the_file_changed_since(plain_proj):
     app, root = plain_proj
     d = _open(app, root, "menu.txt")
     _save(app, root, "menu.txt", "one\n", d["base"])
-    (root / "menu.txt").write_text("two\n", encoding="utf-8")
+    (root / "menu.txt").write_text("two\n", encoding="utf-8", newline="")
     eid = app.dispatch("GET", "/api/files/edits", {"path": [str(root)]}, {})["edits"][0]["id"]
     with pytest.raises(ApiError) as e:
         app.dispatch("POST", "/api/files/undo_edit", {}, {"path": str(root), "id": eid})
@@ -180,7 +180,7 @@ def test_checkout_is_refused_on_a_dirty_tree_and_during_a_run(git_proj, monkeypa
     q = {"path": [str(root)], "branch": ["trial"]}
     pv = app.dispatch("GET", "/api/git/checkout", q, {})
     assert pv["blocked"] == "" or pv["blocked"] == "The project is on that branch already." or pv["stamp"]
-    (root / "hello.py").write_text("unsaved\n", encoding="utf-8")
+    (root / "hello.py").write_text("unsaved\n", encoding="utf-8", newline="")
     pv = app.dispatch("GET", "/api/git/checkout", q, {})
     assert pv["blocked"] and pv["stamp"] == ""
     with pytest.raises(ApiError) as e:
@@ -219,9 +219,9 @@ def test_git_routes_through_the_app_and_private_files_are_marked(git_proj):
 
 def test_every_file_for_links_leaves_out_private_ones(git_proj):
     app, root = git_proj
-    (root / ".env").write_text("x", encoding="utf-8")
+    (root / ".env").write_text("x", encoding="utf-8", newline="")
     (root / "node_modules" / "x").mkdir(parents=True)
-    (root / "node_modules" / "x" / "i.js").write_text("x", encoding="utf-8")
+    (root / "node_modules" / "x" / "i.js").write_text("x", encoding="utf-8", newline="")
     files = app.dispatch("GET", "/api/files/all", {"path": [str(root)]}, {})["files"]
     assert "hello.py" in files and ".env" not in files and not any(f.startswith((".", "node_modules")) for f in files)
 
@@ -313,7 +313,7 @@ def test_open_as_pdf_makes_the_pdf_in_a_job_and_the_raw_route_serves_it(git_proj
 
 def test_a_file_git_doesnt_track_yet_is_kept_the_other_way(git_proj):
     app, root = git_proj
-    (root / "draft.txt").write_text("first\n", encoding="utf-8")
+    (root / "draft.txt").write_text("first\n", encoding="utf-8", newline="")
     d = _open(app, root, "draft.txt")
     assert d["git"] is False
     res = _save(app, root, "draft.txt", "second\n", d["base"])
@@ -321,4 +321,4 @@ def test_a_file_git_doesnt_track_yet_is_kept_the_other_way(git_proj):
     assert "draft.txt" not in _git(root, "ls-files")
     edits = app.dispatch("GET", "/api/files/edits", {"path": [str(root)]}, {})["edits"]
     app.dispatch("POST", "/api/files/undo_edit", {}, {"path": str(root), "id": edits[0]["id"]})
-    assert (root / "draft.txt").read_text(encoding="utf-8") == "first\n"
+    assert (root / "draft.txt").read_bytes().decode("utf-8") == "first\n"

@@ -204,7 +204,8 @@ class Workspace:
         for dirpath, dirnames, filenames in os.walk(base):
             dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
             for f in sorted(filenames):
-                rel = os.path.relpath(os.path.join(dirpath, f), self.root)
+                # "/" on every computer: the same brief on Windows as elsewhere (and the learned replays match)
+                rel = os.path.relpath(os.path.join(dirpath, f), self.root).replace(os.sep, "/")
                 if fnmatch.fnmatch(f, pattern) or fnmatch.fnmatch(rel, pattern):
                     out.append(rel)
                 if len(out) >= 500:
