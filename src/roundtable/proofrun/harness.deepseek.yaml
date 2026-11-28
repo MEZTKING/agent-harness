@@ -1,0 +1,75 @@
+# The proof run's own set-up (roundtable proofrun): one idea, one small game, a known, capped price.
+# Every chat job (the planner, the critic, the designer, the scout, the builder, the tester, the checker,
+# and the stuck-task helper, which asks the checker, critic or planner) is DeepSeek V4 Flash, with no
+# fallback to another maker, and never V4 Pro (the owner's standing "no V4 Pro for now").
+# `roundtable proofrun` copies this into its lab folder and fills in the lab's own hub and folders; the
+# caps are the harness's own limits (the project's settings, the sound cap, autopilot's allowance).
+
+providers:
+  deepseek:
+    type: openai_compat
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+  retrodiffusion:                   # the moth and the lanterns (pixel art), priced per picture before the run
+    type: retrodiffusion
+    api_key_env: RETRODIFFUSION_API_KEY
+  elevenlabs_sound:                 # the owner's pick for sound (28 November 2026), priced first
+    type: elevenlabs_sound
+    api_key_env: ELEVENLABS_API_KEY
+
+roles:
+  orchestrator:                     # plans the game and writes the final report
+    model: deepseek/deepseek-v4-flash
+  critic:                           # the second opinion on the plan
+    model: deepseek/deepseek-v4-flash
+  designer:                         # the looks to choose from
+    model: deepseek/deepseek-v4-flash
+  scout:                            # reads anything the plan wants to be like
+    model: deepseek/deepseek-v4-flash
+  coder:                            # builds every task
+    model: deepseek/deepseek-v4-flash
+    description: writes and tests code
+  tester:                           # writes and runs the game's tests
+    model: deepseek/deepseek-v4-flash
+    description: writes and runs tests
+  reviewer:                         # checks every task against its done-when line
+    model: deepseek/deepseek-v4-flash
+  artist:                           # off with --no-art
+    kind: image
+    model: retrodiffusion/rd_lite__default
+    review: false
+    options: {width: 64, height: 64, remove_bg: true}
+    description: >-
+      pixel-art sprites for the game (the moth, the lanterns, the background). Set image_options.style per
+      task when needed; width and height in pixels (32 to 128).
+  sound:                            # off with --no-sound, or when no sound service is set up
+    kind: sound
+    model: elevenlabs_sound/sound-effects
+    review: false
+    description: short sound effects and a short music loop for the game
+
+planner_role: orchestrator
+reviewer_role: reviewer
+critic_role: critic
+design_role: designer
+scout_role: scout
+
+limits:
+  max_cost_usd: 3                   # replaced by the caps the run was given (the project's own settings)
+  max_steps_per_task: 40
+  max_attempts_per_task: 3
+  max_parallel: 3                   # three tasks at once
+  command_timeout: 120
+
+workspace:
+  allow_shell: true
+  git: true
+
+tandem: {default: lean}             # checking level Lean: one builder and one checker a task
+stream: {enabled: true}             # the words as they are written
+gate: {timeout_minutes: 2}          # a command card nobody answers is refused after two minutes (and noted)
+sound: {max_per_project_usd: 0.5}   # replaced by the run's sound cap
+
+improve:
+  auto_apply: none
+  allowance_usd_per_week: 0         # learning spends nothing of its own during the proof run
