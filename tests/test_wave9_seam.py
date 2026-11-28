@@ -67,13 +67,14 @@ def test_a_sound_role_is_offered_to_the_planner_with_its_options(tmp_path):
     assert cfg.roles["sounds"].kind == "sound" and cfg.roles["sounds"].review is False
 
 
-def test_a_sound_task_goes_to_the_sound_stage_which_says_it_isnt_set_up(tmp_path):
+def test_a_sound_task_goes_to_the_sound_stage_which_makes_it_in_code_without_a_service(tmp_path):
     cfg = parse_config(with_sound())
     orch = Orchestrator(cfg, tmp_path / "proj")
     assert isinstance(orch, SoundStage)
     t = Task(id="S1", title="jump", role="sounds", description="the player lands a jump",
              sound_options={"kind": "effect", "seconds": 1})
-    assert orch._run_task(t, [t]) is False and t.summary == "sound isn't set up"
+    orch._run_task(t, [t])  # no sound service here: w9-sound's fallback turns it into a builder task
+    assert t.summary.startswith("made in code (") and t.role == "coder"
 
 
 def test_a_bad_role_kind_is_refused_in_plain_words():
@@ -126,9 +127,7 @@ def test_the_sound_provider_interface():
                                                  " -> tuple[bytes, str, Usage]")
     for cls in (ElevenLabsSoundProvider, StableAudioProvider):
         p = cls()
-        assert isinstance(p, base.SoundProvider) and p.quote("m", "a jump") is None
-        with pytest.raises(base.ProviderError, match="not built yet"):
-            p.generate("m", "a jump", {"kind": "effect", "seconds": 1})
+        assert isinstance(p, base.SoundProvider)  # filled by w9-sound: tests/test_sound_providers.py
 
 
 def test_the_scripted_sound_provider_plays_back_and_counts():
@@ -163,8 +162,8 @@ def test_soundprice_and_soundstage_have_their_frozen_signatures(tmp_path):
                                           " -> float | None")
     assert _sig(SoundStage._run_sound_task) == "(self, task, role) -> bool"
     assert soundprice.per_sound(None, "m", "effect", 1.0) is None and soundprice.spent(tmp_path) == 0.0
-    with pytest.raises(soundprice.SoundCapReached):  # the stub never lets money be spent
-        soundprice.reserve(tmp_path, None, 0.01)
+    with pytest.raises(soundprice.SoundCapReached):  # filled by w9-sound: never past the cap
+        soundprice.reserve(tmp_path, None, 2.01)
 
 
 def test_the_other_stubs_have_their_frozen_signatures_and_do_nothing(tmp_path):
